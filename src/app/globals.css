@@ -6,16 +6,16 @@
 
 :root {
   /* ── Brand Colors (Light) ─────────────────── */
-  --color-bg:           #f8f6f2;
+  --color-bg:           #f5f7f5;
   --color-surface:      #ffffff;
   --color-surface-2:    #f2efe9;
   --color-border:       #e2ddd6;
   --color-border-light: rgba(0, 0, 0, 0.06);
 
-  --color-gold:         #d4a017;
-  --color-gold-dim:     #b8880f;
-  --color-gold-glow:    rgba(212, 160, 23, 0.18);
-  --color-gold-subtle:  rgba(212, 160, 23, 0.10);
+  --color-green:         #00B562;
+  --color-green-dark:     #009950;
+  --color-green-glow:    rgba(0, 181, 98, 0.18);
+  --color-green-subtle:  rgba(0, 181, 98, 0.08);
 
   --color-black:        #0a0a0a;
   --color-text-primary: #111111;
@@ -92,7 +92,7 @@
   --shadow-sm:    0 1px 4px rgba(0,0,0,0.08);
   --shadow-md:    0 4px 20px rgba(0,0,0,0.10);
   --shadow-lg:    0 12px 48px rgba(0,0,0,0.12);
-  --shadow-gold:  0 4px 24px rgba(212, 160, 23, 0.28);
+  --shadow-gold:  0 4px 24px rgba(0, 181, 98, 0.28)
   --shadow-card:  0 2px 12px rgba(0,0,0,0.07);
 
   /* ── Transitions ──────────────────────────── */
@@ -205,11 +205,6 @@ button, input {
 @keyframes pulse-gold {
   0%, 100% { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.45); }
   50%       { box-shadow: 0 0 0 7px rgba(212, 160, 23, 0); }
-}
-
-@keyframes ticker-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
 }
 
 @keyframes shimmerBtn {

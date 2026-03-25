@@ -260,10 +260,13 @@ export default function LandingPage() {
   // ── Static Data ────────────────────────────────────────────────────────
 
   const tickerItems = [
-    "Athletes", "Teams", "Scouts", "Academies",
-    "Talent", "Discovery", "Recruitment", "Goatza",
-    "Athletes", "Teams", "Scouts", "Academies",
-    "Talent", "Discovery", "Recruitment", "Goatza",
+    "Athletes", "Football", "Teams", "Cricket", "Scouts",
+    "Badminton", "Academies", "Talent",
+    "Discovery", "Recruitment", "Goatza",
+    // duplicate for seamless loop
+    "Athletes", "Football", "Teams", "Cricket", "Scouts",
+    "Badminton", "Academies", "Talent",
+    "Discovery", "Recruitment", "Goatza",
   ];
 
   const problems = [
