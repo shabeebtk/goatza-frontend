@@ -211,6 +211,71 @@
   animation: floatA 7s ease-in-out infinite 1.5s, fadeIn 1s var(--ease-out) 1s both;
 }
 
+/* ── SPORTS BACKGROUND ICONS ──────────────── */
+
+/* Base — shared by all sport bg icons */
+.sportsBgIcon {
+  position: absolute;
+  pointer-events: none;
+  color: var(--color-gold);
+  z-index: 1;
+  will-change: transform;
+  line-height: 0; /* prevent inline SVG baseline gap */
+}
+
+/* Hero section — light background (opacity very low) */
+.sportsBgSoccer {
+  opacity: 0.05;
+  top: 14%;
+  right: 4%;
+  transform: rotate(-18deg);
+  animation: floatA 14s ease-in-out infinite, fadeIn 1.2s var(--ease-out) 1s both;
+}
+
+.sportsBgCricket {
+  opacity: 0.045;
+  bottom: 18%;
+  left: 3%;
+  transform: rotate(14deg);
+  animation: floatB 11s ease-in-out infinite 1.5s, fadeIn 1.2s var(--ease-out) 1.2s both;
+}
+
+.sportsBgBadminton {
+  opacity: 0.04;
+  top: 52%;
+  right: 16%;
+  transform: rotate(-8deg);
+  animation: floatA 9s ease-in-out infinite 2s, fadeIn 1.2s var(--ease-out) 1.4s both;
+}
+
+/* CTA section — dark background (slightly higher opacity, gold pops) */
+.ctaSportsSoccer {
+  opacity: 0.07;
+  top: -30px;
+  left: -40px;
+  transform: rotate(22deg);
+  animation: floatB 15s ease-in-out infinite;
+}
+
+.ctaSportsBadminton {
+  opacity: 0.06;
+  bottom: -20px;
+  right: -20px;
+  transform: rotate(-14deg);
+  animation: floatA 10s ease-in-out infinite 2s;
+}
+
+/* Hide on very small screens to avoid crowding */
+@media (max-width: 480px) {
+  .sportsBgSoccer,
+  .sportsBgCricket,
+  .sportsBgBadminton,
+  .ctaSportsSoccer,
+  .ctaSportsBadminton {
+    display: none;
+  }
+}
+
 .heroBadge {
   display: inline-flex;
   align-items: center;
@@ -357,7 +422,6 @@
               box-shadow var(--duration-base) var(--ease-out),
               transform var(--duration-fast) var(--ease-out);
   -webkit-appearance: none;
-  /* Larger tap target on mobile */
   min-height: 52px;
 }
 
@@ -386,7 +450,6 @@
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  /* Bigger tap target */
   min-height: 52px;
   transition: background var(--duration-fast) var(--ease-out),
               transform var(--duration-fast) var(--ease-spring),
@@ -479,7 +542,6 @@
   animation: ticker-scroll 30s linear infinite;
 }
 
-/* Slow down on hover */
 .ticker:hover .tickerTrack {
   animation-play-state: paused;
 }
@@ -531,12 +593,10 @@
   height: 2px;
   background: var(--color-gold);
   border-radius: 2px;
-  /* Animates via JS when .is-visible applied to parent */
   transform-origin: left center;
   transition: transform 0.5s var(--ease-out) 0.1s;
 }
 
-/* When parent reveal fires, draw the line */
 .is-visible .sectionLabelLine {
   animation: drawLine 0.5s var(--ease-out) 0.15s both;
 }
@@ -580,7 +640,6 @@
   position: relative;
   overflow: hidden;
   cursor: default;
-  /* 3D tilt via CSS vars set by JS */
   transform: perspective(600px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   transition: border-color var(--duration-base) var(--ease-out),
               box-shadow var(--duration-base) var(--ease-out),
@@ -608,15 +667,28 @@
   box-shadow: 0 8px 32px rgba(232, 70, 42, 0.08), var(--shadow-card);
 }
 
+/* Problem icon — now wraps an SVG from Iconify */
 .problemIcon {
-  font-size: 1.8rem;
-  margin-bottom: var(--space-3);
-  display: block;
-  transition: transform var(--duration-slow) var(--ease-spring);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: rgba(212, 160, 23, 0.08);
+  border: 1.5px solid rgba(212, 160, 23, 0.15);
+  color: var(--color-gold-dim);
+  margin-bottom: var(--space-4);
+  flex-shrink: 0;
+  transition: transform var(--duration-slow) var(--ease-spring),
+              background var(--duration-base),
+              color var(--duration-base);
 }
 
 .problemCard:hover .problemIcon {
-  transform: scale(1.15) rotate(-4deg);
+  transform: scale(1.12) rotate(-4deg);
+  background: rgba(212, 160, 23, 0.14);
+  color: var(--color-gold);
 }
 
 .problemCardTitle {
@@ -739,21 +811,23 @@
 }
 
 .solutionFeatureIcon {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   background: var(--color-gold-subtle);
   border: 1.5px solid rgba(212, 160, 23, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  color: var(--color-gold-dim);
   flex-shrink: 0;
-  transition: transform var(--duration-slow) var(--ease-spring);
+  transition: transform var(--duration-slow) var(--ease-spring),
+              color var(--duration-base);
 }
 
 .solutionFeature:hover .solutionFeatureIcon {
   transform: scale(1.12) rotate(-4deg);
+  color: var(--color-gold);
 }
 
 .solutionFeatureText strong {
@@ -888,7 +962,6 @@
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-card);
-  /* 3D tilt on desktop */
   transform: perspective(700px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   transition: transform var(--duration-fast) var(--ease-out),
               border-color var(--duration-base) var(--ease-out),
@@ -929,17 +1002,29 @@
   transform: scaleX(1);
 }
 
+/* Audience emoji — now holds an Iconify SVG */
 .audienceEmoji {
-  font-size: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--color-gold-subtle);
+  border: 1.5px solid rgba(212, 160, 23, 0.2);
+  color: var(--color-gold-dim);
   margin-bottom: var(--space-4);
-  display: block;
-  transition: transform var(--duration-slow) var(--ease-spring);
   position: relative;
   z-index: 1;
+  transition: transform var(--duration-slow) var(--ease-spring),
+              color var(--duration-base),
+              background var(--duration-base);
 }
 
 .audienceCard:hover .audienceEmoji {
-  transform: scale(1.2) rotate(-5deg);
+  transform: scale(1.15) rotate(-5deg);
+  color: var(--color-gold);
+  background: rgba(212, 160, 23, 0.15);
 }
 
 .audienceTitle {
@@ -1014,7 +1099,6 @@
   pointer-events: none;
 }
 
-/* Floating orbs in CTA dark bg */
 .ctaFloat {
   position: absolute;
   border-radius: 50%;
@@ -1259,7 +1343,6 @@
 
   .problemCard,
   .audienceCard {
-    /* Remove perspective/tilt on touch */
     transform: none !important;
   }
 }

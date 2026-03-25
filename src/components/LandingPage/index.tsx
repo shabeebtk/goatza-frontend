@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Icon } from "@iconify/react";
 import styles from "./style.module.css";
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────
@@ -47,7 +48,6 @@ function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
     const el = ref.current;
     if (!el) return;
 
-    // Skip on touch devices
     if (!window.matchMedia("(hover: hover)").matches) return;
 
     const onMove = (e: MouseEvent) => {
@@ -87,7 +87,7 @@ function useCounter(target: number, duration = 1200, startTrigger: boolean) {
     const step = (ts: number) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
       setCount(Math.floor(eased * target));
       if (progress < 1) requestAnimationFrame(step);
       else setCount(target);
@@ -181,7 +181,7 @@ function WaitlistForm({ inputClass = "", submitBtnClass = "" }: WaitlistFormProp
   if (submitted) {
     return (
       <div className={styles.successMsg}>
-        <span aria-hidden="true">✦</span>
+        <Icon icon="mdi:check-circle-outline" width={20} height={20} aria-hidden="true" />
         You're on the list — we'll be in touch!
       </div>
     );
@@ -231,17 +231,14 @@ export default function LandingPage() {
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef<HTMLDivElement>(null);
 
-  // Init scroll reveal
   useScrollReveal();
 
-  // Header scroll effect
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Trigger stat counters when stats enter viewport
   useEffect(() => {
     const el = statsRef.current;
     if (!el) return;
@@ -271,22 +268,22 @@ export default function LandingPage() {
 
   const problems = [
     {
-      icon: "🔍",
+      icon: "mdi:eye-off-outline",
       title: "Talent Stays Hidden",
       body: "Thousands of skilled athletes never get seen. Without the right connections, raw talent simply goes undiscovered.",
     },
     {
-      icon: "🤝",
+      icon: "mdi:link-variant-off",
       title: "Recruitment is Broken",
       body: "Teams waste weeks on scattered WhatsApp groups and word-of-mouth. Finding the right player takes far too long.",
     },
     {
-      icon: "📊",
+      icon: "mdi:card-account-details-outline",
       title: "No Digital Identity",
       body: "Athletes have no professional space to showcase stats, video, and achievements the way other professionals do.",
     },
     {
-      icon: "🌍",
+      icon: "mdi:map-marker-radius-outline",
       title: "Geography Limits Reach",
       body: "Local talent pools are small. Real opportunity requires visibility beyond your city — but the tools haven't existed.",
     },
@@ -294,17 +291,17 @@ export default function LandingPage() {
 
   const solutionFeatures = [
     {
-      icon: "🏆",
+      icon: "mdi:account-star-outline",
       title: "Athlete Profiles",
       body: "Showcase skills, stats, highlight reels, and milestones — your complete sports identity.",
     },
     {
-      icon: "🔎",
+      icon: "mdi:radar",
       title: "Smart Discovery",
       body: "Scouts and teams filter by sport, position, age, and location — then connect instantly.",
     },
     {
-      icon: "🏫",
+      icon: "mdi:school-outline",
       title: "Academy Tools",
       body: "Academies list programmes, post recruitment drives, and manage player pipelines.",
     },
@@ -330,7 +327,7 @@ export default function LandingPage() {
 
   const audiences = [
     {
-      emoji: "⚡",
+      icon: "mdi:run-fast",
       title: "Athletes",
       benefits: [
         "Build a professional sports profile",
@@ -340,7 +337,7 @@ export default function LandingPage() {
       ],
     },
     {
-      emoji: "🏟️",
+      icon: "mdi:shield-crown-outline",
       title: "Teams & Clubs",
       benefits: [
         "Find verified talent instantly",
@@ -350,7 +347,7 @@ export default function LandingPage() {
       ],
     },
     {
-      emoji: "🏫",
+      icon: "mdi:school-outline",
       title: "Academies",
       benefits: [
         "List programmes and intake dates",
@@ -389,6 +386,17 @@ export default function LandingPage() {
           <div className={`${styles.heroFloat} ${styles.heroFloatB}`} aria-hidden="true" />
           <div className={`${styles.heroFloat} ${styles.heroFloatC}`} aria-hidden="true" />
 
+          {/* ── Sports background icons ── */}
+          <div className={`${styles.sportsBgIcon} ${styles.sportsBgSoccer}`} aria-hidden="true">
+            <Icon icon="mdi:soccer" width={160} height={160} />
+          </div>
+          <div className={`${styles.sportsBgIcon} ${styles.sportsBgCricket}`} aria-hidden="true">
+            <Icon icon="mdi:cricket" width={110} height={110} />
+          </div>
+          <div className={`${styles.sportsBgIcon} ${styles.sportsBgBadminton}`} aria-hidden="true">
+            <Icon icon="mdi:badminton" width={90} height={90} />
+          </div>
+
           <div
             className="container-tight"
             style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2 }}
@@ -407,7 +415,7 @@ export default function LandingPage() {
 
             <p className={styles.heroSub}>
               The sports network built for discovery.
-              Showcase your talent and connect with scouts, teams & academies.
+              Showcase your talent and connect with scouts, teams &amp; academies.
             </p>
 
             <div className={styles.heroFormWrap}>
@@ -432,7 +440,7 @@ export default function LandingPage() {
               <div className={styles.heroStatDivider} aria-hidden="true" />
               <div className={styles.heroStat} role="listitem">
                 <div className={styles.heroStatNum}>{count2}+</div>
-                <div className={styles.heroStatLabel}>Clubs & academies</div>
+                <div className={styles.heroStatLabel}>Clubs &amp; academies</div>
               </div>
             </div>
           </div>
@@ -475,7 +483,9 @@ export default function LandingPage() {
             <div className={`${styles.problemGrid} stagger-children`}>
               {problems.map((p, i) => (
                 <TiltCard key={i} className={`${styles.problemCard} reveal`} intensity={6}>
-                  <span className={styles.problemIcon} aria-hidden="true">{p.icon}</span>
+                  <span className={styles.problemIcon} aria-hidden="true">
+                    <Icon icon={p.icon} width={28} height={28} />
+                  </span>
                   <h3 className={styles.problemCardTitle}>{p.title}</h3>
                   <p className={styles.problemCardBody}>{p.body}</p>
                 </TiltCard>
@@ -518,7 +528,9 @@ export default function LandingPage() {
                 <div className={styles.solutionFeatures}>
                   {solutionFeatures.map((f, i) => (
                     <div key={i} className={styles.solutionFeature}>
-                      <div className={styles.solutionFeatureIcon} aria-hidden="true">{f.icon}</div>
+                      <div className={styles.solutionFeatureIcon} aria-hidden="true">
+                        <Icon icon={f.icon} width={20} height={20} />
+                      </div>
                       <div className={styles.solutionFeatureText}>
                         <strong>{f.title}</strong>
                         <span>{f.body}</span>
@@ -581,7 +593,9 @@ export default function LandingPage() {
             <div className={`${styles.audienceGrid} stagger-children`}>
               {audiences.map((a, i) => (
                 <TiltCard key={i} className={`${styles.audienceCard} reveal`} intensity={5}>
-                  <span className={styles.audienceEmoji} aria-hidden="true">{a.emoji}</span>
+                  <span className={styles.audienceEmoji} aria-hidden="true">
+                    <Icon icon={a.icon} width={36} height={36} />
+                  </span>
                   <h3 className={styles.audienceTitle}>{a.title}</h3>
                   <ul className={styles.audienceBenefits} aria-label={`${a.title} benefits`}>
                     {a.benefits.map((b, j) => (
@@ -604,6 +618,14 @@ export default function LandingPage() {
           <div className={styles.ctaGlow} aria-hidden="true" />
           <div className={`${styles.ctaFloat} ${styles.ctaFloatA}`} aria-hidden="true" />
           <div className={`${styles.ctaFloat} ${styles.ctaFloatB}`} aria-hidden="true" />
+
+          {/* ── Sports background icons (dark theme) ── */}
+          <div className={`${styles.sportsBgIcon} ${styles.ctaSportsSoccer}`} aria-hidden="true">
+            <Icon icon="mdi:soccer" width={200} height={200} />
+          </div>
+          <div className={`${styles.sportsBgIcon} ${styles.ctaSportsBadminton}`} aria-hidden="true">
+            <Icon icon="mdi:badminton" width={130} height={130} />
+          </div>
 
           <div className="container-tight" style={{ position: "relative", zIndex: 1 }}>
             <div className="reveal">
