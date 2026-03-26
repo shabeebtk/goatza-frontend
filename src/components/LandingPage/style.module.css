@@ -543,10 +543,6 @@
   animation: ticker-scroll 45s linear infinite;
 }
 
-.ticker:hover .tickerTrack {
-  animation-play-state: paused;
-}
-
 .tickerItem {
   display: flex;
   align-items: center;
