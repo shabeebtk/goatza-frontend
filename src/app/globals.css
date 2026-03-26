@@ -1,34 +1,186 @@
-/* ============================================
-   GOATZA — Global CSS Variables (Light Theme)
-   ============================================ */
+/* ============================================================
+   GOATZA — Design System Tokens
+   Semantic naming · Light + Dark · Production-ready
+   ============================================================
+
+   TOKEN LAYERS (use in this order in component CSS):
+   1. Primitives  — raw values, never used directly in components
+   2. Semantic    — intent-based aliases, use these everywhere
+   3. Component   — one-off overrides scoped to a component
+
+   PRIMITIVE NAMING:  --primitive-{scale}-{step}
+   SEMANTIC NAMING:   --color-{role}[-{variant}]
+   ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap');
 
+/* ── 1. PRIMITIVES ─────────────────────────────────────────── */
+/* Never reference these directly in component CSS.            */
+/* They exist so semantic tokens can be redefined in dark mode */
+
 :root {
-  /* ── Brand Colors (Light) ─────────────────── */
-  --color-bg:           #f5f7f5;
-  --color-surface:      #ffffff;
-  --color-surface-2:    #f2efe9;
-  --color-border:       #e2ddd6;
-  --color-border-light: rgba(0, 0, 0, 0.06);
+  /* Brand green scale */
+  --primitive-green-300: #4dd68c;
+  --primitive-green-400: #00c96e;
+  --primitive-green-500: #00B562;
+  --primitive-green-600: #009950;
+  --primitive-green-700: #007a3d;
 
-  --color-green:         #00B562;
-  --color-green-dark:     #009950;
-  --color-green-glow:    rgba(0, 181, 98, 0.18);
-  --color-green-subtle:  rgba(0, 181, 98, 0.08);
+  /* Neutral scale — warm-tinted grays */
+  --primitive-neutral-0:   #ffffff;
+  --primitive-neutral-50:  #f5f7f5;
+  --primitive-neutral-100: #eef2ee;
+  --primitive-neutral-150: #e4eae4;
+  --primitive-neutral-200: #d6dfd6;
+  --primitive-neutral-300: #b0bfb0;
+  --primitive-neutral-400: #7a9480;
+  --primitive-neutral-500: #556655;
+  --primitive-neutral-600: #3d5242;
+  --primitive-neutral-700: #263029;
+  --primitive-neutral-800: #1a211b;
+  --primitive-neutral-850: #131814;
+  --primitive-neutral-900: #0d110e;
+  --primitive-neutral-950: #080f09;
+  --primitive-neutral-1000: #000000;
 
-  --color-black:        #0a0a0a;
-  --color-text-primary: #111111;
+  /* Ink — near-black for text/UI on light bg */
+  --primitive-ink-900: #111111;
+  --primitive-ink-950: #0a0a0a;
+
+  /* Red / error */
+  --primitive-red-400: #ff5538;
+  --primitive-red-500: #e8462a;
+
+  /* Alpha greens — for subtle fills */
+  --primitive-green-alpha-50:  rgba(0, 181, 98, 0.05);
+  --primitive-green-alpha-80:  rgba(0, 181, 98, 0.08);
+  --primitive-green-alpha-100: rgba(0, 181, 98, 0.10);
+  --primitive-green-alpha-120: rgba(0, 181, 98, 0.12);
+  --primitive-green-alpha-180: rgba(0, 181, 98, 0.18);
+  --primitive-green-alpha-220: rgba(0, 181, 98, 0.22);
+  --primitive-green-alpha-300: rgba(0, 181, 98, 0.30);
+  --primitive-green-alpha-500: rgba(0, 181, 98, 0.50);
+}
+
+/* ── 2. SEMANTIC TOKENS — LIGHT MODE (default) ─────────────── */
+
+:root {
+  /* ── Page backgrounds */
+  --color-bg:          var(--primitive-neutral-50);   /* page canvas */
+  --color-surface:     var(--primitive-neutral-0);    /* cards, panels */
+  --color-surface-raised: var(--primitive-neutral-100); /* elevated cards */
+
+  /* ── Borders */
+  --color-border:       #e2ddd6;                      /* default border */
+  --color-border-subtle: rgba(0, 0, 0, 0.06);         /* hairline / ghost */
+
+  /* ── Brand (green) */
+  --color-brand:        var(--primitive-green-500);   /* primary green */
+  --color-brand-hover:  var(--primitive-green-600);   /* darker on hover */
+  --color-brand-active: var(--primitive-green-700);   /* pressed */
+  --color-brand-subtle: var(--primitive-green-alpha-80);  /* tinted fill */
+  --color-brand-muted:  var(--primitive-green-alpha-120); /* slightly stronger fill */
+  --color-brand-glow:   var(--primitive-green-alpha-300); /* shadow / glow */
+
+  /* ── Foreground on brand bg (button text etc.) */
+  --color-on-brand:     var(--primitive-ink-950);     /* dark text on green btn */
+
+  /* ── Text */
+  --color-text-primary:   var(--primitive-ink-900);
   --color-text-secondary: #555555;
-  --color-text-muted:   #999999;
+  --color-text-muted:     #999999;
+  --color-text-inverted:  var(--primitive-neutral-0); /* text on dark bg */
 
-  --color-accent-red:   #e8462a;
-  --color-success:      #1a9e5c;
+  /* ── UI ink (replaces old --color-black) */
+  /* Used for: headings, wordmark, button bg, step numbers, CTA bg */
+  --color-ink:          var(--primitive-ink-950);
 
-  /* ── Typography ───────────────────────────── */
-  --font-display:  'Bebas Neue', sans-serif;
-  --font-ui:       'Oswald', sans-serif;
-  --font-body:     'Outfit', sans-serif;
+  /* ── Semantic states */
+  --color-error:        var(--primitive-red-500);
+  --color-success:      var(--primitive-green-600);
+
+  /* ── Shadows */
+  --shadow-xs:     0 1px 4px rgba(0,0,0,0.08);
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.09);
+  --shadow-md:     0 4px 20px rgba(0,0,0,0.10);
+  --shadow-lg:     0 12px 48px rgba(0,0,0,0.12);
+  --shadow-brand:  0 4px 24px var(--color-brand-glow);  /* green glow */
+  --shadow-card:   0 2px 12px rgba(0,0,0,0.07);
+
+  /* ── CTA section surface (always dark, even in light mode) */
+  --color-cta-bg:       var(--primitive-ink-950);
+  --color-cta-grid:     rgba(0, 181, 98, 0.06);
+
+  /* ── Hero grid */
+  --color-hero-grid:    rgba(0, 181, 98, 0.07);
+
+  /* ── Header scrolled */
+  --color-header-scrolled-bg: rgba(245, 247, 245, 0.94);
+}
+
+/* ── 2b. SEMANTIC TOKENS — DARK MODE ───────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* ── Page backgrounds */
+    --color-bg:          var(--primitive-neutral-900);
+    --color-surface:     var(--primitive-neutral-850);
+    --color-surface-raised: var(--primitive-neutral-800);
+
+    /* ── Borders */
+    --color-border:       var(--primitive-neutral-700);
+    --color-border-subtle: rgba(255, 255, 255, 0.05);
+
+    /* ── Brand — brightened for dark bg */
+    --color-brand:        var(--primitive-green-400);
+    --color-brand-hover:  var(--primitive-green-500);
+    --color-brand-active: var(--primitive-green-600);
+    --color-brand-subtle: var(--primitive-green-alpha-100);
+    --color-brand-muted:  var(--primitive-green-alpha-180);
+    --color-brand-glow:   var(--primitive-green-alpha-300);
+
+    /* ── Foreground on brand bg */
+    --color-on-brand:     var(--primitive-ink-950); /* stays dark — green is light enough */
+
+    /* ── Text */
+    --color-text-primary:   var(--primitive-neutral-100);
+    --color-text-secondary: var(--primitive-neutral-400);
+    --color-text-muted:     var(--primitive-neutral-600);
+    --color-text-inverted:  var(--primitive-ink-950);
+
+    /* ── UI ink — flips to near-white on dark */
+    --color-ink:          var(--primitive-neutral-100);
+
+    /* ── Semantic states */
+    --color-error:        var(--primitive-red-400);
+    --color-success:      var(--primitive-green-400);
+
+    /* ── Shadows deepen on dark */
+    --shadow-xs:     0 1px 4px rgba(0,0,0,0.45);
+    --shadow-sm:     0 2px 8px rgba(0,0,0,0.50);
+    --shadow-md:     0 4px 20px rgba(0,0,0,0.55);
+    --shadow-lg:     0 12px 48px rgba(0,0,0,0.65);
+    --shadow-brand:  0 4px 28px var(--color-brand-glow);
+    --shadow-card:   0 2px 12px rgba(0,0,0,0.35);
+
+    /* ── CTA section — goes deepest on dark */
+    --color-cta-bg:       var(--primitive-neutral-950);
+    --color-cta-grid:     rgba(0, 201, 110, 0.04);
+
+    /* ── Hero grid */
+    --color-hero-grid:    rgba(0, 201, 110, 0.05);
+
+    /* ── Header scrolled */
+    --color-header-scrolled-bg: rgba(13, 17, 14, 0.92);
+  }
+}
+
+/* ── 3. TYPOGRAPHY TOKENS ──────────────────────────────────── */
+
+:root {
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-ui:      'Oswald', sans-serif;
+  --font-body:    'Outfit', sans-serif;
 
   --text-xs:    0.72rem;
   --text-sm:    0.875rem;
@@ -55,47 +207,44 @@
   --leading-normal: 1.55;
   --leading-loose:  1.75;
 
-  --tracking-tight:  -0.01em;
-  --tracking-normal: 0em;
-  --tracking-wide:   0.05em;
-  --tracking-wider:  0.10em;
-  --tracking-widest: 0.18em;
+  --tracking-tight:   -0.01em;
+  --tracking-normal:  0em;
+  --tracking-wide:    0.05em;
+  --tracking-wider:   0.10em;
+  --tracking-widest:  0.18em;
+}
 
-  /* ── Spacing ──────────────────────────────── */
-  --space-1:   0.25rem;
-  --space-2:   0.5rem;
-  --space-3:   0.75rem;
-  --space-4:   1rem;
-  --space-5:   1.25rem;
-  --space-6:   1.5rem;
-  --space-8:   2rem;
-  --space-10:  2.5rem;
-  --space-12:  3rem;
-  --space-16:  4rem;
-  --space-20:  5rem;
-  --space-24:  6rem;
-  --space-32:  8rem;
+/* ── 4. SPACING & LAYOUT TOKENS ────────────────────────────── */
 
-  /* ── Layout ───────────────────────────────── */
+:root {
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
   --container-max:   1120px;
   --container-tight: 760px;
   --container-wide:  1320px;
 
-  /* ── Borders ──────────────────────────────── */
   --radius-sm:   6px;
   --radius-md:   12px;
   --radius-lg:   20px;
   --radius-xl:   28px;
   --radius-full: 9999px;
+}
 
-  /* ── Shadows ──────────────────────────────── */
-  --shadow-sm:    0 1px 4px rgba(0,0,0,0.08);
-  --shadow-md:    0 4px 20px rgba(0,0,0,0.10);
-  --shadow-lg:    0 12px 48px rgba(0,0,0,0.12);
-  --shadow-gold:  0 4px 24px rgba(0, 181, 98, 0.28)
-  --shadow-card:  0 2px 12px rgba(0,0,0,0.07);
+/* ── 5. MOTION TOKENS ──────────────────────────────────────── */
 
-  /* ── Transitions ──────────────────────────── */
+:root {
   --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -106,7 +255,7 @@
   --duration-slower: 600ms;
 }
 
-/* ── Reset & Base ─────────────────────────── */
+/* ── 6. RESET & BASE ────────────────────────────────────────── */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -145,7 +294,7 @@ button, input {
   font-family: inherit;
 }
 
-/* ── Utility ──────────────────────────────── */
+/* ── 7. LAYOUT UTILITIES ────────────────────────────────────── */
 
 .container {
   width: 100%;
@@ -170,7 +319,7 @@ button, input {
   white-space: nowrap;
 }
 
-/* ── Keyframes ────────────────────────────── */
+/* ── 8. KEYFRAMES ───────────────────────────────────────────── */
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(24px); }
@@ -202,9 +351,10 @@ button, input {
   to   { opacity: 1; transform: scale(1); }
 }
 
-@keyframes pulse-gold {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.45); }
-  50%       { box-shadow: 0 0 0 7px rgba(212, 160, 23, 0); }
+/* Single pulse keyframe — brand green */
+@keyframes pulse-brand {
+  0%, 100% { box-shadow: 0 0 0 0 var(--primitive-green-alpha-500); }
+  50%       { box-shadow: 0 0 0 7px var(--primitive-green-alpha-50); }
 }
 
 @keyframes shimmerBtn {
@@ -235,9 +385,9 @@ button, input {
   to   { transform: scaleX(1); transform-origin: left center; }
 }
 
-@keyframes counterUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 @keyframes cardEntrance {
@@ -245,14 +395,14 @@ button, input {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ── Scroll-reveal base ───────────────────── */
+/* ── 9. SCROLL-REVEAL ───────────────────────────────────────── */
+
 .reveal {
   opacity: 0;
   transform: translateY(28px);
   transition: opacity 0.65s var(--ease-out), transform 0.65s var(--ease-out);
   will-change: opacity, transform;
 }
-
 .reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
@@ -263,7 +413,6 @@ button, input {
   transform: translateX(-24px);
   transition: opacity 0.65s var(--ease-out), transform 0.65s var(--ease-out);
 }
-
 .reveal-left.is-visible {
   opacity: 1;
   transform: translateX(0);
@@ -274,7 +423,6 @@ button, input {
   transform: translateX(24px);
   transition: opacity 0.65s var(--ease-out), transform 0.65s var(--ease-out);
 }
-
 .reveal-right.is-visible {
   opacity: 1;
   transform: translateX(0);
@@ -285,19 +433,19 @@ button, input {
   transform: scale(0.93);
   transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-spring);
 }
-
 .reveal-scale.is-visible {
   opacity: 1;
   transform: scale(1);
 }
 
-/* Stagger for child elements */
+/* Stagger children */
 .stagger-children > *:nth-child(1) { transition-delay: 0ms; }
 .stagger-children > *:nth-child(2) { transition-delay: 90ms; }
 .stagger-children > *:nth-child(3) { transition-delay: 180ms; }
 .stagger-children > *:nth-child(4) { transition-delay: 270ms; }
 
-/* ── Reduced motion ───────────────────────── */
+/* ── 10. REDUCED MOTION ─────────────────────────────────────── */
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

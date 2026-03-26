@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Icon } from "@iconify/react";
 import styles from "./style.module.css";
 
@@ -11,11 +11,10 @@ const GOOGLE_SHEET_URL =
 const LOGO_URL =
   "https://res.cloudinary.com/duotwo8gf/image/upload/v1774332703/goatza-logo-black_ve34f5.png";
 
-// ── Hook: scroll reveal via IntersectionObserver ───────────────────────────
+// ── Hook: scroll reveal ─────────────────────────────────────────────────────
 function useScrollReveal() {
   useEffect(() => {
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
     const elements = document.querySelectorAll<HTMLElement>(
       ".reveal, .reveal-left, .reveal-right, .reveal-scale"
     );
@@ -42,24 +41,20 @@ function useScrollReveal() {
   }, []);
 }
 
-// ── Hook: 3D card tilt (desktop only) ─────────────────────────────────────
+// ── Hook: 3D card tilt (desktop / hover-capable only) ──────────────────────
 function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-
     if (!window.matchMedia("(hover: hover)").matches) return;
 
     const onMove = (e: MouseEvent) => {
       const rect = el.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = (e.clientX - cx) / (rect.width / 2);
-      const dy = (e.clientY - cy) / (rect.height / 2);
+      const dx = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
+      const dy = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
       el.style.setProperty("--tilt-y", `${dx * intensity}deg`);
       el.style.setProperty("--tilt-x", `${-dy * intensity}deg`);
     };
-
     const onLeave = () => {
       el.style.setProperty("--tilt-x", "0deg");
       el.style.setProperty("--tilt-y", "0deg");
@@ -74,15 +69,16 @@ function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
   }, [ref, intensity]);
 }
 
-// ── Hook: animated counter ─────────────────────────────────────────────────
+// ── Hook: animated counter ──────────────────────────────────────────────────
 function useCounter(target: number, duration = 1200, startTrigger: boolean) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     if (!startTrigger) return;
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) { setCount(target); return; }
-
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setCount(target);
+      return;
+    }
     let start: number | null = null;
     const step = (ts: number) => {
       if (!start) start = ts;
@@ -98,7 +94,7 @@ function useCounter(target: number, duration = 1200, startTrigger: boolean) {
   return count;
 }
 
-// ── TiltCard wrapper ───────────────────────────────────────────────────────
+// ── TiltCard ────────────────────────────────────────────────────────────────
 function TiltCard({
   className,
   children,
@@ -110,14 +106,10 @@ function TiltCard({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useTilt(ref, intensity);
-  return (
-    <div ref={ref} className={className}>
-      {children}
-    </div>
-  );
+  return <div ref={ref} className={className}>{children}</div>;
 }
 
-// ── LogoLockup ─────────────────────────────────────────────────────────────
+// ── LogoLockup ──────────────────────────────────────────────────────────────
 function LogoLockup({
   imgClass,
   wrapClass,
@@ -139,7 +131,7 @@ function LogoLockup({
   );
 }
 
-// ── WaitlistForm ───────────────────────────────────────────────────────────
+// ── WaitlistForm ────────────────────────────────────────────────────────────
 interface WaitlistFormProps {
   inputClass?: string;
   submitBtnClass?: string;
@@ -157,19 +149,16 @@ function WaitlistForm({ inputClass = "", submitBtnClass = "" }: WaitlistFormProp
     if (!name.trim() || !email.trim()) return;
     setLoading(true);
     setError("");
-
     try {
       const params = new URLSearchParams({
         name: name.trim(),
         email: email.trim(),
         timestamp: new Date().toISOString(),
       });
-
       await fetch(`${GOOGLE_SHEET_URL}?${params.toString()}`, {
         method: "GET",
         mode: "no-cors",
       });
-
       setSubmitted(true);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -224,8 +213,7 @@ function WaitlistForm({ inputClass = "", submitBtnClass = "" }: WaitlistFormProp
   );
 }
 
-// ── LandingPage ────────────────────────────────────────────────────────────
-
+// ── LandingPage ─────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -243,7 +231,9 @@ export default function LandingPage() {
     const el = statsRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setStatsVisible(true); observer.disconnect(); } },
+      ([entry]) => {
+        if (entry.isIntersecting) { setStatsVisible(true); observer.disconnect(); }
+      },
       { threshold: 0.5 }
     );
     observer.observe(el);
@@ -253,18 +243,17 @@ export default function LandingPage() {
   const count1 = useCounter(200, 1000, statsVisible);
   const count2 = useCounter(10, 800, statsVisible);
 
-  const scrollToWaitlist = () => {
+  const scrollToWaitlist = () =>
     document.getElementById("waitlist")?.scrollIntoView({ behavior: "smooth" });
-  };
 
-  // ── Static Data ────────────────────────────────────────────────────────
+  // ── Static data ────────────────────────────────────────────────────────
 
   const tickerItems = [
-    "Athletes", "Football", "Teams", "Cricket", "Scouts",
+    "Athletes", "Cricket", "Teams", "Football", "Scouts",
     "Badminton", "Academies", "Talent",
     "Discovery", "Recruitment", "Goatza",
     // duplicate for seamless loop
-    "Athletes", "Football", "Teams", "Cricket", "Scouts",
+    "Athletes", "Cricket", "Teams", "Football", "Scouts",
     "Badminton", "Academies", "Talent",
     "Discovery", "Recruitment", "Goatza",
   ];
@@ -363,7 +352,7 @@ export default function LandingPage() {
 
   return (
     <>
-      {/* ── HEADER ────────────────────────────────────────────────────── */}
+      {/* ── HEADER ─────────────────────────────────────────────── */}
       <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ""}`}>
         <div className={`container ${styles.headerContent}`}>
           <LogoLockup
@@ -379,17 +368,16 @@ export default function LandingPage() {
       </header>
 
       <main>
-        {/* ── HERO ──────────────────────────────────────────────────────── */}
+        {/* ── HERO ───────────────────────────────────────────────── */}
         <section className={styles.hero} aria-label="Hero">
           <div className={styles.heroBg} aria-hidden="true" />
           <div className={styles.heroGlow} aria-hidden="true" />
 
-          {/* Floating decorative orbs */}
           <div className={`${styles.heroFloat} ${styles.heroFloatA}`} aria-hidden="true" />
           <div className={`${styles.heroFloat} ${styles.heroFloatB}`} aria-hidden="true" />
           <div className={`${styles.heroFloat} ${styles.heroFloatC}`} aria-hidden="true" />
 
-          {/* ── Sports background icons ── */}
+          {/* Sports bg icons */}
           <div className={`${styles.sportsBgIcon} ${styles.sportsBgSoccer}`} aria-hidden="true">
             <Icon icon="mdi:soccer" width={160} height={160} />
           </div>
@@ -429,7 +417,6 @@ export default function LandingPage() {
               Free to join · No credit card · Early members get priority access
             </p>
 
-            {/* Stats with counter animation */}
             <div
               ref={statsRef}
               className={styles.heroStats}
@@ -449,7 +436,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── TICKER ────────────────────────────────────────────────────── */}
+        {/* ── TICKER ─────────────────────────────────────────────── */}
         <div className={styles.ticker} aria-hidden="true">
           <div className={styles.tickerTrack}>
             {tickerItems.map((item, i) => (
@@ -461,7 +448,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* ── PROBLEM ───────────────────────────────────────────────────── */}
+        {/* ── PROBLEM ────────────────────────────────────────────── */}
         <section
           className={`${styles.section} ${styles.problem}`}
           aria-labelledby="problem-title"
@@ -497,11 +484,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── SOLUTION ──────────────────────────────────────────────────── */}
+        {/* ── SOLUTION ───────────────────────────────────────────── */}
         <section className={styles.section} aria-labelledby="solution-title">
           <div className="container">
             <div className={styles.solutionInner}>
-              {/* Visual panel */}
               <div className={`${styles.solutionVisual} reveal-scale`}>
                 <div className={styles.solutionVisualGlow} aria-hidden="true" />
                 <div className={styles.solutionVisualInner}>
@@ -512,7 +498,6 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Copy */}
               <div className="reveal-right">
                 <div className={styles.sectionLabel}>
                   <span className={styles.sectionLabelLine} />
@@ -546,7 +531,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
+        {/* ── HOW IT WORKS ───────────────────────────────────────── */}
         <section
           className={`${styles.section} ${styles.howItWorks}`}
           aria-labelledby="how-title"
@@ -578,7 +563,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── WHO IT'S FOR ──────────────────────────────────────────────── */}
+        {/* ── WHO IT'S FOR ───────────────────────────────────────── */}
         <section className={styles.section} aria-labelledby="audience-title">
           <div className="container">
             <div className="reveal">
@@ -596,7 +581,8 @@ export default function LandingPage() {
             <div className={`${styles.audienceGrid} stagger-children`}>
               {audiences.map((a, i) => (
                 <TiltCard key={i} className={`${styles.audienceCard} reveal`} intensity={5}>
-                  <span className={styles.audienceEmoji} aria-hidden="true">
+                  {/* renamed: audienceEmoji → audienceIcon */}
+                  <span className={styles.audienceIcon} aria-hidden="true">
                     <Icon icon={a.icon} width={36} height={36} />
                   </span>
                   <h3 className={styles.audienceTitle}>{a.title}</h3>
@@ -611,7 +597,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── FINAL CTA ─────────────────────────────────────────────────── */}
+        {/* ── FINAL CTA ──────────────────────────────────────────── */}
         <section
           className={styles.ctaSection}
           id="waitlist"
@@ -622,7 +608,7 @@ export default function LandingPage() {
           <div className={`${styles.ctaFloat} ${styles.ctaFloatA}`} aria-hidden="true" />
           <div className={`${styles.ctaFloat} ${styles.ctaFloatB}`} aria-hidden="true" />
 
-          {/* ── Sports background icons (dark theme) ── */}
+          {/* Sports bg icons — dark section */}
           <div className={`${styles.sportsBgIcon} ${styles.ctaSportsSoccer}`} aria-hidden="true">
             <Icon icon="mdi:soccer" width={200} height={200} />
           </div>
@@ -644,9 +630,10 @@ export default function LandingPage() {
             </div>
 
             <div className={`${styles.ctaFormWrap} reveal`} style={{ transitionDelay: "120ms" }}>
+              {/* renamed: submitBtnGold → submitBtnBrand */}
               <WaitlistForm
                 inputClass={styles.ctaInput}
-                submitBtnClass={styles.submitBtnGold}
+                submitBtnClass={styles.submitBtnBrand}
               />
             </div>
 
@@ -660,7 +647,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      {/* ── FOOTER ────────────────────────────────────────────────────────── */}
+      {/* ── FOOTER ─────────────────────────────────────────────────── */}
       <footer className={styles.footer}>
         <div className={`container ${styles.footerInner}`}>
           <LogoLockup

@@ -1,9 +1,10 @@
-/* ============================================
-   GOATZA — Landing Page Module CSS (Light Theme)
-   Mobile-First · Animated · Production-Ready
-   ============================================ */
+/* ============================================================
+   GOATZA — Landing Page Module CSS
+   Mobile-First · Uses semantic tokens from globals.css only
+   NO hardcoded color values — everything via CSS variables
+   ============================================================ */
 
-/* ── HEADER ───────────────────────────────── */
+/* ── HEADER ─────────────────────────────────────────────────── */
 
 .header {
   position: fixed;
@@ -13,19 +14,20 @@
   z-index: 100;
   padding-block: var(--space-3);
   border-bottom: 1px solid transparent;
-  transition: background var(--duration-slow) var(--ease-out),
-              border-color var(--duration-slow) var(--ease-out),
-              backdrop-filter var(--duration-slow) var(--ease-out),
-              box-shadow var(--duration-slow) var(--ease-out);
+  transition:
+    background var(--duration-slow) var(--ease-out),
+    border-color var(--duration-slow) var(--ease-out),
+    backdrop-filter var(--duration-slow) var(--ease-out),
+    box-shadow var(--duration-slow) var(--ease-out);
   animation: fadeIn 0.5s var(--ease-out) both;
 }
 
 .headerScrolled {
-  background: rgba(248, 246, 242, 0.94);
+  background: var(--color-header-scrolled-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-color: var(--color-border);
-  box-shadow: 0 1px 16px rgba(0,0,0,0.07);
+  box-shadow: 0 1px 16px rgba(0,0,0,0.1);
 }
 
 .headerContent {
@@ -34,7 +36,7 @@
   justify-content: space-between;
 }
 
-/* Logo lockup */
+/* ── Logo ── */
 .logoLockup {
   display: flex;
   align-items: center;
@@ -46,21 +48,22 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-full);
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--duration-base) var(--ease-spring),
-              box-shadow var(--duration-base);
+  box-shadow: var(--shadow-xs);
+  transition:
+    transform var(--duration-base) var(--ease-spring),
+    box-shadow var(--duration-base);
 }
 
 .logoLockup:hover .logoImgWrap {
   transform: rotate(-5deg) scale(1.08);
-  box-shadow: var(--shadow-gold);
+  box-shadow: var(--shadow-brand);
 }
 
 .logoImg {
@@ -74,22 +77,23 @@
   font-size: var(--text-xl);
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   line-height: 1;
   transition: color var(--duration-fast);
 }
 
 .logoLockup:hover .logoWordmark {
-  color: var(--color-green-dark);
+  color: var(--color-brand-hover);
 }
 
+/* ── Header CTA button ── */
 .headerCta {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   padding: 10px var(--space-5);
-  background: var(--color-black);
-  color: #fff;
+  background: var(--color-ink);
+  color: var(--color-text-inverted);
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
   font-size: var(--text-sm);
@@ -99,9 +103,11 @@
   border: none;
   cursor: pointer;
   animation: slideInRight 0.6s var(--ease-out) 0.15s both;
-  transition: background var(--duration-fast) var(--ease-out),
-              transform var(--duration-fast) var(--ease-spring),
-              box-shadow var(--duration-base);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base);
   position: relative;
   overflow: hidden;
 }
@@ -111,7 +117,6 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(120deg, transparent 20%, rgba(255,255,255,0.15) 50%, transparent 80%);
-  background-size: 200% auto;
   opacity: 0;
   transition: opacity var(--duration-base);
 }
@@ -122,17 +127,17 @@
 }
 
 .headerCta:hover {
-  background: var(--color-green);
-  color: var(--color-black);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
   transform: translateY(-1px);
-  box-shadow: var(--shadow-gold);
+  box-shadow: var(--shadow-brand);
 }
 
 .headerCta:active {
   transform: translateY(0) scale(0.97);
 }
 
-/* ── HERO ─────────────────────────────────── */
+/* ── HERO ────────────────────────────────────────────────────── */
 
 .hero {
   position: relative;
@@ -147,20 +152,18 @@
   text-align: center;
 }
 
-/* Animated grid background */
 .heroBg {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(212, 160, 23, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(212, 160, 23, 0.07) 1px, transparent 1px);
+    linear-gradient(var(--color-hero-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-hero-grid) 1px, transparent 1px);
   background-size: 52px 52px;
   mask-image: radial-gradient(ellipse 85% 65% at 50% 35%, black 20%, transparent 75%);
   -webkit-mask-image: radial-gradient(ellipse 85% 65% at 50% 35%, black 20%, transparent 75%);
   animation: fadeIn 1.2s var(--ease-out) both;
 }
 
-/* Warm radial glow */
 .heroGlow {
   position: absolute;
   top: 10%;
@@ -168,12 +171,12 @@
   transform: translateX(-50%);
   width: min(700px, 95vw);
   height: 400px;
-  background: radial-gradient(ellipse, rgba(212, 160, 23, 0.12) 0%, transparent 68%);
+  background: radial-gradient(ellipse, var(--color-brand-muted) 0%, transparent 68%);
   pointer-events: none;
   animation: fadeIn 1.4s var(--ease-out) 0.3s both;
 }
 
-/* Floating decorative orbs */
+/* Floating orbs */
 .heroFloat {
   position: absolute;
   border-radius: 50%;
@@ -186,8 +189,8 @@
   height: clamp(180px, 28vw, 320px);
   top: 8%;
   right: -6%;
-  background: radial-gradient(circle, rgba(212, 160, 23, 0.08) 0%, transparent 70%);
-  border: 1px solid rgba(212, 160, 23, 0.12);
+  background: radial-gradient(circle, var(--color-brand-subtle) 0%, transparent 70%);
+  border: 1px solid var(--color-brand-subtle);
   animation: floatA 9s ease-in-out infinite, fadeIn 1s var(--ease-out) 0.6s both;
 }
 
@@ -196,8 +199,8 @@
   height: clamp(120px, 18vw, 220px);
   bottom: 12%;
   left: -4%;
-  background: radial-gradient(circle, rgba(212, 160, 23, 0.06) 0%, transparent 70%);
-  border: 1px solid rgba(212, 160, 23, 0.10);
+  background: radial-gradient(circle, var(--color-brand-subtle) 0%, transparent 70%);
+  border: 1px solid var(--color-brand-subtle);
   animation: floatB 12s ease-in-out infinite, fadeIn 1s var(--ease-out) 0.8s both;
 }
 
@@ -206,26 +209,23 @@
   height: clamp(60px, 9vw, 120px);
   top: 55%;
   right: 8%;
-  background: radial-gradient(circle, rgba(212, 160, 23, 0.10) 0%, transparent 70%);
-  border: 1px solid rgba(212, 160, 23, 0.15);
+  background: radial-gradient(circle, var(--color-brand-muted) 0%, transparent 70%);
+  border: 1px solid var(--color-brand-muted);
   animation: floatA 7s ease-in-out infinite 1.5s, fadeIn 1s var(--ease-out) 1s both;
 }
 
-/* ── SPORTS BACKGROUND ICONS ──────────────── */
-
-/* Base — shared by all sport bg icons */
+/* ── Sports background icons ── */
 .sportsBgIcon {
   position: absolute;
   pointer-events: none;
-  color: var(--color-green);
+  color: var(--color-brand);
   z-index: 1;
   will-change: transform;
-  line-height: 0; /* prevent inline SVG baseline gap */
+  line-height: 0;
 }
 
-/* Hero section — light background (opacity very low) */
 .sportsBgSoccer {
-  opacity: 0.05;
+  opacity: 0.06;
   top: 14%;
   right: 4%;
   transform: rotate(-18deg);
@@ -233,7 +233,7 @@
 }
 
 .sportsBgCricket {
-  opacity: 0.045;
+  opacity: 0.05;
   bottom: 18%;
   left: 3%;
   transform: rotate(14deg);
@@ -241,16 +241,15 @@
 }
 
 .sportsBgBadminton {
-  opacity: 0.04;
+  opacity: 0.045;
   top: 52%;
   right: 16%;
   transform: rotate(-8deg);
   animation: floatA 9s ease-in-out infinite 2s, fadeIn 1.2s var(--ease-out) 1.4s both;
 }
 
-/* CTA section — dark background (slightly higher opacity, gold pops) */
 .ctaSportsSoccer {
-  opacity: 0.07;
+  opacity: 0.09;
   top: -30px;
   left: -40px;
   transform: rotate(22deg);
@@ -258,14 +257,13 @@
 }
 
 .ctaSportsBadminton {
-  opacity: 0.06;
+  opacity: 0.08;
   bottom: -20px;
   right: -20px;
   transform: rotate(-14deg);
   animation: floatA 10s ease-in-out infinite 2s;
 }
 
-/* Hide on very small screens to avoid crowding */
 @media (max-width: 480px) {
   .sportsBgSoccer,
   .sportsBgCricket,
@@ -276,20 +274,21 @@
   }
 }
 
+/* ── Hero content ── */
 .heroBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   padding: 7px var(--space-4);
-  background: var(--color-green-subtle);
-  border: 1.5px solid rgba(212, 160, 23, 0.3);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
   border-radius: var(--radius-full);
   font-family: var(--font-ui);
   font-weight: var(--weight-semi);
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  color: var(--color-green-dark);
+  color: var(--color-brand-hover);
   margin-bottom: var(--space-5);
   animation: fadeIn 0.7s var(--ease-out) 0.3s both;
   position: relative;
@@ -298,9 +297,9 @@
 .heroBadgeDot {
   width: 6px;
   height: 6px;
-  background: var(--color-green);
+  background: var(--color-brand);
   border-radius: 50%;
-  animation: pulse-gold 2s ease-in-out infinite;
+  animation: pulse-brand 2s ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -310,19 +309,18 @@
   line-height: var(--leading-tight);
   letter-spacing: 0.01em;
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   max-width: 860px;
   animation: fadeUp 0.75s var(--ease-out) 0.45s both;
 }
 
 .heroHeadlineAccent {
-  color: var(--color-green);
+  color: var(--color-brand);
   display: inline-block;
   animation: heroAccentPop 0.75s var(--ease-spring) 0.7s both;
   position: relative;
 }
 
-/* Underline shimmer on accent */
 .heroHeadlineAccent::after {
   content: '';
   position: absolute;
@@ -330,7 +328,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--color-green), var(--color-green-dark), var(--color-green));
+  background: linear-gradient(90deg, var(--color-brand), var(--color-brand-hover), var(--color-brand));
   border-radius: 2px;
   animation: drawLine 0.6s var(--ease-out) 1s both;
 }
@@ -366,14 +364,12 @@
   animation: fadeUp 0.7s var(--ease-out) 1.1s both;
 }
 
-.heroStat {
-  text-align: center;
-}
+.heroStat { text-align: center; }
 
 .heroStatNum {
   font-family: var(--font-display);
   font-size: var(--text-3xl);
-  color: var(--color-black);
+  color: var(--color-ink);
   letter-spacing: 0.01em;
   line-height: 1;
 }
@@ -394,7 +390,7 @@
   align-self: stretch;
 }
 
-/* ── WAITLIST FORM ────────────────────────── */
+/* ── WAITLIST FORM ───────────────────────────────────────────── */
 
 .waitlistForm {
   display: flex;
@@ -418,9 +414,10 @@
   color: var(--color-text-primary);
   font-size: var(--text-base);
   outline: none;
-  transition: border-color var(--duration-base) var(--ease-out),
-              box-shadow var(--duration-base) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
   -webkit-appearance: none;
   min-height: 52px;
 }
@@ -430,16 +427,17 @@
 }
 
 .inputField:focus {
-  border-color: var(--color-green);
-  box-shadow: 0 0 0 3px var(--color-green-subtle);
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
   transform: translateY(-1px);
 }
 
+/* Primary button — dark bg, white text */
 .submitBtn {
   width: 100%;
   padding: 15px var(--space-6);
-  background: var(--color-black);
-  color: #fff;
+  background: var(--color-ink);
+  color: var(--color-text-inverted);
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
   font-size: var(--text-base);
@@ -451,12 +449,13 @@
   position: relative;
   overflow: hidden;
   min-height: 52px;
-  transition: background var(--duration-fast) var(--ease-out),
-              transform var(--duration-fast) var(--ease-spring),
-              box-shadow var(--duration-base);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base);
 }
 
-/* Shimmer sweep on hover */
 .submitBtn::before {
   content: '';
   position: absolute;
@@ -472,10 +471,10 @@
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--color-green-dark);
-  color: #fff;
+  background: var(--color-brand-hover);
+  color: var(--color-text-inverted);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-gold);
+  box-shadow: var(--shadow-brand);
 }
 
 .submitBtn:active:not(:disabled) {
@@ -487,14 +486,15 @@
   cursor: not-allowed;
 }
 
-.submitBtnGold {
-  background: var(--color-green);
-  color: var(--color-black);
+/* Brand (green) button variant — CTA section */
+.submitBtnBrand {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
 }
 
-.submitBtnGold:hover:not(:disabled) {
-  background: var(--color-green-dark);
-  color: #fff;
+.submitBtnBrand:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+  color: var(--color-text-inverted);
 }
 
 .successMsg {
@@ -502,8 +502,8 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  background: rgba(26, 158, 92, 0.08);
-  border: 1.5px solid rgba(26, 158, 92, 0.3);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
   border-radius: var(--radius-md);
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
@@ -521,15 +521,11 @@
   border: 1.5px solid rgba(232, 70, 42, 0.25);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  color: var(--color-accent-red);
+  color: var(--color-error);
   animation: fadeUpSmall 0.3s var(--ease-out) both;
 }
 
-/* ── TICKER STRIP ─────────────────────────── */
-@keyframes ticker-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
+/* ── TICKER STRIP ─────────────────────────────────────────────── */
 
 .ticker {
   overflow: hidden;
@@ -547,6 +543,10 @@
   animation: ticker-scroll 45s linear infinite;
 }
 
+.ticker:hover .tickerTrack {
+  animation-play-state: paused;
+}
+
 .tickerItem {
   display: flex;
   align-items: center;
@@ -562,15 +562,22 @@
 }
 
 .tickerItem:hover {
-  color: var(--color-green-dark);
+  color: var(--color-brand-hover);
 }
 
 .tickerSep {
-  color: var(--color-green);
+  color: var(--color-brand);
   font-size: 1.1rem;
 }
 
-/* ── SECTION SHARED ───────────────────────── */
+
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+
+/* ── SECTION SHARED ───────────────────────────────────────────── */
 
 .section {
   padding-block: var(--space-16);
@@ -585,17 +592,16 @@
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  color: var(--color-green-dark);
+  color: var(--color-brand-hover);
   margin-bottom: var(--space-4);
 }
 
 .sectionLabelLine {
   width: 20px;
   height: 2px;
-  background: var(--color-green);
+  background: var(--color-brand);
   border-radius: 2px;
   transform-origin: left center;
-  transition: transform 0.5s var(--ease-out) 0.1s;
 }
 
 .is-visible .sectionLabelLine {
@@ -608,7 +614,7 @@
   line-height: var(--leading-tight);
   letter-spacing: 0.01em;
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   margin-bottom: var(--space-4);
 }
 
@@ -618,7 +624,7 @@
   line-height: var(--leading-loose);
 }
 
-/* ── PROBLEM SECTION ──────────────────────── */
+/* ── PROBLEM SECTION ──────────────────────────────────────────── */
 
 .problem {
   background: var(--color-surface);
@@ -642,9 +648,10 @@
   overflow: hidden;
   cursor: default;
   transform: perspective(600px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-  transition: border-color var(--duration-base) var(--ease-out),
-              box-shadow var(--duration-base) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
   will-change: transform;
 }
 
@@ -653,22 +660,19 @@
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 3px;
-  background: var(--color-accent-red);
+  background: var(--color-error);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform var(--duration-slow) var(--ease-out);
 }
 
-.problemCard:hover::before {
-  transform: scaleX(1);
-}
+.problemCard:hover::before { transform: scaleX(1); }
 
 .problemCard:hover {
   border-color: rgba(232, 70, 42, 0.22);
   box-shadow: 0 8px 32px rgba(232, 70, 42, 0.08), var(--shadow-card);
 }
 
-/* Problem icon — now wraps an SVG from Iconify */
 .problemIcon {
   display: flex;
   align-items: center;
@@ -676,20 +680,21 @@
   width: 48px;
   height: 48px;
   border-radius: var(--radius-md);
-  background: rgba(212, 160, 23, 0.08);
-  border: 1.5px solid rgba(212, 160, 23, 0.15);
-  color: var(--color-green-dark);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
   margin-bottom: var(--space-4);
   flex-shrink: 0;
-  transition: transform var(--duration-slow) var(--ease-spring),
-              background var(--duration-base),
-              color var(--duration-base);
+  transition:
+    transform var(--duration-slow) var(--ease-spring),
+    background var(--duration-base),
+    color var(--duration-base);
 }
 
 .problemCard:hover .problemIcon {
   transform: scale(1.12) rotate(-4deg);
-  background: rgba(212, 160, 23, 0.14);
-  color: var(--color-green);
+  background: var(--color-brand-muted);
+  color: var(--color-brand);
 }
 
 .problemCardTitle {
@@ -698,7 +703,7 @@
   font-size: var(--text-lg);
   letter-spacing: var(--tracking-tight);
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   margin-bottom: var(--space-2);
 }
 
@@ -708,7 +713,7 @@
   line-height: var(--leading-loose);
 }
 
-/* ── SOLUTION SECTION ─────────────────────── */
+/* ── SOLUTION SECTION ─────────────────────────────────────────── */
 
 .solutionInner {
   display: flex;
@@ -727,12 +732,13 @@
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-md);
-  transition: box-shadow var(--duration-slow) var(--ease-out),
-              transform var(--duration-slow) var(--ease-spring);
+  transition:
+    box-shadow var(--duration-slow) var(--ease-out),
+    transform var(--duration-slow) var(--ease-spring);
 }
 
 .solutionVisual:hover {
-  box-shadow: var(--shadow-gold);
+  box-shadow: var(--shadow-brand);
   transform: translateY(-4px);
 }
 
@@ -745,27 +751,28 @@
 .solutionVisualGlow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, var(--color-green-subtle) 0%, transparent 70%);
+  background: radial-gradient(circle at center, var(--color-brand-subtle) 0%, transparent 70%);
 }
 
 .solutionLogoWrap {
   width: 72px;
   height: 72px;
   border-radius: var(--radius-full);
-  background: #fff;
+  background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto;
   box-shadow: var(--shadow-md);
-  transition: transform var(--duration-slow) var(--ease-spring),
-              box-shadow var(--duration-base);
+  transition:
+    transform var(--duration-slow) var(--ease-spring),
+    box-shadow var(--duration-base);
 }
 
 .solutionVisual:hover .solutionLogoWrap {
   transform: scale(1.1) rotate(5deg);
-  box-shadow: var(--shadow-gold);
+  box-shadow: var(--shadow-brand);
 }
 
 .solutionLogoLarge {
@@ -777,15 +784,15 @@
 .solutionTag {
   display: inline-block;
   padding: 6px var(--space-4);
-  background: var(--color-green-subtle);
-  border: 1.5px solid rgba(212, 160, 23, 0.3);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
   border-radius: var(--radius-full);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  color: var(--color-green-dark);
+  color: var(--color-brand-hover);
   margin-top: var(--space-4);
 }
 
@@ -803,32 +810,35 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid transparent;
-  transition: border-color var(--duration-base), background var(--duration-base);
+  transition:
+    border-color var(--duration-base),
+    background var(--duration-base);
 }
 
 .solutionFeature:hover {
-  background: var(--color-green-subtle);
-  border-color: rgba(212, 160, 23, 0.2);
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
 }
 
 .solutionFeatureIcon {
   width: 40px;
   height: 40px;
   border-radius: var(--radius-md);
-  background: var(--color-green-subtle);
-  border: 1.5px solid rgba(212, 160, 23, 0.2);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-green-dark);
+  color: var(--color-brand-hover);
   flex-shrink: 0;
-  transition: transform var(--duration-slow) var(--ease-spring),
-              color var(--duration-base);
+  transition:
+    transform var(--duration-slow) var(--ease-spring),
+    color var(--duration-base);
 }
 
 .solutionFeature:hover .solutionFeatureIcon {
   transform: scale(1.12) rotate(-4deg);
-  color: var(--color-green);
+  color: var(--color-brand);
 }
 
 .solutionFeatureText strong {
@@ -838,7 +848,7 @@
   font-size: var(--text-base);
   letter-spacing: var(--tracking-tight);
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   margin-bottom: 2px;
 }
 
@@ -848,7 +858,7 @@
   line-height: var(--leading-snug);
 }
 
-/* ── HOW IT WORKS ─────────────────────────── */
+/* ── HOW IT WORKS ─────────────────────────────────────────────── */
 
 .howItWorks {
   background: var(--color-surface);
@@ -877,36 +887,35 @@
   align-items: flex-start;
   position: relative;
   overflow: hidden;
-  transition: border-color var(--duration-base),
-              box-shadow var(--duration-base),
-              transform var(--duration-slow) var(--ease-spring);
+  transition:
+    border-color var(--duration-base),
+    box-shadow var(--duration-base),
+    transform var(--duration-slow) var(--ease-spring);
 }
 
 .stepCard::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, var(--color-green-subtle) 0%, transparent 60%);
+  background: linear-gradient(135deg, var(--color-brand-subtle) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-slow);
 }
 
 .stepCard:hover {
-  border-color: rgba(212, 160, 23, 0.45);
+  border-color: var(--color-brand-muted);
   box-shadow: var(--shadow-card);
   transform: translateY(-3px);
 }
 
-.stepCard:hover::after {
-  opacity: 1;
-}
+.stepCard:hover::after { opacity: 1; }
 
 .stepNumber {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--color-black);
-  color: #fff;
+  background: var(--color-ink);
+  color: var(--color-text-inverted);
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
   font-size: var(--text-base);
@@ -916,12 +925,15 @@
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: background var(--duration-base), transform var(--duration-slow) var(--ease-spring);
+  transition:
+    background var(--duration-base),
+    color var(--duration-base),
+    transform var(--duration-slow) var(--ease-spring);
 }
 
 .stepCard:hover .stepNumber {
-  background: var(--color-green);
-  color: var(--color-black);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
   transform: scale(1.1) rotate(-5deg);
 }
 
@@ -936,7 +948,7 @@
   font-size: var(--text-xl);
   letter-spacing: var(--tracking-tight);
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   margin-bottom: var(--space-2);
 }
 
@@ -946,7 +958,7 @@
   line-height: var(--leading-loose);
 }
 
-/* ── AUDIENCES SECTION ────────────────────── */
+/* ── WHO IT'S FOR ─────────────────────────────────────────────── */
 
 .audienceGrid {
   display: flex;
@@ -964,9 +976,10 @@
   overflow: hidden;
   box-shadow: var(--shadow-card);
   transform: perspective(700px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-  transition: transform var(--duration-fast) var(--ease-out),
-              border-color var(--duration-base) var(--ease-out),
-              box-shadow var(--duration-base);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base);
   will-change: transform;
 }
 
@@ -974,58 +987,54 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, var(--color-green-subtle) 0%, transparent 55%);
+  background: linear-gradient(135deg, var(--color-brand-subtle) 0%, transparent 55%);
   opacity: 0;
   transition: opacity var(--duration-slow);
 }
 
 .audienceCard:hover {
-  border-color: rgba(212, 160, 23, 0.35);
+  border-color: var(--color-brand-muted);
   box-shadow: var(--shadow-md);
 }
 
-.audienceCard:hover::before {
-  opacity: 1;
-}
+.audienceCard:hover::before { opacity: 1; }
 
 .audienceCard::after {
   content: '';
   position: absolute;
   bottom: 0; left: 0; right: 0;
   height: 3px;
-  background: linear-gradient(90deg, transparent, var(--color-green), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-brand), transparent);
   transform: scaleX(0);
   transform-origin: center;
   transition: transform var(--duration-slow) var(--ease-out);
 }
 
-.audienceCard:hover::after {
-  transform: scaleX(1);
-}
+.audienceCard:hover::after { transform: scaleX(1); }
 
-/* Audience emoji — now holds an Iconify SVG */
-.audienceEmoji {
+.audienceIcon {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 56px;
   height: 56px;
   border-radius: var(--radius-lg);
-  background: var(--color-green-subtle);
-  border: 1.5px solid rgba(212, 160, 23, 0.2);
-  color: var(--color-green-dark);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
   margin-bottom: var(--space-4);
   position: relative;
   z-index: 1;
-  transition: transform var(--duration-slow) var(--ease-spring),
-              color var(--duration-base),
-              background var(--duration-base);
+  transition:
+    transform var(--duration-slow) var(--ease-spring),
+    color var(--duration-base),
+    background var(--duration-base);
 }
 
-.audienceCard:hover .audienceEmoji {
+.audienceCard:hover .audienceIcon {
   transform: scale(1.15) rotate(-5deg);
-  color: var(--color-green);
-  background: rgba(212, 160, 23, 0.15);
+  color: var(--color-brand);
+  background: var(--color-brand-muted);
 }
 
 .audienceTitle {
@@ -1034,7 +1043,7 @@
   font-size: var(--text-2xl);
   letter-spacing: var(--tracking-tight);
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
   margin-bottom: var(--space-4);
   position: relative;
   z-index: 1;
@@ -1056,7 +1065,9 @@
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
   line-height: var(--leading-snug);
-  transition: color var(--duration-fast), transform var(--duration-fast);
+  transition:
+    color var(--duration-fast),
+    transform var(--duration-fast);
 }
 
 .audienceBenefit:hover {
@@ -1066,28 +1077,29 @@
 
 .audienceBenefit::before {
   content: '✦';
-  color: var(--color-green);
+  color: var(--color-brand);
   font-size: var(--text-xs);
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-/* ── FINAL CTA SECTION ────────────────────── */
+/* ── FINAL CTA SECTION ────────────────────────────────────────── */
 
 .ctaSection {
   padding-block: var(--space-20);
   text-align: center;
   position: relative;
   overflow: hidden;
-  background: var(--color-black);
+  /* Always dark — uses dedicated token, not --color-ink */
+  background: var(--color-cta-bg);
 }
 
 .ctaBg {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(212, 160, 23, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(212, 160, 23, 0.06) 1px, transparent 1px);
+    linear-gradient(var(--color-cta-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-cta-grid) 1px, transparent 1px);
   background-size: 52px 52px;
   mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 80%);
   -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 80%);
@@ -1096,7 +1108,7 @@
 .ctaGlow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(212, 160, 23, 0.14) 0%, transparent 70%);
+  background: radial-gradient(ellipse 70% 60% at 50% 50%, var(--color-brand-muted) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -1104,23 +1116,24 @@
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
-  border: 1px solid rgba(212, 160, 23, 0.12);
+  border: 1px solid var(--color-brand-subtle);
 }
 
 .ctaFloatA {
   width: 300px; height: 300px;
   top: -80px; right: -80px;
-  background: radial-gradient(circle, rgba(212, 160, 23, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--color-brand-subtle) 0%, transparent 70%);
   animation: floatB 11s ease-in-out infinite;
 }
 
 .ctaFloatB {
   width: 200px; height: 200px;
   bottom: -60px; left: -60px;
-  background: radial-gradient(circle, rgba(212, 160, 23, 0.05) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--color-brand-subtle) 0%, transparent 70%);
   animation: floatA 9s ease-in-out infinite 1s;
 }
 
+/* CTA text is always on a dark bg — use static white values */
 .ctaTitle {
   font-family: var(--font-display);
   font-size: clamp(var(--text-4xl), 8vw, var(--text-6xl));
@@ -1134,12 +1147,12 @@
 }
 
 .ctaTitle span {
-  color: var(--color-green);
+  color: var(--color-brand);
 }
 
 .ctaBody {
   font-size: var(--text-base);
-  color: rgba(255,255,255,0.58);
+  color: rgba(255, 255, 255, 0.58);
   max-width: 420px;
   margin: 0 auto var(--space-8);
   line-height: var(--leading-loose);
@@ -1157,7 +1170,7 @@
 .ctaNote {
   margin-top: var(--space-3);
   font-size: var(--text-xs);
-  color: rgba(255,255,255,0.32);
+  color: rgba(255, 255, 255, 0.32);
   position: relative;
   z-index: 1;
 }
@@ -1168,50 +1181,52 @@
   gap: var(--space-2);
   margin-top: var(--space-6);
   padding: 8px var(--space-5);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: var(--radius-full);
   font-size: var(--text-sm);
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   position: relative;
   z-index: 1;
   font-family: var(--font-ui);
   letter-spacing: var(--tracking-wide);
-  transition: border-color var(--duration-base), background var(--duration-base);
+  transition:
+    border-color var(--duration-base),
+    background var(--duration-base);
 }
 
 .ctaCounter:hover {
-  background: rgba(255,255,255,0.09);
-  border-color: rgba(212, 160, 23, 0.3);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--color-brand-muted);
 }
 
 .ctaCounterDot {
   width: 7px;
   height: 7px;
-  background: var(--color-success);
+  background: var(--color-brand);
   border-radius: 50%;
-  animation: pulse-gold 2s infinite;
+  animation: pulse-brand 2s infinite;
   flex-shrink: 0;
 }
 
-/* Dark form inputs */
+/* CTA dark-on-dark form inputs */
 .ctaInput {
-  background: rgba(255,255,255,0.07) !important;
-  border-color: rgba(255,255,255,0.13) !important;
-  color: #fff !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.13) !important;
+  color: #ffffff !important;
 }
 
 .ctaInput::placeholder {
-  color: rgba(255,255,255,0.32) !important;
+  color: rgba(255, 255, 255, 0.35) !important;
 }
 
 .ctaInput:focus {
-  border-color: var(--color-green) !important;
-  box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.18) !important;
-  background: rgba(255,255,255,0.10) !important;
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 3px var(--color-brand-subtle) !important;
+  background: rgba(255, 255, 255, 0.10) !important;
 }
 
-/* ── FOOTER ───────────────────────────────── */
+/* ── FOOTER ───────────────────────────────────────────────────── */
 
 .footer {
   padding-block: var(--space-8);
@@ -1234,22 +1249,20 @@
   transition: opacity var(--duration-fast);
 }
 
-.footerLogoLockup:hover {
-  opacity: 0.75;
-}
+.footerLogoLockup:hover { opacity: 0.75; }
 
 .footerLogoImgWrap {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-full);
-  background: #fff;
+  background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
 }
 
 .footerLogoImg {
@@ -1263,7 +1276,7 @@
   font-size: var(--text-lg);
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--color-black);
+  color: var(--color-ink);
 }
 
 .footerCopy {
@@ -1272,16 +1285,12 @@
   font-family: var(--font-body);
 }
 
-/* ── RESPONSIVE — Tablet ──────────────────── */
+/* ── RESPONSIVE — Tablet (640px+) ─────────────────────────────── */
 
 @media (min-width: 640px) {
-  .section {
-    padding-block: var(--space-20);
-  }
+  .section { padding-block: var(--space-20); }
 
-  .problemGrid {
-    grid-template-columns: 1fr 1fr;
-  }
+  .problemGrid { grid-template-columns: 1fr 1fr; }
 
   .footerInner {
     flex-direction: row;
@@ -1290,20 +1299,14 @@
   }
 }
 
-/* ── RESPONSIVE — Desktop ─────────────────── */
+/* ── RESPONSIVE — Desktop (900px+) ───────────────────────────── */
 
 @media (min-width: 900px) {
-  .section {
-    padding-block: var(--space-24);
-  }
+  .section { padding-block: var(--space-24); }
 
-  .heroStats {
-    gap: var(--space-10);
-  }
+  .heroStats { gap: var(--space-10); }
 
-  .problemGrid {
-    grid-template-columns: 1fr 1fr;
-  }
+  .problemGrid { grid-template-columns: 1fr 1fr; }
 
   .solutionInner {
     display: grid;
@@ -1312,14 +1315,11 @@
     align-items: center;
   }
 
-  .solutionVisual {
-    aspect-ratio: 4/3;
-  }
+  .solutionVisual { aspect-ratio: 4/3; }
 
   .stepsGrid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-4);
   }
 
   .stepCard {
@@ -1334,7 +1334,8 @@
   }
 }
 
-/* ── TOUCH — disable tilt/hover transforms ─── */
+/* ── TOUCH — disable tilt ─────────────────────────────────────── */
+
 @media (hover: none) {
   .stepCard:hover,
   .audienceCard:hover,
