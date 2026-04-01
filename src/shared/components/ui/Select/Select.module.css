@@ -1,0 +1,74 @@
+
+.selectWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+ 
+.selectFieldWrap {
+  position: relative;
+}
+ 
+.select {
+  width: 100%;
+  padding: 13px 44px 13px var(--space-4);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  min-height: 48px;
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+ 
+.select:hover:not(:disabled) {
+  border-color: var(--color-brand-muted);
+}
+ 
+.select:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+  transform: translateY(-1px);
+}
+ 
+.select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+ 
+.selectChevron {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    color var(--duration-base);
+}
+ 
+.selectFieldWrap:focus-within .selectChevron {
+  color: var(--color-brand);
+  transform: translateY(-50%) rotate(180deg);
+}
+ 
+/* Select error state */
+.selectError .select {
+  border-color: var(--color-error);
+}
+ 
+/* Select sizes */
+.selectSm .select { min-height: 36px; padding: 8px 40px 8px var(--space-3); font-size: var(--text-sm); }
+.selectLg .select { min-height: 56px; padding: 16px 48px 16px var(--space-5); font-size: var(--text-lg); }
+ 

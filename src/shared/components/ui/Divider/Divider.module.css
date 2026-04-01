@@ -1,0 +1,18 @@
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+}
+ 
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+ 

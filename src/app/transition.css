@@ -1,0 +1,76 @@
+
+/* ── 8. KEYFRAMES ───────────────────────────────────────────── */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeUpSmall {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.90); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Single pulse keyframe — brand green */
+@keyframes pulse-brand {
+  0%, 100% { box-shadow: 0 0 0 0 var(--primitive-green-alpha-500); }
+  50%       { box-shadow: 0 0 0 7px var(--primitive-green-alpha-50); }
+}
+
+@keyframes shimmerBtn {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes floatA {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-16px) rotate(4deg); }
+  66%       { transform: translateY(8px) rotate(-3deg); }
+}
+
+@keyframes floatB {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  40%       { transform: translateY(12px) rotate(-5deg); }
+  70%       { transform: translateY(-10px) rotate(3deg); }
+}
+
+@keyframes heroAccentPop {
+  0%   { opacity: 0; transform: scale(0.82) skewX(-3deg); }
+  65%  { transform: scale(1.05) skewX(-0.5deg); }
+  100% { opacity: 1; transform: scale(1) skewX(0deg); }
+}
+
+@keyframes drawLine {
+  from { transform: scaleX(0); transform-origin: left center; }
+  to   { transform: scaleX(1); transform-origin: left center; }
+}
+
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
