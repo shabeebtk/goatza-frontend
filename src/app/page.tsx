@@ -1,4 +1,5 @@
-import Image from "next/image";
+export const dynamic = "force-dynamic"
+
 import styles from "./page.module.css";
 import LandingPage from "@/features/landing/LandingPage";
 
