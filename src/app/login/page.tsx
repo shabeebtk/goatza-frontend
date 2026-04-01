@@ -1,6 +1,6 @@
 "use client"
 
-import { useLogin } from "@/features/auth/hooks/useLogin"
+import { useLogin } from "@/features/auth/hooks/useAuthMutations"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 

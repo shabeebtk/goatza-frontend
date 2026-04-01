@@ -1,0 +1,318 @@
+/* ============================================================
+   AuthPage — Sporty split-panel layout
+   Left: dark brand panel   Right: auth card
+   ============================================================ */
+
+/* ── Page shell ──────────────────────────────────────────── */
+
+.authPage {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+@media (min-width: 960px) {
+  .authPage {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1200px) {
+  .authPage {
+    grid-template-columns: 55fr 45fr;
+  }
+}
+
+/* ── LEFT PANEL ──────────────────────────────────────────── */
+
+.leftPanel {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  background: var(--primitive-neutral-950);
+}
+
+@media (min-width: 960px) {
+  .leftPanel {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: var(--space-10) var(--space-12);
+  }
+}
+
+/* ── Layered background ── */
+
+.leftBg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 50%, rgba(0, 181, 98, 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 80% at 80% 20%, rgba(0, 181, 98, 0.05) 0%, transparent 60%),
+    var(--primitive-neutral-950);
+}
+
+/* Subtle dot-grid texture */
+.leftGrid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Bottom vignette so stats read clearly */
+.leftVignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 50%,
+    rgba(8, 15, 9, 0.6) 85%,
+    rgba(8, 15, 9, 0.9) 100%
+  );
+  pointer-events: none;
+}
+
+/* ── Watermark ── */
+
+.watermark {
+  position: absolute;
+  top: 50%;
+  left: -0.05em;
+  transform: translateY(-50%) rotate(-12deg);
+  font-family: var(--font-display);
+  font-size: clamp(7rem, 16vw, 14rem);
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.03);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+/* ── Pitch lines decoration ── */
+
+.pitchLines {
+  position: absolute;
+  top: 50%;
+  right: -60px;
+  transform: translateY(-50%);
+  width: 220px;
+  height: 220px;
+  pointer-events: none;
+}
+
+.pitchLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: rgba(0, 181, 98, 0.12);
+  animation: pitchPulse 3.5s var(--ease-in-out) infinite;
+}
+
+.pitchLine:first-child {
+  left: 30%;
+  animation-delay: 0s;
+}
+.pitchLine:last-child {
+  left: 60%;
+  animation-delay: 0.8s;
+}
+
+.pitchCircle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 140px;
+  height: 140px;
+  border: 1.5px solid rgba(0, 181, 98, 0.10);
+  border-radius: 50%;
+  animation: pitchPulse 4s var(--ease-in-out) 0.4s infinite;
+}
+
+@keyframes pitchPulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+/* ── Stat lines ── */
+
+.statLines {
+  position: relative;
+  z-index: 2;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-top: var(--space-16);
+  animation: statsReveal 0.9s var(--ease-out) 0.3s both;
+}
+
+@keyframes statsReveal {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.statLine {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 2px solid var(--color-brand);
+  padding-left: var(--space-4);
+}
+
+.statNum {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  color: var(--primitive-neutral-0);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.statLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--primitive-neutral-400);
+}
+
+/* ── Tagline block ── */
+
+.leftTagline {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: statsReveal 0.9s var(--ease-out) 0.5s both;
+}
+
+.taglinePre,
+.taglinePost {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+.taglineHero {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 6vw, 5rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primitive-neutral-0);
+  line-height: 1;
+  margin-block: var(--space-1);
+}
+
+/* ── RIGHT PANEL ──────────────────────────────────────────── */
+
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-5);
+  gap: var(--space-6);
+  min-height: 100dvh;
+  background: var(--color-bg);
+  position: relative;
+
+  /* Subtle green glow from bottom left on desktop to bleed from left panel */
+  overflow: hidden;
+}
+
+.rightPanel::before {
+  content: '';
+  position: absolute;
+  bottom: -80px;
+  left: -80px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, var(--primitive-green-alpha-80) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+@media (min-width: 960px) {
+  .rightPanel {
+    padding: var(--space-10) var(--space-12);
+  }
+}
+
+/* ── Logo ── */
+
+.logoLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  align-self: flex-start;
+  /* top-left on mobile, centered handled by flex col + align-items */
+}
+
+@media (min-width: 960px) {
+  .logoLink {
+    position: absolute;
+    top: var(--space-8);
+    left: var(--space-10);
+  }
+}
+
+.logoImg {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+
+.logoFallback {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+/* ── Card wrapper ── */
+
+.cardWrapper {
+  width: 100%;
+  max-width: 440px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .cardWrapper {
+    flex: unset;
+  }
+}
+
+/* ── Legal text ── */
+
+.legalText {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: var(--leading-loose);
+  max-width: 320px;
+}
+
+.legalLink {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--duration-fast);
+}
+
+.legalLink:hover {
+  color: var(--color-brand);
+}

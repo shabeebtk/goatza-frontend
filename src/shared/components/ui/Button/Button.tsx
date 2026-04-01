@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import React, { forwardRef, useState } from "react";
 import styles from "./Button.module.css";
+import Link from "next/link";
 
 type Size = "sm" | "md" | "lg";
 
@@ -68,12 +69,12 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {!loading && rightIcon && <span aria-hidden="true">{rightIcon}</span>}
       </>
     );
- 
-    if (Tag === "a" && href) {
+
+    if (href) {
       return (
-        <a href={href} className={classes} aria-disabled={disabled}>
+        <Link href={href} className={classes}>
           {content}
-        </a>
+        </Link>
       );
     }
  

@@ -1,92 +1,18 @@
 "use client";
-
 /**
  * GOATZA — Landing Page (v2)
- * Real product entry: Sign in / Sign up inline in hero.
- * No waitlist. Users go directly into the product.
- *
- * Imports shared UI from: @/shared/components/ui
  */
-
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@iconify/react";
 import { Button, Input, Select, Badge, Divider } from "@/shared/components/ui";
-import styles from "./style.module.css";
+import styles from "./LandingPage.module.css";
 import { LOGO_URL } from "@/constants";
-
-// ── Hook: scroll reveal ──────────────────────────────────────────
-function useScrollReveal() {
-  useEffect(() => {
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const elements = document.querySelectorAll<HTMLElement>(
-      ".reveal, .reveal-left, .reveal-right, .reveal-scale"
-    );
-    if (prefersReduced) {
-      elements.forEach((el) => el.classList.add("is-visible"));
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
-    );
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-}
-
-// ── Hook: 3D card tilt ───────────────────────────────────────────
-function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !window.matchMedia("(hover: hover)").matches) return;
-    const onMove = (e: MouseEvent) => {
-      const rect = el.getBoundingClientRect();
-      const dx = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
-      const dy = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-      el.style.setProperty("--tilt-y", `${dx * intensity}deg`);
-      el.style.setProperty("--tilt-x", `${-dy * intensity}deg`);
-    };
-    const onLeave = () => {
-      el.style.setProperty("--tilt-x", "0deg");
-      el.style.setProperty("--tilt-y", "0deg");
-    };
-    el.addEventListener("mousemove", onMove);
-    el.addEventListener("mouseleave", onLeave);
-    return () => {
-      el.removeEventListener("mousemove", onMove);
-      el.removeEventListener("mouseleave", onLeave);
-    };
-  }, [ref, intensity]);
-}
-
-// ── Hook: animated counter ───────────────────────────────────────
-function useCounter(target: number, duration = 1200, active: boolean) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setCount(target);
-      return;
-    }
-    let start: number | null = null;
-    const step = (ts: number) => {
-      if (!start) start = ts;
-      const p = Math.min((ts - start) / duration, 1);
-      setCount(Math.floor((1 - Math.pow(1 - p, 3)) * target));
-      if (p < 1) requestAnimationFrame(step);
-      else setCount(target);
-    };
-    requestAnimationFrame(step);
-  }, [active, target, duration]);
-  return count;
-}
+import AuthCard from "@/features/auth/components/AuthCard/AuthCard";
+import useTilt from "@/shared/hooks/useTilt";
+import useScrollReveal from "@/shared/hooks/useScrollReveal";
+import useCounter from "@/shared/hooks/useCounter";
+import { tickerItems, features, steps, audiences } from "@/features/landing/data/landing.data";
+import Link from "next/link"
 
 // ── TiltCard ─────────────────────────────────────────────────────
 function TiltCard({
@@ -125,164 +51,7 @@ function LogoLockup({ footer = false }: { footer?: boolean }) {
   );
 }
 
-// ── AuthCard — sign in / sign up in the hero ────────────────────
-type AuthMode = "signin" | "signup";
 
-function AuthCard() {
-  const [mode, setMode] = useState<AuthMode>("signin");
-  const [role, setRole] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    // TODO: replace with real auth call (e.g. NextAuth signIn / Supabase)
-    setTimeout(() => {
-      setLoading(false);
-      // router.push("/dashboard")
-    }, 1500);
-  };
-
-  const isSignUp = mode === "signup";
-
-  return (
-    <div className={styles.heroAuthCard}>
-      <p className={styles.authCardTitle}>
-        {isSignUp ? "Join the Game" : "Welcome Back"}
-      </p>
-      <p className={styles.authCardSubtitle}>
-        {isSignUp
-          ? "Create your free account and get discovered."
-          : "Sign in to your Goatza account."}
-      </p>
-
-      {/* Tab switcher */}
-      <div className={styles.authTabs} role="tablist">
-        <button
-          role="tab"
-          aria-selected={!isSignUp}
-          className={`${styles.authTab} ${!isSignUp ? styles.authTabActive : ""}`}
-          onClick={() => setMode("signin")}
-        >
-          Sign In
-        </button>
-        <button
-          role="tab"
-          aria-selected={isSignUp}
-          className={`${styles.authTab} ${isSignUp ? styles.authTabActive : ""}`}
-          onClick={() => setMode("signup")}
-        >
-          Sign Up
-        </button>
-      </div>
-
-      {/* Social auth */}
-      <div className={styles.authSocialRow}>
-        <button className={styles.authSocialBtn} type="button" aria-label="Continue with Google">
-          <Icon icon="mdi:google" width={18} height={18} aria-hidden="true" />
-          Google
-        </button>
-        <button className={styles.authSocialBtn} type="button" aria-label="Continue with Apple">
-          <Icon icon="mdi:apple" width={18} height={18} aria-hidden="true" />
-          Apple
-        </button>
-      </div>
-
-      <Divider label="or" style={{ marginBlock: "var(--space-4)" } as React.CSSProperties} />
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className={styles.authForm} noValidate>
-        {isSignUp && (
-          <div className={styles.authFormRow}>
-            <Input
-              label="First name"
-              placeholder="Virat"
-              required
-              autoComplete="given-name"
-              leftIcon={<Icon icon="mdi:account-outline" width={18} height={18} />}
-            />
-            <Input
-              label="Last name"
-              placeholder="Kohli"
-              required
-              autoComplete="family-name"
-            />
-          </div>
-        )}
-
-        <Input
-          label="Email"
-          type="email"
-          placeholder="you@example.com"
-          required
-          autoComplete="email"
-          leftIcon={<Icon icon="mdi:email-outline" width={18} height={18} />}
-        />
-
-        <Input
-          label="Password"
-          type="password"
-          placeholder={isSignUp ? "Create a strong password" : "Your password"}
-          required
-          autoComplete={isSignUp ? "new-password" : "current-password"}
-          leftIcon={<Icon icon="mdi:lock-outline" width={18} height={18} />}
-        />
-
-        {isSignUp && (
-          <Select
-            label="I am a…"
-            placeholder="Select your role"
-            required
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            options={[
-              { value: "athlete", label: "Athlete" },
-              { value: "team",    label: "Team / Club" },
-              { value: "scout",   label: "Scout" },
-              { value: "academy", label: "Academy" },
-              { value: "coach",   label: "Coach" },
-            ]}
-          />
-        )}
-
-        {!isSignUp && (
-          <div style={{ textAlign: "right", marginTop: "calc(-1 * var(--space-2))" }}>
-            <a href="/auth/forgot-password" className={styles.authFooterLink} style={{ fontSize: "var(--text-xs)" }}>
-              Forgot password?
-            </a>
-          </div>
-        )}
-
-        <Button
-          variant="brand"
-          size="lg"
-          fullWidth
-          loading={loading}
-          type="submit"
-          style={{ marginTop: "var(--space-2)" } as React.CSSProperties}
-        >
-          {isSignUp ? "Create Free Account →" : "Sign In →"}
-        </Button>
-      </form>
-
-      <p className={styles.authFooterText} style={{ marginTop: "var(--space-4)" }}>
-        {isSignUp ? (
-          <>Already have an account?{" "}
-            <button className={styles.authFooterLink} onClick={() => setMode("signin")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
-              Sign in
-            </button>
-          </>
-        ) : (
-          <>Don't have an account?{" "}
-            <button className={styles.authFooterLink} onClick={() => setMode("signup")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
-              Sign up free
-            </button>
-          </>
-        )}
-      </p>
-    </div>
-  );
-}
 
 // ── LandingPage ──────────────────────────────────────────────────
 export default function LandingPage() {
@@ -313,60 +82,6 @@ export default function LandingPage() {
   const count2 = useCounter(140,  800,  statsVisible);
   const count3 = useCounter(38,   700,  statsVisible);
 
-  // ── Static data ────────────────────────────────────────────────
-
-  const tickerItems = [
-    "Athletes", "Cricket", "Teams", "Football", "Scouts",
-    "Badminton", "Academies", "Talent", "Discovery", "Recruitment", "Goatza",
-    "Athletes", "Cricket", "Teams", "Football", "Scouts",
-    "Badminton", "Academies", "Talent", "Discovery", "Recruitment", "Goatza",
-  ];
-
-  const features = [
-    { icon: "mdi:account-star-outline", title: "Athlete Profiles",   body: "Showcase skills, stats, highlight reels, and career milestones — your complete sports identity." },
-    { icon: "mdi:radar",                title: "Smart Discovery",    body: "Scouts filter by sport, position, age, and region — then connect directly in seconds." },
-    { icon: "mdi:school-outline",       title: "Academy Tools",      body: "List programmes, post intake drives, and manage your entire player pipeline in one place." },
-    { icon: "mdi:message-text-outline", title: "Direct Messaging",   body: "No middlemen. Athletes and recruiters negotiate and build relationships right on the platform." },
-  ];
-
-  const steps = [
-    { num: "01", title: "Build Your Profile",  body: "Create your sports identity — add highlights, stats, position, and achievements." },
-    { num: "02", title: "Get Discovered",      body: "Scouts and clubs actively search Goatza for talent. Your profile works 24/7 for you." },
-    { num: "03", title: "Connect & Grow",      body: "Message, negotiate, and build lasting relationships — all in one platform." },
-  ];
-
-  const audiences = [
-    {
-      icon: "mdi:run-fast",
-      title: "Athletes",
-      benefits: [
-        "Build a verified sports profile",
-        "Get discovered by scouts & teams",
-        "Showcase your highlight reel",
-        "Access opportunities globally",
-      ],
-    },
-    {
-      icon: "mdi:shield-crown-outline",
-      title: "Teams & Clubs",
-      benefits: [
-        "Find verified talent instantly",
-        "Filter by position, stats & location",
-        "Post open trials and recruitment calls",
-        "Cut recruitment time and cost",
-      ],
-    },
-    {
-      icon: "mdi:school-outline",
-      title: "Academies",
-      benefits: [
-        "List programmes and intake dates",
-        "Connect with athletes at every level",
-        "Build your academy's reputation",
-        "Streamline your scouting process",
-      ],
-    },
-  ];
 
   return (
     <>
@@ -382,10 +97,10 @@ export default function LandingPage() {
           </nav>
 
           <div className={styles.headerActions}>
-            <Button variant="ghost" size="sm" as="a" href="#signin">
+            <Button variant="ghost" size="sm" href="/auth">
               Sign In
             </Button>
-            <Button variant="primary" size="sm" as="a" href="#signup">
+            <Button variant="primary" size="sm" href="/auth?mode=signup">
               Get Started
             </Button>
           </div>
@@ -428,8 +143,7 @@ export default function LandingPage() {
                 variant="brand"
                 size="lg"
                 rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
-                as="a"
-                href="#signup"
+                href="/auth?mode=signup"
               >
                 Start for Free
               </Button>
@@ -616,25 +330,19 @@ export default function LandingPage() {
                   variant="brand"
                   size="lg"
                   rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
-                  as="a"
-                  href="#signup"
+                  href="/auth?mode=signup"
                 >
                   Create Free Account
                 </Button>
                 <Button
                   variant="outline"
                   size="lg"
-                  as="a"
-                  href="#signin"
-                  style={{ borderColor: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" } as React.CSSProperties}
+                  href="/auth"
+                  style={{ borderColor: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" }}
                 >
                   Sign In
                 </Button>
               </div>
-
-              <p className={styles.ctaNote}>
-                Free forever · No credit card required · Cancel anytime
-              </p>
             </div>
           </div>
         </section>
