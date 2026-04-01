@@ -1,5 +1,4 @@
-"use client"
-
+export const dynamic = "force-dynamic"
 import AuthPageLayout from "@/features/auth/AuthPage"
 
 export default function AuthPage() {
