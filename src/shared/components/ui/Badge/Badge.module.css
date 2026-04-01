@@ -1,0 +1,58 @@
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
+}
+ 
+.badgeDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+ 
+/* Badge variants */
+.badgeBrand {
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+.badgeBrand .badgeDot { background: var(--color-brand); }
+ 
+.badgeDefault {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+.badgeDefault .badgeDot { background: var(--color-text-muted); }
+ 
+.badgeSuccess {
+  background: rgba(0, 181, 98, 0.08);
+  border: 1px solid rgba(0, 181, 98, 0.2);
+  color: var(--color-success);
+}
+.badgeSuccess .badgeDot { background: var(--color-success); animation: pulse-brand 2s infinite; }
+ 
+.badgeError {
+  background: rgba(232, 70, 42, 0.08);
+  border: 1px solid rgba(232, 70, 42, 0.2);
+  color: var(--color-error);
+}
+.badgeError .badgeDot { background: var(--color-error); }
+ 
+/* Badge pulse animation (live status) */
+@keyframes pulse-brand {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--color-brand-glow); }
+  50% { opacity: 0.75; box-shadow: 0 0 0 4px transparent; }
+}

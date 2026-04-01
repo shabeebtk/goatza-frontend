@@ -1,0 +1,24 @@
+
+.card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-slow) var(--ease-spring);
+}
+ 
+.cardInteractive {
+  cursor: pointer;
+}
+ 
+.cardInteractive:hover {
+  border-color: var(--color-brand-muted);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-3px);
+}

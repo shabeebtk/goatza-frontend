@@ -1,29 +1,30 @@
 "use client";
 
+/**
+ * GOATZA — Landing Page (v2)
+ * Real product entry: Sign in / Sign up inline in hero.
+ * No waitlist. Users go directly into the product.
+ *
+ * Imports shared UI from: @/shared/components/ui
+ */
+
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@iconify/react";
+import { Button, Input, Select, Badge, Divider } from "@/shared/components/ui";
 import styles from "./style.module.css";
+import { LOGO_URL } from "@/constants";
 
-// ── CONFIG ─────────────────────────────────────────────────────────────────
-const GOOGLE_SHEET_URL =
-  "https://script.google.com/macros/s/AKfycbx1HrLB57lHlOScYAdixOXayHAZw3o6uvf5JC0UTvjKODFv5NEY2JPWHmSIK2R7nMfAvg/exec";
-
-const LOGO_URL =
-  "https://res.cloudinary.com/duotwo8gf/image/upload/v1774332703/goatza-logo-black_ve34f5.png";
-
-// ── Hook: scroll reveal ─────────────────────────────────────────────────────
+// ── Hook: scroll reveal ──────────────────────────────────────────
 function useScrollReveal() {
   useEffect(() => {
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const elements = document.querySelectorAll<HTMLElement>(
       ".reveal, .reveal-left, .reveal-right, .reveal-scale"
     );
-
     if (prefersReduced) {
       elements.forEach((el) => el.classList.add("is-visible"));
       return;
     }
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -35,19 +36,16 @@ function useScrollReveal() {
       },
       { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
     );
-
     elements.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 }
 
-// ── Hook: 3D card tilt (desktop / hover-capable only) ──────────────────────
+// ── Hook: 3D card tilt ───────────────────────────────────────────
 function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    if (!window.matchMedia("(hover: hover)").matches) return;
-
+    if (!el || !window.matchMedia("(hover: hover)").matches) return;
     const onMove = (e: MouseEvent) => {
       const rect = el.getBoundingClientRect();
       const dx = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
@@ -59,7 +57,6 @@ function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
       el.style.setProperty("--tilt-x", "0deg");
       el.style.setProperty("--tilt-y", "0deg");
     };
-
     el.addEventListener("mousemove", onMove);
     el.addEventListener("mouseleave", onLeave);
     return () => {
@@ -69,12 +66,11 @@ function useTilt(ref: React.RefObject<HTMLElement | null>, intensity = 8) {
   }, [ref, intensity]);
 }
 
-// ── Hook: animated counter ──────────────────────────────────────────────────
-function useCounter(target: number, duration = 1200, startTrigger: boolean) {
+// ── Hook: animated counter ───────────────────────────────────────
+function useCounter(target: number, duration = 1200, active: boolean) {
   const [count, setCount] = useState(0);
-
   useEffect(() => {
-    if (!startTrigger) return;
+    if (!active) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setCount(target);
       return;
@@ -82,19 +78,17 @@ function useCounter(target: number, duration = 1200, startTrigger: boolean) {
     let start: number | null = null;
     const step = (ts: number) => {
       if (!start) start = ts;
-      const progress = Math.min((ts - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(Math.floor(eased * target));
-      if (progress < 1) requestAnimationFrame(step);
+      const p = Math.min((ts - start) / duration, 1);
+      setCount(Math.floor((1 - Math.pow(1 - p, 3)) * target));
+      if (p < 1) requestAnimationFrame(step);
       else setCount(target);
     };
     requestAnimationFrame(step);
-  }, [startTrigger, target, duration]);
-
+  }, [active, target, duration]);
   return count;
 }
 
-// ── TiltCard ────────────────────────────────────────────────────────────────
+// ── TiltCard ─────────────────────────────────────────────────────
 function TiltCard({
   className,
   children,
@@ -109,111 +103,188 @@ function TiltCard({
   return <div ref={ref} className={className}>{children}</div>;
 }
 
-// ── LogoLockup ──────────────────────────────────────────────────────────────
-function LogoLockup({
-  imgClass,
-  wrapClass,
-  wordmarkClass,
-  lockupClass,
-}: {
-  imgClass: string;
-  wrapClass: string;
-  wordmarkClass: string;
-  lockupClass: string;
-}) {
+// ── LogoLockup ───────────────────────────────────────────────────
+function LogoLockup({ footer = false }: { footer?: boolean }) {
+  if (footer) {
+    return (
+      <a href="/" aria-label="Goatza home" className={styles.footerLogoLockup}>
+        <div className={styles.footerLogoImgWrap}>
+          <img src={LOGO_URL} alt="" aria-hidden="true" className={styles.footerLogoImg} />
+        </div>
+        <span className={styles.footerWordmark}>Goatza</span>
+      </a>
+    );
+  }
   return (
-    <a href="/" aria-label="Goatza home" className={lockupClass}>
-      <div className={wrapClass}>
-        <img src={LOGO_URL} alt="" aria-hidden="true" className={imgClass} />
+    <a href="/" aria-label="Goatza home" className={styles.logoLockup}>
+      <div className={styles.logoImgWrap}>
+        <img src={LOGO_URL} alt="" aria-hidden="true" className={styles.logoImg} />
       </div>
-      <span className={wordmarkClass}>Goatza</span>
+      <span className={styles.logoWordmark}>Goatza</span>
     </a>
   );
 }
 
-// ── WaitlistForm ────────────────────────────────────────────────────────────
-interface WaitlistFormProps {
-  inputClass?: string;
-  submitBtnClass?: string;
-}
+// ── AuthCard — sign in / sign up in the hero ────────────────────
+type AuthMode = "signin" | "signup";
 
-function WaitlistForm({ inputClass = "", submitBtnClass = "" }: WaitlistFormProps) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+function AuthCard() {
+  const [mode, setMode] = useState<AuthMode>("signin");
+  const [role, setRole] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) return;
     setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({
-        name: name.trim(),
-        email: email.trim(),
-        timestamp: new Date().toISOString(),
-      });
-      await fetch(`${GOOGLE_SHEET_URL}?${params.toString()}`, {
-        method: "GET",
-        mode: "no-cors",
-      });
-      setSubmitted(true);
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
+    // TODO: replace with real auth call (e.g. NextAuth signIn / Supabase)
+    setTimeout(() => {
       setLoading(false);
-    }
+      // router.push("/dashboard")
+    }, 1500);
   };
 
-  if (submitted) {
-    return (
-      <div className={styles.successMsg}>
-        <Icon icon="mdi:check-circle-outline" width={20} height={20} aria-hidden="true" />
-        You're on the list — we'll be in touch!
-      </div>
-    );
-  }
+  const isSignUp = mode === "signup";
 
   return (
-    <form onSubmit={handleSubmit} className={styles.waitlistForm} noValidate>
-      <div className={styles.formRow}>
-        <input
-          type="text"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-          className={`${styles.inputField} ${inputClass}`}
-          aria-label="Full name"
-          autoComplete="name"
-        />
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Your email address"
-          className={`${styles.inputField} ${inputClass}`}
-          aria-label="Email address"
-          autoComplete="email"
-        />
+    <div className={styles.heroAuthCard}>
+      <p className={styles.authCardTitle}>
+        {isSignUp ? "Join the Game" : "Welcome Back"}
+      </p>
+      <p className={styles.authCardSubtitle}>
+        {isSignUp
+          ? "Create your free account and get discovered."
+          : "Sign in to your Goatza account."}
+      </p>
+
+      {/* Tab switcher */}
+      <div className={styles.authTabs} role="tablist">
+        <button
+          role="tab"
+          aria-selected={!isSignUp}
+          className={`${styles.authTab} ${!isSignUp ? styles.authTabActive : ""}`}
+          onClick={() => setMode("signin")}
+        >
+          Sign In
+        </button>
+        <button
+          role="tab"
+          aria-selected={isSignUp}
+          className={`${styles.authTab} ${isSignUp ? styles.authTabActive : ""}`}
+          onClick={() => setMode("signup")}
+        >
+          Sign Up
+        </button>
       </div>
-      {error && <p className={styles.errorMsg} role="alert">{error}</p>}
-      <button
-        type="submit"
-        className={`${styles.submitBtn} ${submitBtnClass}`}
-        disabled={loading}
-        aria-busy={loading}
-      >
-        {loading ? "Joining…" : "Join the Waitlist →"}
-      </button>
-    </form>
+
+      {/* Social auth */}
+      <div className={styles.authSocialRow}>
+        <button className={styles.authSocialBtn} type="button" aria-label="Continue with Google">
+          <Icon icon="mdi:google" width={18} height={18} aria-hidden="true" />
+          Google
+        </button>
+        <button className={styles.authSocialBtn} type="button" aria-label="Continue with Apple">
+          <Icon icon="mdi:apple" width={18} height={18} aria-hidden="true" />
+          Apple
+        </button>
+      </div>
+
+      <Divider label="or" style={{ marginBlock: "var(--space-4)" } as React.CSSProperties} />
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className={styles.authForm} noValidate>
+        {isSignUp && (
+          <div className={styles.authFormRow}>
+            <Input
+              label="First name"
+              placeholder="Virat"
+              required
+              autoComplete="given-name"
+              leftIcon={<Icon icon="mdi:account-outline" width={18} height={18} />}
+            />
+            <Input
+              label="Last name"
+              placeholder="Kohli"
+              required
+              autoComplete="family-name"
+            />
+          </div>
+        )}
+
+        <Input
+          label="Email"
+          type="email"
+          placeholder="you@example.com"
+          required
+          autoComplete="email"
+          leftIcon={<Icon icon="mdi:email-outline" width={18} height={18} />}
+        />
+
+        <Input
+          label="Password"
+          type="password"
+          placeholder={isSignUp ? "Create a strong password" : "Your password"}
+          required
+          autoComplete={isSignUp ? "new-password" : "current-password"}
+          leftIcon={<Icon icon="mdi:lock-outline" width={18} height={18} />}
+        />
+
+        {isSignUp && (
+          <Select
+            label="I am a…"
+            placeholder="Select your role"
+            required
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            options={[
+              { value: "athlete", label: "Athlete" },
+              { value: "team",    label: "Team / Club" },
+              { value: "scout",   label: "Scout" },
+              { value: "academy", label: "Academy" },
+              { value: "coach",   label: "Coach" },
+            ]}
+          />
+        )}
+
+        {!isSignUp && (
+          <div style={{ textAlign: "right", marginTop: "calc(-1 * var(--space-2))" }}>
+            <a href="/auth/forgot-password" className={styles.authFooterLink} style={{ fontSize: "var(--text-xs)" }}>
+              Forgot password?
+            </a>
+          </div>
+        )}
+
+        <Button
+          variant="brand"
+          size="lg"
+          fullWidth
+          loading={loading}
+          type="submit"
+          style={{ marginTop: "var(--space-2)" } as React.CSSProperties}
+        >
+          {isSignUp ? "Create Free Account →" : "Sign In →"}
+        </Button>
+      </form>
+
+      <p className={styles.authFooterText} style={{ marginTop: "var(--space-4)" }}>
+        {isSignUp ? (
+          <>Already have an account?{" "}
+            <button className={styles.authFooterLink} onClick={() => setMode("signin")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+              Sign in
+            </button>
+          </>
+        ) : (
+          <>Don't have an account?{" "}
+            <button className={styles.authFooterLink} onClick={() => setMode("signup")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+              Sign up free
+            </button>
+          </>
+        )}
+      </p>
+    </div>
   );
 }
 
-// ── LandingPage ─────────────────────────────────────────────────────────────
+// ── LandingPage ──────────────────────────────────────────────────
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -230,91 +301,38 @@ export default function LandingPage() {
   useEffect(() => {
     const el = statsRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) { setStatsVisible(true); observer.disconnect(); }
-      },
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setStatsVisible(true); obs.disconnect(); } },
       { threshold: 0.5 }
     );
-    observer.observe(el);
-    return () => observer.disconnect();
+    obs.observe(el);
+    return () => obs.disconnect();
   }, []);
 
-  const count1 = useCounter(200, 1000, statsVisible);
-  const count2 = useCounter(10, 800, statsVisible);
+  const count1 = useCounter(2800, 1000, statsVisible);
+  const count2 = useCounter(140,  800,  statsVisible);
+  const count3 = useCounter(38,   700,  statsVisible);
 
-  const scrollToWaitlist = () =>
-    document.getElementById("waitlist")?.scrollIntoView({ behavior: "smooth" });
-
-  // ── Static data ────────────────────────────────────────────────────────
+  // ── Static data ────────────────────────────────────────────────
 
   const tickerItems = [
     "Athletes", "Cricket", "Teams", "Football", "Scouts",
-    "Badminton", "Academies", "Talent",
-    "Discovery", "Recruitment", "Goatza",
-    // duplicate for seamless loop
+    "Badminton", "Academies", "Talent", "Discovery", "Recruitment", "Goatza",
     "Athletes", "Cricket", "Teams", "Football", "Scouts",
-    "Badminton", "Academies", "Talent",
-    "Discovery", "Recruitment", "Goatza",
+    "Badminton", "Academies", "Talent", "Discovery", "Recruitment", "Goatza",
   ];
 
-  const problems = [
-    {
-      icon: "mdi:eye-off-outline",
-      title: "Talent Stays Hidden",
-      body: "Thousands of skilled athletes never get seen. Without the right connections, raw talent simply goes undiscovered.",
-    },
-    {
-      icon: "mdi:link-variant-off",
-      title: "Recruitment is Broken",
-      body: "Teams waste weeks on scattered WhatsApp groups and word-of-mouth. Finding the right player takes far too long.",
-    },
-    {
-      icon: "mdi:card-account-details-outline",
-      title: "No Digital Identity",
-      body: "Athletes have no professional space to showcase stats, video, and achievements the way other professionals do.",
-    },
-    {
-      icon: "mdi:map-marker-radius-outline",
-      title: "Geography Limits Reach",
-      body: "Local talent pools are small. Real opportunity requires visibility beyond your city — but the tools haven't existed.",
-    },
-  ];
-
-  const solutionFeatures = [
-    {
-      icon: "mdi:account-star-outline",
-      title: "Athlete Profiles",
-      body: "Showcase skills, stats, highlight reels, and milestones — your complete sports identity.",
-    },
-    {
-      icon: "mdi:radar",
-      title: "Smart Discovery",
-      body: "Scouts and teams filter by sport, position, age, and location — then connect instantly.",
-    },
-    {
-      icon: "mdi:school-outline",
-      title: "Academy Tools",
-      body: "Academies list programmes, post recruitment drives, and manage player pipelines.",
-    },
+  const features = [
+    { icon: "mdi:account-star-outline", title: "Athlete Profiles",   body: "Showcase skills, stats, highlight reels, and career milestones — your complete sports identity." },
+    { icon: "mdi:radar",                title: "Smart Discovery",    body: "Scouts filter by sport, position, age, and region — then connect directly in seconds." },
+    { icon: "mdi:school-outline",       title: "Academy Tools",      body: "List programmes, post intake drives, and manage your entire player pipeline in one place." },
+    { icon: "mdi:message-text-outline", title: "Direct Messaging",   body: "No middlemen. Athletes and recruiters negotiate and build relationships right on the platform." },
   ];
 
   const steps = [
-    {
-      num: "01",
-      title: "Build Your Profile",
-      body: "Create your sports identity — add highlights, stats, position, and achievements. Athletes or organisations, everyone gets a space.",
-    },
-    {
-      num: "02",
-      title: "Get Discovered",
-      body: "Scouts, coaches, and academies actively search Goatza for talent. Your profile works for you 24/7.",
-    },
-    {
-      num: "03",
-      title: "Connect & Grow",
-      body: "Message, negotiate, and build relationships directly on the platform. From tryouts to signed contracts — all in one place.",
-    },
+    { num: "01", title: "Build Your Profile",  body: "Create your sports identity — add highlights, stats, position, and achievements." },
+    { num: "02", title: "Get Discovered",      body: "Scouts and clubs actively search Goatza for talent. Your profile works 24/7 for you." },
+    { num: "03", title: "Connect & Grow",      body: "Message, negotiate, and build lasting relationships — all in one platform." },
   ];
 
   const audiences = [
@@ -322,8 +340,8 @@ export default function LandingPage() {
       icon: "mdi:run-fast",
       title: "Athletes",
       benefits: [
-        "Build a professional sports profile",
-        "Get discovered by scouts and teams",
+        "Build a verified sports profile",
+        "Get discovered by scouts & teams",
         "Showcase your highlight reel",
         "Access opportunities globally",
       ],
@@ -335,7 +353,7 @@ export default function LandingPage() {
         "Find verified talent instantly",
         "Filter by position, stats & location",
         "Post open trials and recruitment calls",
-        "Reduce recruitment time and cost",
+        "Cut recruitment time and cost",
       ],
     },
     {
@@ -355,47 +373,43 @@ export default function LandingPage() {
       {/* ── HEADER ─────────────────────────────────────────────── */}
       <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ""}`}>
         <div className={`container ${styles.headerContent}`}>
-          <LogoLockup
-            lockupClass={styles.logoLockup}
-            wrapClass={styles.logoImgWrap}
-            imgClass={styles.logoImg}
-            wordmarkClass={styles.logoWordmark}
-          />
-          <button className={styles.headerCta} onClick={scrollToWaitlist}>
-            Join Waitlist
-          </button>
+          <LogoLockup />
+
+          <nav className={styles.headerNav} aria-label="Main navigation">
+            <a href="#features"  className={styles.headerNavLink}>Features</a>
+            <a href="#how"       className={styles.headerNavLink}>How It Works</a>
+            <a href="#for-who"   className={styles.headerNavLink}>For Who</a>
+          </nav>
+
+          <div className={styles.headerActions}>
+            <Button variant="ghost" size="sm" as="a" href="#signin">
+              Sign In
+            </Button>
+            <Button variant="primary" size="sm" as="a" href="#signup">
+              Get Started
+            </Button>
+          </div>
         </div>
       </header>
 
       <main>
-        {/* ── HERO ───────────────────────────────────────────────── */}
+        {/* ── HERO ─────────────────────────────────────────────── */}
         <section className={styles.hero} aria-label="Hero">
           <div className={styles.heroBg} aria-hidden="true" />
           <div className={styles.heroGlow} aria-hidden="true" />
-
           <div className={`${styles.heroFloat} ${styles.heroFloatA}`} aria-hidden="true" />
           <div className={`${styles.heroFloat} ${styles.heroFloatB}`} aria-hidden="true" />
-          <div className={`${styles.heroFloat} ${styles.heroFloatC}`} aria-hidden="true" />
 
-          {/* Sports bg icons */}
           <div className={`${styles.sportsBgIcon} ${styles.sportsBgSoccer}`} aria-hidden="true">
             <Icon icon="mdi:soccer" width={160} height={160} />
           </div>
           <div className={`${styles.sportsBgIcon} ${styles.sportsBgCricket}`} aria-hidden="true">
             <Icon icon="mdi:cricket" width={110} height={110} />
           </div>
-          <div className={`${styles.sportsBgIcon} ${styles.sportsBgBadminton}`} aria-hidden="true">
-            <Icon icon="mdi:badminton" width={90} height={90} />
-          </div>
 
-          <div
-            className="container-tight"
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2 }}
-          >
-            <div className={styles.heroBadge}>
-              <span className={styles.heroBadgeDot} aria-hidden="true" />
-              Pre-Launch · Early Access Open
-            </div>
+          {/* Left: copy */}
+          <div className={`container ${styles.heroCopy}`}>
+            <Badge variant="brand" dot>Now Live · Join Today</Badge>
 
             <h1 className={styles.heroHeadline}>
               Where the{" "}
@@ -405,134 +419,103 @@ export default function LandingPage() {
             </h1>
 
             <p className={styles.heroSub}>
-              The sports network built for discovery.
-              Showcase your talent and connect with scouts, teams &amp; academies.
+              The sports network built for discovery. Showcase your talent and
+              connect with scouts, teams &amp; academies — all in one platform.
             </p>
 
-            <div className={styles.heroFormWrap}>
-              <WaitlistForm />
+            <div className={styles.heroActions}>
+              <Button
+                variant="brand"
+                size="lg"
+                rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
+                as="a"
+                href="#signup"
+              >
+                Start for Free
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                leftIcon={<Icon icon="mdi:play-circle-outline" width={18} height={18} />}
+                as="a"
+                href="#how"
+              >
+                See How It Works
+              </Button>
             </div>
 
-            <p className={styles.heroNote}>
-              Free to join · No credit card · Early members get priority access
-            </p>
-
-            <div
-              ref={statsRef}
-              className={styles.heroStats}
-              role="list"
-              aria-label="Key numbers"
-            >
+            {/* Stats */}
+            <div ref={statsRef} className={styles.heroStats} role="list" aria-label="Platform stats">
               <div className={styles.heroStat} role="listitem">
-                <div className={styles.heroStatNum}>{count1}+</div>
-                <div className={styles.heroStatLabel}>Athletes waiting</div>
+                <div className={styles.heroStatNum}>{count1.toLocaleString()}+</div>
+                <div className={styles.heroStatLabel}>Athletes</div>
               </div>
               <div className={styles.heroStatDivider} aria-hidden="true" />
               <div className={styles.heroStat} role="listitem">
                 <div className={styles.heroStatNum}>{count2}+</div>
-                <div className={styles.heroStatLabel}>Clubs &amp; academies</div>
+                <div className={styles.heroStatLabel}>Clubs &amp; Academies</div>
+              </div>
+              <div className={styles.heroStatDivider} aria-hidden="true" />
+              <div className={styles.heroStat} role="listitem">
+                <div className={styles.heroStatNum}>{count3}</div>
+                <div className={styles.heroStatLabel}>Sports</div>
               </div>
             </div>
           </div>
+
+          {/* Right: auth card */}
+          <div className="container" style={{ display: "flex", justifyContent: "center", position: "relative", zIndex: 2 }}>
+            <AuthCard />
+          </div>
         </section>
 
-        {/* ── TICKER ─────────────────────────────────────────────── */}
+        {/* ── TICKER ───────────────────────────────────────────── */}
         <div className={styles.ticker} aria-hidden="true">
           <div className={styles.tickerTrack}>
             {tickerItems.map((item, i) => (
               <span key={i} className={styles.tickerItem}>
-                {item}
-                <span className={styles.tickerSep}>✦</span>
+                {item}<span className={styles.tickerSep}>✦</span>
               </span>
             ))}
           </div>
         </div>
 
-        {/* ── PROBLEM ────────────────────────────────────────────── */}
+        {/* ── FEATURES ─────────────────────────────────────────── */}
         <section
-          className={`${styles.section} ${styles.problem}`}
-          aria-labelledby="problem-title"
+          id="features"
+          className={`${styles.section} ${styles.featuresSection}`}
+          aria-labelledby="features-title"
         >
           <div className="container">
             <div className="reveal">
               <div className={styles.sectionLabel}>
                 <span className={styles.sectionLabelLine} />
-                The Problem
+                Platform Features
               </div>
-              <h2 id="problem-title" className={styles.sectionTitle}>
-                Sports talent is everywhere.
+              <h2 id="features-title" className={styles.sectionTitle}>
+                Everything you need
                 <br />
-                The system isn't.
+                to level up
               </h2>
-              <p className={styles.sectionBody} style={{ maxWidth: "500px" }}>
-                The sports world still runs on connections, luck, and geography.
-                Talented athletes fall through the cracks every single day.
-              </p>
             </div>
 
-            <div className={`${styles.problemGrid} stagger-children`}>
-              {problems.map((p, i) => (
-                <TiltCard key={i} className={`${styles.problemCard} reveal`} intensity={6}>
-                  <span className={styles.problemIcon} aria-hidden="true">
-                    <Icon icon={p.icon} width={28} height={28} />
+            <div className={`${styles.featuresGrid} stagger-children`}>
+              {features.map((f, i) => (
+                <TiltCard key={i} className={`${styles.featureCard} reveal`} intensity={6}>
+                  <span className={styles.featureIcon} aria-hidden="true">
+                    <Icon icon={f.icon} width={26} height={26} />
                   </span>
-                  <h3 className={styles.problemCardTitle}>{p.title}</h3>
-                  <p className={styles.problemCardBody}>{p.body}</p>
+                  <h3 className={styles.featureTitle}>{f.title}</h3>
+                  <p className={styles.featureBody}>{f.body}</p>
                 </TiltCard>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── SOLUTION ───────────────────────────────────────────── */}
-        <section className={styles.section} aria-labelledby="solution-title">
-          <div className="container">
-            <div className={styles.solutionInner}>
-              <div className={`${styles.solutionVisual} reveal-scale`}>
-                <div className={styles.solutionVisualGlow} aria-hidden="true" />
-                <div className={styles.solutionVisualInner}>
-                  <div className={styles.solutionLogoWrap}>
-                    <img src={LOGO_URL} alt="Goatza platform" className={styles.solutionLogoLarge} />
-                  </div>
-                  <div className={styles.solutionTag}>Your Stage Awaits</div>
-                </div>
-              </div>
-
-              <div className="reveal-right">
-                <div className={styles.sectionLabel}>
-                  <span className={styles.sectionLabelLine} />
-                  The Solution
-                </div>
-                <h2 id="solution-title" className={styles.sectionTitle}>
-                  One platform.
-                  <br />
-                  Infinite reach.
-                </h2>
-                <p className={styles.sectionBody}>
-                  Goatza brings athletes, teams, scouts, and academies onto a single
-                  professional network built for sport. Think LinkedIn meets Instagram
-                  — but entirely for the field.
-                </p>
-                <div className={styles.solutionFeatures}>
-                  {solutionFeatures.map((f, i) => (
-                    <div key={i} className={styles.solutionFeature}>
-                      <div className={styles.solutionFeatureIcon} aria-hidden="true">
-                        <Icon icon={f.icon} width={20} height={20} />
-                      </div>
-                      <div className={styles.solutionFeatureText}>
-                        <strong>{f.title}</strong>
-                        <span>{f.body}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── HOW IT WORKS ───────────────────────────────────────── */}
+        {/* ── HOW IT WORKS ─────────────────────────────────────── */}
         <section
+          id="how"
           className={`${styles.section} ${styles.howItWorks}`}
           aria-labelledby="how-title"
         >
@@ -563,8 +546,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── WHO IT'S FOR ───────────────────────────────────────── */}
-        <section className={styles.section} aria-labelledby="audience-title">
+        {/* ── WHO IT'S FOR ─────────────────────────────────────── */}
+        <section
+          id="for-who"
+          className={`${styles.section} ${styles.audienceSection}`}
+          aria-labelledby="audience-title"
+        >
           <div className="container">
             <div className="reveal">
               <div className={styles.sectionLabel}>
@@ -581,7 +568,6 @@ export default function LandingPage() {
             <div className={`${styles.audienceGrid} stagger-children`}>
               {audiences.map((a, i) => (
                 <TiltCard key={i} className={`${styles.audienceCard} reveal`} intensity={5}>
-                  {/* renamed: audienceEmoji → audienceIcon */}
                   <span className={styles.audienceIcon} aria-hidden="true">
                     <Icon icon={a.icon} width={36} height={36} />
                   </span>
@@ -597,10 +583,9 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── FINAL CTA ──────────────────────────────────────────── */}
+        {/* ── FINAL CTA ─────────────────────────────────────────── */}
         <section
           className={styles.ctaSection}
-          id="waitlist"
           aria-labelledby="cta-title"
         >
           <div className={styles.ctaBg} aria-hidden="true" />
@@ -608,54 +593,64 @@ export default function LandingPage() {
           <div className={`${styles.ctaFloat} ${styles.ctaFloatA}`} aria-hidden="true" />
           <div className={`${styles.ctaFloat} ${styles.ctaFloatB}`} aria-hidden="true" />
 
-          {/* Sports bg icons — dark section */}
-          <div className={`${styles.sportsBgIcon} ${styles.ctaSportsSoccer}`} aria-hidden="true">
-            <Icon icon="mdi:soccer" width={200} height={200} />
-          </div>
-          <div className={`${styles.sportsBgIcon} ${styles.ctaSportsBadminton}`} aria-hidden="true">
-            <Icon icon="mdi:badminton" width={130} height={130} />
-          </div>
-
           <div className="container-tight" style={{ position: "relative", zIndex: 1 }}>
-            <div className="reveal">
+            <div className="reveal" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div className={styles.ctaBadge}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)", animation: "pulse-brand 2s infinite", flexShrink: 0 }} aria-hidden="true" />
+                First 10,000 users get free premium access
+              </div>
+
               <h2 id="cta-title" className={styles.ctaTitle}>
-                Claim your spot
+                Your moment
                 <br />
-                before <span>launch day</span>
+                starts <span>now</span>
               </h2>
+
               <p className={styles.ctaBody}>
-                Early members get priority access, exclusive features, and the chance
-                to shape what Goatza becomes. Don't wait to be great.
+                Join thousands of athletes, coaches, and scouts already building
+                their future on Goatza.
               </p>
-            </div>
 
-            <div className={`${styles.ctaFormWrap} reveal`} style={{ transitionDelay: "120ms" }}>
-              {/* renamed: submitBtnGold → submitBtnBrand */}
-              <WaitlistForm
-                inputClass={styles.ctaInput}
-                submitBtnClass={styles.submitBtnBrand}
-              />
-            </div>
+              <div className={styles.ctaActions}>
+                <Button
+                  variant="brand"
+                  size="lg"
+                  rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
+                  as="a"
+                  href="#signup"
+                >
+                  Create Free Account
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  as="a"
+                  href="#signin"
+                  style={{ borderColor: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" } as React.CSSProperties}
+                >
+                  Sign In
+                </Button>
+              </div>
 
-            <p className={styles.ctaNote}>First 10,000 users get free premium access.</p>
-
-            <div className={styles.ctaCounter}>
-              <span className={styles.ctaCounterDot} aria-hidden="true" />
-              200+ people have already joined the waitlist
+              <p className={styles.ctaNote}>
+                Free forever · No credit card required · Cancel anytime
+              </p>
             </div>
           </div>
         </section>
       </main>
 
-      {/* ── FOOTER ─────────────────────────────────────────────────── */}
+      {/* ── FOOTER ───────────────────────────────────────────────── */}
       <footer className={styles.footer}>
         <div className={`container ${styles.footerInner}`}>
-          <LogoLockup
-            lockupClass={styles.footerLogoLockup}
-            wrapClass={styles.footerLogoImgWrap}
-            imgClass={styles.footerLogoImg}
-            wordmarkClass={styles.footerWordmark}
-          />
+          <LogoLockup footer />
+
+          <nav className={styles.footerLinks} aria-label="Footer navigation">
+            <a href="/privacy" className={styles.footerLink}>Privacy</a>
+            <a href="/terms"   className={styles.footerLink}>Terms</a>
+            <a href="/contact" className={styles.footerLink}>Contact</a>
+          </nav>
+
           <p className={styles.footerCopy}>
             © {new Date().getFullYear()} Goatza. All rights reserved.
           </p>
