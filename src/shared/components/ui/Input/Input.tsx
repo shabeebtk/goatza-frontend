@@ -8,7 +8,7 @@ type Size = "sm" | "md" | "lg";
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   helperText?: string;
-  errorText?: string;
+  error?: string;
   inputSize?: Size; 
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -22,7 +22,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     {
       label,
       helperText,
-      errorText,
+      error,
       inputSize = "md", 
       leftIcon,
       rightIcon,
@@ -52,7 +52,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       styles.inputWrap,
       sizeMap[inputSize],
       {
-        [styles.inputError]: !!errorText,
+        [styles.inputError]: !!error,
         [styles.inputDark]: dark,
       }
     );
@@ -93,9 +93,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             type={resolvedType}
             className={inputClasses}
-            aria-invalid={!!errorText}
+            aria-invalid={!!error}
             aria-describedby={
-              errorText
+              error
                 ? `${inputId}-error`
                 : helperText
                 ? `${inputId}-helper`
@@ -139,7 +139,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           ) : null}
         </div>
 
-        {errorText && (
+        {error && (
           <p
             id={`${inputId}-error`}
             className={styles.inputErrorMsg}
@@ -151,11 +151,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               height={12}
               aria-hidden="true"
             />
-            {errorText}
+            {error}
           </p>
         )}
 
-        {helperText && !errorText && (
+        {helperText && !error && (
           <p id={`${inputId}-helper`} className={styles.inputHelper}>
             {helperText}
           </p>

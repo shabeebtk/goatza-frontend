@@ -14,7 +14,7 @@ interface SelectOption {
 interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "size"> {
   label?: string;
   helperText?: string;
-  errorText?: string;
+  error?: string;
   size?: Size;
   options: SelectOption[];
   placeholder?: string;
@@ -26,7 +26,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
     {
       label,
       helperText,
-      errorText,
+      error,
       size = "md",
       options,
       placeholder,
@@ -47,7 +47,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
  
     const wrapClasses = [
       styles.selectWrap,
-      errorText ? styles.selectError : "",
+      error ? styles.selectError : "",
       sizeMap[size],
     ]
       .filter(Boolean)
@@ -66,7 +66,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             id={selectId}
             className={`${styles.select} ${className}`}
-            aria-invalid={!!errorText}
+            aria-invalid={!!error}
             {...props}
           >
             {placeholder && (
@@ -84,13 +84,13 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             <Icon icon="mdi:chevron-down" width={20} height={20} />
           </span>
         </div>
-        {errorText && (
+        {error && (
           <p className={styles.inputErrorMsg} role="alert">
             <Icon icon="mdi:alert-circle-outline" width={12} height={12} aria-hidden="true" />
-            {errorText}
+            {error}
           </p>
         )}
-        {helperText && !errorText && (
+        {helperText && !error && (
           <p className={styles.inputHelper}>{helperText}</p>
         )}
       </div>
