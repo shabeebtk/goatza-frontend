@@ -10,6 +10,7 @@ import { Icon } from "@iconify/react"
 import { Button, Input, Select, Divider } from "@/shared/components/ui"
 import { useLogin, useSignup, useVerifyOtp } from "@/features/auth/hooks/useAuthMutations"
 import styles from "./AuthCard.module.css"
+import { getGoogleLoginUrl } from "../../services/auth.api"
 
 
 // ── Zod schemas ──────────────────────────────────────────────
@@ -192,6 +193,18 @@ function AuthCard() {
         }
     })
 
+
+    // ___ google oauth ____________
+
+    const handleGoogleLogin = async () => {
+        try {
+            const res = await getGoogleLoginUrl()
+            window.location.href = res.auth_url // redirect to Google
+        } catch (err) {
+            setApiError("Failed to start Google login")
+        }
+    }
+
     // ── Render ─────────────────────────────────────────────────
 
     return (
@@ -283,8 +296,12 @@ function AuthCard() {
 
                     {/* ── Social ── */}
                     <div className={styles.authSocialRow}>
-                        <button className={styles.authSocialBtn} type="button" aria-label="Continue with Google">
-                            <Icon icon="logos:google-icon" width={18} height={18} aria-hidden="true" />
+                        <button
+                            className={styles.authSocialBtn}
+                            type="button"
+                            onClick={handleGoogleLogin}
+                        >
+                            <Icon icon="logos:google-icon" width={18} height={18} />
                             Continue with Google
                         </button>
                     </div>

@@ -1,7 +1,6 @@
 /* ============================================================
-   GOATZA — Landing Page Module CSS  (v2 — Product Entry)
+   GOATZA — Landing Page Module CSS  (v3 — Sports Showcase)
    Mobile-First · Uses semantic tokens from globals.css only
-   NO hardcoded color values — everything via CSS variables
    ============================================================ */
 
 /* ── KEYFRAMES ────────────────────────────────────────────────── */
@@ -13,13 +12,13 @@
 @keyframes scaleIn      { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 @keyframes drawLine     { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes floatA       { 0%, 100% { transform: translateY(0)    rotate(var(--rotate, 0deg)); }
-                          50%       { transform: translateY(-22px) rotate(var(--rotate, 0deg)); } }
+                           50%       { transform: translateY(-22px) rotate(var(--rotate, 0deg)); } }
 @keyframes floatB       { 0%, 100% { transform: translateY(0)    rotate(var(--rotate, 0deg)); }
                           50%       { transform: translateY(18px)  rotate(var(--rotate, 0deg)); } }
 @keyframes shimmerBtn   { 0%   { left: -100%; } 100% { left: 160%; } }
 @keyframes ticker-scroll{ 0%   { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 @keyframes pulse-brand  { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--color-brand-glow); }
-                          50%       { opacity: 0.75; box-shadow: 0 0 0 5px transparent; } }
+                           50%       { opacity: 0.75; box-shadow: 0 0 0 5px transparent; } }
 @keyframes heroAccentPop{ from { opacity: 0; transform: scale(0.85) skewX(-3deg); }
                           to   { opacity: 1; transform: scale(1) skewX(0); } }
 @keyframes authFadeIn   { from { opacity: 0; transform: translateY(14px) scale(0.98); }
@@ -29,9 +28,7 @@
 
 .header {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   z-index: 100;
   padding-block: var(--space-3);
   border-bottom: 1px solid transparent;
@@ -64,9 +61,7 @@
   gap: var(--space-6);
 }
 
-@media (min-width: 720px) {
-  .headerNav { display: flex; }
-}
+@media (min-width: 720px) { .headerNav { display: flex; } }
 
 .headerNavLink {
   font-family: var(--font-ui);
@@ -82,9 +77,7 @@
 .headerNavLink::after {
   content: '';
   position: absolute;
-  bottom: -3px;
-  left: 0;
-  right: 0;
+  bottom: -3px; left: 0; right: 0;
   height: 2px;
   background: var(--color-brand);
   transform: scaleX(0);
@@ -134,11 +127,7 @@
   box-shadow: var(--shadow-brand);
 }
 
-.logoImg {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-}
+.logoImg { width: 34px; height: 34px; object-fit: contain; }
 
 .logoWordmark {
   font-family: var(--font-display);
@@ -150,32 +139,21 @@
   transition: color var(--duration-fast);
 }
 
-.logoLockup:hover .logoWordmark {
-  color: var(--color-brand-hover);
-}
+.logoLockup:hover .logoWordmark { color: var(--color-brand-hover); }
 
-/* ── HERO ────────────────────────────────────────────────────── */
+/* ── HERO ─────────────────────────────────────────────────────── */
 
 .hero {
   position: relative;
   min-height: 100svh;
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding-top: calc(72px + var(--space-8));
-  padding-bottom: var(--space-12);
+  justify-content: center;
+  padding-top: calc(72px + var(--space-10));
+  padding-bottom: var(--space-16);
   overflow: hidden;
-  gap: var(--space-10);
-}
-
-@media (min-width: 960px) {
-  .hero {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-12);
-    min-height: 100svh;
-    padding-top: calc(72px + var(--space-12));
-    padding-bottom: var(--space-16);
-  }
+  text-align: center;
 }
 
 .heroBg {
@@ -185,18 +163,18 @@
     linear-gradient(var(--color-hero-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-hero-grid) 1px, transparent 1px);
   background-size: 52px 52px;
-  mask-image: radial-gradient(ellipse 85% 65% at 35% 40%, black 20%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 85% 65% at 35% 40%, black 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse 85% 65% at 50% 35%, black 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 85% 65% at 50% 35%, black 20%, transparent 75%);
   animation: fadeIn 1.2s var(--ease-out) both;
 }
 
 .heroGlow {
   position: absolute;
-  top: 15%;
-  left: 20%;
+  top: 10%;
+  left: 50%;
   transform: translateX(-50%);
-  width: min(600px, 85vw);
-  height: 380px;
+  width: min(700px, 95vw);
+  height: 400px;
   background: radial-gradient(ellipse, var(--color-brand-muted) 0%, transparent 68%);
   pointer-events: none;
   animation: fadeIn 1.4s var(--ease-out) 0.3s both;
@@ -212,8 +190,7 @@
 .heroFloatA {
   width: clamp(180px, 28vw, 320px);
   height: clamp(180px, 28vw, 320px);
-  top: 8%;
-  right: -6%;
+  top: 8%; right: -6%;
   background: radial-gradient(circle, var(--color-brand-subtle) 0%, transparent 70%);
   border: 1px solid var(--color-brand-subtle);
   animation: floatA 9s ease-in-out infinite, fadeIn 1s var(--ease-out) 0.6s both;
@@ -222,14 +199,13 @@
 .heroFloatB {
   width: clamp(120px, 18vw, 220px);
   height: clamp(120px, 18vw, 220px);
-  bottom: 14%;
-  left: -4%;
+  bottom: 12%; left: -4%;
   background: radial-gradient(circle, var(--color-brand-subtle) 0%, transparent 70%);
   border: 1px solid var(--color-brand-subtle);
   animation: floatB 12s ease-in-out infinite, fadeIn 1s var(--ease-out) 0.8s both;
 }
 
-/* Sports bg icons */
+/* Sports bg icons — rendered inline from JS with style props */
 .sportsBgIcon {
   position: absolute;
   pointer-events: none;
@@ -239,68 +215,22 @@
   line-height: 0;
 }
 
-.sportsBgSoccer {
-  opacity: 0.06;
-  top: 14%;
-  right: 4%;
-  --rotate: -18deg;
-  transform: rotate(-18deg);
-  animation: floatA 14s ease-in-out infinite, fadeIn 1.2s var(--ease-out) 1s both;
-}
-
-.sportsBgCricket {
-  opacity: 0.05;
-  bottom: 18%;
-  left: 3%;
-  --rotate: 14deg;
-  transform: rotate(14deg);
-  animation: floatB 11s ease-in-out infinite 1.5s, fadeIn 1.2s var(--ease-out) 1.2s both;
-}
-
 @media (max-width: 480px) {
-  .sportsBgSoccer,
-  .sportsBgCricket { display: none; }
+  .sportsBgIcon { display: none; }
 }
 
-/* ── Hero copy side ── */
+/* Hero copy — centered single column */
 .heroCopy {
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  animation: fadeUp 0.8s var(--ease-out) 0.2s both;
-}
-
-@media (max-width: 959px) {
-  .heroCopy { align-items: center; text-align: center; }
-}
-
-.heroBadge {
-  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 7px var(--space-4);
-  background: var(--color-brand-subtle);
-  border: 1.5px solid var(--color-brand-muted);
-  border-radius: var(--radius-full);
-  font-family: var(--font-ui);
-  font-weight: var(--weight-semi);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--color-brand-hover);
-  margin-bottom: var(--space-5);
-}
-
-.heroBadgeDot {
-  width: 6px;
-  height: 6px;
-  background: var(--color-brand);
-  border-radius: 50%;
-  animation: pulse-brand 2s ease-in-out infinite;
-  flex-shrink: 0;
+  text-align: center;
+  animation: fadeUp 0.8s var(--ease-out) 0.2s both;
+  max-width: 700px;
+  width: 100%;
+  padding-inline: var(--space-5);
 }
 
 .heroHeadline {
@@ -310,7 +240,8 @@
   letter-spacing: 0.01em;
   text-transform: uppercase;
   color: var(--color-ink);
-  max-width: 580px;
+  max-width: 700px;
+  margin-top: var(--space-5);
 }
 
 .heroHeadlineAccent {
@@ -323,9 +254,7 @@
 .heroHeadlineAccent::after {
   content: '';
   position: absolute;
-  bottom: -4px;
-  left: 0;
-  right: 0;
+  bottom: -4px; left: 0; right: 0;
   height: 3px;
   background: linear-gradient(90deg, var(--color-brand), var(--color-brand-hover), var(--color-brand));
   border-radius: 2px;
@@ -337,7 +266,7 @@
   font-size: var(--text-lg);
   font-weight: var(--weight-regular);
   color: var(--color-text-secondary);
-  max-width: 420px;
+  max-width: 480px;
   line-height: var(--leading-loose);
 }
 
@@ -346,27 +275,19 @@
   flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-8);
-}
-
-@media (max-width: 959px) {
-  .heroActions { justify-content: center; }
+  justify-content: center;
 }
 
 .heroStats {
   display: flex;
   gap: var(--space-6);
-  margin-top: var(--space-8);
+  margin-top: var(--space-10);
   padding-top: var(--space-6);
   border-top: 1px solid var(--color-border);
-  width: 100%;
-  max-width: 460px;
+  justify-content: center;
 }
 
-@media (max-width: 959px) {
-  .heroStats { justify-content: center; }
-}
-
-.heroStat { text-align: left; }
+.heroStat { text-align: center; }
 
 .heroStatNum {
   font-family: var(--font-display);
@@ -425,15 +346,14 @@
 }
 
 .tickerItem:hover { color: var(--color-brand-hover); }
-
-.tickerSep {
-  color: var(--color-brand);
-  font-size: 1.1rem;
-}
+.tickerSep { color: var(--color-brand); font-size: 1.1rem; }
 
 /* ── SECTION SHARED ───────────────────────────────────────────── */
 
 .section { padding-block: var(--space-16); }
+
+@media (min-width: 640px) { .section { padding-block: var(--space-20); } }
+@media (min-width: 900px)  { .section { padding-block: var(--space-24); } }
 
 .sectionLabel {
   display: inline-flex;
@@ -473,6 +393,205 @@
   font-size: var(--text-base);
   color: var(--color-text-secondary);
   line-height: var(--leading-loose);
+  margin-bottom: var(--space-2);
+}
+
+/* ── SPORTS SHOWCASE ──────────────────────────────────────────── */
+
+.sportsSection {
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Featured 3 — large cards */
+.sportsFeaturedRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+}
+
+@media (min-width: 540px) { .sportsFeaturedRow { grid-template-columns: repeat(3, 1fr); } }
+
+.sportFeaturedCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: default;
+  min-height: 180px;
+  transform: perspective(700px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base),
+    transform var(--duration-fast) var(--ease-out);
+  will-change: transform;
+}
+
+.sportFeaturedCard:hover {
+  border-color: var(--color-brand-muted);
+  box-shadow: var(--shadow-brand);
+}
+
+/* Giant ghost icon fills the card bg */
+.sportFeaturedBg {
+  position: absolute;
+  bottom: -20px;
+  right: -20px;
+  color: var(--color-brand);
+  opacity: 0.07;
+  line-height: 0;
+  transition: opacity var(--duration-slow), transform var(--duration-slow) var(--ease-out);
+}
+
+.sportFeaturedCard:hover .sportFeaturedBg {
+  opacity: 0.12;
+  transform: scale(1.08) rotate(5deg);
+}
+
+/* Top bar accent */
+.sportFeaturedCard::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-brand), var(--color-brand-hover));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.sportFeaturedCard:hover::before { transform: scaleX(1); }
+
+.sportFeaturedIcon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  transition:
+    transform var(--duration-slow) var(--ease-spring),
+    background var(--duration-base),
+    color var(--duration-base);
+}
+
+.sportFeaturedCard:hover .sportFeaturedIcon {
+  transform: scale(1.1) rotate(-5deg);
+  background: var(--color-brand-muted);
+  color: var(--color-brand);
+}
+
+.sportFeaturedLabel {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.sportFeaturedBadge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+}
+
+/* All sports chip grid */
+.sportsChipGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.sportChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 16px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: default;
+  animation: chipPop 0.4s var(--ease-spring) both;
+  transition:
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base),
+    color var(--duration-base),
+    transform var(--duration-base) var(--ease-spring),
+    box-shadow var(--duration-base);
+}
+
+.sportChip:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-brand);
+}
+
+.sportChipIcon {
+  display: flex;
+  align-items: center;
+  color: var(--color-brand-hover);
+  line-height: 0;
+  flex-shrink: 0;
+  transition: color var(--duration-base), transform var(--duration-base) var(--ease-spring);
+}
+
+.sportChip:hover .sportChipIcon {
+  color: var(--color-brand);
+  transform: scale(1.15) rotate(-5deg);
+}
+
+.sportChipLabel {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  line-height: 1;
+  transition: color var(--duration-base);
+}
+
+.sportChip:hover .sportChipLabel { color: var(--color-brand-hover); }
+
+/* "More coming" chip variant */
+.sportChipMore {
+  border-style: dashed;
+  border-color: var(--color-border);
+  background: transparent;
+}
+
+.sportChipMore:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand);
+  border-style: solid;
 }
 
 /* ── FEATURES SECTION ─────────────────────────────────────────── */
@@ -490,7 +609,7 @@
   margin-top: var(--space-8);
 }
 
-@media (min-width: 640px)  { .featuresGrid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 640px) { .featuresGrid { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 900px)  { .featuresGrid { grid-template-columns: 1fr 1fr 1fr 1fr; } }
 
 .featureCard {
@@ -521,10 +640,7 @@
 }
 
 .featureCard:hover::before { transform: scaleX(1); }
-.featureCard:hover {
-  border-color: var(--color-brand-muted);
-  box-shadow: var(--shadow-md);
-}
+.featureCard:hover { border-color: var(--color-brand-muted); box-shadow: var(--shadow-md); }
 
 .featureIcon {
   display: flex;
@@ -568,9 +684,7 @@
 
 /* ── HOW IT WORKS ─────────────────────────────────────────────── */
 
-.howItWorks {
-  background: var(--color-bg);
-}
+.howItWorks { background: var(--color-bg); }
 
 .stepsHeader {
   text-align: center;
@@ -615,12 +729,7 @@
   transition: opacity var(--duration-slow);
 }
 
-.stepCard:hover {
-  border-color: var(--color-brand-muted);
-  box-shadow: var(--shadow-card);
-  transform: translateY(-3px);
-}
-
+.stepCard:hover { border-color: var(--color-brand-muted); box-shadow: var(--shadow-card); transform: translateY(-3px); }
 .stepCard:hover::after { opacity: 1; }
 
 .stepNumber {
@@ -669,11 +778,7 @@
 }
 
 @media (min-width: 900px) {
-  .stepCard {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
+  .stepCard { flex-direction: column; align-items: center; text-align: center; }
 }
 
 /* ── WHO IT'S FOR ─────────────────────────────────────────────── */
@@ -692,10 +797,7 @@
 }
 
 @media (min-width: 900px) {
-  .audienceGrid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-  }
+  .audienceGrid { display: grid; grid-template-columns: repeat(3, 1fr); }
 }
 
 .audienceCard {
@@ -723,11 +825,7 @@
   transition: opacity var(--duration-slow);
 }
 
-.audienceCard:hover {
-  border-color: var(--color-brand-muted);
-  box-shadow: var(--shadow-md);
-}
-
+.audienceCard:hover { border-color: var(--color-brand-muted); box-shadow: var(--shadow-md); }
 .audienceCard:hover::before { opacity: 1; }
 
 .audienceCard::after {
@@ -799,10 +897,7 @@
   transition: color var(--duration-fast), transform var(--duration-fast);
 }
 
-.audienceBenefit:hover {
-  color: var(--color-text-primary);
-  transform: translateX(4px);
-}
+.audienceBenefit:hover { color: var(--color-text-primary); transform: translateX(4px); }
 
 .audienceBenefit::before {
   content: '✦';
@@ -861,6 +956,30 @@
   animation: floatA 9s ease-in-out infinite 1s;
 }
 
+/* Sports bg icons inside CTA */
+.ctaSportsBg {
+  position: absolute;
+  top: -30px;
+  left: -40px;
+  color: var(--color-brand);
+  opacity: 0.07;
+  pointer-events: none;
+  line-height: 0;
+  animation: floatB 15s ease-in-out infinite;
+}
+
+.ctaSportsBgRight {
+  top: auto;
+  left: auto;
+  bottom: -20px;
+  right: -30px;
+  animation: floatA 10s ease-in-out infinite 2s;
+}
+
+@media (max-width: 480px) {
+  .ctaSportsBg { display: none; }
+}
+
 .ctaBadge {
   display: inline-flex;
   align-items: center;
@@ -878,6 +997,15 @@
   margin-bottom: var(--space-5);
   position: relative;
   z-index: 1;
+}
+
+.ctaBadgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  flex-shrink: 0;
+  animation: pulse-brand 2s infinite;
 }
 
 .ctaTitle {
@@ -938,11 +1066,7 @@
 }
 
 @media (min-width: 640px) {
-  .footerInner {
-    flex-direction: row;
-    justify-content: space-between;
-    text-align: left;
-  }
+  .footerInner { flex-direction: row; justify-content: space-between; text-align: left; }
 }
 
 .footerLogoLockup {
@@ -969,11 +1093,7 @@
   box-shadow: var(--shadow-xs);
 }
 
-.footerLogoImg {
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
-}
+.footerLogoImg { width: 30px; height: 30px; object-fit: contain; }
 
 .footerWordmark {
   font-family: var(--font-display);
@@ -983,10 +1103,7 @@
   color: var(--color-ink);
 }
 
-.footerLinks {
-  display: flex;
-  gap: var(--space-5);
-}
+.footerLinks { display: flex; gap: var(--space-5); }
 
 .footerLink {
   font-family: var(--font-ui);
@@ -1000,18 +1117,11 @@
 }
 
 .footerLink:hover { color: var(--color-brand-hover); }
-
-.footerCopy {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-/* ── RESPONSIVE SECTION SPACING ────────────────────────────── */
-@media (min-width: 640px)  { .section { padding-block: var(--space-20); } }
-@media (min-width: 900px)  { .section { padding-block: var(--space-24); } }
+.footerCopy { font-size: var(--text-xs); color: var(--color-text-muted); }
 
 /* ── Touch — disable tilt ───────────────────────────────────── */
 @media (hover: none) {
   .featureCard,
-  .audienceCard { transform: none !important; }
+  .audienceCard,
+  .sportFeaturedCard { transform: none !important; }
 }

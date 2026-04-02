@@ -1,18 +1,47 @@
 "use client";
 /**
- * GOATZA — Landing Page (v2)
+ * GOATZA — Landing Page (v3)
+ * No auth card in hero. Sports showcase section added.
  */
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@iconify/react";
-import { Button, Input, Select, Badge, Divider } from "@/shared/components/ui";
+import { Button, Badge } from "@/shared/components/ui";
 import styles from "./LandingPage.module.css";
 import { LOGO_URL } from "@/constants";
-import AuthCard from "@/features/auth/components/AuthCard/AuthCard";
 import useTilt from "@/shared/hooks/useTilt";
 import useScrollReveal from "@/shared/hooks/useScrollReveal";
 import useCounter from "@/shared/hooks/useCounter";
 import { tickerItems, features, steps, audiences } from "@/features/landing/data/landing.data";
-import Link from "next/link"
+
+// ── Static data ───────────────────────────────────────────────────
+
+const sports = [
+  { icon: "mdi:soccer",         label: "Football",     featured: true  },
+  { icon: "mdi:cricket",        label: "Cricket",      featured: true  },
+  { icon: "mdi:badminton",      label: "Badminton",    featured: true  },
+  { icon: "mdi:basketball",     label: "Basketball",   featured: false },
+  { icon: "mdi:tennis",         label: "Tennis",       featured: false },
+  { icon: "mdi:swim",           label: "Swimming",     featured: false },
+  { icon: "mdi:run-fast",       label: "Athletics",    featured: false },
+  { icon: "mdi:table-tennis",   label: "Table Tennis", featured: false },
+  { icon: "mdi:volleyball",     label: "Volleyball",   featured: false },
+  { icon: "mdi:kabaddi",        label: "Kabaddi",      featured: false },
+  { icon: "mdi:hockey-sticks",  label: "Hockey",       featured: false },
+  { icon: "mdi:boxing-glove",   label: "Boxing",       featured: false },
+  { icon: "mdi:weight-lifter",  label: "Weightlifting",featured: false },
+  { icon: "mdi:karate",         label: "Martial Arts", featured: false },
+  { icon: "mdi:cycling",        label: "Cycling",      featured: false },
+  { icon: "mdi:archery",        label: "Archery",      featured: false },
+];
+
+// Decorative bg icons scattered in the hero
+const heroBgSports = [
+  { icon: "mdi:soccer",    size: 180, top: "8%",  right: "3%",  opacity: 0.055, rotate: -18, anim: "floatA", delay: "0s"    },
+  { icon: "mdi:cricket",   size: 130, bottom: "12%", left: "2%", opacity: 0.045, rotate: 14,  anim: "floatB", delay: "1.5s"  },
+  { icon: "mdi:badminton", size: 100, top: "52%", right: "14%", opacity: 0.04,  rotate: -8,  anim: "floatA", delay: "2s"    },
+  { icon: "mdi:basketball",size: 80,  top: "20%", left: "7%",   opacity: 0.035, rotate: 22,  anim: "floatB", delay: "0.8s"  },
+  { icon: "mdi:tennis",    size: 65,  bottom: "28%", right: "6%",opacity: 0.03, rotate: -30, anim: "floatA", delay: "3s"    },
+];
 
 // ── TiltCard ─────────────────────────────────────────────────────
 function TiltCard({
@@ -51,8 +80,6 @@ function LogoLockup({ footer = false }: { footer?: boolean }) {
   );
 }
 
-
-
 // ── LandingPage ──────────────────────────────────────────────────
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
@@ -82,7 +109,6 @@ export default function LandingPage() {
   const count2 = useCounter(140,  800,  statsVisible);
   const count3 = useCounter(38,   700,  statsVisible);
 
-
   return (
     <>
       {/* ── HEADER ─────────────────────────────────────────────── */}
@@ -91,16 +117,17 @@ export default function LandingPage() {
           <LogoLockup />
 
           <nav className={styles.headerNav} aria-label="Main navigation">
-            <a href="#features"  className={styles.headerNavLink}>Features</a>
-            <a href="#how"       className={styles.headerNavLink}>How It Works</a>
-            <a href="#for-who"   className={styles.headerNavLink}>For Who</a>
+            <a href="#sports"   className={styles.headerNavLink}>Sports</a>
+            <a href="#features" className={styles.headerNavLink}>Features</a>
+            <a href="#how"      className={styles.headerNavLink}>How It Works</a>
+            <a href="#for-who"  className={styles.headerNavLink}>For Who</a>
           </nav>
 
           <div className={styles.headerActions}>
-            <Button variant="ghost" size="sm" href="/auth">
+            <Button variant="ghost" size="sm" as="a" href="/auth">
               Sign In
             </Button>
-            <Button variant="primary" size="sm" href="/auth?mode=signup">
+            <Button variant="primary" size="sm" as="a" href="/auth?mode=signup">
               Get Started
             </Button>
           </div>
@@ -115,71 +142,77 @@ export default function LandingPage() {
           <div className={`${styles.heroFloat} ${styles.heroFloatA}`} aria-hidden="true" />
           <div className={`${styles.heroFloat} ${styles.heroFloatB}`} aria-hidden="true" />
 
-          <div className={`${styles.sportsBgIcon} ${styles.sportsBgSoccer}`} aria-hidden="true">
-            <Icon icon="mdi:soccer" width={160} height={160} />
-          </div>
-          <div className={`${styles.sportsBgIcon} ${styles.sportsBgCricket}`} aria-hidden="true">
-            <Icon icon="mdi:cricket" width={110} height={110} />
-          </div>
-
-          {/* Left: copy */}
-          <div className={`container ${styles.heroCopy}`}>
-            <Badge variant="brand" dot>Now Live · Join Today</Badge>
-
-            <h1 className={styles.heroHeadline}>
-              Where the{" "}
-              <span className={styles.heroHeadlineAccent}>Greatest</span>
-              <br />
-              Get Discovered
-            </h1>
-
-            <p className={styles.heroSub}>
-              The sports network built for discovery. Showcase your talent and
-              connect with scouts, teams &amp; academies — all in one platform.
-            </p>
-
-            <div className={styles.heroActions}>
-              <Button
-                variant="brand"
-                size="lg"
-                rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
-                href="/auth?mode=signup"
-              >
-                Start for Free
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                leftIcon={<Icon icon="mdi:play-circle-outline" width={18} height={18} />}
-                as="a"
-                href="#how"
-              >
-                See How It Works
-              </Button>
+          {/* Scattered sports bg icons */}
+          {heroBgSports.map((s, i) => (
+            <div
+              key={i}
+              className={styles.sportsBgIcon}
+              aria-hidden="true"
+              style={{
+                top: s.top, bottom: s.bottom, left: s.left, right: s.right,
+                opacity: s.opacity,
+                transform: `rotate(${s.rotate}deg)`,
+                animation: `${s.anim} ${11 + i * 2}s ease-in-out ${s.delay} infinite`,
+              }}
+            >
+              <Icon icon={s.icon} width={s.size} height={s.size} />
             </div>
+          ))}
 
-            {/* Stats */}
-            <div ref={statsRef} className={styles.heroStats} role="list" aria-label="Platform stats">
-              <div className={styles.heroStat} role="listitem">
-                <div className={styles.heroStatNum}>{count1.toLocaleString()}+</div>
-                <div className={styles.heroStatLabel}>Athletes</div>
+          <div className="container-tight" style={{ position: "relative", zIndex: 2 }}>
+            <div className={styles.heroCopy}>
+              <Badge variant="brand" dot>Now Live · Join Today</Badge>
+
+              <h1 className={styles.heroHeadline}>
+                Where the{" "}
+                <span className={styles.heroHeadlineAccent}>Greatest</span>
+                <br />
+                Get Discovered
+              </h1>
+
+              <p className={styles.heroSub}>
+                The sports network built for discovery. Showcase your talent and
+                connect with scouts, teams &amp; academies — all in one platform.
+              </p>
+
+              <div className={styles.heroActions}>
+                <Button
+                  variant="brand"
+                  size="lg"
+                  rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
+                  href="/auth?mode=signup"
+                >
+                  Start for Free
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  leftIcon={<Icon icon="mdi:play-circle-outline" width={18} height={18} />}
+                  as="a"
+                  href="#how"
+                >
+                  See How It Works
+                </Button>
               </div>
-              <div className={styles.heroStatDivider} aria-hidden="true" />
-              <div className={styles.heroStat} role="listitem">
-                <div className={styles.heroStatNum}>{count2}+</div>
-                <div className={styles.heroStatLabel}>Clubs &amp; Academies</div>
-              </div>
-              <div className={styles.heroStatDivider} aria-hidden="true" />
-              <div className={styles.heroStat} role="listitem">
-                <div className={styles.heroStatNum}>{count3}</div>
-                <div className={styles.heroStatLabel}>Sports</div>
+
+              {/* Stats */}
+              <div ref={statsRef} className={styles.heroStats} role="list" aria-label="Platform stats">
+                <div className={styles.heroStat} role="listitem">
+                  <div className={styles.heroStatNum}>{count1.toLocaleString()}+</div>
+                  <div className={styles.heroStatLabel}>Athletes</div>
+                </div>
+                <div className={styles.heroStatDivider} aria-hidden="true" />
+                <div className={styles.heroStat} role="listitem">
+                  <div className={styles.heroStatNum}>{count2}+</div>
+                  <div className={styles.heroStatLabel}>Clubs &amp; Academies</div>
+                </div>
+                <div className={styles.heroStatDivider} aria-hidden="true" />
+                <div className={styles.heroStat} role="listitem">
+                  <div className={styles.heroStatNum}>{count3}+</div>
+                  <div className={styles.heroStatLabel}>Sports</div>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Right: auth card */}
-          <div className="container" style={{ display: "flex", justifyContent: "center", position: "relative", zIndex: 2 }}>
-            <AuthCard />
           </div>
         </section>
 
@@ -193,6 +226,66 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
+
+        {/* ── SPORTS SHOWCASE ──────────────────────────────────── */}
+        <section
+          id="sports"
+          className={`${styles.section} ${styles.sportsSection}`}
+          aria-labelledby="sports-title"
+        >
+          <div className="container">
+            <div className="reveal">
+              <div className={styles.sectionLabel}>
+                <span className={styles.sectionLabelLine} />
+                Sports on Goatza
+              </div>
+              <h2 id="sports-title" className={styles.sectionTitle}>
+                One platform.
+                <br />
+                Every sport.
+              </h2>
+              <p className={styles.sectionBody} style={{ maxWidth: 480 }}>
+                From football pitches to badminton courts — if you compete, you belong here.
+                We're starting with the sports India loves most and growing fast.
+              </p>
+            </div>
+
+            {/* Featured 3 — large cards */}
+            <div className={`${styles.sportsFeaturedRow} stagger-children`}>
+              {sports.filter(s => s.featured).map((s, i) => (
+                <TiltCard key={i} className={`${styles.sportFeaturedCard} reveal`} intensity={5}>
+                  <div className={styles.sportFeaturedBg} aria-hidden="true">
+                    <Icon icon={s.icon} width={140} height={140} />
+                  </div>
+                  <div className={styles.sportFeaturedIcon} aria-hidden="true">
+                    <Icon icon={s.icon} width={44} height={44} />
+                  </div>
+                  <span className={styles.sportFeaturedLabel}>{s.label}</span>
+                  <span className={styles.sportFeaturedBadge}>Featured</span>
+                </TiltCard>
+              ))}
+            </div>
+
+            {/* All sports chip grid */}
+            <div className={`${styles.sportsChipGrid} reveal`}>
+              {sports.filter(s => !s.featured).map((s, i) => (
+                <div key={i} className={styles.sportChip} style={{ animationDelay: `${i * 40}ms` }}>
+                  <span className={styles.sportChipIcon} aria-hidden="true">
+                    <Icon icon={s.icon} width={20} height={20} />
+                  </span>
+                  <span className={styles.sportChipLabel}>{s.label}</span>
+                </div>
+              ))}
+              {/* More coming soon chip */}
+              <div className={`${styles.sportChip} ${styles.sportChipMore}`}>
+                <span className={styles.sportChipIcon} aria-hidden="true">
+                  <Icon icon="mdi:plus-circle-outline" width={20} height={20} />
+                </span>
+                <span className={styles.sportChipLabel}>More coming</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* ── FEATURES ─────────────────────────────────────────── */}
         <section
@@ -298,19 +391,24 @@ export default function LandingPage() {
         </section>
 
         {/* ── FINAL CTA ─────────────────────────────────────────── */}
-        <section
-          className={styles.ctaSection}
-          aria-labelledby="cta-title"
-        >
+        <section className={styles.ctaSection} aria-labelledby="cta-title">
           <div className={styles.ctaBg} aria-hidden="true" />
           <div className={styles.ctaGlow} aria-hidden="true" />
           <div className={`${styles.ctaFloat} ${styles.ctaFloatA}`} aria-hidden="true" />
           <div className={`${styles.ctaFloat} ${styles.ctaFloatB}`} aria-hidden="true" />
 
+          {/* CTA sports bg icons */}
+          <div className={styles.ctaSportsBg} aria-hidden="true">
+            <Icon icon="mdi:soccer"   width={220} height={220} />
+          </div>
+          <div className={`${styles.ctaSportsBg} ${styles.ctaSportsBgRight}`} aria-hidden="true">
+            <Icon icon="mdi:cricket"  width={160} height={160} />
+          </div>
+
           <div className="container-tight" style={{ position: "relative", zIndex: 1 }}>
             <div className="reveal" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
               <div className={styles.ctaBadge}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)", animation: "pulse-brand 2s infinite", flexShrink: 0 }} aria-hidden="true" />
+                <span className={styles.ctaBadgeDot} aria-hidden="true" />
                 First 10,000 users get free premium access
               </div>
 
@@ -338,11 +436,15 @@ export default function LandingPage() {
                   variant="outline"
                   size="lg"
                   href="/auth"
-                  style={{ borderColor: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" }}
+                  style={{ borderColor: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" } as React.CSSProperties}
                 >
                   Sign In
                 </Button>
               </div>
+
+              <p className={styles.ctaNote}>
+                Free forever · No credit card required
+              </p>
             </div>
           </div>
         </section>
@@ -352,13 +454,11 @@ export default function LandingPage() {
       <footer className={styles.footer}>
         <div className={`container ${styles.footerInner}`}>
           <LogoLockup footer />
-
           <nav className={styles.footerLinks} aria-label="Footer navigation">
             <a href="/privacy" className={styles.footerLink}>Privacy</a>
             <a href="/terms"   className={styles.footerLink}>Terms</a>
             <a href="/contact" className={styles.footerLink}>Contact</a>
           </nav>
-
           <p className={styles.footerCopy}>
             © {new Date().getFullYear()} Goatza. All rights reserved.
           </p>

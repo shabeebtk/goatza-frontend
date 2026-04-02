@@ -1,0 +1,661 @@
+/* ============================================================
+   GOATZA — AppNav
+   Desktop top bar + Mobile top bar + Mobile bottom tab bar
+   Uses design tokens from globals.css
+   ============================================================ */
+
+/* ── Shared keyframes ────────────────────────────────────────── */
+@keyframes navFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes dropDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes tabBarUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse-brand {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 var(--color-brand-glow);
+    }
+
+    50% {
+        box-shadow: 0 0 0 5px transparent;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LOGO
+   ───────────────────────────────────────────────────────────── */
+
+.logoLink {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: opacity var(--duration-fast);
+}
+
+.logoLink:hover {
+    opacity: 0.85;
+}
+
+.logoImgWrap {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-xs);
+    transition: transform var(--duration-base) var(--ease-spring), box-shadow var(--duration-base);
+}
+
+.logoLink:hover .logoImgWrap {
+    transform: rotate(-5deg) scale(1.08);
+    box-shadow: var(--shadow-brand);
+}
+
+.logoImg {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.logoWordmark {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    line-height: 1;
+    /* hide on mobile — logo only */
+}
+
+@media (max-width: 767px) {
+    .logoWordmark {
+        display: none;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DESKTOP TOP NAV  (≥ 768px)
+   ───────────────────────────────────────────────────────────── */
+
+.topNav {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .topNav {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 200;
+        background: var(--color-surface);
+        border-bottom: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
+        animation: navFadeIn 0.45s var(--ease-out) both;
+    }
+}
+
+.topNavInner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    max-width: var(--container-wide);
+    margin-inline: auto;
+    padding-inline: var(--space-6);
+    height: 60px;
+}
+
+/* Center search */
+.topNavCenter {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding-inline: var(--space-4);
+}
+
+/* Nav links row */
+.topNavLinks {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.topNavLink {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 14px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    position: relative;
+    transition:
+        color var(--duration-fast),
+        background var(--duration-base) var(--ease-out);
+}
+
+.topNavLink:hover {
+    color: var(--color-text-primary);
+    background: var(--color-brand-subtle);
+}
+
+.topNavLinkActive {
+    color: var(--color-brand-hover);
+}
+
+.topNavLinkActive::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    /* sits on the nav border */
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--color-brand);
+    border-radius: 2px 2px 0 0;
+}
+
+.topNavLinkIcon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    line-height: 0;
+}
+
+.topNavLinkLabel {
+    font-family: var(--font-ui);
+    font-size: 0.65rem;
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+/* Avatar trigger */
+.topNavAvatar {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.avatarBtn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 4px 8px 4px 4px;
+    background: transparent;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition:
+        border-color var(--duration-base),
+        background var(--duration-base),
+        box-shadow var(--duration-base);
+}
+
+.avatarBtn:hover {
+    border-color: var(--color-brand-muted);
+    background: var(--color-brand-subtle);
+    box-shadow: var(--shadow-brand);
+}
+
+.avatarChevron {
+    color: var(--color-text-muted);
+    transition: color var(--duration-fast);
+    flex-shrink: 0;
+}
+
+.avatarBtn:hover .avatarChevron {
+    color: var(--color-brand-hover);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SEARCH BAR
+   ───────────────────────────────────────────────────────────── */
+
+.searchWrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 420px;
+    padding: 9px var(--space-4);
+    background: var(--color-bg);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    transition:
+        border-color var(--duration-base) var(--ease-out),
+        box-shadow var(--duration-base),
+        background var(--duration-base);
+}
+
+.searchWrap:hover {
+    border-color: var(--color-brand-muted);
+}
+
+.searchFocused {
+    border-color: var(--color-brand) !important;
+    box-shadow: 0 0 0 3px var(--color-brand-subtle);
+    background: var(--color-surface);
+}
+
+.searchCompact {
+    max-width: 200px;
+}
+
+.searchIcon {
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    line-height: 0;
+    transition: color var(--duration-base);
+}
+
+.searchFocused .searchIcon {
+    color: var(--color-brand);
+}
+
+.searchInput {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+    min-width: 0;
+}
+
+.searchInput::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* Remove default browser search input X */
+.searchInput::-webkit-search-cancel-button {
+    display: none;
+}
+
+.searchKbd {
+    font-family: var(--font-body);
+    font-size: 0.65rem;
+    padding: 2px 5px;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   NOTIFICATION BADGE DOT
+   ───────────────────────────────────────────────────────────── */
+
+.notifBadge {
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    padding-inline: 3px;
+    background: var(--color-error);
+    color: #ffffff;
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--color-surface);
+    line-height: 1;
+    animation: pulse-brand 2.5s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ACCOUNT DROPDOWN
+   ───────────────────────────────────────────────────────────── */
+
+.dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 230px;
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    animation: dropDown 0.22s var(--ease-spring) both;
+    z-index: 300;
+}
+
+.dropdownHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+}
+
+.dropdownUserInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dropdownName {
+    font-family: var(--font-ui);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
+    color: var(--color-ink);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdownHandle {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdownDivider {
+    height: 1px;
+    background: var(--color-border);
+    margin-inline: var(--space-2);
+}
+
+.dropdownSectionLabel {
+    font-family: var(--font-ui);
+    font-size: 0.62rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-widest);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    padding: var(--space-3) var(--space-4) var(--space-1);
+}
+
+.dropdownItem {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: 10px var(--space-4);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: none;
+    transition:
+        background var(--duration-fast),
+        color var(--duration-fast);
+}
+
+.dropdownItem:hover {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand-hover);
+}
+
+.dropdownItemActive {
+    color: var(--color-brand-hover);
+    background: var(--color-brand-subtle);
+    font-weight: var(--weight-semi);
+}
+
+.dropdownItemIcon {
+    display: flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    line-height: 0;
+    transition: color var(--duration-fast);
+}
+
+.dropdownItem:hover .dropdownItemIcon,
+.dropdownItemActive .dropdownItemIcon {
+    color: var(--color-brand);
+}
+
+.dropdownItemCheck {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    color: var(--color-brand);
+    line-height: 0;
+}
+
+.dropdownItemDanger {
+    color: var(--color-error);
+}
+
+.dropdownItemDanger:hover {
+    background: rgba(232, 70, 42, 0.07);
+    color: var(--color-error);
+}
+
+.dropdownItemDanger .dropdownItemIcon {
+    color: var(--color-error);
+}
+
+.dropdownItemDanger:hover .dropdownItemIcon {
+    color: var(--color-error);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE TOP BAR  (< 768px)
+   ───────────────────────────────────────────────────────────── */
+
+.mobileTopBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    height: 54px;
+    padding-inline: var(--space-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+    animation: navFadeIn 0.45s var(--ease-out) both;
+}
+
+@media (min-width: 768px) {
+    .mobileTopBar {
+        display: none;
+    }
+}
+
+/* Restore wordmark on mobile top bar */
+.mobileTopBar .logoWordmark {
+    display: block;
+}
+
+.mobileTopActions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.mobileIconBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition:
+        background var(--duration-fast),
+        color var(--duration-fast);
+}
+
+.mobileIconBtn:hover,
+.mobileIconBtn:active {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand-hover);
+}
+
+.mobileIconBtnRelative {
+    position: relative;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE BOTTOM TAB BAR  (< 768px)
+   ───────────────────────────────────────────────────────────── */
+
+.bottomBar {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .bottomBar {
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 200;
+        height: 62px;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: var(--color-surface);
+        border-top: 1px solid var(--color-border);
+        box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
+        animation: tabBarUp 0.45s var(--ease-out) 0.1s both;
+    }
+}
+
+.bottomTab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+    position: relative;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: color var(--duration-fast);
+    /* Enlarge tap target */
+    min-width: 44px;
+}
+
+.bottomTab:active {
+    color: var(--color-brand);
+}
+
+.bottomTabActive {
+    color: var(--color-brand-hover);
+}
+
+/* Active indicator pip above icon */
+.bottomTabActive::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 3px;
+    background: var(--color-brand);
+    border-radius: 0 0 3px 3px;
+}
+
+.bottomTabRelative {
+    position: relative;
+}
+
+/* Create post — brand green pill button */
+.bottomTabCreate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+    text-decoration: none;
+}
+
+.bottomTabCreateInner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    background: var(--color-brand);
+    color: var(--color-on-brand);
+    box-shadow: var(--shadow-brand);
+    transition:
+        background var(--duration-fast),
+        transform var(--duration-fast) var(--ease-spring),
+        box-shadow var(--duration-base);
+    margin-top: -8px;
+    /* lift above bar */
+}
+
+.bottomTabCreate:active .bottomTabCreateInner {
+    background: var(--color-brand-hover);
+    transform: scale(0.93);
+    box-shadow: none;
+}
+
+/* Profile avatar in active tab */
+.bottomTabAvatar {
+    border: 2px solid var(--color-brand) !important;
+    box-shadow: 0 0 0 1px var(--color-brand-subtle) !important;
+}

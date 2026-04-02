@@ -75,7 +75,24 @@ export const refreshApi = async () => {
   return res.data.data
 }
 
+
 export const getUserApi = async () => {
   const res = await api.get("/user/details")
+  return res.data.data
+}
+
+
+export const getGoogleLoginUrl = async () => {
+  const res = await api.get("/user/auth/google/login/url")
+  return res.data.data
+}
+
+export const googleCallbackApi = async (params: {
+  code: string
+  state: string
+}) => {
+  const res = await api.get("/user/auth/google/callback", {
+    params,
+  })
   return res.data.data
 }

@@ -1,0 +1,27 @@
+/* ============================================================
+   Handles layout offsets for the fixed top/bottom navbars.
+   ============================================================ */
+
+.shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    background: var(--color-bg);
+}
+
+.content {
+    flex: 1;
+    width: 100%;
+
+    /* Mobile: offset for top bar (54px) + bottom bar (62px) */
+    padding-top: 54px;
+    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Desktop: only top bar (60px), no bottom bar */
+@media (min-width: 768px) {
+    .content {
+        padding-top: 60px;
+        padding-bottom: 0;
+    }
+}

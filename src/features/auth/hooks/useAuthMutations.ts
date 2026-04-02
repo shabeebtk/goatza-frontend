@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query"
 import {
+  googleCallbackApi,
   loginApi,
   signupApi,
   verifyOtpApi,
@@ -49,6 +50,20 @@ export const useVerifyOtp = () => {
     mutationFn: (data: VerifyOtpPayload) => verifyOtpApi(data),
     onSuccess: (data) => {
       setAuth({ token: data.access, user: data.user })
+    },
+  })
+}
+
+export const useGoogleAuth = () => {
+  const setAuth = useAuthStore((s) => s.setAuth)
+
+  return useMutation({
+    mutationFn: googleCallbackApi,
+    onSuccess: (data) => {
+      setAuth({
+        token: data.access,
+        user: data.user,
+      })
     },
   })
 }
