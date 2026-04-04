@@ -5,9 +5,9 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
 import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEditModal"
+import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import {
   useUserProfile,
-  useUpdateProfile,
   useFollowUser,
 } from "@/features/profile/hooks/useProfileQueries"
 import styles from "./UserProfile.module.css"
@@ -22,81 +22,50 @@ function StatPill({ value, label }: { value: string; label: string }) {
   )
 }
 
-// ── Edit icon button ──────────────────────────────────────────
-function EditBtn({ onClick, label }: { onClick: () => void; label: string }) {
-  return (
-    <button className={styles.editIconBtn} onClick={onClick} aria-label={label} type="button">
-      <Icon icon="mdi:pencil-outline" width={15} height={15} />
-    </button>
-  )
-}
-
-// ── Inline edit ───────────────────────────────────────────────
-function InlineEdit({
-  value, onSave, onCancel, placeholder, multiline = false, maxLength = 160,
-}: {
-  value: string; onSave: (v: string) => void; onCancel: () => void
-  placeholder?: string; multiline?: boolean; maxLength?: number
-}) {
-  const [draft, setDraft] = useState(value)
-  const shared = {
-    value: draft,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setDraft(e.target.value),
-    placeholder, maxLength, className: styles.inlineInput, autoFocus: true as const,
-  }
-  return (
-    <div className={styles.inlineEditWrap}>
-      {multiline
-        ? <textarea rows={4} {...shared} />
-        : <input type="text" {...(shared as React.InputHTMLAttributes<HTMLInputElement>)} />}
-      <div className={styles.inlineEditActions}>
-        <button className={styles.inlineSave} onClick={() => onSave(draft.trim())} type="button">Save</button>
-        <button className={styles.inlineCancel} onClick={onCancel} type="button">Cancel</button>
-      </div>
-    </div>
-  )
-}
-
 // ── Follow button ─────────────────────────────────────────────
-function FollowButton({ profileId, username, isFollowing, isFollowedBy }: {
+function FollowButton({
+  profileId, username, isFollowing, isFollowedBy,
+}: {
   profileId: string; username: string; isFollowing: boolean; isFollowedBy: boolean
 }) {
   const { follow, unfollow } = useFollowUser(username)
   const loading = follow.isPending || unfollow.isPending
-  const handleClick = () => isFollowing ? unfollow.mutate(profileId) : follow.mutate(profileId)
+  const handleClick = () =>
+    isFollowing ? unfollow.mutate(profileId) : follow.mutate(profileId)
 
-  const label = isFollowing ? "Following" : isFollowedBy ? "Follow Back" : "Follow"
-  const icon = isFollowing ? "mdi:check" : "mdi:plus"
-  const variant = isFollowing ? "outline" : "brand"
+  const label   = isFollowing ? "Following" : isFollowedBy ? "Follow Back" : "Follow"
+  const icon    = isFollowing ? "mdi:check"  : "mdi:plus"
+  const variant: "brand" | "outline" = isFollowing ? "outline" : "brand"
 
   return (
-    <Button variant={variant} size="sm" loading={loading} onClick={handleClick}
+    <Button
+      variant={variant}
+      size="sm"
+      loading={loading}
+      onClick={handleClick}
       leftIcon={<Icon icon={icon} width={15} height={15} />}
-      className={isFollowing ? styles.followingBtn : undefined}>
+      className={isFollowing ? styles.followingBtn : undefined}
+    >
       {label}
     </Button>
   )
 }
 
-// ── Main component ────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────
 interface UserProfileProps {
   username: string
   isOwn?: boolean
 }
 
-// Which photo modal is open — null means none
 type PhotoModalType = "profile" | "cover" | null
 
 export default function UserProfile({ username, isOwn = false }: UserProfileProps) {
   const { data: profile, isLoading, isError } = useUserProfile(username)
-  const updateProfile = useUpdateProfile()
 
-  const [editing, setEditing] = useState<null | "name" | "headline" | "about">(null)
-  // ↓ NEW: controls which photo modal is open
-  const [photoModal, setPhotoModal] = useState<PhotoModalType>(null)
+  const [photoModal, setPhotoModal]         = useState<PhotoModalType>(null)
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
 
-  // ── Skeleton ──────────────────────────────────────────────────
+  // ── Loading skeleton ──────────────────────────────────────────
   if (isLoading) {
     return (
       <div className={styles.profileSkeleton}>
@@ -119,13 +88,8 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
     )
   }
 
-  const rel = profile.relationship
+  const rel  = profile.relationship
   const isMe = isOwn || (rel?.is_me ?? false)
-
-  const handleSave = async (field: "name" | "headline" | "about", value: string) => {
-    await updateProfile.mutateAsync({ [field]: value })
-    setEditing(null)
-  }
 
   const joined = new Date(profile.created_at).toLocaleDateString("en-IN", {
     month: "long", year: "numeric",
@@ -136,7 +100,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
       <div className={styles.profilePage}>
         <div className={styles.profileCard}>
 
-          {/* ── Cover photo ── */}
+          {/* ── Cover ── */}
           <div className={styles.coverWrap}>
             {profile.cover_photo ? (
               <img src={profile.cover_photo} alt="Cover" className={styles.coverImg} />
@@ -147,7 +111,6 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
             )}
             <div className={styles.coverOverlay} aria-hidden="true" />
 
-            {/* ↓ CHANGED: button opens modal instead of hidden file input */}
             {isMe && (
               <button
                 className={styles.coverEditBtn}
@@ -160,7 +123,6 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </button>
             )}
 
-            {/* View-only click for other users — opens cover in lightbox */}
             {!isMe && profile.cover_photo && (
               <button
                 className={styles.coverViewBtn}
@@ -173,20 +135,15 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
             )}
           </div>
 
-          {/* ── Profile body ── */}
+          {/* ── Body ── */}
           <div className={styles.profileBody}>
 
-            {/* Avatar + actions row */}
+            {/* Avatar + action buttons */}
             <div className={styles.avatarRow}>
               <div className={styles.avatarWrap}>
-                {/* ↓ CHANGED: clicking avatar opens modal */}
                 <button
                   className={styles.avatarClickWrap}
-                  onClick={() => {
-                    if (!isMe) return
-                    setPhotoModal("profile")
-                  }}
-                  disabled={!isMe}
+                  onClick={() => setPhotoModal("profile")}
                   aria-label={isMe ? "Change profile photo" : "View profile photo"}
                   type="button"
                 >
@@ -207,8 +164,13 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               <div className={styles.profileActions}>
                 {isMe ? (
                   <>
-                    <Button variant="outline" size="sm" href="/settings/profile"
-                      leftIcon={<Icon icon="mdi:cog-outline" width={15} height={15} />}>
+                    {/* SINGLE edit button — opens modal */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditProfileOpen(true)}
+                      leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
+                    >
                       Edit Profile
                     </Button>
                     <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
@@ -228,8 +190,11 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                     {rel?.is_followed_by && !rel.is_following && (
                       <span className={styles.followsYouChip}>Follows you</span>
                     )}
-                    <Button variant="outline" size="sm"
-                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                    >
                       Message
                     </Button>
                     <Button variant="ghost" size="sm" iconOnly aria-label="More options">
@@ -240,22 +205,11 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </div>
             </div>
 
-            {/* Name */}
+            {/* Name + username + sport badge — read-only now */}
             <div className={styles.nameBlock}>
-              <div className={styles.nameRow}>
-                {editing === "name" ? (
-                  <InlineEdit value={profile.name} placeholder="Your name"
-                    onSave={(v) => handleSave("name", v)} onCancel={() => setEditing(null)} maxLength={60} />
-                ) : (
-                  <>
-                    <h1 className={styles.profileName}>{profile.name}</h1>
-                    {isMe && <EditBtn onClick={() => setEditing("name")} label="Edit name" />}
-                  </>
-                )}
-              </div>
+              <h1 className={styles.profileName}>{profile.name}</h1>
               <span className={styles.profileUsername}>@{profile.username}</span>
 
-              {/* Sport + position badge */}
               {profile.primary_sport && (
                 <div className={styles.roleBadge}>
                   <Icon icon={profile.primary_sport.icon_name} width={13} height={13} />
@@ -270,31 +224,25 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               )}
             </div>
 
-            {/* Headline */}
-            <div className={styles.headlineBlock}>
-              {editing === "headline" ? (
-                <InlineEdit value={profile.headline ?? ""} placeholder="e.g. Striker | Football Enthusiast"
-                  onSave={(v) => handleSave("headline", v)} onCancel={() => setEditing(null)} maxLength={120} />
-              ) : (
-                <div className={styles.headlineRow}>
-                  <p className={styles.profileHeadline}>
-                    {profile.headline || (isMe ? "Add a headline…" : "")}
-                  </p>
-                  {isMe && <EditBtn onClick={() => setEditing("headline")} label="Edit headline" />}
-                </div>
-              )}
-            </div>
+            {/* Headline — read-only */}
+            {profile.headline ? (
+              <p className={styles.profileHeadline}>{profile.headline}</p>
+            ) : isMe ? (
+              <p className={styles.profileHeadlineEmpty}>
+                Add a headline — click Edit Profile
+              </p>
+            ) : null}
 
             {/* Stats */}
             <div className={styles.statsRow}>
-              <StatPill value={profile.followers_count} label="Followers" />
+              <StatPill value={profile.followers_count}   label="Followers"   />
               <div className={styles.statDivider} />
-              <StatPill value={profile.following_count} label="Following" />
+              <StatPill value={profile.following_count}   label="Following"   />
               <div className={styles.statDivider} />
               <StatPill value={profile.connections_count} label="Connections" />
             </div>
 
-            {/* Meta */}
+            {/* Meta chips */}
             <div className={styles.metaRow}>
               {profile.is_email_verified && (
                 <span className={`${styles.metaChip} ${styles.metaChipVerified}`}>
@@ -308,41 +256,43 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </span>
             </div>
 
-            <div className={styles.sectionDivider} />
-
             {/* About */}
-            <div className={styles.aboutBlock}>
-              <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>About</h2>
-                {isMe && <EditBtn onClick={() => setEditing("about")} label="Edit about" />}
-              </div>
-              {editing === "about" ? (
-                <InlineEdit value={profile.about ?? ""} placeholder="Tell the world about yourself…"
-                  onSave={(v) => handleSave("about", v)} onCancel={() => setEditing(null)}
-                  multiline maxLength={600} />
-              ) : (
-                <p className={styles.aboutText}>
-                  {profile.about || (
-                    isMe
-                      ? <span className={styles.emptyHint}>Add a bio to let scouts know who you are…</span>
-                      : <span className={styles.emptyHint}>No bio yet.</span>
+            {(profile.about || isMe) && (
+              <>
+                <div className={styles.sectionDivider} />
+                <div className={styles.aboutBlock}>
+                  <h2 className={styles.sectionTitle}>About</h2>
+                  {profile.about ? (
+                    <p className={styles.aboutText}>{profile.about}</p>
+                  ) : (
+                    <p className={styles.emptyHint}>
+                      Add a bio — click Edit Profile above.
+                    </p>
                   )}
-                </p>
-              )}
-            </div>
+                </div>
+              </>
+            )}
 
           </div>
         </div>
       </div>
 
-      {/* ── Photo modal — rendered outside profileCard so it's truly full-screen ── */}
-      {photoModal && isMe && (
+      {/* ── Photo modal ── */}
+      {photoModal && (
         <PhotoEditModal
           type={photoModal}
           currentSrc={photoModal === "profile" ? profile.profile_photo : profile.cover_photo}
           username={profile.username}
           // isOwn={isMe}
           onClose={() => setPhotoModal(null)}
+        />
+      )}
+
+      {/* ── Edit profile modal — only for own profile ── */}
+      {editProfileOpen && isMe && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setEditProfileOpen(false)}
         />
       )}
     </>

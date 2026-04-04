@@ -1,13 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import {
   getMyProfileApi,
   getUserProfileApi,
   updateProfileApi,
-  updatePhotoApi,
+  updateProfileDataApi,
+  checkUsernameApi,
   followUserApi,
   unfollowUserApi,
-  type UpdateProfilePayload,
-  type UpdatePhotoPayload,
+  type UpdateProfileLegacyPayload,
+  type UpdateProfileDataPayload,
   type UserProfile,
 } from "../services/profile.api"
 
@@ -18,7 +23,7 @@ export const profileKeys = {
   user: (u: string)  => ["profile", "user", u]  as const,
 }
 
-// ── My profile ───────────────────────────────────────────────
+// ── Queries ──────────────────────────────────────────────────
 
 export const useMyProfile = () =>
   useQuery({
@@ -26,8 +31,6 @@ export const useMyProfile = () =>
     queryFn:  getMyProfileApi,
     staleTime: 1000 * 60 * 5,
   })
-
-// ── Any user's profile ───────────────────────────────────────
 
 export const useUserProfile = (username: string) =>
   useQuery({
@@ -37,98 +40,94 @@ export const useUserProfile = (username: string) =>
     staleTime: 1000 * 60 * 2,
   })
 
-// ── Update profile text ──────────────────────────────────────
+// ── Legacy text update ───────────────────────────────────────
 
 export const useUpdateProfile = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: UpdateProfilePayload) => updateProfileApi(data),
-    onSuccess: (updated) => {
+    mutationFn: (data: UpdateProfileLegacyPayload) => updateProfileApi(data),
+    onSuccess:  (updated) => {
       qc.setQueryData<UserProfile>(profileKeys.me(), updated)
     },
   })
 }
 
-// ── Upload photo ─────────────────────────────────────────────
+// ── Full profile data update (new) ───────────────────────────
 
-export const useUpdatePhoto = () => {
+export const useUpdateProfileData = (username: string) => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: UpdatePhotoPayload) => updatePhotoApi(data),
+    mutationFn: (data: UpdateProfileDataPayload) => updateProfileDataApi(data),
     onSuccess: (updated) => {
+      // Update both cache keys — username may have changed
       qc.setQueryData<UserProfile>(profileKeys.me(), updated)
+      qc.setQueryData<UserProfile>(profileKeys.user(username), updated)
+      // Also seed the new username key if it changed
+      if (updated.username !== username) {
+        qc.setQueryData<UserProfile>(profileKeys.user(updated.username), updated)
+      }
     },
   })
 }
 
+// ── Username availability (debounced externally) ─────────────
+// Returns a regular async function — call from form's onChange after debounce.
+// We don't use useQuery here because it's imperative / on-demand.
+
+export const useCheckUsername = () =>
+  useMutation({
+    mutationFn: checkUsernameApi,
+  })
+
+// ── Photo upload ─────────────────────────────────────────────
+// (stays in usePhotoUpload.ts — no change needed)
+
 // ── Follow / Unfollow ────────────────────────────────────────
-// Optimistic update: flip relationship.is_following instantly,
-// then revert on error so the UI never shows a stale state.
 
 export const useFollowUser = (username: string) => {
-  const qc = useQueryClient()
+  const qc  = useQueryClient()
   const key = profileKeys.user(username)
 
   const follow = useMutation({
     mutationFn: (targetId: string) =>
       followUserApi({ target_type: "user", target_id: targetId }),
-
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: key })
       const prev = qc.getQueryData<UserProfile>(key)
-      // Optimistically set is_following = true + bump followers_count
       qc.setQueryData<UserProfile>(key, (old) =>
-        old
-          ? {
-              ...old,
-              followers_count: String(Number(old.followers_count) + 1),
-              relationship: old.relationship
-                ? { ...old.relationship, is_following: true }
-                : undefined,
-            }
-          : old
+        old ? {
+          ...old,
+          followers_count: String(Number(old.followers_count) + 1),
+          relationship: old.relationship
+            ? { ...old.relationship, is_following: true }
+            : undefined,
+        } : old
       )
       return { prev }
     },
-
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-    },
-
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: key })
-    },
+    onError:   (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(key, ctx.prev) },
+    onSettled: ()             => { qc.invalidateQueries({ queryKey: key }) },
   })
 
   const unfollow = useMutation({
     mutationFn: (targetId: string) =>
       unfollowUserApi({ target_type: "user", target_id: targetId }),
-
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: key })
       const prev = qc.getQueryData<UserProfile>(key)
-      // Optimistically set is_following = false + decrement followers_count
       qc.setQueryData<UserProfile>(key, (old) =>
-        old
-          ? {
-              ...old,
-              followers_count: String(Math.max(0, Number(old.followers_count) - 1)),
-              relationship: old.relationship
-                ? { ...old.relationship, is_following: false }
-                : undefined,
-            }
-          : old
+        old ? {
+          ...old,
+          followers_count: String(Math.max(0, Number(old.followers_count) - 1)),
+          relationship: old.relationship
+            ? { ...old.relationship, is_following: false }
+            : undefined,
+        } : old
       )
       return { prev }
     },
-
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-    },
-
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: key })
-    },
+    onError:   (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(key, ctx.prev) },
+    onSettled: ()             => { qc.invalidateQueries({ queryKey: key }) },
   })
 
   return { follow, unfollow }
