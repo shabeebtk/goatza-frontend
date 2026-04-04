@@ -14,7 +14,7 @@ export default function AuthGuard({
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace("/login") // better than push
+      router.replace("/auth") 
     }
   }, [isAuthenticated, isLoading])
 

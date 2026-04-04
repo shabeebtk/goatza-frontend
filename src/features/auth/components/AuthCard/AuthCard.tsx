@@ -142,7 +142,7 @@ function AuthCard() {
                 return
             }
             // CASE 2: Normal login
-            router.push("/profile")
+            router.push("/home")
 
         } catch (err) {
             const msg = extractErrorMessage(err)
@@ -187,7 +187,7 @@ function AuthCard() {
         setApiError(null)
         try {
             await verifyOtp.mutateAsync({ email: pendingEmail, otp: values.otp })
-            router.push("/profile")
+            router.push("/home")
         } catch (err) {
             setApiError(extractErrorMessage(err))
         }
