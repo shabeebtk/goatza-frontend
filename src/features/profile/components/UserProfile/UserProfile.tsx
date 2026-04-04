@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
@@ -10,6 +11,7 @@ import {
   useUserProfile,
   useFollowUser,
 } from "@/features/profile/hooks/useProfileQueries"
+import type { UserProfile } from "@/features/profile/services/profile.api"
 import styles from "./UserProfile.module.css"
 
 // ── Stat pill ─────────────────────────────────────────────────
@@ -60,10 +62,19 @@ interface UserProfileProps {
 type PhotoModalType = "profile" | "cover" | null
 
 export default function UserProfile({ username, isOwn = false }: UserProfileProps) {
+  const router = useRouter()
   const { data: profile, isLoading, isError } = useUserProfile(username)
 
   const [photoModal, setPhotoModal]         = useState<PhotoModalType>(null)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
+
+  // After save: redirect if username changed, otherwise just close
+  const handleProfileSaved = (updated: UserProfile) => {
+    setEditProfileOpen(false)
+    if (updated.username !== username) {
+      router.replace(`/profile/${updated.username}`)
+    }
+  }
 
   // ── Loading skeleton ──────────────────────────────────────────
   if (isLoading) {
@@ -283,7 +294,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
           type={photoModal}
           currentSrc={photoModal === "profile" ? profile.profile_photo : profile.cover_photo}
           username={profile.username}
-          // isOwn={isMe}
+          isOwn={isMe}
           onClose={() => setPhotoModal(null)}
         />
       )}
@@ -293,6 +304,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
         <EditProfileModal
           profile={profile}
           onClose={() => setEditProfileOpen(false)}
+          onSaved={handleProfileSaved}
         />
       )}
     </>

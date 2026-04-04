@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { useForm, Controller, SubmitHandler } from "react-hook-form"
+import { useForm, Controller, SubmitHandler, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
@@ -149,8 +149,8 @@ export default function EditProfileModal({
         control,
         setError,
         formState: { errors, isDirty, dirtyFields, isSubmitting },
-    } = useForm<FormValues, unknown, FormValues>({
-        resolver: zodResolver(schema),
+    } = useForm<FormValues>({
+        resolver: zodResolver(schema) as Resolver<FormValues>,
         defaultValues: {
             name: profile.name ?? "",
             username: profile.username ?? "",
@@ -208,7 +208,7 @@ export default function EditProfileModal({
         try {
             const updated = await updateProfileData.mutateAsync(payload)
 
-            // update auth store if username changed
+            // Sync auth store with the latest username + name from the server response
             setAuth({
                 token: useAuthStore.getState().accessToken!,
                 user: {
@@ -217,8 +217,13 @@ export default function EditProfileModal({
                 },
             })
 
-            onSaved?.(updated)
-            onClose()
+            // Let the parent decide what to do (close modal, redirect, etc.)
+            // Do NOT call onClose() here — onSaved handles the full lifecycle
+            if (onSaved) {
+                onSaved(updated)
+            } else {
+                onClose()
+            }
 
         } catch (err: unknown) {
             const msg =

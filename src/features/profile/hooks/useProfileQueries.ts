@@ -59,10 +59,15 @@ export const useUpdateProfileData = (username: string) => {
   return useMutation({
     mutationFn: (data: UpdateProfileDataPayload) => updateProfileDataApi(data),
     onSuccess: (updated) => {
-      // Update both cache keys — username may have changed
+      // Seed the "me" cache
       qc.setQueryData<UserProfile>(profileKeys.me(), updated)
+
+      // Seed the old username key with fresh data — do NOT removeQueries here.
+      // The component is still mounted during the route transition, and removing
+      // an active observer's key triggers an immediate refetch (stale request).
       qc.setQueryData<UserProfile>(profileKeys.user(username), updated)
-      // Also seed the new username key if it changed
+
+      // If username changed, also seed the new key so the incoming page load is instant.
       if (updated.username !== username) {
         qc.setQueryData<UserProfile>(profileKeys.user(updated.username), updated)
       }

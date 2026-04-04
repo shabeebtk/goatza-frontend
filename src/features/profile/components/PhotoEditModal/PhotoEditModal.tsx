@@ -33,6 +33,7 @@ interface PhotoEditModalProps {
   type: "profile" | "cover"
   currentSrc: string
   username: string
+  isOwn?: boolean          // hide edit actions when viewing another user
   onClose: () => void
   onDelete?: () => void   // wire to your delete API when ready
 }
@@ -55,6 +56,7 @@ export default function PhotoEditModal({
   type,
   currentSrc,
   username,
+  isOwn = false,
   onClose,
   onDelete,
 }: PhotoEditModalProps) {
@@ -183,26 +185,30 @@ export default function PhotoEditModal({
               )}
             </div>
 
-            {/* Bottom action sheet */}
+            {/* Bottom action sheet — only visible to the profile owner */}
             <div className={styles.actionSheet}>
-              <button
-                className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-              >
-                <Icon icon="mdi:camera-plus-outline" width={20} height={20} />
-                {currentSrc ? `Change ${LABELS[type]}` : `Add ${LABELS[type]}`}
-              </button>
+              {isOwn && (
+                <>
+                  <button
+                    className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
+                    onClick={() => fileInputRef.current?.click()}
+                    type="button"
+                  >
+                    <Icon icon="mdi:camera-plus-outline" width={20} height={20} />
+                    {currentSrc ? `Change ${LABELS[type]}` : `Add ${LABELS[type]}`}
+                  </button>
 
-              {currentSrc && onDelete && (
-                <button
-                  className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                  onClick={onDelete}
-                  type="button"
-                >
-                  <Icon icon="mdi:trash-can-outline" width={20} height={20} />
-                  Remove Photo
-                </button>
+                  {currentSrc && onDelete && (
+                    <button
+                      className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
+                      onClick={onDelete}
+                      type="button"
+                    >
+                      <Icon icon="mdi:trash-can-outline" width={20} height={20} />
+                      Remove Photo
+                    </button>
+                  )}
+                </>
               )}
 
               <button
@@ -210,7 +216,7 @@ export default function PhotoEditModal({
                 onClick={onClose}
                 type="button"
               >
-                Cancel
+                Close
               </button>
             </div>
           </>
@@ -288,14 +294,16 @@ export default function PhotoEditModal({
           </>
         )}
 
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={handleFileChange}
-        />
+        {/* Hidden file input — only rendered for owner */}
+        {isOwn && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleFileChange}
+          />
+        )}
       </div>
     </div>
   )

@@ -1,13 +1,21 @@
 "use client"
- 
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth.store"
-import UserProfile from "@/features/profile/components/UserProfile/UserProfile"
- 
+
 export default function MyProfilePage() {
-  const user = useAuthStore((s) => s.user)
- 
-  if (!user?.username) return null
- 
-  return <UserProfile username={user.username} isOwn />
+  const router     = useRouter()
+  const username   = useAuthStore((s) => s.user?.username)
+  const isLoading  = useAuthStore((s) => s.isLoading)
+
+  useEffect(() => {
+    // Wait until the auth state has finished loading before redirecting
+    if (!isLoading && username) {
+      router.replace(`/profile/${username}`)
+    }
+  }, [isLoading, username, router])
+
+  // Render nothing while auth loads / redirecting
+  return null
 }
- 
