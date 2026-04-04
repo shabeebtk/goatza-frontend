@@ -1,0 +1,407 @@
+/* ============================================================
+   GOATZA — UserProfile.module.css  (v4 — no inline edits)
+   ============================================================ */
+
+@keyframes profileIn   { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shimmer     { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+
+/* ── Page wrapper ────────────────────────────────────────────── */
+
+.profilePage {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+  padding: var(--space-4) var(--space-4) var(--space-16);
+  animation: profileIn 0.5s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .profilePage { padding-inline: var(--space-6); padding-bottom: var(--space-8); }
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+
+.profileCard {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Cover ───────────────────────────────────────────────────── */
+
+.coverWrap {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) { .coverWrap { height: 210px; } }
+
+.coverImg { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.coverFallback {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--primitive-ink-950) 0%, var(--primitive-neutral-800) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 181, 98, 0.12);
+}
+
+.coverOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.35) 100%);
+  pointer-events: none;
+}
+
+.coverEditBtn {
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 7px 12px;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background var(--duration-base), border-color var(--duration-base);
+}
+
+.coverEditBtn:hover { background: rgba(0, 181, 98, 0.6); border-color: var(--color-brand); }
+
+.coverViewBtn {
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius-md);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.coverViewBtn:hover { background: rgba(0,0,0,0.7); }
+
+/* ── Profile body ────────────────────────────────────────────── */
+
+.profileBody {
+  padding: 0 var(--space-5) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .profileBody { padding: 0 var(--space-8) var(--space-8); }
+}
+
+/* ── Avatar row ──────────────────────────────────────────────── */
+
+.avatarRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: -44px;
+}
+
+@media (min-width: 640px) { .avatarRow { margin-top: -52px; } }
+
+.avatarWrap { position: relative; flex-shrink: 0; }
+
+/* Avatar as clickable button */
+.avatarClickWrap {
+  position: relative;
+  display: inline-flex;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.profileAvatar {
+  border: 3px solid var(--color-surface) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Hover camera overlay */
+.avatarEditOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity var(--duration-base);
+}
+
+.avatarClickWrap:hover .avatarEditOverlay { opacity: 1; }
+
+/* Action buttons */
+.profileActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+/* ── Follow button states ────────────────────────────────────── */
+
+.followingBtn {
+  border-color: var(--color-brand-muted) !important;
+  color: var(--color-brand-hover) !important;
+  background: var(--color-brand-subtle) !important;
+}
+
+.followingBtn:hover {
+  border-color: var(--color-error) !important;
+  color: var(--color-error) !important;
+  background: rgba(232, 70, 42, 0.06) !important;
+}
+
+.followsYouChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ── Name block ──────────────────────────────────────────────── */
+
+.nameBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.profileName {
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-3xl), 6vw, var(--text-4xl));
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.profileUsername {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Sport + position badge */
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 12px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  margin-top: var(--space-1);
+  width: fit-content;
+}
+
+.roleBadgeSep {
+  color: var(--color-brand-muted);
+  margin-inline: 2px;
+  font-size: 0.8em;
+}
+
+/* ── Headline ────────────────────────────────────────────────── */
+
+.profileHeadline {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.profileHeadlineEmpty {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Stats ───────────────────────────────────────────────────── */
+
+.statsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.statPill { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+
+.statValue {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  color: var(--color-ink);
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.statLabel {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.statDivider { width: 1px; height: 32px; background: var(--color-border); flex-shrink: 0; }
+
+/* ── Meta chips ──────────────────────────────────────────────── */
+
+.metaRow { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.metaChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.metaChipVerified {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+/* ── Section divider ─────────────────────────────────────────── */
+
+.sectionDivider { height: 1px; background: var(--color-border); }
+
+/* ── About ───────────────────────────────────────────────────── */
+
+.aboutBlock { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.sectionTitle {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.aboutText {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-loose);
+  white-space: pre-wrap;
+}
+
+.emptyHint { color: var(--color-text-muted); font-style: italic; font-size: var(--text-sm); }
+
+/* ── Skeleton ────────────────────────────────────────────────── */
+
+.profileSkeleton { max-width: 760px; margin-inline: auto; padding: var(--space-4); }
+
+.skeletonBlock {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+.skeletonCover { width: 100%; height: 160px; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+
+.skeletonBody {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skeletonAvatar { width: 80px; height: 80px; border-radius: 50%; margin-top: -40px; }
+.skeletonLine { height: 24px; width: 55%; }
+.skeletonLineSm { height: 16px; width: 35%; }
+
+/* ── Error ───────────────────────────────────────────────────── */
+
+.profileError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 320px;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* ── Touch ───────────────────────────────────────────────────── */
+
+@media (hover: none) {
+  .avatarEditOverlay { display: none; }
+}

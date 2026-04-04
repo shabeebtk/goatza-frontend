@@ -9,7 +9,7 @@ interface AvatarProps {
   online?: boolean;
   className?: string;
 }
- 
+
 export default function Avatar({
   src,
   alt = "",
@@ -25,7 +25,7 @@ export default function Avatar({
     lg: styles.avatarLg,
     xl: styles.avatarXl,
   };
- 
+
   return (
     <span className={`${styles.avatar} ${sizeMap[size]} ${className}`}>
       {src ? (
@@ -37,4 +37,3 @@ export default function Avatar({
     </span>
   );
 }
- 

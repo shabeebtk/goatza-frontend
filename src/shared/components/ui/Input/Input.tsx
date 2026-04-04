@@ -5,68 +5,103 @@ import { Icon } from "@iconify/react";
 
 type Size = "sm" | "md" | "lg";
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+/* ── Base Props ───────────────────────────────────────────── */
+
+type BaseProps = {
   label?: string;
   helperText?: string;
   error?: string;
-  inputSize?: Size; 
+  inputSize?: Size;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   onRightIconClick?: () => void;
   required?: boolean;
   dark?: boolean;
-}
+};
 
-const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    {
-      label,
-      helperText,
-      error,
-      inputSize = "md", 
-      leftIcon,
-      rightIcon,
-      onRightIconClick,
-      required,
-      dark,
-      className,
-      id,
+/* ── Input Props ─────────────────────────────────────────── */
+
+type InputOnlyProps = BaseProps &
+  React.InputHTMLAttributes<HTMLInputElement> & {
+    as?: "input";
+  };
+
+type TextareaOnlyProps = BaseProps &
+  React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+    as: "textarea";
+  };
+
+type InputProps = InputOnlyProps | TextareaOnlyProps;
+
+/* ── Component ───────────────────────────────────────────── */
+
+const Input = forwardRef<
+  HTMLInputElement | HTMLTextAreaElement,
+  InputProps
+>((props, ref) => {
+  const {
+    label,
+    helperText,
+    error,
+    inputSize = "md",
+    leftIcon,
+    rightIcon,
+    onRightIconClick,
+    required,
+    dark,
+    className,
+    id,
+  } = props;
+
+  const [showPw, setShowPw] = useState(false);
+
+  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+
+  const sizeMap: Record<Size, string> = {
+    sm: styles.inputSm,
+    md: "",
+    lg: styles.inputLg,
+  };
+
+  const wrapClasses = clsx(styles.inputWrap, sizeMap[inputSize], {
+    [styles.inputError]: !!error,
+    [styles.inputDark]: dark,
+  });
+
+  const eyeIcon = showPw
+    ? "mdi:eye-off-outline"
+    : "mdi:eye-outline";
+
+  /* ─────────────────────────────────────────────── */
+  /* 🧠 TYPE NARROWING STARTS HERE */
+  /* ─────────────────────────────────────────────── */
+
+  const isTextarea = "as" in props && props.as === "textarea";
+  /* ── INPUT MODE ─────────────────────────────── */
+
+  if (!isTextarea) {
+    const {
       type = "text",
-      ...props
-    },
-    ref
-  ) => {
-    const [showPw, setShowPw] = useState(false);
+      ...rest
+    } = props as InputOnlyProps;
 
-    const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
     const isPassword = type === "password";
-    const resolvedType = isPassword ? (showPw ? "text" : "password") : type;
+    const resolvedType = isPassword
+      ? showPw
+        ? "text"
+        : "password"
+      : type;
 
-    const sizeMap: Record<Size, string> = {
-      sm: styles.inputSm,
-      md: "",
-      lg: styles.inputLg,
-    };
-
-    const wrapClasses = clsx(
-      styles.inputWrap,
-      sizeMap[inputSize],
-      {
-        [styles.inputError]: !!error,
-        [styles.inputDark]: dark,
-      }
-    );
+    const showRightIcon = rightIcon || isPassword;
 
     const inputClasses = clsx(
       styles.input,
       {
         [styles.inputIconLeft]: !!leftIcon,
-        [styles.inputIconRight]: !!rightIcon || isPassword,
+        [styles.inputIconRight]: showRightIcon,
       },
       className
     );
-
-    const eyeIcon = showPw ? "mdi:eye-off-outline" : "mdi:eye-outline";
 
     return (
       <div className={wrapClasses}>
@@ -74,34 +109,25 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <label htmlFor={inputId} className={styles.inputLabel}>
             {label}
             {required && (
-              <span className={styles.inputRequired} aria-hidden="true">
-                *
-              </span>
+              <span className={styles.inputRequired}>*</span>
             )}
           </label>
         )}
 
         <div className={styles.inputFieldWrap}>
           {leftIcon && (
-            <span className={styles.inputAdornLeft} aria-hidden="true">
+            <span className={styles.inputAdornLeft}>
               {leftIcon}
             </span>
           )}
 
           <input
-            ref={ref}
+            ref={ref as React.Ref<HTMLInputElement>}
             id={inputId}
             type={resolvedType}
             className={inputClasses}
             aria-invalid={!!error}
-            aria-describedby={
-              error
-                ? `${inputId}-error`
-                : helperText
-                ? `${inputId}-helper`
-                : undefined
-            }
-            {...props}
+            {...rest}
           />
 
           {isPassword ? (
@@ -112,7 +138,6 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                 styles.inputAdornRightClickable
               )}
               onClick={() => setShowPw((v) => !v)}
-              aria-label={showPw ? "Hide password" : "Show password"}
               tabIndex={-1}
             >
               <Icon icon={eyeIcon} width={18} height={18} />
@@ -127,12 +152,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                 )}
                 onClick={onRightIconClick}
                 tabIndex={-1}
-                aria-label="Input action"
               >
                 {rightIcon}
               </button>
             ) : (
-              <span className={styles.inputAdornRight} aria-hidden="true">
+              <span className={styles.inputAdornRight}>
                 {rightIcon}
               </span>
             )
@@ -140,30 +164,63 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         </div>
 
         {error && (
-          <p
-            id={`${inputId}-error`}
-            className={styles.inputErrorMsg}
-            role="alert"
-          >
-            <Icon
-              icon="mdi:alert-circle-outline"
-              width={12}
-              height={12}
-              aria-hidden="true"
-            />
+          <p className={styles.inputErrorMsg}>
+            <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
             {error}
           </p>
         )}
 
         {helperText && !error && (
-          <p id={`${inputId}-helper`} className={styles.inputHelper}>
-            {helperText}
-          </p>
+          <p className={styles.inputHelper}>{helperText}</p>
         )}
       </div>
     );
   }
-);
+
+  /* ── TEXTAREA MODE ───────────────────────────── */
+
+  const textareaProps = props as TextareaOnlyProps;
+
+  const inputClasses = clsx(
+    styles.input,
+    styles.textarea,
+    className
+  );
+
+  return (
+    <div className={wrapClasses}>
+      {label && (
+        <label htmlFor={inputId} className={styles.inputLabel}>
+          {label}
+          {required && (
+            <span className={styles.inputRequired}>*</span>
+          )}
+        </label>
+      )}
+
+      <div className={styles.inputFieldWrap}>
+        <textarea
+          ref={ref as React.Ref<HTMLTextAreaElement>}
+          id={inputId}
+          className={inputClasses}
+          aria-invalid={!!error}
+          {...textareaProps}
+        />
+      </div>
+
+      {error && (
+        <p className={styles.inputErrorMsg}>
+          <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
+          {error}
+        </p>
+      )}
+
+      {helperText && !error && (
+        <p className={styles.inputHelper}>{helperText}</p>
+      )}
+    </div>
+  );
+});
 
 Input.displayName = "Input";
 

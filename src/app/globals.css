@@ -265,7 +265,6 @@
 
 html {
   font-size: 16px;
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -277,12 +276,45 @@ body {
   line-height: var(--leading-normal);
   color: var(--color-text-primary);
   background-color: var(--color-bg);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 img, video {
   max-width: 100%;
   display: block;
+}
+
+/* ── GLOBAL SCROLLBAR ────────────────────────────────────────── */
+/* Slim, themed scrollbar for all scrollable elements (desktop)  */
+
+* {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* WebKit (Chrome, Edge, Safari on desktop) */
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  transition: background var(--duration-fast);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 a {

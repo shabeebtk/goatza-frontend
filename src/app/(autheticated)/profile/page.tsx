@@ -1,35 +1,21 @@
 "use client"
 
-import { logoutApi } from "@/features/auth/services/auth.api"
-import { useAuthStore } from "@/store/auth.store"
-import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuthStore } from "@/store/auth.store"
 
-export default function HomePage() {
-  const { user, isAuthenticated, isLoading, clearAuth } = useAuthStore()
-  const router = useRouter()
+export default function MyProfilePage() {
+  const router     = useRouter()
+  const username   = useAuthStore((s) => s.user?.username)
+  const isLoading  = useAuthStore((s) => s.isLoading)
 
-  if (!user) return <div>No user</div>
+  useEffect(() => {
+    // Wait until the auth state has finished loading before redirecting
+    if (!isLoading && username) {
+      router.replace(`/profile/${username}`)
+    }
+  }, [isLoading, username, router])
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h2>Home</h2>
-
-      <p>Welcome: {user.username}</p>
-      <p>Email: {user.email}</p>
-
-      <button
-        onClick={async () => {
-          try {
-            await logoutApi() 
-          } catch (e) { }
-
-          clearAuth()
-          router.push("/login")
-        }}
-      >
-        Logout
-      </button>
-    </div>
-  )
+  // Render nothing while auth loads / redirecting
+  return null
 }

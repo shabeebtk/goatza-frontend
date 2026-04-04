@@ -46,7 +46,7 @@
     color: var(--color-text-primary);
     font-family: var(--font-body);
     font-size: var(--text-base);
-    line-height: 1;
+    line-height: var(--leading-normal);;
     outline: none;
 
     appearance: none;
@@ -170,4 +170,13 @@
     align-items: center;
     gap: var(--space-1);
     animation: fadeUpSmall 0.25s var(--ease-out) both;
+}
+
+
+.textarea {
+  resize: vertical;
+  min-height: 110px;
+  line-height: var(--leading-normal);
+  padding-top: 12px;
+  padding-bottom: 12px;
 }

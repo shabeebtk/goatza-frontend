@@ -1,32 +1,39 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useGoogleAuth } from "@/features/auth/hooks/useAuthMutations"
 
-type Props = {
-    code: string | null
-    state: string | null
-}
+export default function ClientGoogleCallback() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const googleAuth = useGoogleAuth()
 
-export default function ClientGoogleCallback({ code, state }: Props) {
-    const router = useRouter()
-    const googleAuth = useGoogleAuth()
+  const hasRun = useRef(false) // ✅ guard
 
-    useEffect(() => {
-        if (!code || !state) {
-            router.replace("/auth")
-            return
-        }
+  useEffect(() => {
+    if (hasRun.current) return
+    hasRun.current = true
 
-        googleAuth.mutate(
-            { code, state },
-            {
-                onSuccess: () => router.replace("/profile"),
-                onError: () => router.replace("/auth"),
-            }
-        )
-    }, [code, state])
+    const code = searchParams.get("code")
+    const state = searchParams.get("state")
 
-    return <div>Signing you in...</div>
+    console.log("code:", code)
+    console.log("state:", state)
+
+    if (!code || !state) {
+      router.replace("/auth")
+      return
+    }
+
+    googleAuth.mutate(
+      { code, state },
+      {
+        onSuccess: () => router.replace("/home"),
+        onError: () => router.replace("/auth"),
+      }
+    )
+  }, []) 
+
+  return <div>Signing you in...</div>
 }
