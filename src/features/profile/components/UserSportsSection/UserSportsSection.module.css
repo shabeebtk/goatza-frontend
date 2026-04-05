@@ -1,0 +1,437 @@
+/* ============================================================
+   GOATZA — UserSportsSection
+   ============================================================ */
+
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin     { to { transform: rotate(360deg); } }
+
+/* ── Section wrapper ─────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Section header ──────────────────────────────────────────── */
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 7px 14px;
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.addBtn:hover {
+  background: var(--color-brand-muted);
+  border-color: var(--color-brand);
+  transform: translateY(-1px);
+}
+
+/* ── Sport picker dropdown ───────────────────────────────────── */
+
+.sportPicker {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  animation: fadeInUp 0.2s var(--ease-out) both;
+}
+
+.pickerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.pickerItem:last-child { border-bottom: none; }
+.pickerItem:hover { background: var(--color-brand-subtle); color: var(--color-brand-hover); }
+
+.pickerChevron { margin-left: auto; color: var(--color-text-muted); }
+
+.pickerEmpty {
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-4);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* ── Card list ───────────────────────────────────────────────── */
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Sport card ──────────────────────────────────────────────── */
+
+.sportCard {
+  padding: var(--space-5);
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: border-color var(--duration-base), box-shadow var(--duration-base);
+  animation: fadeInUp 0.3s var(--ease-out) both;
+}
+
+.sportCard:hover { border-color: var(--color-brand-muted); box-shadow: var(--shadow-card); }
+
+/* Primary sport gets green left border accent */
+.sportCardPrimary {
+  border-left: 3px solid var(--color-brand);
+}
+
+/* ── Card header row ─────────────────────────────────────────── */
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sportIconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.sportName {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.primaryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  margin-top: 3px;
+}
+
+/* ── Card action buttons ─────────────────────────────────────── */
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.cardActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.cardActionBtn:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+.cardActionBtnDanger:hover {
+  background: rgba(232, 70, 42, 0.08);
+  border-color: rgba(232, 70, 42, 0.3);
+  color: var(--color-error);
+}
+
+.cardActionBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Card meta (level badge) ─────────────────────────────────── */
+
+.cardMeta { display: flex; align-items: center; gap: var(--space-2); }
+
+.levelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* ── Positions / attributes rows ─────────────────────────────── */
+
+.cardRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cardRowLabel {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.tagRow { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.tagPrimary {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  font-weight: var(--weight-semi);
+}
+
+/* Attribute grid */
+.attrGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.attrItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+}
+
+.attrKey {
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  font-size: 0.6rem;
+}
+
+.attrKey::after { content: ':'; margin-right: 2px; }
+
+.attrVal {
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+}
+
+/* ── Delete confirm ──────────────────────────────────────────── */
+
+.deleteConfirm {
+  padding: var(--space-4) var(--space-5);
+  background: rgba(232, 70, 42, 0.05);
+  border: 1.5px solid rgba(232, 70, 42, 0.2);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: fadeInUp 0.2s var(--ease-out) both;
+}
+
+@media (min-width: 480px) {
+  .deleteConfirm { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+.deleteConfirmText {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.deleteConfirmActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.deleteConfirmCancel,
+.deleteConfirmOk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.deleteConfirmCancel {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.deleteConfirmCancel:hover { background: var(--color-surface-raised); }
+
+.deleteConfirmOk {
+  background: var(--color-error);
+  border: none;
+  color: #ffffff;
+}
+
+.deleteConfirmOk:hover:not(:disabled) { background: var(--primitive-red-400); }
+.deleteConfirmOk:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Skeleton ────────────────────────────────────────────────── */
+
+.skeleton { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.skeletonCard {
+  height: 120px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+
+.miniSpinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
