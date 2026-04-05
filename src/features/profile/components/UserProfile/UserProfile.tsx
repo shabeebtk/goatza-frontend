@@ -7,6 +7,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
 import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEditModal"
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
+import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import {
   useUserProfile,
   useFollowUser,
@@ -35,8 +36,8 @@ function FollowButton({
   const handleClick = () =>
     isFollowing ? unfollow.mutate(profileId) : follow.mutate(profileId)
 
-  const label   = isFollowing ? "Following" : isFollowedBy ? "Follow Back" : "Follow"
-  const icon    = isFollowing ? "mdi:check"  : "mdi:plus"
+  const label = isFollowing ? "Following" : isFollowedBy ? "Follow Back" : "Follow"
+  const icon = isFollowing ? "mdi:check" : "mdi:plus"
   const variant: "brand" | "outline" = isFollowing ? "outline" : "brand"
 
   return (
@@ -65,7 +66,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
   const router = useRouter()
   const { data: profile, isLoading, isError } = useUserProfile(username)
 
-  const [photoModal, setPhotoModal]         = useState<PhotoModalType>(null)
+  const [photoModal, setPhotoModal] = useState<PhotoModalType>(null)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
 
   // After save: redirect if username changed, otherwise just close
@@ -99,7 +100,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
     )
   }
 
-  const rel  = profile.relationship
+  const rel = profile.relationship
   const isMe = isOwn || (rel?.is_me ?? false)
 
   const joined = new Date(profile.created_at).toLocaleDateString("en-IN", {
@@ -246,9 +247,9 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
 
             {/* Stats */}
             <div className={styles.statsRow}>
-              <StatPill value={profile.followers_count}   label="Followers"   />
+              <StatPill value={profile.followers_count} label="Followers" />
               <div className={styles.statDivider} />
-              <StatPill value={profile.following_count}   label="Following"   />
+              <StatPill value={profile.following_count} label="Following" />
               <div className={styles.statDivider} />
               <StatPill value={profile.connections_count} label="Connections" />
             </div>
@@ -283,6 +284,10 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                 </div>
               </>
             )}
+
+            {/* Sports */}
+            <div className={styles.sectionDivider} />
+            <UserSportsSection username={profile.username} isOwn={isMe} />
 
           </div>
         </div>
