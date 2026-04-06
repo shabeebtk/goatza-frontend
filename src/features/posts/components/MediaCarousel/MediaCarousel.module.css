@@ -23,6 +23,11 @@
 
 /* Single: natural aspect, max 480px */
 .carouselSingle { max-height: 480px; }
+.carouselSingle .track,
+.carouselSingle .slide,
+.carouselSingle .mediaItem { height: auto; }
+.carouselSingle .mediaImg { height: auto; max-height: 480px; }
+.carouselSingle .mediaItem { min-height: 240px; }
 
 /* Multiple: fixed height */
 .carouselMulti { height: 340px; }
