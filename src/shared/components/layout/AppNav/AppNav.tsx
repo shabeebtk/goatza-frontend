@@ -16,6 +16,9 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar";
 import Badge from "@/shared/components/ui/Badge/Badge";
 import styles from "./AppNav.module.css";
 import { LOGO_URL } from "@/constants";
+import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import { useAuthStore } from "@/store/auth.store";
+import { Button } from "../../ui";
 
 // ── Static mock data (replace with real auth/org context) ─────────
 const MOCK_USER = {
@@ -243,6 +246,8 @@ export default function AppNav() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeOrg, setActiveOrg] = useState("personal");
   const avatarRef = useRef<HTMLDivElement>(null);
+  const user = useAuthStore((s) => s.user)
+  const [postModalOpen, setPostModalOpen] = useState(false)
 
   return (
     <>
@@ -297,6 +302,15 @@ export default function AppNav() {
               );
             })}
           </nav>
+
+          <button
+            className={styles.topNavCreateBtn}
+            onClick={() => setPostModalOpen(true)}
+            type="button"
+            aria-label="Create post"
+          >
+            <Icon icon="mdi:plus" width={18} height={18} />
+          </button>
 
           {/* Avatar + dropdown */}
           <div className={styles.topNavAvatar}>
@@ -426,15 +440,14 @@ export default function AppNav() {
         </Link>
 
         {/* Create post — center CTA */}
-        <Link
-          href="/post/create"
-          className={styles.bottomTabCreate}
+        <Button
           aria-label="Create post"
+          onClick={() => setPostModalOpen(true)}
         >
           <span className={styles.bottomTabCreateInner} aria-hidden="true">
             <Icon icon="mdi:plus" width={28} height={28} />
           </span>
-        </Link>
+        </Button>
 
         {/* Messages */}
         <Link
@@ -455,6 +468,7 @@ export default function AppNav() {
           <NotifDot count={MOCK_USER.messageCount} />
         </Link>
 
+
         {/* Profile */}
         <Link
           href="/profile"
@@ -474,6 +488,18 @@ export default function AppNav() {
           )}
         </Link>
       </nav>
+
+
+
+      {postModalOpen && user && (
+        <CreatePostModal
+          username={user.username}
+          userAvatarUrl={user.profile_photo}
+          userInitials={user.name?.slice(0, 2).toUpperCase()}
+          onClose={() => setPostModalOpen(false)}
+        />
+      )}
+
     </>
   );
 }

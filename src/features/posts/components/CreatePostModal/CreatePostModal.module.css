@@ -1,0 +1,578 @@
+/* ============================================================
+   GOATZA — CreatePostModal
+   Desktop: centered modal 600px
+   Mobile:  full screen
+   ============================================================ */
+
+@keyframes backdropIn  { from { opacity: 0; }                                         to { opacity: 1; } }
+@keyframes slideUp     { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes spin        { to { transform: rotate(360deg); } }
+@keyframes fadeIn      { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tileIn      { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+
+/* ── Backdrop ────────────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: backdropIn 0.18s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop { align-items: center; padding: var(--space-6); }
+}
+
+/* ── Modal shell ─────────────────────────────────────────────── */
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  background: var(--color-surface);
+  overflow: hidden;
+  animation: slideUp 0.25s var(--ease-spring) both;
+}
+
+@media (min-width: 640px) {
+  .modal {
+    height: auto;
+    max-height: 90dvh;
+    max-width: 600px;
+    border-radius: var(--radius-xl);
+    border: 1.5px solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.closeBtn:hover:not(:disabled) { background: var(--color-brand-subtle); color: var(--color-brand-hover); }
+.closeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Scrollable body ─────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .body { padding: var(--space-6); }
+}
+
+/* ── Author row ──────────────────────────────────────────────── */
+
+.authorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.authorMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.authorName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+/* ── Visibility button ───────────────────────────────────────── */
+
+.visibilityBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.visibilityBtn:hover {
+  background: var(--color-brand-muted);
+  border-color: var(--color-brand);
+}
+
+/* ── Content textarea ────────────────────────────────────────── */
+
+.contentTextarea {
+  width: 100%;
+  min-height: 100px;
+  max-height: 320px;
+  padding: var(--space-3) 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-primary);
+  line-height: var(--leading-loose);
+  resize: none;
+  overflow-y: auto;
+  transition: none;
+}
+
+.contentTextarea::placeholder { color: var(--color-text-muted); }
+.contentTextarea:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Char count ──────────────────────────────────────────────── */
+
+.charCount {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-wide);
+}
+
+.charCountDanger { color: var(--color-error); font-weight: var(--weight-bold); }
+
+/* ── Media grid ──────────────────────────────────────────────── */
+
+.mediaGrid {
+  display: grid;
+  gap: 3px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  animation: fadeIn 0.3s var(--ease-out) both;
+}
+
+/* Layout variants based on count */
+.mediaGrid1 {
+  grid-template-columns: 1fr;
+  /* Single image/video: natural aspect ratio up to max-height */
+}
+
+.mediaGrid2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.mediaGrid3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+}
+
+/* First tile of 3 spans full width */
+.mediaGrid3 .mediaTile:first-child {
+  grid-column: 1 / -1;
+}
+
+.mediaGrid4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+}
+
+/* ── Media tile ──────────────────────────────────────────────── */
+
+.mediaTile {
+  position: relative;
+  background: var(--color-surface-raised);
+  overflow: hidden;
+  animation: tileIn 0.25s var(--ease-spring) both;
+}
+
+/* Single image: natural but capped */
+.mediaGrid1 .mediaTile {
+  max-height: 400px;
+}
+
+/* Multi: fixed aspect ratio */
+.mediaGrid2 .mediaTile,
+.mediaGrid3 .mediaTile,
+.mediaGrid4 .mediaTile {
+  aspect-ratio: 1;
+}
+
+.mediaGrid3 .mediaTile:first-child {
+  aspect-ratio: 16 / 9;
+}
+
+.mediaTileVideo { background: #000; }
+
+.mediaImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Single image: object-contain so it doesn't crop */
+.mediaGrid1 .mediaTile .mediaImg { object-fit: contain; max-height: 400px; }
+
+/* ── Upload overlay (progress ring) ─────────────────────────── */
+
+.uploadOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.uploadProgressRing {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progressSvg {
+  width: 52px;
+  height: 52px;
+  position: absolute;
+  inset: 0;
+}
+
+.progressPct {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  color: #ffffff;
+  position: relative;
+  z-index: 1;
+}
+
+.uploadSize {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: var(--tracking-wide);
+}
+
+/* ── Done / error overlays ───────────────────────────────────── */
+
+.doneOverlay {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  color: var(--color-brand);
+  background: rgba(0,0,0,0.5);
+  border-radius: 50%;
+  line-height: 0;
+  padding: 2px;
+}
+
+.errorOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(232,70,42,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+/* ── Video play icon ─────────────────────────────────────────── */
+
+.videoPlayIcon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.85);
+  pointer-events: none;
+}
+
+/* ── Overflow tile ───────────────────────────────────────────── */
+
+.overflowTile {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+/* ── Remove tile button ──────────────────────────────────────── */
+
+.removeTileBtn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+  z-index: 5;
+}
+
+.removeTileBtn:hover { background: rgba(232,70,42,0.8); transform: scale(1.1); }
+
+/* ── Upload error messages ───────────────────────────────────── */
+
+.uploadErrors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.uploadErrorItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  font-family: var(--font-body);
+}
+
+/* ── Submit error ────────────────────────────────────────────── */
+
+.submitError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(232,70,42,0.07);
+  border: 1px solid rgba(232,70,42,0.2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-error);
+  animation: fadeIn 0.2s var(--ease-out) both;
+}
+
+/* ── Footer: toolbar + post button ──────────────────────────── */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.footerTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.toolBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  position: relative;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.toolBtn:hover:not(:disabled) { background: var(--color-brand-subtle); color: var(--color-brand-hover); }
+.toolBtnDisabled { opacity: 0.35; cursor: not-allowed; }
+
+.toolBtnCount {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-radius: 50%;
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.mediaHint {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  padding-left: var(--space-1);
+}
+
+.footerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ── Sport selector ──────────────────────────────────────────── */
+
+.sportSelectWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sportSelectIcon {
+  position: absolute;
+  left: var(--space-2);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  line-height: 0;
+}
+
+.sportSelect {
+  padding: 7px var(--space-3) 7px calc(var(--space-2) + 18px);
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  max-width: 130px;
+  transition: border-color var(--duration-base), box-shadow var(--duration-base);
+}
+
+.sportSelect:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.sportSelect:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Post button ─────────────────────────────────────────────── */
+
+.postBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-6);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base);
+  min-width: 80px;
+  justify-content: center;
+}
+
+.postBtn:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-brand);
+}
+
+.postBtn:active:not(:disabled) { transform: scale(0.96); }
+
+.postBtn:disabled { opacity: 0.42; cursor: not-allowed; }
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}

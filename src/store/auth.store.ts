@@ -4,6 +4,8 @@ type User = {
   id: string
   username: string
   email?: string
+  name?: string
+  profile_photo?: string
 }
 
 type ActorType = "user" | "organization"
