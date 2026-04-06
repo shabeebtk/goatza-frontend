@@ -1,0 +1,382 @@
+/* ============================================================
+   GOATZA — MediaCarousel
+   ============================================================ */
+
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Carousel shell ──────────────────────────────────────────── */
+
+.carousel {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Single: natural aspect, max 480px */
+.carouselSingle { max-height: 480px; }
+
+/* Multiple: fixed height */
+.carouselMulti { height: 340px; }
+
+@media (min-width: 640px) {
+  .carouselMulti { height: 380px; }
+}
+
+/* ── Track ───────────────────────────────────────────────────── */
+
+.track {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+/* ── Slide ───────────────────────────────────────────────────── */
+
+.slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  position: relative;
+  outline: none;
+}
+
+.slide:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+
+/* ── Media item ──────────────────────────────────────────────── */
+
+.mediaItem {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: var(--color-surface-raised);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.videoItem { background: #000; }
+
+/* Skeleton shimmer while loading */
+.mediaSkeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.mediaImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out);
+}
+
+.mediaImgLoaded { opacity: 1; }
+
+/* Single: contain so nothing crops */
+.mediaImgContain {
+  object-fit: contain;
+  background: var(--color-surface-raised);
+}
+
+/* Multi: fill tile */
+.mediaImgCover { object-fit: cover; }
+
+/* ── Video overlays ──────────────────────────────────────────── */
+
+.videoPlayOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.videoPlayBtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  border: 1.5px solid rgba(255,255,255,0.25);
+}
+
+.videoDuration {
+  background: rgba(0,0,0,0.6);
+  color: #ffffff;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: var(--tracking-wide);
+}
+
+.videoMutedBadge {
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.8);
+  border-radius: var(--radius-full);
+  padding: 3px 7px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* ── Nav arrows ──────────────────────────────────────────────── */
+
+.carouselBtn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.carouselBtn:hover {
+  background: rgba(0,181,98,0.7);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.carouselBtnPrev { left: var(--space-3); }
+.carouselBtnNext { right: var(--space-3); }
+
+/* Hide on touch */
+@media (hover: none) {
+  .carouselBtn { display: none; }
+}
+
+/* ── Dot indicators ──────────────────────────────────────────── */
+
+.dots {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 10;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.45);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--duration-base), transform var(--duration-base) var(--ease-spring);
+}
+
+.dotActive {
+  background: var(--color-brand);
+  transform: scale(1.4);
+}
+
+/* ── Slide counter ───────────────────────────────────────────── */
+
+.slideCounter {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.9);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  z-index: 10;
+}
+
+/* ── Fullscreen button ───────────────────────────────────────── */
+
+.fullscreenBtn {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity var(--duration-base), background var(--duration-fast);
+}
+
+.carousel:hover .fullscreenBtn { opacity: 1; }
+.fullscreenBtn:hover { background: rgba(0,0,0,0.75); color: #fff; }
+
+/* Always visible on touch */
+@media (hover: none) {
+  .fullscreenBtn { opacity: 1; }
+}
+
+/* ── Lightbox ────────────────────────────────────────────────── */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s var(--ease-out) both;
+}
+
+.lightboxBg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: zoom-out;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-5);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: background var(--duration-fast);
+}
+
+.lightboxClose:hover { background: rgba(255,255,255,0.2); }
+
+.lightboxCounter {
+  position: absolute;
+  top: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: rgba(255,255,255,0.7);
+  letter-spacing: var(--tracking-wider);
+  z-index: 2;
+}
+
+.lightboxMedia {
+  position: relative;
+  z-index: 1;
+  max-width: 90vw;
+  max-height: 88dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightboxImg {
+  max-width: 90vw;
+  max-height: 85dvh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.lightboxNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.lightboxNav:hover { background: var(--color-brand); transform: translateY(-50%) scale(1.08); }
+.lightboxNavPrev { left: var(--space-5); }
+.lightboxNavNext { right: var(--space-5); }
+
+.lightboxDots {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--space-2);
+  z-index: 2;
+}
+
+.lightboxDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--duration-base), transform var(--duration-base) var(--ease-spring);
+}
+
+.lightboxDotActive { background: var(--color-brand); transform: scale(1.5); }

@@ -23,6 +23,7 @@ import type {
   SportAttributePayload,
 } from "@/features/profile/services/sports.api"
 import styles from "./SportEditModal.module.css"
+import { Input } from "@/shared/components/ui"
 
 // ── Experience level options ──────────────────────────────────
 
@@ -373,9 +374,8 @@ export default function SportEditModal({
                         )}
 
                         {(attr.data_type === "text" || attr.data_type === "number") && (
-                          <input
+                          <Input
                             type={attr.data_type === "number" ? "number" : "text"}
-                            className={styles.attrInput}
                             value={curVal}
                             onChange={(e) => setAttr(attr.id, e.target.value)}
                             placeholder={attr.name}

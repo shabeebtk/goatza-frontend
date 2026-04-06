@@ -8,6 +8,7 @@ import Button from "@/shared/components/ui/Button/Button"
 import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEditModal"
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
+import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import {
   useUserProfile,
   useFollowUser,
@@ -288,6 +289,15 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
             {/* Sports */}
             <div className={styles.sectionDivider} />
             <UserSportsSection username={profile.username} isOwn={isMe} />
+
+
+            <div className={styles.sectionDivider} />
+            <PostsList
+              username={profile.username}
+              isOwn={isMe}
+              preview
+              onCreatePost={() => {/* wire up if you want the CTA here */ }}
+            />
 
           </div>
         </div>

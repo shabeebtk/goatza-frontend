@@ -145,7 +145,7 @@
     /* ── Text */
     --color-text-primary:   var(--primitive-neutral-100);
     --color-text-secondary: var(--primitive-neutral-400);
-    --color-text-muted:     var(--primitive-neutral-600);
+    --color-text-muted:     var(--primitive-neutral-500);
     --color-text-inverted:  var(--primitive-ink-950);
 
     /* ── UI ink — flips to near-white on dark */

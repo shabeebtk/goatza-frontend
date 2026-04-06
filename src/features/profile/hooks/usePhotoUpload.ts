@@ -50,7 +50,8 @@ export const usePhotoUpload = (username: string) => {
       const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
 
       // 4. Get signed upload config
-      const sig = await getUploadSignatureApi(type)
+      const res = await getUploadSignatureApi(type)
+      const sig = res.uploads[0] 
 
       // 5. Upload to Cloudinary
       const { secure_url, public_id } = await uploadToCloudinaryApi(compressed, sig)

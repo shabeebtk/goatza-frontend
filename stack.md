@@ -46,3 +46,17 @@ app = routes
 features = functionality
 shared = reusable UI
 core = system logic
+
+
+
+video upload 
+
+Frontend
+   ↓
+Upload (S3 - raw video)
+   ↓
+Processing (compression + transcoding)
+   ↓
+Store processed versions
+   ↓
+Serve via CDN (CloudFront)

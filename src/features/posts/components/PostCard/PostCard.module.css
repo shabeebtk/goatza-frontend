@@ -1,0 +1,234 @@
+/* ============================================================
+   GOATZA — PostCard
+   ============================================================ */
+
+@keyframes likePoP {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  transition: box-shadow var(--duration-base);
+}
+
+.card:hover { box-shadow: var(--shadow-card); }
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.authorLink {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.authorInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.authorName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--duration-fast);
+}
+
+.authorLink:hover .authorName { color: var(--color-brand-hover); }
+
+.authorHeadline {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.postMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  flex-wrap: wrap;
+  line-height: 1;
+}
+
+.timeAgo { color: var(--color-text-muted); }
+.metaDot { opacity: 0.5; }
+
+.moreBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.moreBtn:hover { background: var(--color-brand-subtle); color: var(--color-brand-hover); }
+
+/* ── Content ─────────────────────────────────────────────────── */
+
+.content {
+  padding: var(--space-3) var(--space-4);
+}
+
+.contentText {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  line-height: var(--leading-loose);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.seeMoreBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  margin-top: var(--space-1);
+  display: block;
+  transition: color var(--duration-fast);
+}
+
+.seeMoreBtn:hover { color: var(--color-brand); }
+
+/* ── Media wrap ──────────────────────────────────────────────── */
+
+.mediaWrap {
+  margin-top: var(--space-1);
+}
+
+/* ── Stats row ───────────────────────────────────────────────── */
+
+.statsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.statIconLike {
+  display: flex;
+  align-items: center;
+  color: var(--color-brand);
+}
+
+/* ── Action bar ──────────────────────────────────────────────── */
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--color-border);
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 12px var(--space-3);
+  background: transparent;
+  border: none;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+  border-right: 1px solid var(--color-border);
+}
+
+.actionBtn:last-child { border-right: none; }
+
+.actionBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+/* Like active state */
+.actionBtnLiked {
+  color: var(--color-brand-hover);
+}
+
+.actionBtnLiked svg {
+  animation: likePoP 0.35s var(--ease-spring);
+  color: var(--color-brand);
+}
+
+.actionBtnLiked:hover {
+  background: rgba(232, 70, 42, 0.06);
+  color: var(--color-error);
+}
+
+/* ── Hide label on small screens ────────────────────────────── */
+
+.actionBtn span {
+  display: none;
+}
+
+@media (min-width: 400px) {
+  .actionBtn span { display: inline; }
+}
