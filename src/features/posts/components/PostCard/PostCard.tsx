@@ -22,14 +22,43 @@ function fmtCount(n: number): string {
   return String(n)
 }
 
+// ── Reaction icon map (matches PostActions) ───────────────────
+
+const REACTION_META: Record<string, { icon: string; color: string }> = {
+  like:    { icon: "mdi:lightning-bolt",          color: "var(--color-brand)" },
+  fire:    { icon: "mdi:fire",                    color: "#FF5E00"            },
+  respect: { icon: "fluent:hand-wave-24-filled",  color: "#FFC83D"            },
+  funny:   { icon: "fluent:emoji-laugh-24-filled", color: "#FFC83D"           },
+}
+
+// Returns up to 3 reaction types that have count > 0, sorted by count desc
+function getTopReactions(
+  breakdown: Record<string, number> | undefined
+): { type: string; icon: string; color: string }[] {
+  if (!breakdown) return []
+  return Object.entries(breakdown)
+    .filter(([, count]) => count > 0)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([type]) => ({
+      type,
+      ...(REACTION_META[type] ?? { icon: "mdi:lightning-bolt", color: "var(--color-brand)" }),
+    }))
+}
+
 // ── Content with "see more" ───────────────────────────────────
+
+const CONTENT_LIMIT = 220 // characters before truncation
 
 function PostContent({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false)
-  const LIMIT = 220
-  const isLong = text.length > LIMIT
 
-  const display = isLong && !expanded ? text.slice(0, LIMIT).trimEnd() + "…" : text
+  // Trim to nearest word boundary so we don't cut mid-word
+  const isLong = text.length > CONTENT_LIMIT
+  const trimmed = isLong
+    ? text.slice(0, CONTENT_LIMIT).replace(/\s+\S*$/, "")
+    : text
+  const display = isLong && !expanded ? trimmed + "…" : text
 
   return (
     <div className={styles.content}>
@@ -50,14 +79,15 @@ function PostContent({ text }: { text: string }) {
 // ── Post card ─────────────────────────────────────────────────
 
 interface PostCardProps {
-  post: Post
-  queryParams: FetchPostsParams  // passed down so like mutation targets the right cache key
+  post:        Post
+  queryParams: FetchPostsParams
 }
 
 export default function PostCard({ post, queryParams }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
 
-  const timeAgo = dayjs(post.created_at).fromNow()
+  const timeAgo      = dayjs(post.created_at).fromNow()
+  const topReactions = getTopReactions(post.likes_breakdown)
 
   return (
     <article className={styles.card}>
@@ -112,31 +142,50 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
       {/* ── Stats row ── */}
       {(post.likes_count > 0 || post.comments_count > 0) && (
         <div className={styles.statsRow}>
+
+          {/* Reaction icons cluster + total count */}
           {post.likes_count > 0 && (
             <span className={styles.statItem}>
-              <span className={styles.statIconLike}>
-                <Icon icon="mdi:lightning-bolt" width={12} height={12} />
+              {/* Stack up to 3 reaction icons */}
+              <span className={styles.reactionIcons}>
+                {topReactions.length > 0
+                  ? topReactions.map((r) => (
+                      <span
+                        key={r.type}
+                        className={styles.reactionIconBubble}
+                        title={r.type}
+                      >
+                        <Icon icon={r.icon} width={13} height={13} color={r.color} />
+                      </span>
+                    ))
+                  : /* fallback if breakdown missing */
+                    <span className={styles.reactionIconBubble}>
+                      <Icon icon="mdi:lightning-bolt" width={11} height={11} color="var(--color-brand)" />
+                    </span>
+                }
               </span>
-              {fmtCount(post.likes_count)}
+              <span className={styles.statCount}>{fmtCount(post.likes_count)}</span>
             </span>
           )}
+
+          {/* Comment count */}
           {post.comments_count > 0 && (
-            <button 
-              className={styles.statItem} 
-              style={{ marginLeft: "auto", background: "transparent", border: "none", cursor: "pointer", color: "inherit", padding: 0 }}
+            <button
+              className={`${styles.statItem} ${styles.statItemBtn}`}
               onClick={() => setShowComments(!showComments)}
             >
               {fmtCount(post.comments_count)} comment{post.comments_count !== 1 ? "s" : ""}
             </button>
           )}
+
         </div>
       )}
 
       {/* ── Actions ── */}
-      <PostActions 
-        post={post} 
-        queryParams={queryParams} 
-        onCommentClick={() => setShowComments(!showComments)} 
+      <PostActions
+        post={post}
+        queryParams={queryParams}
+        onCommentClick={() => setShowComments(!showComments)}
       />
 
       {/* ── Comments ── */}
