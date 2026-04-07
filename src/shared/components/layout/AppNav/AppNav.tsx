@@ -456,32 +456,36 @@ export default function AppNav() {
         </Link>
 
         {/* Create post — center CTA */}
-        <Button
+        <button
+          className={styles.bottomTabCreate}
+          style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
           aria-label="Create post"
           onClick={() => setPostModalOpen(true)}
         >
           <span className={styles.bottomTabCreateInner} aria-hidden="true">
             <Icon icon="mdi:plus" width={28} height={28} />
           </span>
-        </Button>
+        </button>
 
         {/* Messages */}
         <Link
           href="/messages"
-          className={`${styles.bottomTab} ${styles.bottomTabRelative} ${pathname.startsWith("/messages") ? styles.bottomTabActive : ""}`}
+          className={`${styles.bottomTab} ${pathname.startsWith("/messages") ? styles.bottomTabActive : ""}`}
           aria-label="Messages"
           aria-current={pathname.startsWith("/messages") ? "page" : undefined}
         >
-          <Icon
-            icon={
-              pathname.startsWith("/messages")
-                ? "mdi:message"
-                : "mdi:message-outline"
-            }
-            width={26}
-            height={26}
-          />
-          <NotifDot count={MOCK_USER.messageCount} />
+          <span className={styles.bottomTabIcon} aria-hidden="true">
+            <Icon
+              icon={
+                pathname.startsWith("/messages")
+                  ? "mdi:message"
+                  : "mdi:message-outline"
+              }
+              width={26}
+              height={26}
+            />
+            <NotifDot count={MOCK_USER.messageCount} />
+          </span>
         </Link>
 
 

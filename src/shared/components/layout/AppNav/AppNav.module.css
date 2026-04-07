@@ -657,8 +657,12 @@
     border-radius: 0 0 3px 3px;
 }
 
-.bottomTabRelative {
+.bottomTabIcon {
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
 }
 
 /* Create post — brand green pill button */
