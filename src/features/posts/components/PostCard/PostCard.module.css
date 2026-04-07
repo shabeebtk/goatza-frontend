@@ -158,7 +158,7 @@
 .statItem {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
@@ -166,13 +166,55 @@
   text-transform: uppercase;
 }
 
-.statIconLike {
-  display: flex;
-  align-items: center;
-  color: var(--color-brand);
+/* Comment count — clickable button variant */
+.statItemBtn {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 0;
+  transition: color var(--duration-fast);
 }
 
-/* ── Action bar ──────────────────────────────────────────────── */
+.statItemBtn:hover {
+  color: var(--color-text-secondary);
+}
+
+.statCount {
+  line-height: 1;
+}
+
+/* ── Reaction icon cluster ───────────────────────────────────── */
+
+/* Overlapping pill bubbles, each slightly offset */
+.reactionIcons {
+  display: flex;
+  align-items: center;
+  /* negative margin so icons overlap */
+  gap: 0;
+}
+
+.reactionIconBubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-surface);
+  /* each bubble overlaps the previous one */
+  margin-left: -4px;
+  line-height: 0;
+}
+
+/* First bubble has no negative margin */
+.reactionIconBubble:first-child {
+  margin-left: 0;
+}
+
+/* ── Action bar (kept for reference — actual styles in PostActions.module.css) */
 
 .actions {
   display: grid;
@@ -208,7 +250,6 @@
   color: var(--color-brand-hover);
 }
 
-/* Like active state */
 .actionBtnLiked {
   color: var(--color-brand-hover);
 }
@@ -222,8 +263,6 @@
   background: rgba(232, 70, 42, 0.06);
   color: var(--color-error);
 }
-
-/* ── Hide label on small screens ────────────────────────────── */
 
 .actionBtn span {
   display: none;

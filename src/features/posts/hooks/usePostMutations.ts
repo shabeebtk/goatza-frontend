@@ -144,7 +144,7 @@ export const useCreateComment = () => {
 export const usePostComments = (postId: string) =>
     useInfiniteQuery({
         queryKey: commentKeys.list(postId),
-        queryFn: ({ pageParam = 0 }) => fetchCommentsApi({ post_id: postId, limit: 20, offset: pageParam as number }),
+        queryFn: ({ pageParam = 0 }) => fetchCommentsApi({ post_id: postId, limit: 10, offset: pageParam as number }),
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) => {
             const fetched = allPages.reduce((sum, p) => sum + p.results.length, 0)

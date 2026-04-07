@@ -10,7 +10,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@iconify/react";
 import Avatar from "@/shared/components/ui/Avatar/Avatar";
 import Badge from "@/shared/components/ui/Badge/Badge";
@@ -19,6 +19,7 @@ import { LOGO_URL } from "@/constants";
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import { useAuthStore } from "@/store/auth.store";
 import { Button } from "../../ui";
+import { logoutApi } from "@/features/auth/services/auth.api";
 
 // ── Static mock data (replace with real auth/org context) ─────────
 const MOCK_USER = {
@@ -139,12 +140,15 @@ function AccountDropdown({
   onClose,
   activeOrg,
   onSwitchOrg,
+  onLogout,
 }: {
   open: boolean;
   onClose: () => void;
   activeOrg: string;
   onSwitchOrg: (id: string) => void;
+  onLogout: () => void;
 }) {
+  const user = useAuthStore((s) => s.user);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -173,14 +177,14 @@ function AccountDropdown({
         style={{ textDecoration: "none" }}
       >
         <Avatar
-          src={MOCK_USER.avatarUrl}
-          initials={MOCK_USER.initials}
+          src={user?.profile_photo}
+          initials={user?.name?.slice(0, 2).toUpperCase() || "U"}
           size="md"
           online
         />
         <div className={styles.dropdownUserInfo}>
-          <span className={styles.dropdownName}>{MOCK_USER.name}</span>
-          <span className={styles.dropdownHandle}>{MOCK_USER.handle}</span>
+          <span className={styles.dropdownName}>{user?.name}</span>
+          <span className={styles.dropdownHandle}>@{user?.username}</span>
         </div>
       </Link>
 
@@ -228,7 +232,8 @@ function AccountDropdown({
         className={`${styles.dropdownItem} ${styles.dropdownItemDanger}`}
         role="menuitem"
         onClick={() => {
-          /* call signOut() here */ onClose();
+          onLogout();
+          onClose();
         }}
       >
         <span className={styles.dropdownItemIcon} aria-hidden="true">
@@ -243,11 +248,21 @@ function AccountDropdown({
 // ── AppNav ────────────────────────────────────────────────────────
 export default function AppNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeOrg, setActiveOrg] = useState("personal");
   const avatarRef = useRef<HTMLDivElement>(null);
-  const user = useAuthStore((s) => s.user)
-  const [postModalOpen, setPostModalOpen] = useState(false)
+  const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const [postModalOpen, setPostModalOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await logoutApi();
+    } catch (e) {}
+    clearAuth();
+    router.push("/auth");
+  };
 
   return (
     <>
@@ -321,8 +336,8 @@ export default function AppNav() {
                 aria-label="My Profile"
               >
                 <Avatar
-                  src={MOCK_USER.avatarUrl}
-                  initials={MOCK_USER.initials}
+                  src={user?.profile_photo}
+                  initials={user?.name?.slice(0, 2).toUpperCase()}
                   size="sm"
                   online
                 />
@@ -356,6 +371,7 @@ export default function AppNav() {
               onClose={() => setDropdownOpen(false)}
               activeOrg={activeOrg}
               onSwitchOrg={setActiveOrg}
+              onLogout={handleLogout}
             />
           </div>
         </div>
@@ -478,8 +494,8 @@ export default function AppNav() {
         >
           {pathname.startsWith("/profile") ? (
             <Avatar
-              src={MOCK_USER.avatarUrl}
-              initials={MOCK_USER.initials}
+              src={user?.profile_photo}
+              initials={user?.name?.slice(0, 2).toUpperCase()}
               size="xs"
               className={styles.bottomTabAvatar}
             />

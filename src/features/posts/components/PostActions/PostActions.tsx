@@ -1,116 +1,283 @@
 "use client"
 
-import { useState, useRef } from "react"
+/**
+ * PostActions
+ *
+ * Like behaviour:
+ *   Desktop: hover the like button → emoji popover appears after 400ms
+ *            single click → like/unlike with current reaction type
+ *   Mobile:  single tap → like/unlike immediately (no popover on tap)
+ *            long-press (600ms) → popover for choosing reaction
+ */
+
+import { useState, useRef, useCallback, useEffect } from "react"
 import { Icon } from "@iconify/react"
 import { useToggleLike } from "@/features/posts/hooks/usePostMutations"
-import type { Post, ReactionType } from "@/features/posts/services/posts.api"
-import type { FetchPostsParams } from "@/features/posts/services/posts.api"
+import type { Post, ReactionType, FetchPostsParams } from "@/features/posts/services/posts.api"
 import styles from "./PostActions.module.css"
 
-const REACTION_OPTIONS: { type: ReactionType; icon: string; emoji: string; label: string; color: string }[] = [
-  { type: "like", icon: "mdi:lightning-bolt", emoji: "⚡", label: "Like", color: "var(--color-brand)" },
-  { type: "fire", icon: "mdi:fire", emoji: "🔥", label: "Fire", color: "#FF5E00" },
-  { type: "respect", icon: "mdi:hands-clap", emoji: "👏", label: "Respect", color: "#FFC83D" },
-  { type: "funny", icon: "mdi:emoticon-happy-outline", emoji: "😂", label: "Funny", color: "#FFC83D" },
+// ── Reaction definitions ──────────────────────────────────────
+// Each reaction has ONE canonical Iconify icon used everywhere
+// (button + popover). No emoji suffix — keep it clean.
+
+const REACTIONS: {
+  type:    ReactionType
+  icon:    string        // icon shown in the action button when active
+  popIcon: string        // icon shown inside the popover picker
+  label:   string
+  color:   string
+}[] = [
+  {
+    type:    "like",
+    icon:    "mdi:lightning-bolt",
+    popIcon: "mdi:lightning-bolt",
+    label:   "Like",
+    color:   "var(--color-brand)",
+  },
+  {
+    type:    "fire",
+    icon:    "mdi:fire",
+    popIcon: "mdi:fire",
+    label:   "Fire",
+    color:   "#FF5E00",
+  },
+  {
+    type:    "respect",
+    icon:    "fluent:hand-wave-24-filled",
+    popIcon: "fluent:hand-wave-24-filled",
+    label:   "Respect",
+    color:   "#FFC83D",
+  },
+  {
+    type:    "funny",
+    icon:    "fluent:emoji-laugh-24-filled",
+    popIcon: "fluent:emoji-laugh-24-filled",
+    label:   "Funny",
+    color:   "#FFC83D",
+  },
 ]
 
+const DEFAULT_REACTION = REACTIONS[0]
+
+// ── Reaction popover ──────────────────────────────────────────
+
+function ReactionPopover({
+  visible,
+  onSelect,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  visible:      boolean
+  onSelect:     (type: ReactionType) => void
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}) {
+  if (!visible) return null
+  return (
+    <div
+      className={styles.popover}
+      role="menu"
+      aria-label="Choose reaction"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {REACTIONS.map((r) => (
+        <button
+          key={r.type}
+          className={styles.popoverBtn}
+          onClick={() => onSelect(r.type)}
+          type="button"
+          role="menuitem"
+          aria-label={r.label}
+          title={r.label}
+          style={{ "--reaction-color": r.color } as React.CSSProperties}
+        >
+          <span className={styles.popoverIcon}>
+            <Icon icon={r.popIcon} width={26} height={26} color={r.color} />
+          </span>
+          <span className={styles.popoverLabel}>{r.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── PostActions ───────────────────────────────────────────────
+
 interface PostActionsProps {
-  post: Post
-  queryParams: FetchPostsParams
+  post:           Post
+  queryParams:    FetchPostsParams
   onCommentClick: () => void
 }
 
-export default function PostActions({ post, queryParams, onCommentClick }: PostActionsProps) {
-  const mutation = useToggleLike(queryParams)
+export default function PostActions({
+  post,
+  queryParams,
+  onCommentClick,
+}: PostActionsProps) {
+  const mutation  = useToggleLike(queryParams)
   const isPending = mutation.isPending
-  const [showReactions, setShowReactions] = useState(false)
-  const popoverTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  const handleActionClick = (e: React.MouseEvent, type: ReactionType) => {
-    e.stopPropagation()
+  const [popoverVisible, setPopoverVisible] = useState(false)
+
+  // Timers
+  const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress    = useRef(false)
+
+  // Touch device detection (once on mount)
+  const isTouch = useRef(false)
+  useEffect(() => {
+    isTouch.current = window.matchMedia("(hover: none)").matches
+  }, [])
+
+  const clearAllTimers = useCallback(() => {
+    if (hoverOpenTimer.current)  clearTimeout(hoverOpenTimer.current)
+    if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current)
+    if (longPressTimer.current)  clearTimeout(longPressTimer.current)
+  }, [])
+
+  // ── Derived reaction state ────────────────────────────────────
+  const isReacted    = post.reaction?.is_reacted ?? false
+  const reactionType = post.reaction?.type as ReactionType | undefined
+  const activeReact  = REACTIONS.find(r => r.type === reactionType) ?? DEFAULT_REACTION
+
+  // When NOT reacted: show outline lightning bolt in muted colour
+  // When reacted:     show the filled reaction icon in its colour
+  const likeIcon  = isReacted ? activeReact.icon : "mdi:lightning-bolt-outline"
+  const likeLabel = isReacted ? activeReact.label : "Like"
+  const likeColor = isReacted ? activeReact.color : undefined
+
+  // ── Core action ───────────────────────────────────────────────
+  const triggerReact = useCallback((type: ReactionType) => {
     if (isPending) return
     mutation.mutate({ post_id: post.id, type })
-    setShowReactions(false)
+    setPopoverVisible(false)
+  }, [isPending, mutation, post.id])
+
+  // ── Desktop hover handlers ────────────────────────────────────
+  const onMouseEnterBtn = () => {
+    if (isTouch.current) return
+    if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current)
+    hoverOpenTimer.current = setTimeout(() => setPopoverVisible(true), 400)
   }
 
-  const handleDefaultLike = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (isPending) return
-    const toggleType = post.reaction.is_reacted && post.reaction.type ? post.reaction.type : "like"
-    mutation.mutate({ post_id: post.id, type: toggleType })
+  const onMouseLeaveBtn = () => {
+    if (isTouch.current) return
+    if (hoverOpenTimer.current) clearTimeout(hoverOpenTimer.current)
+    hoverCloseTimer.current = setTimeout(() => setPopoverVisible(false), 300)
   }
 
-  const handleMouseEnter = () => {
-    if (popoverTimeout.current) clearTimeout(popoverTimeout.current)
-    setShowReactions(true)
+  const onPopoverMouseEnter = () => {
+    if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current)
   }
 
-  const handleMouseLeave = () => {
-    popoverTimeout.current = setTimeout(() => {
-      setShowReactions(false)
-    }, 300)
+  const onPopoverMouseLeave = () => {
+    hoverCloseTimer.current = setTimeout(() => setPopoverVisible(false), 200)
   }
 
-  const activeReaction = REACTION_OPTIONS.find(r => r.type === post.reaction.type)
-  const ActionIcon = activeReaction && post.reaction.is_reacted ? activeReaction.icon : "mdi:lightning-bolt-outline"
-  const actionLabel = activeReaction && post.reaction.is_reacted ? activeReaction.label : "Like"
-  const activeColor = activeReaction && post.reaction.is_reacted ? activeReaction.color : ""
+  // ── Mobile touch handlers ─────────────────────────────────────
+  const onTouchStart = () => {
+    didLongPress.current = false
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true
+      setPopoverVisible(true)
+    }, 600)
+  }
+
+  const onTouchEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+    if (!didLongPress.current) {
+      triggerReact(isReacted && reactionType ? reactionType : "like")
+    }
+  }
+
+  const onTouchCancel = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+  }
+
+  // ── Desktop click ─────────────────────────────────────────────
+  const onClickBtn = () => {
+    if (isTouch.current) return
+    clearAllTimers()
+    setPopoverVisible(false)
+    triggerReact(isReacted && reactionType ? reactionType : "like")
+  }
+
+  // ── Close popover on outside click ───────────────────────────
+  useEffect(() => {
+    if (!popoverVisible) return
+    const handler = () => setPopoverVisible(false)
+    document.addEventListener("click", handler)
+    return () => document.removeEventListener("click", handler)
+  }, [popoverVisible])
 
   return (
     <div className={styles.actionsBar}>
-      <div 
-        className={styles.reactionContainer}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        {showReactions && (
-          <div className={styles.reactionPopover}>
-            {REACTION_OPTIONS.map((ro) => (
-              <button
-                key={ro.type}
-                className={styles.reactionOptionBtn}
-                onClick={(e) => handleActionClick(e, ro.type)}
-                type="button"
-                aria-label={`React with ${ro.label}`}
-                title={ro.label}
-              >
-                <span className={styles.emoji}>{ro.emoji}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        
+
+      {/* ── Like / Reaction button ── */}
+      <div className={styles.reactionWrap}>
+        <ReactionPopover
+          visible={popoverVisible}
+          onSelect={triggerReact}
+          onMouseEnter={onPopoverMouseEnter}
+          onMouseLeave={onPopoverMouseLeave}
+        />
+
         <button
-          className={`${styles.actionBtn} ${post.reaction.is_reacted ? styles.actionBtnReacted : ""}`}
-          onClick={handleDefaultLike}
-          disabled={isPending}
           type="button"
-          aria-pressed={post.reaction.is_reacted}
-          style={{ color: activeColor || undefined }}
+          className={`${styles.actionBtn} ${isReacted ? styles.actionBtnActive : ""}`}
+          style={isReacted ? { color: likeColor } as React.CSSProperties : undefined}
+          disabled={isPending}
+          aria-pressed={isReacted}
+          aria-label={isReacted ? `Reacted: ${likeLabel}` : "Like"}
+          onMouseEnter={onMouseEnterBtn}
+          onMouseLeave={onMouseLeaveBtn}
+          onClick={onClickBtn}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchCancel}
         >
-          <Icon icon={ActionIcon} width={20} height={20} />
-          <span>{actionLabel}</span>
+          {/*
+            Single icon — filled + coloured when reacted, outline when not.
+            No separate emoji badge. Clean and standard.
+          */}
+          <span
+            className={styles.actionIcon}
+            style={isReacted ? { color: likeColor } as React.CSSProperties : undefined}
+          >
+            <Icon icon={likeIcon} width={20} height={20} />
+          </span>
+          <span className={styles.actionLabel}>{likeLabel}</span>
         </button>
       </div>
 
+      {/* ── Comment ── */}
       <button
+        type="button"
         className={styles.actionBtn}
         onClick={onCommentClick}
-        type="button"
         aria-label="Comment"
       >
-        <Icon icon="mdi:comment-outline" width={20} height={20} />
-        <span>Comment</span>
+        <span className={styles.actionIcon}>
+          <Icon icon="mdi:comment-outline" width={20} height={20} />
+        </span>
+        <span className={styles.actionLabel}>Comment</span>
       </button>
 
+      {/* ── Share ── */}
       <button
-        className={styles.actionBtn}
         type="button"
+        className={styles.actionBtn}
         aria-label="Share"
       >
-        <Icon icon="mdi:share-outline" width={20} height={20} />
-        <span>Share</span>
+        <span className={styles.actionIcon}>
+          <Icon icon="mdi:share-outline" width={20} height={20} />
+        </span>
+        <span className={styles.actionLabel}>Share</span>
       </button>
+
     </div>
   )
 }

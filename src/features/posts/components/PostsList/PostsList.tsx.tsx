@@ -19,6 +19,7 @@ import PostCard from "@/features/posts/components/PostCard/PostCard"
 import { usePostsList } from "../../hooks/usePostMutations"
 import type { FetchPostsParams } from "../../services/posts.api"
 import styles from "./PostsList.module.css"
+import Link from "next/link"
 
 // ── Skeleton ──────────────────────────────────────────────────
 
@@ -190,10 +191,10 @@ export default function PostsList({
                 <div className={styles.previewHeader}>
                     <h2 className={styles.previewTitle}>Posts</h2>
                     {totalCount > 1 && (
-                        <a href={`/profile/${username}/posts`} className={styles.viewAllBtn}>
+                        <Link href={`/profile/${username}/posts`} className={styles.viewAllBtn}>
                             View All {totalCount} posts
                             <Icon icon="mdi:arrow-right" width={15} height={15} />
-                        </a>
+                        </Link>
                     )}
                 </div>
             )}

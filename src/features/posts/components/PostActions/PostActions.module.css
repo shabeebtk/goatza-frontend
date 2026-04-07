@@ -1,102 +1,224 @@
+/* ============================================================
+   GOATZA — PostActions
+   ============================================================ */
+
 @keyframes popIn {
-  0% { opacity: 0; transform: translateY(8px) scale(0.9); }
-  50% { transform: translateY(-2px) scale(1.05); }
+  0%   { opacity: 0; transform: translateY(10px) scale(0.88); }
+  60%  { transform: translateY(-3px) scale(1.03); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes emojiHover {
-  0% { transform: scale(1) translateY(0); }
-  50% { transform: scale(1.3) translateY(-4px); }
-  100% { transform: scale(1.2) translateY(-2px); }
+@keyframes iconPop {
+  0%   { transform: scale(1) translateY(0); }
+  40%  { transform: scale(1.45) translateY(-5px); }
+  100% { transform: scale(1.15) translateY(-2px); }
 }
+
+@keyframes likePop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* ── Action bar ──────────────────────────────────────────────── */
 
 .actionsBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-3);
-  margin-top: var(--space-2);
 }
 
-.reactionContainer {
+/* ── Reaction wrap (positions the popover) ───────────────────── */
+
+.reactionWrap {
   position: relative;
 }
 
-.reactionPopover {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 4px var(--space-3);
-  animation: popIn 0.3s var(--ease-spring) both;
-  z-index: 50;
-}
-
-.reactionOptionBtn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  transition: transform var(--duration-fast);
-}
-
-.emoji {
-  font-size: 24px;
-  line-height: 1;
-  transition: transform 0.2s var(--ease-spring);
-}
-
-.reactionOptionBtn:hover .emoji {
-  animation: emojiHover 0.3s forwards;
-}
+/* ── Shared action button ────────────────────────────────────── */
 
 .actionBtn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
+  width: 100%;
+  padding: 12px var(--space-2);
   background: transparent;
   border: none;
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-4);
-  color: var(--color-text-secondary);
+  border-right: 1px solid var(--color-border);
   font-family: var(--font-ui);
-  font-size: var(--text-sm);
   font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Last direct button child (Share) has no right border */
+.actionsBar > button:last-child {
+  border-right: none;
+}
+
+/* Share button (direct child) inherits the same base look */
+.actionsBar > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 12px var(--space-2);
+  background: transparent;
+  border: none;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
   cursor: pointer;
   transition: background var(--duration-fast), color var(--duration-fast);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.actionBtn:hover {
+.actionBtn:hover:not(:disabled),
+.actionsBar > button:hover {
   background: var(--color-surface-raised);
-  color: var(--color-text-primary);
-}
-
-.actionBtnReacted {
-  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
 }
 
 .actionBtn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
-  .actionsBar {
-    padding: var(--space-2);
+/* ── Active / reacted state ──────────────────────────────────── */
+
+.actionBtnActive {
+  /* color is set inline via style prop (dynamic per reaction) */
+  font-weight: var(--weight-bold) !important;
+  background: var(--color-brand-subtle);
+}
+
+.actionBtnActive:hover {
+  background: rgba(232, 70, 42, 0.06) !important;
+  color: var(--color-error) !important;
+}
+
+/* ── Icon wrapper ────────────────────────────────────────────── */
+
+.actionIcon {
+  display: flex;
+  align-items: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+/* Animate icon on active state */
+.actionBtnActive .actionIcon svg {
+  animation: likePop 0.4s var(--ease-spring);
+}
+
+/* ── Label ───────────────────────────────────────────────────── */
+
+.actionLabel {
+  display: none;
+}
+
+@media (min-width: 380px) {
+  .actionLabel { display: inline; }
+}
+
+/* ── Reaction popover ────────────────────────────────────────── */
+
+.popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  animation: popIn 0.28s var(--ease-spring) both;
+  white-space: nowrap;
+}
+
+/* Mobile: center above the button */
+@media (max-width: 480px) {
+  .popover {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 10px);
   }
-  .actionBtn {
-    padding: var(--space-2) var(--space-3);
+}
+
+/* ── Popover reaction button ─────────────────────────────────── */
+
+.popoverBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 48px;
+  height: 56px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  padding: var(--space-1);
+  transition: background var(--duration-fast);
+}
+
+.popoverBtn:hover {
+  background: var(--color-surface-raised);
+}
+
+/* Icon bounces up on hover */
+.popoverBtn:hover .popoverIcon {
+  animation: iconPop 0.3s var(--ease-spring) forwards;
+}
+
+.popoverIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  transition: transform var(--duration-fast);
+}
+
+.popoverLabel {
+  font-family: var(--font-ui);
+  font-size: 0.58rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+
+/* ── Mobile: slightly larger touch targets ───────────────────── */
+@media (hover: none) {
+  .popover {
+    padding: 8px 12px;
+  }
+
+  .popoverBtn {
+    width: 56px;
+    height: 64px;
+  }
+
+  .popoverIcon svg {
+    width: 30px !important;
+    height: 30px !important;
   }
 }
