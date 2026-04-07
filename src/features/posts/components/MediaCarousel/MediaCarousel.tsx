@@ -15,6 +15,7 @@ import {
     useRef,
     useState,
 } from "react"
+import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
 import styles from "./MediaCarousel.module.css"
@@ -120,6 +121,7 @@ function LazyVideo({
                 playsInline
                 loop
                 preload="none"
+                controls={false}
                 poster={thumbnail}
                 onLoadedData={() => setLoaded(true)}
             />
@@ -153,8 +155,11 @@ function Lightbox({
     startIndex: number
     onClose: () => void
 }) {
+    const [mounted, setMounted] = useState(false)
     const [idx, setIdx] = useState(startIndex)
     const current = media[idx]
+
+    useEffect(() => setMounted(true), [])
 
     // Close on Escape
     useEffect(() => {
@@ -173,7 +178,9 @@ function Lightbox({
         return () => { document.body.style.overflow = "" }
     }, [])
 
-    return (
+    if (!mounted) return null
+
+    return createPortal(
         <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Media viewer">
             {/* Backdrop */}
             <div className={styles.lightboxBg} onClick={onClose} />
@@ -246,7 +253,8 @@ function Lightbox({
                     ))}
                 </div>
             )}
-        </div>
+        </div>,
+        document.body
     )
 }
 

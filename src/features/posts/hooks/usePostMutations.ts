@@ -9,10 +9,15 @@ import {
 import { createPostApi, CreatePostPayload, fetchPostsApi, FetchPostsParams, getMyPostSportsApi, likePostApi, Post, PostsListResponse, unlikePostApi } from "../services/posts.api"
 
 
-export const useCreatePost = () =>
-    useMutation({
+export const useCreatePost = () => {
+    const qc = useQueryClient()
+    return useMutation({
         mutationFn: (payload: CreatePostPayload) => createPostApi(payload),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["posts"] })
+        },
     })
+}
 
 export const useMyPostSports = () =>
     useQuery({
