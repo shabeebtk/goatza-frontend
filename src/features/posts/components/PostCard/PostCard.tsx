@@ -7,9 +7,10 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import MediaCarousel from "@/features/posts/components/MediaCarousel/MediaCarousel"
+import PostActions from "@/features/posts/components/PostActions/PostActions"
+import PostComments from "@/features/posts/components/PostComments/PostComments"
 import type { Post } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
-import { useLikePost } from "@/features/posts/hooks/usePostMutations"
 import styles from "./PostCard.module.css"
 
 dayjs.extend(relativeTime)
@@ -54,14 +55,7 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, queryParams }: PostCardProps) {
-  const { like, unlike } = useLikePost(queryParams)
-  const pending = like.isPending || unlike.isPending
-
-  const handleLike = () => {
-    if (pending) return
-    if (post.is_liked) unlike.mutate(post.id)
-    else              like.mutate(post.id)
-  }
+  const [showComments, setShowComments] = useState(false)
 
   const timeAgo = dayjs(post.created_at).fromNow()
 
@@ -127,51 +121,28 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
             </span>
           )}
           {post.comments_count > 0 && (
-            <span className={styles.statItem} style={{ marginLeft: "auto" }}>
+            <button 
+              className={styles.statItem} 
+              style={{ marginLeft: "auto", background: "transparent", border: "none", cursor: "pointer", color: "inherit", padding: 0 }}
+              onClick={() => setShowComments(!showComments)}
+            >
               {fmtCount(post.comments_count)} comment{post.comments_count !== 1 ? "s" : ""}
-            </span>
+            </button>
           )}
         </div>
       )}
 
-      {/* ── Action bar ── */}
-      <div className={styles.actions}>
+      {/* ── Actions ── */}
+      <PostActions 
+        post={post} 
+        queryParams={queryParams} 
+        onCommentClick={() => setShowComments(!showComments)} 
+      />
 
-        <button
-          className={`${styles.actionBtn} ${post.is_liked ? styles.actionBtnLiked : ""}`}
-          onClick={handleLike}
-          disabled={pending}
-          type="button"
-          aria-pressed={post.is_liked}
-          aria-label={post.is_liked ? "Unlike" : "Like"}
-        >
-          <Icon
-            icon={post.is_liked ? "mdi:lightning-bolt" : "mdi:lightning-bolt-outline"}
-            width={20}
-            height={20}
-          />
-          <span>{post.is_liked ? "Liked" : "Like"}</span>
-        </button>
-
-        <button
-          className={styles.actionBtn}
-          type="button"
-          aria-label="Comment"
-        >
-          <Icon icon="mdi:comment-outline" width={20} height={20} />
-          <span>Comment</span>
-        </button>
-
-        <button
-          className={styles.actionBtn}
-          type="button"
-          aria-label="Share"
-        >
-          <Icon icon="mdi:share-outline" width={20} height={20} />
-          <span>Share</span>
-        </button>
-
-      </div>
+      {/* ── Comments ── */}
+      {showComments && (
+        <PostComments postId={post.id} />
+      )}
 
     </article>
   )
