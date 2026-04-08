@@ -6,6 +6,17 @@ export type PostMediaType = "image" | "video"
 export type PostVisibility = "public" | "followers"
 export type PostType = "normal"
 
+export type PostLocation = {
+  name:         string
+  type:         string
+  city?:        string
+  state?:       string
+  country_code: string
+  latitude:     number
+  longitude:    number
+  external_id:  string
+}
+
 export type PostMediaPayload = {
   file_url: string
   public_id: string
@@ -21,6 +32,7 @@ export type CreatePostPayload = {
   visibility: PostVisibility
   sport_id?: string
   media?: PostMediaPayload[]
+  location?:  PostLocation
 }
 
 export type PostMedia = {
@@ -59,6 +71,7 @@ export type Post = {
   media: PostMedia[]
   sport: PostSport | null
   reaction: PostReaction
+  location?: PostLocation | null
 }
 
 

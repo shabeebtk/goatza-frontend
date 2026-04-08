@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import PostLocationPicker from "../PostLocationPicker/PostLocationPicker"
 import { useCreatePost, useMyPostSports } from "@/features/posts/hooks/usePostMutations"
 import {
   validateMediaFiles,
@@ -12,7 +13,8 @@ import {
   MAX_IMAGE_MB,
   MAX_VIDEO_MB,
 } from "@/features/posts/services/postUpload.service"
-import type { PostVisibility, PostMediaPayload } from "@/features/posts/services/posts.api"
+import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/posts/services/posts.api"
+import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import styles from "./CreatePostModal.module.css"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -20,19 +22,15 @@ import styles from "./CreatePostModal.module.css"
 type FileEntry = {
   id:       string
   file:     File
-  preview:  string        // object URL
+  preview:  string
   isVideo:  boolean
-  progress: number        // 0–100 per file
+  progress: number
   status:   "idle" | "uploading" | "done" | "error"
   error:    string | null
   result:   PostMediaPayload | null
 }
 
-type SubmitPhase =
-  | "idle"                  // composing
-  | "uploading"             // media uploading
-  | "posting"               // calling /posts/create
-  | "done"                  // success — show tick before redirect
+type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
 function fmtBytes(b: number) {
@@ -49,18 +47,17 @@ function VisibilityBtn({ value, onChange }: {
   return (
     <button
       type="button"
-      className={styles.visibilityBtn}
+      className={styles.badgeBtn}
       onClick={() => onChange(value === "public" ? "followers" : "public")}
       aria-label={`Visibility: ${value}`}
     >
-      <Icon icon={value === "public" ? "mdi:earth" : "mdi:account-group-outline"} width={14} height={14} />
+      <Icon icon={value === "public" ? "mdi:earth" : "mdi:account-group-outline"} width={13} height={13} />
       {value === "public" ? "Public" : "Followers"}
     </button>
   )
 }
 
 // ── Media carousel preview ────────────────────────────────────
-// Full swipeable carousel inside the modal body
 
 function MediaCarouselPreview({ entries, onRemove, disabled }: {
   entries: FileEntry[]
@@ -70,7 +67,6 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
   const [idx, setIdx] = useState(0)
   const touchStartX   = useRef(0)
 
-  // Clamp index when entries shrink
   useEffect(() => {
     if (idx >= entries.length && entries.length > 0) setIdx(entries.length - 1)
   }, [entries.length, idx])
@@ -88,54 +84,22 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
     if (Math.abs(diff) > 40) diff > 0 ? next() : prev()
   }
 
-  // Total overall progress for uploading state
-  const overallPct = entries.length
-    ? Math.round(entries.reduce((s, e) => s + e.progress, 0) / entries.length)
-    : 0
-
   return (
     <div className={styles.previewCarousel}>
-
-      {/* Slide */}
-      <div
-        className={styles.previewSlide}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
+      <div className={styles.previewSlide} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {current.isVideo ? (
-          <video
-            key={current.id}
-            src={current.preview}
-            className={styles.previewMedia}
-            controls
-            playsInline
-            preload="metadata"
-          />
+          <video key={current.id} src={current.preview} className={styles.previewMedia} controls playsInline preload="metadata" />
         ) : (
-          <img
-            key={current.id}
-            src={current.preview}
-            className={styles.previewMedia}
-            alt={`Preview ${idx + 1}`}
-          />
+          <img key={current.id} src={current.preview} className={styles.previewMedia} alt={`Preview ${idx + 1}`} />
         )}
 
-        {/* Per-file upload overlay */}
         {current.status === "uploading" && (
           <div className={styles.previewUploadOverlay}>
-            {/* Circular progress */}
             <div className={styles.ringWrap}>
               <svg viewBox="0 0 44 44" className={styles.ringSvg}>
                 <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3.5"/>
-                <circle
-                  cx="22" cy="22" r="18"
-                  fill="none"
-                  stroke="var(--color-brand)"
-                  strokeWidth="3.5"
-                  strokeDasharray={`${current.progress * 1.131} 113.1`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 22 22)"
-                />
+                <circle cx="22" cy="22" r="18" fill="none" stroke="var(--color-brand)" strokeWidth="3.5"
+                  strokeDasharray={`${current.progress * 1.131} 113.1`} strokeLinecap="round" transform="rotate(-90 22 22)" />
               </svg>
               <span className={styles.ringPct}>{current.progress}%</span>
             </div>
@@ -143,16 +107,12 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
           </div>
         )}
 
-        {/* Done tick */}
         {current.status === "done" && (
           <div className={styles.previewDoneOverlay}>
-            <span className={styles.doneTick}>
-              <Icon icon="mdi:check-circle" width={28} height={28} />
-            </span>
+            <span className={styles.doneTick}><Icon icon="mdi:check-circle" width={28} height={28} /></span>
           </div>
         )}
 
-        {/* Error */}
         {current.status === "error" && (
           <div className={styles.previewErrorOverlay}>
             <Icon icon="mdi:alert-circle" width={24} height={24} />
@@ -160,37 +120,22 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
           </div>
         )}
 
-        {/* Remove button */}
         {!disabled && (
-          <button
-            className={styles.previewRemoveBtn}
-            onClick={() => {
-              onRemove(current.id)
-              // slide left if last
-              if (idx > 0 && idx === total - 1) setIdx(idx - 1)
-            }}
-            type="button"
-            aria-label="Remove"
-          >
+          <button className={styles.previewRemoveBtn} onClick={() => { onRemove(current.id); if (idx > 0 && idx === total - 1) setIdx(idx - 1) }}
+            type="button" aria-label="Remove">
             <Icon icon="mdi:close" width={14} height={14} />
           </button>
         )}
 
-        {/* Video badge */}
         {current.isVideo && current.status === "idle" && (
           <div className={styles.previewVideoBadge}>
-            <Icon icon="mdi:play-circle-outline" width={14} height={14} />
-            Video
+            <Icon icon="mdi:play-circle-outline" width={14} height={14} /> Video
           </div>
         )}
 
-        {/* Counter top-right */}
-        {total > 1 && (
-          <div className={styles.previewCounter}>{idx + 1}/{total}</div>
-        )}
+        {total > 1 && <div className={styles.previewCounter}>{idx + 1}/{total}</div>}
       </div>
 
-      {/* Prev / Next arrows */}
       {total > 1 && idx > 0 && (
         <button className={`${styles.previewNav} ${styles.previewNavPrev}`} onClick={prev} type="button" aria-label="Previous">
           <Icon icon="mdi:chevron-left" width={18} height={18} />
@@ -202,31 +147,18 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
         </button>
       )}
 
-      {/* Dot strip + thumbnail row */}
       {total > 1 && (
         <div className={styles.previewThumbRow}>
           {entries.map((e, i) => (
-            <button
-              key={e.id}
-              className={`${styles.previewThumb} ${i === idx ? styles.previewThumbActive : ""}`}
-              onClick={() => setIdx(i)}
-              type="button"
-              aria-label={`Go to ${i + 1}`}
-            >
+            <button key={e.id} className={`${styles.previewThumb} ${i === idx ? styles.previewThumbActive : ""}`}
+              onClick={() => setIdx(i)} type="button" aria-label={`Go to ${i + 1}`}>
               {e.isVideo ? (
-                <div className={styles.previewThumbVideoIcon}>
-                  <Icon icon="mdi:play" width={14} height={14} />
-                </div>
+                <div className={styles.previewThumbVideoIcon}><Icon icon="mdi:play" width={14} height={14} /></div>
               ) : (
                 <img src={e.preview} className={styles.previewThumbImg} alt="" />
               )}
-              {/* per-thumb status indicator */}
-              {e.status === "done" && (
-                <span className={styles.thumbDone}><Icon icon="mdi:check" width={10} height={10} /></span>
-              )}
-              {e.status === "uploading" && (
-                <span className={styles.thumbProgress} style={{ "--pct": `${e.progress}%` } as React.CSSProperties} />
-              )}
+              {e.status === "done" && <span className={styles.thumbDone}><Icon icon="mdi:check" width={10} height={10} /></span>}
+              {e.status === "uploading" && <span className={styles.thumbProgress} style={{ "--pct": `${e.progress}%` } as React.CSSProperties} />}
             </button>
           ))}
         </div>
@@ -236,7 +168,6 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
 }
 
 // ── Upload progress section ───────────────────────────────────
-// Shown as a separate panel at the bottom when submitting
 
 function UploadProgressSection({ entries, phase, onDone }: {
   entries: FileEntry[]
@@ -246,11 +177,9 @@ function UploadProgressSection({ entries, phase, onDone }: {
   const total      = entries.length
   const doneCount  = entries.filter(e => e.status === "done").length
   const overallPct = total === 0 ? 100 : Math.round(entries.reduce((s, e) => s + e.progress, 0) / total)
-  const allDone    = doneCount === total
   const isPosting  = phase === "posting"
   const isDone     = phase === "done"
 
-  // Auto-close after done animation
   useEffect(() => {
     if (isDone) {
       const t = setTimeout(onDone, 1800)
@@ -260,73 +189,43 @@ function UploadProgressSection({ entries, phase, onDone }: {
 
   return (
     <div className={`${styles.uploadSection} ${isDone ? styles.uploadSectionDone : ""}`}>
-
-      {/* Done state — big tick */}
       {isDone ? (
         <div className={styles.uploadDoneState}>
-          <span className={styles.uploadBigTick}>
-            <Icon icon="mdi:check-circle" width={40} height={40} />
-          </span>
+          <span className={styles.uploadBigTick}><Icon icon="mdi:check-circle" width={40} height={40} /></span>
           <span className={styles.uploadDoneLabel}>Posted!</span>
         </div>
       ) : (
         <>
-          {/* Header row */}
           <div className={styles.uploadHeader}>
             <span className={styles.uploadLabel}>
-              {isPosting
-                ? "Publishing…"
-                : total === 0
-                  ? "Publishing…"
-                  : `Uploading ${doneCount}/${total} file${total > 1 ? "s" : ""}`}
+              {isPosting ? "Publishing…" : total === 0 ? "Publishing…" : `Uploading ${doneCount}/${total} file${total > 1 ? "s" : ""}`}
             </span>
-            <span className={styles.uploadPct}>
-              {isPosting ? "" : `${overallPct}%`}
-            </span>
+            <span className={styles.uploadPct}>{isPosting ? "" : `${overallPct}%`}</span>
           </div>
-
-          {/* Overall progress bar */}
           <div className={styles.overallBarWrap}>
-            <div
-              className={styles.overallBar}
-              style={{ width: isPosting ? "100%" : `${overallPct}%` }}
-            />
+            <div className={styles.overallBar} style={{ width: isPosting ? "100%" : `${overallPct}%` }} />
           </div>
-
-          {/* Per-file rows (images only when multiple) */}
           {total > 1 && !isPosting && (
             <div className={styles.fileRows}>
-              {entries.map((e, i) => (
+              {entries.map((e) => (
                 <div key={e.id} className={styles.fileRow}>
                   <div className={styles.fileRowThumb}>
-                    {e.isVideo
-                      ? <Icon icon="mdi:video-outline" width={14} height={14} />
-                      : <img src={e.preview} className={styles.fileRowThumbImg} alt="" />}
+                    {e.isVideo ? <Icon icon="mdi:video-outline" width={14} height={14} /> : <img src={e.preview} className={styles.fileRowThumbImg} alt="" />}
                   </div>
                   <div className={styles.fileRowInfo}>
                     <span className={styles.fileRowName}>{e.file.name.slice(0, 24)}</span>
-                    <div className={styles.fileRowBar}>
-                      <div className={styles.fileRowBarFill} style={{ width: `${e.progress}%` }} />
-                    </div>
+                    <div className={styles.fileRowBar}><div className={styles.fileRowBarFill} style={{ width: `${e.progress}%` }} /></div>
                   </div>
                   <span className={styles.fileRowStatus}>
-                    {e.status === "done"
-                      ? <Icon icon="mdi:check-circle" width={16} height={16} className={styles.fileRowDone} />
-                      : e.status === "error"
-                        ? <Icon icon="mdi:alert-circle" width={16} height={16} className={styles.fileRowError} />
-                        : <span className={styles.fileRowPct}>{e.progress}%</span>}
+                    {e.status === "done" ? <Icon icon="mdi:check-circle" width={16} height={16} className={styles.fileRowDone} />
+                      : e.status === "error" ? <Icon icon="mdi:alert-circle" width={16} height={16} className={styles.fileRowError} />
+                      : <span className={styles.fileRowPct}>{e.progress}%</span>}
                   </span>
                 </div>
               ))}
             </div>
           )}
-
-          {/* Single file size hint */}
-          {total === 1 && (
-            <div className={styles.singleFileHint}>
-              {fmtBytes(entries[0].file.size)} · {overallPct}%
-            </div>
-          )}
+          {total === 1 && <div className={styles.singleFileHint}>{fmtBytes(entries[0].file.size)} · {overallPct}%</div>}
         </>
       )}
     </div>
@@ -336,10 +235,10 @@ function UploadProgressSection({ entries, phase, onDone }: {
 // ── Main CreatePostModal ──────────────────────────────────────
 
 interface CreatePostModalProps {
-  username:      string
+  username:       string
   userAvatarUrl?: string
   userInitials?:  string
-  onClose:       () => void
+  onClose:        () => void
 }
 
 export default function CreatePostModal({
@@ -350,12 +249,16 @@ export default function CreatePostModal({
   const { data: mySports } = useMyPostSports()
 
   // Compose state
-  const [content,     setContent]     = useState("")
-  const [visibility,  setVisibility]  = useState<PostVisibility>("public")
-  const [sportId,     setSportId]     = useState("")
-  const [entries,     setEntries]     = useState<FileEntry[]>([])
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [phase,       setPhase]       = useState<SubmitPhase>("idle")
+  const [content,      setContent]      = useState("")
+  const [visibility,   setVisibility]   = useState<PostVisibility>("public")
+  const [sportId,      setSportId]      = useState("")
+  const [entries,      setEntries]      = useState<FileEntry[]>([])
+  const [submitError,  setSubmitError]  = useState<string | null>(null)
+  const [phase,        setPhase]        = useState<SubmitPhase>("idle")
+
+  // Location state — managed outside any form library
+  const [postLocation,  setPostLocation]  = useState<MapboxPlace | null>(null)
+  const [locationOpen,  setLocationOpen]  = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef  = useRef<HTMLTextAreaElement>(null)
@@ -364,6 +267,7 @@ export default function CreatePostModal({
   const isSubmitting = phase !== "idle"
   const hasVideo     = entries.some(e => e.isVideo)
   const hasImages    = entries.some(e => !e.isVideo)
+  const composing    = phase === "idle"
 
   // ── Auto-resize textarea ──────────────────────────────────────
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -394,7 +298,6 @@ export default function CreatePostModal({
       error:    null,
       result:   null,
     }))
-
     setEntries(prev => [...prev, ...newEntries])
   }, [entries])
 
@@ -406,6 +309,12 @@ export default function CreatePostModal({
     })
   }, [])
 
+  // ── Handle location select — close picker after pick ──────────
+  const handleLocationChange = (place: MapboxPlace | null) => {
+    setPostLocation(place)
+    if (place) setLocationOpen(false)
+  }
+
   // ── Submit ────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setSubmitError(null)
@@ -416,33 +325,23 @@ export default function CreatePostModal({
       return
     }
 
-    // ── Phase 1: upload media ─────────────────────────────────────
     let uploadedMedia: PostMediaPayload[] = []
 
     if (entries.length > 0) {
       setPhase("uploading")
-      // Mark all as uploading
       setEntries(prev => prev.map(e => ({ ...e, status: "uploading", progress: 0 })))
-
       try {
         const results = await uploadMediaFile(
           entries.map(e => e.file),
           (fileIndex, loaded, total) => {
             const pct = Math.round((loaded / total) * 100)
-            setEntries(prev => prev.map((e, i) =>
-              i === fileIndex ? { ...e, progress: pct } : e
-            ))
+            setEntries(prev => prev.map((e, i) => i === fileIndex ? { ...e, progress: pct } : e))
           }
         )
-
-        // Mark each done individually with a tiny stagger for visual effect
         for (let i = 0; i < results.length; i++) {
-          setEntries(prev => prev.map((e, idx) =>
-            idx === i ? { ...e, status: "done", progress: 100, result: results[i] } : e
-          ))
+          setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, result: results[i] } : e))
           if (i < results.length - 1) await new Promise(r => setTimeout(r, 120))
         }
-
         uploadedMedia = results
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Upload failed"
@@ -452,23 +351,33 @@ export default function CreatePostModal({
         return
       }
     } else {
-      setPhase("uploading") // show the section even for text-only posts
+      setPhase("uploading")
     }
 
-    // ── Phase 2: create post ──────────────────────────────────────
     setPhase("posting")
+
+    // Build location payload if selected
+    const locationPayload: PostLocation | undefined = postLocation ? {
+      name:         postLocation.name,
+      type:         postLocation.place_type,
+      city:         postLocation.place_type === "place" ? postLocation.name : undefined,
+      state:        postLocation.state || undefined,
+      country_code: postLocation.country_code,
+      latitude:     postLocation.latitude,
+      longitude:    postLocation.longitude,
+      external_id:  postLocation.external_id,
+    } : undefined
 
     try {
       await createPost.mutateAsync({
-        content:    trimmed,
-        post_type:  "normal",
+        content:   trimmed,
+        post_type: "normal",
         visibility,
-        sport_id:   sportId || undefined,
-        media:      uploadedMedia.length > 0 ? uploadedMedia : undefined,
+        sport_id:  sportId || undefined,
+        media:     uploadedMedia.length > 0 ? uploadedMedia : undefined,
+        location:  locationPayload,
       })
-
       setPhase("done")
-      // UploadProgressSection handles the redirect after 1800ms
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to post. Try again."
       setSubmitError(msg)
@@ -476,7 +385,6 @@ export default function CreatePostModal({
     }
   }
 
-  // Called by UploadProgressSection after done animation
   const handleDoneRedirect = useCallback(() => {
     onClose()
     router.push(`/profile/${username}/posts`)
@@ -485,7 +393,6 @@ export default function CreatePostModal({
   const contentLen  = content.length
   const charWarning = contentLen > 2800
   const canSubmit   = content.trim().length >= 3 && !isSubmitting
-  const composing   = phase === "idle"
 
   return (
     <div
@@ -500,13 +407,7 @@ export default function CreatePostModal({
         {/* ── Header ── */}
         <div className={styles.header}>
           <h2 className={styles.headerTitle}>Create Post</h2>
-          <button
-            className={styles.closeBtn}
-            onClick={onClose}
-            disabled={isSubmitting}
-            type="button"
-            aria-label="Close"
-          >
+          <button className={styles.closeBtn} onClick={onClose} disabled={isSubmitting} type="button" aria-label="Close">
             <Icon icon="mdi:close" width={20} height={20} />
           </button>
         </div>
@@ -519,7 +420,51 @@ export default function CreatePostModal({
             <Avatar src={userAvatarUrl} initials={userInitials} size="md" />
             <div className={styles.authorMeta}>
               <span className={styles.authorName}>@{username}</span>
-              {composing && <VisibilityBtn value={visibility} onChange={setVisibility} />}
+              {composing && (
+                <div className={styles.authorBadges}>
+                  <VisibilityBtn value={visibility} onChange={setVisibility} />
+                  
+                  {/* Sport Select */}
+                  {mySports && mySports.length > 0 && (
+                    <div className={styles.badgeSelectWrap}>
+                      <Icon icon="mdi:trophy-outline" width={12} height={12} className={styles.badgeSelectIcon} />
+                      <select className={styles.badgeSelect} value={sportId}
+                        onChange={e => setSportId(e.target.value)} aria-label="Tag a sport">
+                        <option value="">SELECT SPORT</option>
+                        {mySports.map(ms => (
+                          <option key={ms.sport.id} value={ms.sport.id}>{ms.sport.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Location Toggle / Pill */}
+                  {postLocation ? (
+                    <div className={styles.badgePill}>
+                      <Icon icon="mdi:map-marker" width={12} height={12} />
+                      <span className={styles.badgePillText}>{postLocation.name}</span>
+                      <button
+                        type="button"
+                        className={styles.badgePillClose}
+                        onClick={() => setPostLocation(null)}
+                        aria-label="Remove location"
+                      >
+                        <Icon icon="mdi:close" width={10} height={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`${styles.badgeBtn} ${locationOpen ? styles.badgeBtnActive : ""}`}
+                      onClick={() => setLocationOpen(v => !v)}
+                      aria-label="Add location"
+                    >
+                      <Icon icon="mdi:map-marker-plus-outline" width={13} height={13} />
+                      LOCATION
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -543,13 +488,20 @@ export default function CreatePostModal({
             </p>
           )}
 
-          {/* ── Media carousel preview ── */}
+          {/* Location picker — inline in body, shown when toggled */}
+          {locationOpen && composing && (
+            <div className={styles.locationPickerWrap}>
+              <PostLocationPicker
+                value={postLocation}
+                onChange={handleLocationChange}
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+
+          {/* Media carousel */}
           {entries.length > 0 && (
-            <MediaCarouselPreview
-              entries={entries}
-              onRemove={removeEntry}
-              disabled={isSubmitting}
-            />
+            <MediaCarouselPreview entries={entries} onRemove={removeEntry} disabled={isSubmitting} />
           )}
 
           {/* Global error */}
@@ -564,42 +516,32 @@ export default function CreatePostModal({
 
         {/* ── Upload / posting progress section ── */}
         {phase !== "idle" && (
-          <UploadProgressSection
-            entries={entries}
-            phase={phase}
-            onDone={handleDoneRedirect}
-          />
+          <UploadProgressSection entries={entries} phase={phase} onDone={handleDoneRedirect} />
         )}
 
         {/* ── Footer toolbar ── */}
         {composing && (
           <div className={styles.footer}>
             <div className={styles.footerTools}>
+
               {/* Add images */}
-              <button
-                type="button"
-                className={styles.toolBtn}
+              <button type="button" className={styles.toolBtn}
                 onClick={() => { if (!hasVideo) fileInputRef.current?.click() }}
-                disabled={hasVideo}
-                aria-label="Add images"
-                title={`Add images (max ${MAX_IMAGES}, ${MAX_IMAGE_MB}MB each)`}
-              >
+                disabled={hasVideo} aria-label="Add images"
+                title={`Add images (max ${MAX_IMAGES}, ${MAX_IMAGE_MB}MB each)`}>
                 <Icon icon="mdi:image-plus-outline" width={22} height={22} />
                 {hasImages && <span className={styles.toolCount}>{entries.length}</span>}
               </button>
 
               {/* Add video */}
-              <button
-                type="button"
-                className={styles.toolBtn}
+              <button type="button" className={styles.toolBtn}
                 onClick={() => { if (!hasImages && !hasVideo) fileInputRef.current?.click() }}
-                disabled={hasImages || hasVideo}
-                aria-label="Add video"
-                title={`Add video (max ${MAX_VIDEO_MB}MB, 5 min)`}
-              >
+                disabled={hasImages || hasVideo} aria-label="Add video"
+                title={`Add video (max ${MAX_VIDEO_MB}MB, 5 min)`}>
                 <Icon icon="mdi:video-plus-outline" width={22} height={22} />
               </button>
 
+              {/* Media hints */}
               {entries.length > 0 && (
                 <span className={styles.mediaHint}>
                   {hasVideo ? "1 video" : `${entries.length}/${MAX_IMAGES} photos`}
@@ -608,31 +550,8 @@ export default function CreatePostModal({
             </div>
 
             <div className={styles.footerRight}>
-              {/* Sport tag */}
-              {mySports && mySports.length > 0 && (
-                <div className={styles.sportWrap}>
-                  <Icon icon="mdi:trophy-outline" width={14} height={14} className={styles.sportIcon} />
-                  <select
-                    className={styles.sportSelect}
-                    value={sportId}
-                    onChange={e => setSportId(e.target.value)}
-                    aria-label="Tag a sport"
-                  >
-                    <option value="">Sport</option>
-                    {mySports.map(ms => (
-                      <option key={ms.sport.id} value={ms.sport.id}>{ms.sport.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               {/* Post button */}
-              <button
-                type="button"
-                className={styles.postBtn}
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-              >
+              <button type="button" className={styles.postBtn} onClick={handleSubmit} disabled={!canSubmit}>
                 Post
               </button>
             </div>

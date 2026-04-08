@@ -89,6 +89,19 @@
 .timeAgo { color: var(--color-text-muted); }
 .metaDot { opacity: 0.5; }
 
+.metaGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.locationText {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .moreBtn {
   display: flex;
   align-items: center;

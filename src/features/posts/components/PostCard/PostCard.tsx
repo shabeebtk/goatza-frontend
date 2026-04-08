@@ -106,20 +106,33 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
               <span className={styles.authorHeadline}>{post.author.headline}</span>
             )}
             <span className={styles.postMeta}>
-              <span className={styles.timeAgo}>{timeAgo}</span>
-              {post.visibility === "followers" && (
-                <>
-                  <span className={styles.metaDot}>·</span>
-                  <Icon icon="mdi:account-group-outline" width={12} height={12} />
-                </>
-              )}
-              {post.sport && (
-                <>
-                  <span className={styles.metaDot}>·</span>
-                  <Icon icon={post.sport.icon_name} width={12} height={12} />
-                  <span>{post.sport.name}</span>
-                </>
-              )}
+              {[
+                <span key="time" className={styles.timeAgo}>{timeAgo}</span>,
+                post.visibility === "followers" && (
+                  <Icon key="vis" icon="mdi:account-group-outline" width={12} height={12} />
+                ),
+                post.sport && (
+                  <span key="sport" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <Icon icon={post.sport.icon_name} width={12} height={12} />
+                    <span>{post.sport.name}</span>
+                  </span>
+                ),
+                post.location && (
+                  <span key="loc" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <Icon icon="mdi:map-marker-outline" width={12} height={12} />
+                    <span className={styles.locationText}>
+                      {post.location.name}{post.location.country_code ? `, ${post.location.country_code}` : ""}
+                    </span>
+                  </span>
+                )
+              ]
+                .filter(Boolean)
+                .map((item, index, arr) => (
+                  <span key={index} className={styles.metaGroup}>
+                    {item}
+                    {index < arr.length - 1 && <span className={styles.metaDot}>·</span>}
+                  </span>
+                ))}
             </span>
           </div>
         </Link>

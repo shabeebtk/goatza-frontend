@@ -1,0 +1,237 @@
+/* ============================================================
+   GOATZA — LocationPicker
+   Reusable city search input with Mapbox dropdown
+   ============================================================ */
+
+@keyframes dropIn  { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin    { to { transform: rotate(360deg); } }
+
+/* ── Root ────────────────────────────────────────────────────── */
+
+.root {
+  position: relative;
+  width: 100%;
+}
+
+/* ── Selected pill (shown after a city is picked) ────────────── */
+
+.selectedPill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-3);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-base);
+}
+
+.selectedPillDisabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.selectedIcon {
+  display: flex;
+  align-items: center;
+  color: var(--color-brand-hover);
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.selectedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.selectedCity {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selectedMeta {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clearBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.clearBtn:hover {
+  background: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+/* ── Search input ────────────────────────────────────────────── */
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base);
+}
+
+.inputWrap:focus-within,
+.inputWrapOpen {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.inputWrapError {
+  border-color: var(--color-error) !important;
+  box-shadow: 0 0 0 3px rgba(232,70,42,0.1) !important;
+}
+
+.inputIcon {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  line-height: 0;
+  transition: color var(--duration-base);
+}
+
+.inputWrap:focus-within .inputIcon { color: var(--color-brand); }
+
+.input {
+  flex: 1;
+  padding: 11px 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  min-height: 46px;
+}
+
+.input::placeholder { color: var(--color-text-muted); }
+.input:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+
+.spin { animation: spin 0.7s linear infinite; }
+
+/* ── Error message ───────────────────────────────────────────── */
+
+.errorMsg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-error);
+}
+
+/* ── Dropdown ────────────────────────────────────────────────── */
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 300;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  list-style: none;
+  overflow: hidden;
+  animation: dropIn 0.2s var(--ease-out) both;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px var(--space-4);
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background var(--duration-fast), color var(--duration-fast);
+  user-select: none;
+}
+
+.dropdownItem:last-child { border-bottom: none; }
+
+.dropdownItemHighlight {
+  background: var(--color-brand-subtle);
+}
+
+.dropdownItemHighlight .dropdownIcon { color: var(--color-brand); }
+.dropdownItemHighlight .dropdownLabel { color: var(--color-brand-hover); }
+
+.dropdownIcon {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  line-height: 0;
+  transition: color var(--duration-fast);
+}
+
+.dropdownLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+
+.dropdownEmpty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  animation: dropIn 0.2s var(--ease-out) both;
+  z-index: 300;
+}

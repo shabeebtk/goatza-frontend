@@ -16,6 +16,27 @@ export type PrimarySport = {
   primary_position: string | null
 }
 
+/** Location shape returned by the API */
+export type UserLocation = {
+  name: string
+  city: string
+  country_code: string
+  latitude: number
+  longitude: number
+}
+
+/** Location shape sent to the API (superset of UserLocation) */
+export type LocationPayload = {
+  name: string
+  type: "city"
+  city: string
+  state: string
+  country_code: string
+  latitude: number
+  longitude: number
+  external_id: string
+}
+
 export type UserProfile = {
   id: string
   username: string
@@ -28,6 +49,8 @@ export type UserProfile = {
   about: string
   height_cm: number | null
   weight_kg: number | null
+  gender?: string | null
+  location: UserLocation | null
   followers_count: string
   following_count: string
   connections_count: string
@@ -50,6 +73,8 @@ export type UpdateProfileDataPayload = {
   about?: string
   height_cm?: number | null
   weight_kg?: number | null
+  gender?: string | null
+  location?: LocationPayload | null
 }
 
 export type UpdateProfileLegacyPayload = {
@@ -70,7 +95,6 @@ export const getUserProfileApi = async (username: string): Promise<UserProfile> 
   return res.data.data
 }
 
-/** Legacy text-only update (kept for compatibility) */
 export const updateProfileApi = async (
   data: UpdateProfileLegacyPayload
 ): Promise<UserProfile> => {
@@ -78,7 +102,6 @@ export const updateProfileApi = async (
   return res.data.data
 }
 
-/** Full profile data update — username, name, headline, about, height, weight */
 export const updateProfileDataApi = async (
   data: UpdateProfileDataPayload
 ): Promise<UserProfile> => {
@@ -86,17 +109,13 @@ export const updateProfileDataApi = async (
   return res.data.data
 }
 
-/** Check if a username is available */
 export const checkUsernameApi = async (
   username: string
 ): Promise<UsernameAvailability> => {
   const res = await api.get("/user/check/username/availability", {
     params: { username },
   })
-  // success:false means not allowed (special chars etc.)
-  if (!res.data.success) {
-    return { username, available: false }
-  }
+  if (!res.data.success) return { username, available: false }
   return res.data.data
 }
 
