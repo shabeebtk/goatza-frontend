@@ -174,47 +174,11 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                 </button>
               </div>
 
-              <div className={styles.profileActions}>
-                {isMe ? (
-                  <>
-                    {/* SINGLE edit button — opens modal */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditProfileOpen(true)}
-                      leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
-                    >
-                      Edit Profile
-                    </Button>
-                    <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
-                      <Icon icon="mdi:share-variant-outline" width={18} height={18} />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {rel && (
-                      <FollowButton
-                        profileId={profile.id}
-                        username={profile.username}
-                        isFollowing={rel.is_following}
-                        isFollowedBy={rel.is_followed_by}
-                      />
-                    )}
-                    {rel?.is_followed_by && !rel.is_following && (
-                      <span className={styles.followsYouChip}>Follows you</span>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
-                    >
-                      Message
-                    </Button>
-                    <Button variant="ghost" size="sm" iconOnly aria-label="More options">
-                      <Icon icon="mdi:dots-horizontal" width={18} height={18} />
-                    </Button>
-                  </>
-                )}
+              <div className={styles.profileActionsTop}>
+                 {/* Empty if we want to keep space, or optionally moved follows-you chip here later, but leaving structure in case */}
+                 {!isMe && rel?.is_followed_by && !rel.is_following && (
+                    <span className={styles.followsYouChip}>Follows you</span>
+                 )}
               </div>
             </div>
 
@@ -223,18 +187,27 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               <h1 className={styles.profileName}>{profile.name}</h1>
               <span className={styles.profileUsername}>@{profile.username}</span>
 
-              {profile.primary_sport && (
-                <div className={styles.roleBadge}>
-                  <Icon icon={profile.primary_sport.icon_name} width={13} height={13} />
-                  {profile.primary_sport.sport}
-                  {profile.primary_sport.primary_position && (
-                    <>
-                      <span className={styles.roleBadgeSep}>·</span>
-                      {profile.primary_sport.primary_position}
-                    </>
-                  )}
-                </div>
-              )}
+              <div className={styles.badgesRow}>
+                {profile.primary_sport && (
+                  <>
+                    <div className={styles.roleBadge}>
+                      <Icon icon={profile.primary_sport.icon_name} width={13} height={13} />
+                      {profile.primary_sport.sport}
+                    </div>
+                    {profile.primary_sport.primary_position && (
+                      <div className={styles.roleBadge}>
+                        {profile.primary_sport.primary_position}
+                      </div>
+                    )}
+                  </>
+                )}
+                {profile.location && (
+                  <div className={styles.roleBadge}>
+                    <Icon icon="mdi:map-marker-outline" width={13} height={13} />
+                    {profile.location.name}, {profile.location.country_code}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Headline — read-only */}
@@ -255,18 +228,48 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               <StatPill value={profile.connections_count} label="Connections" />
             </div>
 
-            {/* Meta chips */}
-            <div className={styles.metaRow}>
-              {profile.is_email_verified && (
-                <span className={`${styles.metaChip} ${styles.metaChipVerified}`}>
-                  <Icon icon="mdi:check-decagram" width={14} height={14} />
-                  Verified
-                </span>
-              )}
-              <span className={styles.metaChip}>
-                <Icon icon="mdi:calendar-outline" width={13} height={13} />
-                Joined {joined}
-              </span>
+            {/* Profile Action Buttons (Moved from top) */}
+            <div className={styles.profileActionsBase}>
+                {isMe ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={styles.actionBtnFull}
+                      onClick={() => setEditProfileOpen(true)}
+                      leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
+                    >
+                      Edit Profile
+                    </Button>
+                    <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
+                      <Icon icon="mdi:share-variant-outline" width={18} height={18} />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {rel && (
+                      <span className={styles.actionBtnFull}>
+                        <FollowButton
+                          profileId={profile.id}
+                          username={profile.username}
+                          isFollowing={rel.is_following}
+                          isFollowedBy={rel.is_followed_by}
+                        />
+                      </span>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={styles.actionBtnFull}
+                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                    >
+                      Message
+                    </Button>
+                    <Button variant="ghost" size="sm" iconOnly aria-label="More options">
+                      <Icon icon="mdi:dots-horizontal" width={18} height={18} />
+                    </Button>
+                  </>
+                )}
             </div>
 
             {/* About */}

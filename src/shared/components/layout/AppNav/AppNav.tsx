@@ -245,21 +245,152 @@ function AccountDropdown({
   );
 }
 
+// ── Mobile Account Sheet ───────────────────────────────────────────
+function MobileAccountSheet({
+  open,
+  onClose,
+  activeOrg,
+  onSwitchOrg,
+  onLogout,
+}: {
+  open: boolean;
+  onClose: () => void;
+  activeOrg: string;
+  onSwitchOrg: (id: string) => void;
+  onLogout: () => void;
+}) {
+  const user = useAuthStore((s) => s.user);
+
+  if (!open) return null;
+
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  return (
+    <div className={styles.sheetBackdrop} onClick={handleBackdrop} role="dialog" aria-modal="true">
+      <div className={styles.sheetModal}>
+        <div className={styles.sheetHeader}>
+          <div className={styles.sheetSpacer} />
+          <h2 className={styles.sheetTitle}>ACCOUNT</h2>
+          <button className={styles.sheetCloseBtn} onClick={onClose} type="button" aria-label="Close">
+            <Icon icon="mdi:close" width={20} height={20} />
+          </button>
+        </div>
+
+        <div className={styles.sheetContent}>
+          {/* User identity */}
+          <Link
+            href="/profile"
+            className={styles.dropdownHeader}
+            onClick={onClose}
+            style={{ textDecoration: "none" }}
+          >
+            <Avatar
+              src={user?.profile_photo}
+              initials={user?.name?.slice(0, 2).toUpperCase() || "U"}
+              size="md"
+              online
+            />
+            <div className={styles.dropdownUserInfo}>
+              <span className={styles.dropdownName}>{user?.name}</span>
+              <span className={styles.dropdownHandle}>@{user?.username}</span>
+            </div>
+          </Link>
+
+          <div className={styles.dropdownDivider} />
+
+          {/* Account switcher */}
+          <p className={styles.dropdownSectionLabel}>Account</p>
+          {MOCK_ORGS.map((org) => (
+            <button
+              key={org.id}
+              className={`${styles.dropdownItem} ${activeOrg === org.id ? styles.dropdownItemActive : ""}`}
+              onClick={() => {
+                onSwitchOrg(org.id);
+                onClose();
+              }}
+              role="menuitem"
+            >
+              <span className={styles.dropdownItemIcon} aria-hidden="true">
+                <Icon icon={org.icon} width={16} height={16} />
+              </span>
+              {org.label}
+              {activeOrg === org.id && (
+                <span className={styles.dropdownItemCheck} aria-hidden="true">
+                  <Icon icon="mdi:check" width={14} height={14} />
+                </span>
+              )}
+            </button>
+          ))}
+
+          <div className={styles.dropdownDivider} />
+
+          {/* Links */}
+          <Link
+            href="/settings"
+            className={styles.dropdownItem}
+            role="menuitem"
+            onClick={onClose}
+          >
+            <span className={styles.dropdownItemIcon} aria-hidden="true">
+              <Icon icon="mdi:cog-outline" width={16} height={16} />
+            </span>
+            Settings
+          </Link>
+          <button
+            className={`${styles.dropdownItem} ${styles.dropdownItemDanger}`}
+            role="menuitem"
+            onClick={() => {
+              onLogout();
+              onClose();
+            }}
+          >
+            <span className={styles.dropdownItemIcon} aria-hidden="true">
+              <Icon icon="mdi:logout" width={16} height={16} />
+            </span>
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── AppNav ────────────────────────────────────────────────────────
 export default function AppNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [activeOrg, setActiveOrg] = useState("personal");
   const avatarRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [postModalOpen, setPostModalOpen] = useState(false);
 
+  // ── Long Press Logic ──────────────────────────────────────────────────
+  const pressTimer = useRef<NodeJS.Timeout | null>(null);
+  const wasLongPressed = useRef(false);
+
+  const startPress = () => {
+    wasLongPressed.current = false;
+    pressTimer.current = setTimeout(() => {
+      wasLongPressed.current = true;
+      setMobileSheetOpen(true);
+      if (window.navigator?.vibrate) window.navigator.vibrate(50);
+    }, 450); // trigger sheet after 450ms
+  };
+
+  const clearPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+  };
+  // ──────────────────────────────────────────────────────────────────────
+
   const handleLogout = async () => {
     try {
       await logoutApi();
-    } catch (e) {}
+    } catch (e) { }
     clearAuth();
     router.push("/auth");
   };
@@ -493,21 +624,46 @@ export default function AppNav() {
         <Link
           href="/profile"
           className={`${styles.bottomTab} ${pathname.startsWith("/profile") ? styles.bottomTabActive : ""}`}
-          aria-label="Profile"
+          aria-label="Profile (Long press for settings)"
           aria-current={pathname.startsWith("/profile") ? "page" : undefined}
+          onTouchStart={startPress}
+          onTouchEnd={clearPress}
+          onTouchMove={clearPress}
+          onMouseDown={startPress}
+          onMouseUp={clearPress}
+          onMouseLeave={clearPress}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            wasLongPressed.current = true;
+            setMobileSheetOpen(true);
+          }}
+          onClick={(e) => {
+            if (wasLongPressed.current) {
+              e.preventDefault();
+            }
+          }}
         >
-          {pathname.startsWith("/profile") ? (
+          {user ? (
             <Avatar
               src={user?.profile_photo}
-              initials={user?.name?.slice(0, 2).toUpperCase()}
+              initials={user?.name?.slice(0, 2).toUpperCase() || "U"}
               size="xs"
-              className={styles.bottomTabAvatar}
+              className={pathname.startsWith("/profile") ? styles.bottomTabAvatar : ""}
             />
           ) : (
             <Icon icon="mdi:account-circle-outline" width={26} height={26} />
           )}
         </Link>
       </nav>
+
+      {/* ── Mobile Account Bottom Sheet ── */}
+      <MobileAccountSheet
+        open={mobileSheetOpen}
+        onClose={() => setMobileSheetOpen(false)}
+        activeOrg={activeOrg}
+        onSwitchOrg={setActiveOrg}
+        onLogout={handleLogout}
+      />
 
 
 
