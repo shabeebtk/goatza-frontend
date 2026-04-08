@@ -269,6 +269,15 @@ export default function CreatePostModal({
   const hasImages    = entries.some(e => !e.isVideo)
   const composing    = phase === "idle"
 
+  // ── Manage body scroll lock ───────────────────────────────────
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
+
   // ── Auto-resize textarea ──────────────────────────────────────
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value)

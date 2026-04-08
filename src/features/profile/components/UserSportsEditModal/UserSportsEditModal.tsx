@@ -208,7 +208,12 @@ export default function SportEditModal({
 
   // SSR-safe portal: wait for client mount before accessing document
   const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => { 
+    setMounted(true) 
+    const originalStyle = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => { document.body.style.overflow = originalStyle }
+  }, [])
   if (!mounted) return null
 
   return createPortal(

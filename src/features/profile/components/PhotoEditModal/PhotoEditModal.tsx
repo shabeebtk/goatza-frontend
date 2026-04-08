@@ -18,7 +18,7 @@
  *   onDelete   — optional, called when user taps "Remove photo"
  */
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useRef, useState, useEffect } from "react"
 import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
 import { usePhotoUpload } from "@/features/profile/hooks/usePhotoUpload"
@@ -72,6 +72,15 @@ export default function PhotoEditModal({
   const [crop, setCrop]             = useState({ x: 0, y: 0 })
   const [zoom, setZoom]             = useState(1)
   const [croppedArea, setCroppedArea] = useState<PixelCrop | null>(null)
+
+  // Manage body scroll lock
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
 
   // ── File selection ────────────────────────────────────────
 
