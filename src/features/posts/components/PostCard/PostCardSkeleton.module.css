@@ -1,0 +1,128 @@
+
+/* ── Skeleton ────────────────────────────────────────────────── */
+
+
+@keyframes shimmer {
+    0% {
+        background-position: -600px 0;
+    }
+
+    100% {
+        background-position: 600px 0;
+    }
+}
+/* ── Skeleton Card ─────────────────────────────────────────── */
+
+.skeleton {
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    transition: box-shadow var(--duration-base);
+}
+
+.skeleton:hover {
+    box-shadow: var(--shadow-card);
+}
+
+/* ── Shimmer block ─────────────────────────────────────────── */
+
+.skeletonBlock {
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-raised) 25%,
+        var(--color-border) 50%,
+        var(--color-surface-raised) 75%
+    );
+    background-size: 600px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+
+.skeletonHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) 0;
+}
+
+.skeletonAvatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeletonLines {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+}
+
+.skeletonLine {
+    height: 13px;
+    width: 55%;
+}
+
+.skeletonLineSm {
+    height: 10px;
+    width: 35%;
+}
+
+.skeletonMoreBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+/* ── Content ──────────────────────────────────────────────── */
+
+.skeletonContent {
+    height: 48px;
+    margin: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+}
+
+/* ── Media ───────────────────────────────────────────────── */
+
+.skeletonMedia {
+    height: 220px;
+    margin-top: var(--space-1);
+    border-radius: 0;
+}
+
+/* ── Stats Row ───────────────────────────────────────────── */
+
+.skeletonStats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
+}
+
+.skeletonStatLeft {
+    width: 80px;
+    height: 12px;
+}
+
+.skeletonStatRight {
+    width: 60px;
+    height: 12px;
+}
+
+/* ── Actions ─────────────────────────────────────────────── */
+
+.skeletonActions {
+    height: 44px;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+}

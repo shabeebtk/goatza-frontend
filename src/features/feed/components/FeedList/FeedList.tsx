@@ -5,23 +5,8 @@ import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import { useFeedList } from "../../hooks/useFeedQueries"
 import styles from "./FeedList.module.css"
+import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 
-function PostSkeleton() {
-    return (
-        <div className={styles.skeleton}>
-            <div className={styles.skeletonHeader}>
-                <div className={`${styles.skeletonBlock} ${styles.skeletonAvatar}`} />
-                <div className={styles.skeletonLines}>
-                    <div className={`${styles.skeletonBlock} ${styles.skeletonLine}`} />
-                    <div className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
-                </div>
-            </div>
-            <div className={`${styles.skeletonBlock} ${styles.skeletonContent}`} />
-            <div className={`${styles.skeletonBlock} ${styles.skeletonMedia}`} />
-            <div className={`${styles.skeletonBlock} ${styles.skeletonActions}`} />
-        </div>
-    )
-}
 
 function EmptyState() {
     return (
@@ -91,10 +76,12 @@ export default function FeedList() {
 
     if (isLoading) {
         return (
-            <div className={styles.list}>
-                {Array.from({ length: 3 }).map((_, i) => (
-                    <PostSkeleton key={i} />
-                ))}
+            <div className={styles.wrapper}>
+                <div className={styles.list}>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <PostSkeleton key={i} />
+                    ))}
+                </div>
             </div>
         )
     }
