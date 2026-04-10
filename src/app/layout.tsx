@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import QueryProvider from "@/core/react-query/QueryProvider";
 import "./globals.css";
 import Providers from "./providers";
+import { ToastProvider, useToast, type ToastPosition } from "@/shared/components/ui/Toast/Toast"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,9 @@ export default function RootLayout({
       <body>
         <QueryProvider>
           <Providers>
-            {children}
+            <ToastProvider>
+              {children}
+            </ToastProvider>
           </Providers>
         </QueryProvider>
       </body>

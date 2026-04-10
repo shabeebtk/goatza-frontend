@@ -64,9 +64,17 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const content = (
       <>
         {loading && <span className={styles.btnSpinner} aria-hidden="true" />}
-        {!loading && leftIcon && <span aria-hidden="true">{leftIcon}</span>}
+        {!loading && leftIcon && (
+          <span className={styles.btnIconWrap} aria-hidden="true">
+            {leftIcon}
+          </span>
+        )}
         {children}
-        {!loading && rightIcon && <span aria-hidden="true">{rightIcon}</span>}
+        {!loading && rightIcon && (
+          <span className={styles.btnIconWrap} aria-hidden="true">
+            {rightIcon}
+          </span>
+        )}
       </>
     );
 

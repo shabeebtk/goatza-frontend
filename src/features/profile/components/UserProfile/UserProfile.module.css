@@ -178,7 +178,7 @@
 /* Action buttons */
 .profileActionsBase {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: var(--space-2);
   width: 100%;
 }
@@ -193,6 +193,13 @@
 .actionBtnFull {
   flex: 1; /* Stretch the follow/message/edit buttons */
   display: flex;
+  min-width: 0;
+}
+
+/* Ensure wrapped shared buttons actually fill their flex slot */
+.actionBtnFull :global(button),
+.actionBtnFull :global(a) {
+  width: 100%;
 }
 
 /* ── Follow button states ────────────────────────────────────── */
@@ -425,4 +432,10 @@
 
 @media (hover: none) {
   .avatarEditOverlay { display: none; }
+}
+
+@media (max-width: 420px) {
+  .profileActionsBase {
+    gap: var(--space-1);
+  }
 }

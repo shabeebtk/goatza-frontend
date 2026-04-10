@@ -45,6 +45,7 @@ function FollowButton({
     <Button
       variant={variant}
       size="sm"
+      fullWidth
       loading={loading}
       onClick={handleClick}
       leftIcon={<Icon icon={icon} width={15} height={15} />}
@@ -235,6 +236,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                     <Button
                       variant="outline"
                       size="sm"
+                      fullWidth
                       className={styles.actionBtnFull}
                       onClick={() => setEditProfileOpen(true)}
                       leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
@@ -260,6 +262,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                     <Button
                       variant="outline"
                       size="sm"
+                      fullWidth
                       className={styles.actionBtnFull}
                       leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
                     >
