@@ -159,8 +159,8 @@ export async function uploadMediaFile(
                 (l, t) => onProgress?.(i, l, t)
             )
 
-            const thumbnail =
-                uploaded.secure_url.replace("/video/upload/", "/video/upload/so_0/") + ".jpg"
+            const cloudName = sig.upload_url.split("/")[4]
+            const thumbnail = `https://res.cloudinary.com/${cloudName}/video/upload/so_0/${uploaded.public_id}.jpg`
 
             results.push({
                 file_url: uploaded.secure_url,
@@ -171,7 +171,7 @@ export async function uploadMediaFile(
                 order: i,
             })
         } else {
-            // 🖼️ Compress image
+            //  Compress image
             const compressed = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
 
             const uploaded = await uploadWithProgress(
