@@ -57,7 +57,7 @@ interface ToastItem extends ToastOptions {
 
 // ── Context ──────────────────────────────────────────────────────────
 
-interface ToastContextValue {
+export interface ToastContextValue {
   show: (options: ToastOptions) => string
   dismiss: (id: string) => void
   dismissAll: () => void

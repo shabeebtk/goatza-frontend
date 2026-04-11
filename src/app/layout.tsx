@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Goatza",
   description: "Where the Greatest Get Discovered",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -27,6 +28,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <link rel="manifest" href="/manifest.json" />
+      <meta name="theme-color" content="#000000" />
+      <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      <meta name="apple-mobile-web-app-title" content="Goatza" />
+      
       <body>
         <QueryProvider>
           <Providers>
