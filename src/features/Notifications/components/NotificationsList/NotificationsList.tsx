@@ -6,6 +6,7 @@ import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import NotificationBell from "../NotificationBell/NotificationBell"
 import {
   useNotifications,
   useMarkNotificationRead,
@@ -13,11 +14,10 @@ import {
 } from "../../hooks/useNotificationQueries"
 import type { Notification, NotificationType } from "../../services/notifications.api"
 import styles from "./NotificationsList.module.css"
-import Image from "next/image"
 
 dayjs.extend(relativeTime)
 
-// ── Icon map ─────────────────────────────────────────────────
+// ── Icon / color maps ─────────────────────────────────────────
 
 const NOTIF_ICON: Record<NotificationType, string> = {
   follow: "mdi:account-plus",
@@ -50,7 +50,6 @@ function NotificationItem({ notif }: { notif: Notification }) {
   const icon = NOTIF_ICON[notif.type] ?? "mdi:bell"
   const color = NOTIF_COLOR[notif.type] ?? "var(--color-brand)"
 
-  // Build the href based on type
   const href =
     notif.post
       ? `/posts/${notif.post.id}`
@@ -67,7 +66,7 @@ function NotificationItem({ notif }: { notif: Notification }) {
       {/* Unread pip */}
       {!notif.is_read && <span className={styles.unreadPip} aria-label="Unread" />}
 
-      {/* Avatar with type icon badge */}
+      {/* Avatar + type badge */}
       <div className={styles.avatarWrap}>
         <Avatar
           src={actor?.avatar}
@@ -87,7 +86,6 @@ function NotificationItem({ notif }: { notif: Notification }) {
       <div className={styles.content}>
         <p className={styles.text}>{notif.text}</p>
 
-        {/* Post preview snippet */}
         {notif.post?.content && (
           <p className={styles.postSnippet}>
             "{notif.post.content.length > 60
@@ -96,7 +94,6 @@ function NotificationItem({ notif }: { notif: Notification }) {
           </p>
         )}
 
-        {/* Comment preview */}
         {notif.comment?.text && (
           <p className={styles.commentSnippet}>
             <Icon icon="mdi:comment-outline" width={11} height={11} />
@@ -111,7 +108,7 @@ function NotificationItem({ notif }: { notif: Notification }) {
 
       {/* Post thumbnail */}
       {notif.post && notif.post.media && (
-        
+
         <div className={styles.mediaThumbnail} aria-hidden="true">
           {notif.post.media ? (
             <div className={styles.imageWrapper}>
@@ -139,12 +136,12 @@ function NotificationItem({ notif }: { notif: Notification }) {
   )
 }
 
-// ── Skeleton loader ───────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────────
 
 function NotificationSkeleton() {
   return (
     <div className={styles.skeleton}>
-      <div className={`${styles.skeletonAvatar}`} />
+      <div className={styles.skeletonAvatar} />
       <div className={styles.skeletonContent}>
         <div className={styles.skeletonLine} />
         <div className={styles.skeletonLineShort} />
@@ -183,7 +180,6 @@ export default function NotificationsList() {
 
   const { mutate: markAllRead, isPending: markingAll } = useMarkAllRead()
 
-  // Infinite scroll sentinel
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   const handleObserver = useCallback(
@@ -217,32 +213,39 @@ export default function NotificationsList() {
 
   return (
     <div className={styles.container}>
-      {/* Header */}
+
+      {/* ── Sticky header ── */}
       <div className={styles.header}>
-        <h1 className={styles.title}>Notifications</h1>
+
+        {/* Left group: title + mark-all */}
+        <div className={styles.headerLeft}>
+          <h1 className={styles.title}>Notifications</h1>
+        </div>
+
         {hasUnread && (
           <button
             className={styles.markAllBtn}
             onClick={() => markAllRead()}
             disabled={markingAll}
             type="button"
+            aria-label="Mark all notifications as read"
           >
-            {markingAll ? (
-              <Icon icon="mdi:loading" width={14} height={14} className={styles.spinIcon} />
-            ) : (
-              <Icon icon="mdi:check-all" width={14} height={14} />
-            )}
-            Mark all read
+            {markingAll
+              ? <Icon icon="mdi:loading" width={13} height={13} className={styles.spinIcon} />
+              : <Icon icon="mdi:check-all" width={13} height={13} />
+            }
+            <span className={styles.markAllLabel}>Mark all read</span>
           </button>
         )}
+
+        {/* Right: push notification toggle */}
+        <NotificationBell showLabel />
       </div>
 
-      {/* List */}
+      {/* ── List ── */}
       <div className={styles.list}>
         {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <NotificationSkeleton key={i} />
-          ))
+          Array.from({ length: 6 }).map((_, i) => <NotificationSkeleton key={i} />)
         ) : allNotifications.length === 0 ? (
           <EmptyState />
         ) : (
@@ -250,8 +253,6 @@ export default function NotificationsList() {
             {allNotifications.map((notif) => (
               <NotificationItem key={notif.id} notif={notif} />
             ))}
-
-            {/* Infinite scroll sentinel */}
             <div ref={sentinelRef} className={styles.sentinel}>
               {isFetchingNextPage && (
                 <>

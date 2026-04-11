@@ -1,0 +1,160 @@
+/* ============================================================
+   GOATZA — NotificationBell toggle button
+   ============================================================ */
+
+@keyframes bellRing {
+  0%   { transform: rotate(0deg); }
+  15%  { transform: rotate(14deg); }
+  30%  { transform: rotate(-10deg); }
+  45%  { transform: rotate(8deg); }
+  60%  { transform: rotate(-5deg); }
+  75%  { transform: rotate(3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dotPop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Base button ──────────────────────────────────────────────── */
+
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px 7px 10px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-base),
+    color var(--duration-fast),
+    box-shadow var(--duration-base),
+    transform var(--duration-fast) var(--ease-spring);
+  white-space: nowrap;
+}
+
+.bell:not(:disabled):hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-brand);
+}
+
+.bell:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.bell:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ── Icon wrap ────────────────────────────────────────────────── */
+
+.iconWrap {
+  display: flex;
+  align-items: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+/* ── Variants ─────────────────────────────────────────────────── */
+
+/* Enabled — green accent */
+.bell-enabled {
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  background: var(--color-brand-subtle);
+}
+
+.bell-enabled:not(:disabled):hover {
+  background: var(--color-brand-muted);
+  border-color: var(--color-brand);
+}
+
+.bell-enabled .iconWrap {
+  animation: bellRing 0.6s var(--ease-spring) 0.1s both;
+}
+
+/* Disabled — default muted */
+.bell-disabled {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* Denied — error tint */
+.bell-denied {
+  border-color: rgba(232, 70, 42, 0.3);
+  color: var(--color-error);
+  background: rgba(232, 70, 42, 0.05);
+}
+
+.bell-denied:not(:disabled):hover {
+  background: rgba(232, 70, 42, 0.08);
+  border-color: var(--color-error);
+  color: var(--color-error);
+  box-shadow: none;
+}
+
+/* Unsupported — very muted */
+.bell-unsupported {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Loading */
+.bell-loading {
+  pointer-events: none;
+}
+
+/* ── Spin keyframe for loading ────────────────────────────────── */
+
+.spin {
+  animation: spin 0.75s linear infinite;
+}
+
+/* ── Active indicator dot ─────────────────────────────────────── */
+
+.activeDot {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand);
+  border: 2px solid var(--color-surface);
+  animation: dotPop 0.4s var(--ease-spring) both;
+}
+
+/* When label is shown, dot shifts to the icon area instead */
+.bell .label ~ .activeDot,
+.bell.bell-enabled .label + .activeDot {
+  top: 5px;
+  right: auto;
+  left: 22px;
+}
+
+/* ── Label ────────────────────────────────────────────────────── */
+
+.label {
+  font-size: 0.65rem;
+  line-height: 1;
+}
