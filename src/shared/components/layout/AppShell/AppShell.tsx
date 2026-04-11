@@ -14,8 +14,12 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
-// device detection
+// Device detection (safe for browser only)
 const getDeviceInfo = () => {
+  if (typeof window === "undefined") {
+    return { device_type: "web", device_name: "Web" }
+  }
+
   const ua = navigator.userAgent
 
   let device_type = "web"
@@ -40,6 +44,7 @@ export default function AppShell({ children }: AppShellProps) {
   const toast = useToast()
 
   useEffect(() => {
+    // Setup FCM (token + save)
     const setupFCM = async () => {
       try {
         const token = await initFCM()
@@ -49,9 +54,7 @@ export default function AppShell({ children }: AppShellProps) {
         // Prevent duplicate API calls
         const savedToken = localStorage.getItem("fcm_token")
 
-        if (savedToken === token) {
-          return
-        }
+        if (savedToken === token) return
 
         const { device_type, device_name } = getDeviceInfo()
 
@@ -64,23 +67,29 @@ export default function AppShell({ children }: AppShellProps) {
         localStorage.setItem("fcm_token", token)
 
       } catch (err) {
-        console.error("❌ FCM setup failed:", err)
+        console.error("FCM setup failed:", err)
       }
     }
 
     setupFCM()
 
-    // 🔥 Foreground listener
-    const unsubscribe = onForegroundMessage((payload) => {
-      console.log("🔥 FCM Foreground:", payload)
+    // Foreground listener (UPDATED - async safe)
+    let unsubscribe: any = null
 
-      const data = payload.data || {}
+    const setupListener = async () => {
+      unsubscribe = await onForegroundMessage((payload) => {
+        console.log("FCM Foreground:", payload)
 
-      handleNotificationToast(data, toast)
-    })
+        const data = payload.data || {}
+
+        handleNotificationToast(data, toast)
+      })
+    }
+
+    setupListener()
 
     return () => {
-      unsubscribe()
+      if (unsubscribe) unsubscribe()
     }
   }, [toast])
 
