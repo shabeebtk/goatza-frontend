@@ -54,7 +54,7 @@ function NotificationItem({ notif }: { notif: Notification }) {
     notif.post
       ? `/posts/${notif.post.id}`
       : notif.actors[0]
-        ? `/profile/${notif.actors[0].name.toLowerCase().replace(/\s+/g, "")}`
+        ? `/profile/${notif.actors[0].username || notif.actors[0].name.toLowerCase().replace(/\s+/g, "")}`
         : "#"
 
   return (

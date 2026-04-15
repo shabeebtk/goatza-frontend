@@ -63,20 +63,22 @@ export const commentKeys = {
 
 export const useToggleLike = (params: FetchPostsParams = {}) => {
     const qc = useQueryClient()
-    const key = postKeys.list(params)
+    // We ignore the specific `params` for the cache key because 
+    // we want to universally apply the optimistic update to ALL instances 
+    // of posts lists (feed, profile, etc.)
 
     return useMutation({
         mutationFn: toggleLikeApi,
         onMutate: async (payload) => {
-            await qc.cancelQueries({ queryKey: key })
-            const previous = qc.getQueryData<InfiniteData<PostsListResponse>>(key)
+            // Cancel any outgoing refetches so they don't overwrite our optimistic update
+            await qc.cancelQueries({ queryKey: ["posts", "list"] })
+            await qc.cancelQueries({ queryKey: ["feed", "list"] })
 
-            // Optimistic update
-            qc.setQueryData<InfiniteData<PostsListResponse>>(key, (old) => {
+            const updatePages = (old: any) => {
                 if (!old) return old
                 return {
                     ...old,
-                    pages: old.pages.map((page) => ({
+                    pages: old.pages.map((page: any) => ({
                         ...page,
                         results: page.results.map((p: Post) => {
                             if (p.id !== payload.post_id) return p
@@ -111,17 +113,26 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
                         }),
                     })),
                 }
-            })
-            return { previous }
-        },
-        onError: (err, newLike, context) => {
-            if (context?.previous) {
-                qc.setQueryData(key, context.previous)
             }
+
+            // Optimistic update using fuzzy matching on ALL posts lists in the cache
+            qc.setQueriesData<InfiniteData<PostsListResponse>>({ queryKey: ["posts", "list"] }, updatePages)
+            
+            // Also update the Home feed which runs on a different query key!
+            qc.setQueriesData({ queryKey: ["feed", "list"] }, updatePages)
+
+            // we don't return previous context since we update multiple queries.
+            // On error we will just invalidate everything.
+            return {}
         },
-        onSettled: () => {
-            qc.invalidateQueries({ queryKey: key })
+        onError: () => {
+            // Rollback on error by invalidating so it fetches the truth
+            qc.invalidateQueries({ queryKey: ["posts", "list"] })
+            qc.invalidateQueries({ queryKey: ["feed", "list"] })
         },
+        // We REMOVED onSettled invalidateQueries.
+        // The optimistic update handles the UI instantly, and we trust it. 
+        // Refetching the entire feed on every interaction is extremely unoptimized.
     })
 }
 

@@ -5,6 +5,7 @@ import api from "@/core/api/axios"
 export type NotificationActor = {
   id: string
   name: string
+  username: string
   avatar: string
 }
 

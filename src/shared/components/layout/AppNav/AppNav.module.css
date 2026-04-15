@@ -546,7 +546,8 @@
     left: 0;
     right: 0;
     z-index: 200;
-    height: 54px;
+    height: calc(54px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
     padding-inline: var(--space-4);
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
