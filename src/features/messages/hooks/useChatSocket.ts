@@ -45,7 +45,7 @@ type UseChatSocketReturn = {
 
 function buildWsUrl(conversationId: string | null): string | null {
     if (!conversationId) return null
-    const base = process.env.NEXT_PUBLIC_API_URL
+    const base = process.env.NEXT_PUBLIC_WS_URL
     return `${base}/ws/chat/${conversationId}/`
 }
 
