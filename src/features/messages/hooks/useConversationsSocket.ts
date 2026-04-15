@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { conversationKeys } from "./useConversationQueries"
 
 function buildNotificationsWsUrl(): string | null {
-    const base = process.env.NEXT_PUBLIC_API_URL
+    const base = process.env.NEXT_PUBLIC_WS_URL
     return `${base}/ws/notifications/`
 }
 
