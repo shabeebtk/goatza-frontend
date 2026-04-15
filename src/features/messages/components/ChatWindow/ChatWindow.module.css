@@ -1,0 +1,484 @@
+/* ============================================================
+   GOATZA — ChatWindow
+   ============================================================ */
+
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bubblePop {
+  0%   { transform: scale(0.88); opacity: 0; }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* ── Window shell ────────────────────────────────────────────── */
+
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1.5px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 60px;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.backBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+.headerUser {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.headerName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headerUser:hover .headerName {
+  color: var(--color-brand-hover);
+}
+
+.headerHeadline {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* ── Header skeleton ─────────────────────────────────────────── */
+
+.headerSkeletonInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+}
+
+.headerSkeletonAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.headerSkeletonText {
+  height: 14px;
+  width: 140px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ── Connection status pill ──────────────────────────────────── */
+
+.connPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  animation: fadeIn 0.3s var(--ease-out);
+}
+
+.connPillConnecting {
+  background: rgba(255, 185, 0, 0.12);
+  color: #b38600;
+  border: 1px solid rgba(255, 185, 0, 0.25);
+}
+
+.connPillClosed {
+  background: rgba(232, 70, 42, 0.08);
+  color: var(--color-error);
+  border: 1px solid rgba(232, 70, 42, 0.15);
+}
+
+.connDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: spin 1s linear infinite;
+  border-top-color: transparent;
+  /* Pulse instead of spin for connecting */
+}
+
+.connPillConnecting .connDot {
+  animation: none;
+  opacity: 0.6;
+}
+
+/* ── Request banner ──────────────────────────────────────────── */
+
+.requestBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-brand-subtle);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.requestBanner strong {
+  color: var(--color-ink);
+}
+
+/* ── Message list ────────────────────────────────────────────── */
+
+.messageList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  scroll-behavior: smooth;
+}
+
+.topSentinel {
+  height: 1px;
+  flex-shrink: 0;
+}
+
+/* ── Loading older indicator ─────────────────────────────────── */
+
+.loadingOlder {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0;
+}
+
+.loadingSpinner {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── Empty chat ──────────────────────────────────────────────── */
+
+.emptyChat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-16) var(--space-4);
+  text-align: center;
+}
+
+.emptyChatIcon {
+  color: var(--color-text-muted);
+  opacity: 0.4;
+}
+
+.emptyChatText {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Date divider ────────────────────────────────────────────── */
+
+.dateDivider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-3);
+}
+
+.dateDividerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.dateDividerLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ── Message skeleton ────────────────────────────────────────── */
+
+.skeletonWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+}
+
+.skeletonBubble {
+  height: 42px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  max-width: 70%;
+}
+
+.skeletonLeft  { align-self: flex-start; border-bottom-left-radius: var(--radius-sm); }
+.skeletonRight { align-self: flex-end;   border-bottom-right-radius: var(--radius-sm); }
+
+/* ── Bubble rows ─────────────────────────────────────────────── */
+
+.bubbleRow {
+  display: flex;
+  margin-bottom: var(--space-1);
+  animation: bubblePop 0.25s var(--ease-spring) both;
+}
+
+.bubbleRowMine   { justify-content: flex-end; }
+.bubbleRowTheirs { justify-content: flex-start; }
+
+/* ── Bubbles ─────────────────────────────────────────────────── */
+
+.bubble {
+  max-width: min(72%, 480px);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  word-break: break-word;
+  position: relative;
+  transition: opacity var(--duration-fast);
+}
+
+.bubbleMine {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.bubbleTheirs {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1.5px solid var(--color-border);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.bubblePending {
+  opacity: 0.65;
+}
+
+.bubbleFailed {
+  background: rgba(232, 70, 42, 0.12);
+  border: 1px solid rgba(232, 70, 42, 0.3);
+}
+
+.bubbleText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+}
+
+.bubbleTime {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: var(--space-1);
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.bubbleMine .bubbleTime   { justify-content: flex-end; }
+.bubbleTheirs .bubbleTime { color: var(--color-text-muted); }
+
+.failIcon { color: var(--color-error); opacity: 1; }
+
+/* ── Input area ──────────────────────────────────────────────── */
+
+.inputArea {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-top: 1.5px solid var(--color-border);
+}
+
+.cannotReply {
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: var(--space-3) 0;
+}
+
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.inputRow:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: var(--leading-normal);
+  max-height: 120px;
+  overflow-y: auto;
+  padding: var(--space-1) 0;
+
+  /* Auto-grow via JS would be ideal, but field-sizing is coming */
+  field-sizing: content;
+}
+
+.input::placeholder { color: var(--color-text-muted); }
+
+.sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base);
+}
+
+.sendBtnActive {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.sendBtnActive:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+  transform: scale(1.08);
+  box-shadow: var(--shadow-brand);
+}
+
+.sendBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .bubble {
+    max-width: 85%;
+  }
+
+  .messageList {
+    padding: var(--space-3);
+  }
+}
