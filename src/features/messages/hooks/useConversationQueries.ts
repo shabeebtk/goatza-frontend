@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  getOrCreateConversationApi,
   getConversationsApi,
   getConversationDetailsApi,
   getMessagesApi,
   markConversationReadApi,
+  acceptConversationApi,
   type ConversationsParams,
   type MessagesParams,
 } from "../services/conversations.api"
@@ -17,6 +19,20 @@ export const conversationKeys = {
   messages:(id: string)                     => ["conversations", "messages", id]          as const,
 }
 
+// ── Conversations create ────────────────────────────────────────
+
+export const useGetOrCreateConversation = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: getOrCreateConversationApi,
+    onSuccess: () => {
+      // Invalidate list so new conversation appears if it was created
+      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+    },
+  })
+}
+
+
 // ── Conversations list ────────────────────────────────────────
 
 export const useConversations = (params: ConversationsParams = {}) =>
@@ -24,7 +40,6 @@ export const useConversations = (params: ConversationsParams = {}) =>
     queryKey:       conversationKeys.list(params),
     queryFn:        () => getConversationsApi(params),
     staleTime:      0, // Always refetch on mount so latest chats appear when coming back
-    refetchInterval: 1000 * 30,
   })
 
 // ── Conversation detail ───────────────────────────────────────
@@ -55,7 +70,7 @@ export const useMessages = (conversationId: string | null) =>
       }
     },
     enabled:          !!conversationId,
-    staleTime:        Infinity, // WS keeps it fresh — no background refetch needed
+    staleTime:        0, // Refetch on mount to get messages missed while away
   })
 
 // ── Mark read ─────────────────────────────────────────────────
@@ -75,6 +90,20 @@ export const useMarkRead = () => {
           )
         }
       )
+    },
+  })
+}
+
+// ── Accept Request ────────────────────────────────────────────
+
+export const useAcceptConversation = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: acceptConversationApi,
+    onSuccess: (_, conversationId) => {
+      // Invalidate detail and list
+      qc.invalidateQueries({ queryKey: conversationKeys.detail(conversationId) })
+      qc.invalidateQueries({ queryKey: conversationKeys.all() })
     },
   })
 }

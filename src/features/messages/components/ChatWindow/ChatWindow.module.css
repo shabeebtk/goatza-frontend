@@ -1,10 +1,12 @@
 /* ============================================================
    GOATZA — ChatWindow
+   Desktop: max-width 680px centered, header + input fixed inside window
+   Mobile: full-screen, no app nav visible
    ============================================================ */
 
 @keyframes shimmer {
   0%   { background-position: -600px 0; }
-  100% { background-position: 600px 0; }
+  100% { background-position:  600px 0; }
 }
 
 @keyframes spin {
@@ -17,22 +19,54 @@
 }
 
 @keyframes bubblePop {
-  0%   { transform: scale(0.88); opacity: 0; }
-  60%  { transform: scale(1.03); }
-  100% { transform: scale(1);    opacity: 1; }
+  0%   { transform: scale(0.9); opacity: 0; }
+  60%  { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
-/* ── Window shell ────────────────────────────────────────────── */
+/* ── Page wrapper — constrains width on desktop ──────────────── */
+
+.page {
+  /* On desktop: fill the content area (already offset by AppShell padding-top) */
+  width: 100%;
+  height: calc(100dvh - 60px); /* subtract desktop nav height */
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 767px) {
+  .page {
+    /* Mobile: true full-screen. We use fixed positioning to
+       escape the AppShell padding so the chat covers everything. */
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    z-index: 300; /* above AppNav (z-index 200) */
+    background: var(--color-bg);
+  }
+}
+
+/* ── Window — the inner flex column ─────────────────────────── */
 
 .window {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 680px;
   height: 100%;
   background: var(--color-bg);
-  overflow: hidden;
+  border-inline: 1px solid var(--color-border);
+  overflow: hidden; /* children handle their own scroll */
 }
 
-/* ── Header ──────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .window {
+    max-width: 100%;
+    border-inline: none;
+  }
+}
+
+/* ── Fixed header ────────────────────────────────────────────── */
 
 .header {
   display: flex;
@@ -43,6 +77,15 @@
   border-bottom: 1.5px solid var(--color-border);
   flex-shrink: 0;
   min-height: 60px;
+  /* sticky within the flex column — flex-shrink: 0 is enough */
+}
+
+@media (max-width: 767px) {
+  .header {
+    /* On mobile add safe area at top (notch) */
+    padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+    min-height: calc(54px + env(safe-area-inset-top, 0px));
+  }
 }
 
 .backBtn {
@@ -54,6 +97,7 @@
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   flex-shrink: 0;
+  text-decoration: none;
   transition: background var(--duration-fast), color var(--duration-fast);
 }
 
@@ -69,12 +113,20 @@
   flex: 1;
   min-width: 0;
   text-decoration: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  margin-left: -var(--space-2);
+  transition: background var(--duration-fast);
+}
+
+.headerUser:hover {
+  background: var(--color-brand-subtle);
 }
 
 .headerInfo {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
@@ -88,11 +140,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color var(--duration-fast);
 }
 
-.headerUser:hover .headerName {
-  color: var(--color-brand-hover);
-}
+.headerUser:hover .headerName { color: var(--color-brand-hover); }
 
 .headerHeadline {
   font-size: var(--text-xs);
@@ -122,13 +173,13 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
+  flex-shrink: 0;
   background: linear-gradient(90deg,
     var(--color-surface-raised) 25%,
     var(--color-border) 50%,
     var(--color-surface-raised) 75%);
   background-size: 600px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
-  flex-shrink: 0;
 }
 
 .headerSkeletonText {
@@ -143,7 +194,7 @@
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
-/* ── Connection status pill ──────────────────────────────────── */
+/* ── Connection pill ─────────────────────────────────────────── */
 
 .connPill {
   display: inline-flex;
@@ -176,14 +227,7 @@
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  animation: spin 1s linear infinite;
-  border-top-color: transparent;
-  /* Pulse instead of spin for connecting */
-}
-
-.connPillConnecting .connDot {
-  animation: none;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 /* ── Request banner ──────────────────────────────────────────── */
@@ -200,20 +244,26 @@
   flex-shrink: 0;
 }
 
-.requestBanner strong {
-  color: var(--color-ink);
-}
+.requestBanner strong { color: var(--color-ink); }
 
-/* ── Message list ────────────────────────────────────────────── */
+/* ── Scrollable message list ─────────────────────────────────── */
 
 .messageList {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-4);
+  overflow-x: hidden;
+  padding: var(--space-4) var(--space-4) var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  scroll-behavior: smooth;
+  gap: 2px;
+  /* Smooth momentum scroll on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .messageList {
+    padding: var(--space-3);
+  }
 }
 
 .topSentinel {
@@ -221,12 +271,13 @@
   flex-shrink: 0;
 }
 
-/* ── Loading older indicator ─────────────────────────────────── */
+/* ── Loading older ───────────────────────────────────────────── */
 
 .loadingOlder {
   display: flex;
   justify-content: center;
   padding: var(--space-3) 0;
+  flex-shrink: 0;
 }
 
 .loadingSpinner {
@@ -254,7 +305,7 @@
 
 .emptyChatIcon {
   color: var(--color-text-muted);
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 .emptyChatText {
@@ -271,7 +322,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin: var(--space-4) 0 var(--space-3);
+  margin: var(--space-5) 0 var(--space-3);
+  flex-shrink: 0;
 }
 
 .dateDividerLine {
@@ -296,10 +348,11 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4) 0;
+  flex: 1;
 }
 
 .skeletonBubble {
-  height: 42px;
+  height: 40px;
   border-radius: var(--radius-lg);
   background: linear-gradient(90deg,
     var(--color-surface-raised) 25%,
@@ -307,7 +360,7 @@
     var(--color-surface-raised) 75%);
   background-size: 600px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
-  max-width: 70%;
+  max-width: 72%;
 }
 
 .skeletonLeft  { align-self: flex-start; border-bottom-left-radius: var(--radius-sm); }
@@ -317,8 +370,8 @@
 
 .bubbleRow {
   display: flex;
-  margin-bottom: var(--space-1);
-  animation: bubblePop 0.25s var(--ease-spring) both;
+  margin-bottom: 2px;
+  animation: bubblePop 0.22s var(--ease-spring) both;
 }
 
 .bubbleRowMine   { justify-content: flex-end; }
@@ -328,64 +381,65 @@
 
 .bubble {
   max-width: min(72%, 480px);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
+  padding: 9px 14px;
+  border-radius: 18px;
   word-break: break-word;
   position: relative;
-  transition: opacity var(--duration-fast);
 }
 
 .bubbleMine {
   background: var(--color-brand);
   color: var(--color-on-brand);
-  border-bottom-right-radius: var(--radius-sm);
+  border-bottom-right-radius: 5px;
 }
 
 .bubbleTheirs {
   background: var(--color-surface);
   color: var(--color-text-primary);
   border: 1.5px solid var(--color-border);
-  border-bottom-left-radius: var(--radius-sm);
+  border-bottom-left-radius: 5px;
 }
 
-.bubblePending {
-  opacity: 0.65;
-}
+.bubblePending { opacity: 0.6; }
 
 .bubbleFailed {
-  background: rgba(232, 70, 42, 0.12);
-  border: 1px solid rgba(232, 70, 42, 0.3);
+  background: rgba(232, 70, 42, 0.1);
+  border: 1px solid rgba(232, 70, 42, 0.28);
 }
 
 .bubbleText {
   font-family: var(--font-body);
   font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+  line-height: 1.45;
   white-space: pre-wrap;
+  display: block;
 }
 
+/* Time shown only when showTime=true — compact, below text */
 .bubbleTime {
   display: flex;
   align-items: center;
   gap: 3px;
-  margin-top: var(--space-1);
+  margin-top: 4px;
   font-family: var(--font-ui);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  opacity: 0.6;
+  opacity: 0.55;
+  line-height: 1;
 }
 
-.bubbleMine .bubbleTime   { justify-content: flex-end; }
+.bubbleMine   .bubbleTime { justify-content: flex-end; }
 .bubbleTheirs .bubbleTime { color: var(--color-text-muted); }
 
-.failIcon { color: var(--color-error); opacity: 1; }
+.failIcon { color: var(--color-error) !important; opacity: 1 !important; }
 
 /* ── Input area ──────────────────────────────────────────────── */
 
 .inputArea {
   flex-shrink: 0;
   padding: var(--space-3) var(--space-4);
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   background: var(--color-surface);
   border-top: 1.5px solid var(--color-border);
 }
@@ -398,6 +452,37 @@
   text-transform: uppercase;
   color: var(--color-text-muted);
   padding: var(--space-3) 0;
+}
+
+.acceptRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.acceptBtn {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: transform var(--duration-fast), background var(--duration-fast);
+}
+
+.acceptBtn:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+  transform: scale(1.03);
+}
+
+.acceptBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .inputRow {
@@ -425,12 +510,11 @@
   font-family: var(--font-body);
   font-size: var(--text-sm);
   color: var(--color-text-primary);
-  line-height: var(--leading-normal);
+  line-height: 1.5;
   max-height: 120px;
   overflow-y: auto;
-  padding: var(--space-1) 0;
-
-  /* Auto-grow via JS would be ideal, but field-sizing is coming */
+  padding: 5px 0;
+  /* field-sizing for modern browsers */
   field-sizing: content;
 }
 
@@ -468,17 +552,5 @@
 
 .sendBtn:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
-}
-
-/* ── Responsive ──────────────────────────────────────────────── */
-
-@media (max-width: 640px) {
-  .bubble {
-    max-width: 85%;
-  }
-
-  .messageList {
-    padding: var(--space-3);
-  }
+  opacity: 0.45;
 }

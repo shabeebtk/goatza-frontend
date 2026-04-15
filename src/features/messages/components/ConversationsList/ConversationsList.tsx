@@ -9,6 +9,7 @@ import isToday from "dayjs/plugin/isToday"
 import isYesterday from "dayjs/plugin/isYesterday"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useConversations } from "../../hooks/useConversationQueries"
+import { useConversationsSocket } from "../../hooks/useConversationsSocket"
 import { useAuthStore } from "@/store/auth.store"
 import type { Conversation, MessageType } from "../../services/conversations.api"
 import styles from "./ConversationsList.module.css"
@@ -114,7 +115,7 @@ function ConversationRow({
 
   return (
     <Link
-      href={`/messages/${conv.id}`}
+      href={`/chat/${conv.id}`}
       className={`${styles.row} ${hasUnread ? styles.rowUnread : ""}`}
     >
       {/* Avatar */}
@@ -218,6 +219,9 @@ export default function ConversationsList() {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const user = useAuthStore((s) => s.user)
+
+  // Listen to realtime notifications to refresh list
+  useConversationsSocket()
 
   // Debounce search
   useEffect(() => {

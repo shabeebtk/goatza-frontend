@@ -6,6 +6,13 @@ export type ConversationType = "direct" | "group"
 export type ConversationStatus = "active" | "requested"
 export type MessageType = "text" | "image" | "video"
 
+export type GetOrCreateConversationResult = {
+  conversation_id: string
+  status:          ConversationStatus
+  is_new:          boolean
+  can_message:     boolean
+}
+
 export type ConversationUser = {
     id: string
     username: string
@@ -81,6 +88,13 @@ export type MessagesParams = {
 
 // ── Conversations ─────────────────────────────────────────────
 
+export const getOrCreateConversationApi = async (
+  username: string
+): Promise<GetOrCreateConversationResult> => {
+  const res = await api.post("/conversations/get-or-create", { username })
+  return res.data.data
+}
+
 export const getConversationsApi = async (
     params: ConversationsParams = {}
 ): Promise<Conversation[]> => {
@@ -99,6 +113,12 @@ export const markConversationReadApi = async (
     conversationId: string
 ): Promise<void> => {
     await api.post("/conversations/mark/read/all", { conversation_id: conversationId })
+}
+
+export const acceptConversationApi = async (
+    conversationId: string
+): Promise<void> => {
+    await api.post("/conversations/accept", { conversation_id: conversationId })
 }
 
 // ── Messages ──────────────────────────────────────────────────
