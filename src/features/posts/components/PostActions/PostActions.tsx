@@ -177,7 +177,7 @@ export default function PostActions({
     hoverCloseTimer.current = setTimeout(() => setPopoverVisible(false), 200)
   }
 
-  // ── Mobile touch handlers ─────────────────────────────────────
+  // Mobile touch handlers (ONLY for detecting long press)
   const onTouchStart = () => {
     didLongPress.current = false
     longPressTimer.current = setTimeout(() => {
@@ -186,20 +186,25 @@ export default function PostActions({
     }, 600)
   }
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
-    if (!didLongPress.current) {
-      triggerReact(isReacted && reactionType ? reactionType : "like")
-    }
+    // We intentionally let the browser fire the synthesized onClick event
+    // for a tap. We don't triggerReact here to prevent double-firing! 
+    // Except if the popover opened, we don't want the click to do anything.
   }
 
   const onTouchCancel = () => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
   }
 
-  // ── Desktop click ─────────────────────────────────────────────
-  const onClickBtn = () => {
-    if (isTouch.current) return
+  // Desktop click AND mobile tap handler
+  const onClickBtn = (e: React.MouseEvent) => {
+    if (didLongPress.current) {
+       // if we just did a long press, the popover opened. 
+       // We ignore this click.
+       didLongPress.current = false
+       return
+    }
     clearAllTimers()
     setPopoverVisible(false)
     triggerReact(isReacted && reactionType ? reactionType : "like")

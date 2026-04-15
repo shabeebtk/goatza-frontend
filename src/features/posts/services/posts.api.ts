@@ -124,6 +124,7 @@ export const getMyPostSportsApi = async (): Promise<PostUserSport[]> => {
  
 export type FetchPostsParams = {
   username?: string   // filter by user; omit for feed
+  post_id?: string    // filter by post id
   limit?: number
   offset?: number
 }

@@ -88,6 +88,7 @@ function EndOfList() {
 
 interface PostsListProps {
     username?: string
+    postId?: string
     isOwn?: boolean
     onCreatePost?: () => void
     preview?: boolean
@@ -95,11 +96,14 @@ interface PostsListProps {
 
 export default function PostsList({
     username,
+    postId,
     isOwn = false,
     onCreatePost,
     preview = false
 }: PostsListProps) {
-    const queryParams: FetchPostsParams = username ? { username } : {}
+    const queryParams: FetchPostsParams = {}
+    if (username) queryParams.username = username
+    if (postId) queryParams.post_id = postId
 
     const {
         data,

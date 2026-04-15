@@ -39,8 +39,10 @@
     /* Mobile: true full-screen. We use fixed positioning to
        escape the AppShell padding so the chat covers everything. */
     position: fixed;
-    inset: 0;
-    height: 100dvh;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 300; /* above AppNav (z-index 200) */
     background: var(--color-bg);
   }
