@@ -1,0 +1,262 @@
+/* ============================================================
+   GOATZA — 404 Not Found
+   ============================================================ */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33%       { transform: translateY(-12px) rotate(8deg); }
+  66%       { transform: translateY(-6px) rotate(-5deg); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes countdownShrink {
+  from { stroke-dashoffset: 0; }
+}
+
+/* ── Page ────────────────────────────────────────────────────── */
+
+.page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  overflow: hidden;
+  padding: var(--space-8);
+}
+
+/* ── Background grid ─────────────────────────────────────────── */
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--color-hero-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-hero-grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ── Content ─────────────────────────────────────────────────── */
+
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  text-align: center;
+  max-width: 480px;
+  animation: fadeInUp 0.5s var(--ease-out) both;
+}
+
+/* ── Hero number ─────────────────────────────────────────────── */
+
+.heroNumber {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: clamp(7rem, 22vw, 11rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  user-select: none;
+}
+
+.four {
+  /* Subtle brand tint on the 4s */
+  background: linear-gradient(
+    160deg,
+    var(--color-ink) 40%,
+    var(--color-brand) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.zero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-brand);
+}
+
+.ballIcon {
+  animation: float 3.5s var(--ease-in-out) infinite;
+  filter: drop-shadow(0 8px 24px var(--color-brand-glow));
+}
+
+/* ── Text block ──────────────────────────────────────────────── */
+
+.textBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: fadeInUp 0.5s var(--ease-out) 100ms both;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-loose);
+  max-width: 320px;
+}
+
+/* ── Countdown ring ──────────────────────────────────────────── */
+
+.countdownWrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  animation: fadeInUp 0.5s var(--ease-out) 200ms both;
+}
+
+.countdownSvg {
+  width: 56px;
+  height: 56px;
+  transform: rotate(-90deg);
+}
+
+.countdownTrack {
+  stroke: var(--color-border);
+}
+
+.countdownProgress {
+  stroke: var(--color-brand);
+  transition: stroke-dashoffset 1s linear;
+}
+
+.countdownNumber {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+}
+
+.redirectNote {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-top: calc(var(--space-2) * -1);
+  animation: fadeInUp 0.5s var(--ease-out) 250ms both;
+}
+
+/* ── Actions ─────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  animation: fadeInUp 0.5s var(--ease-out) 300ms both;
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px var(--space-6);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base);
+}
+
+.btnPrimary:hover {
+  background: var(--color-brand-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-brand);
+}
+
+.btnPrimary:active {
+  transform: translateY(0);
+}
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px var(--space-5);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.btnGhost:hover {
+  background: var(--color-surface-raised);
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+  transform: translateY(-1px);
+}
+
+/* ── Mobile ──────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .heroNumber {
+    font-size: clamp(5.5rem, 25vw, 7rem);
+  }
+
+  .title {
+    font-size: var(--text-3xl);
+  }
+
+  .actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btnPrimary,
+  .btnGhost {
+    width: 100%;
+    justify-content: center;
+  }
+}

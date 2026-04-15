@@ -176,10 +176,10 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </div>
 
               <div className={styles.profileActionsTop}>
-                 {/* Empty if we want to keep space, or optionally moved follows-you chip here later, but leaving structure in case */}
-                 {!isMe && rel?.is_followed_by && !rel.is_following && (
-                    <span className={styles.followsYouChip}>Follows you</span>
-                 )}
+                {/* Empty if we want to keep space, or optionally moved follows-you chip here later, but leaving structure in case */}
+                {!isMe && rel?.is_followed_by && !rel.is_following && (
+                  <span className={styles.followsYouChip}>Follows you</span>
+                )}
               </div>
             </div>
 
@@ -231,48 +231,49 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
 
             {/* Profile Action Buttons (Moved from top) */}
             <div className={styles.profileActionsBase}>
-                {isMe ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                      className={styles.actionBtnFull}
-                      onClick={() => setEditProfileOpen(true)}
-                      leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
-                    >
-                      Edit Profile
-                    </Button>
-                    <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
-                      <Icon icon="mdi:share-variant-outline" width={18} height={18} />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {rel && (
-                      <span className={styles.actionBtnFull}>
-                        <FollowButton
-                          profileId={profile.id}
-                          username={profile.username}
-                          isFollowing={rel.is_following}
-                          isFollowedBy={rel.is_followed_by}
-                        />
-                      </span>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                      className={styles.actionBtnFull}
-                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
-                    >
-                      Message
-                    </Button>
-                    <Button variant="ghost" size="sm" iconOnly aria-label="More options">
-                      <Icon icon="mdi:dots-horizontal" width={18} height={18} />
-                    </Button>
-                  </>
-                )}
+              {isMe ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    fullWidth
+                    className={styles.actionBtnFull}
+                    onClick={() => setEditProfileOpen(true)}
+                    leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
+                  >
+                    Edit Profile
+                  </Button>
+                  <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
+                    <Icon icon="mdi:share-variant-outline" width={18} height={18} />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {rel && (
+                    <span className={styles.actionBtnFull}>
+                      <FollowButton
+                        profileId={profile.id}
+                        username={profile.username}
+                        isFollowing={rel.is_following}
+                        isFollowedBy={rel.is_followed_by}
+                      />
+                    </span>
+                  )}
+                  <Button
+                    href={`/messages/${profile.username}`}
+                    variant="outline"
+                    size="sm"
+                    fullWidth
+                    className={styles.actionBtnFull}
+                    leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                  >
+                    Message
+                  </Button>
+                  <Button variant="ghost" size="sm" iconOnly aria-label="More options">
+                    <Icon icon="mdi:dots-horizontal" width={18} height={18} />
+                  </Button>
+                </>
+              )}
             </div>
 
             {/* About */}

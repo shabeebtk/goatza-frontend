@@ -1,0 +1,135 @@
+/* ============================================================
+   GOATZA — MessageResolver
+   ============================================================ */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(1.15); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── State wrapper ───────────────────────────────────────────── */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  height: calc(100dvh - 60px);
+  padding: var(--space-8);
+  animation: fadeInUp 0.35s var(--ease-out) both;
+}
+
+@media (max-width: 767px) {
+  .state {
+    height: 100dvh;
+  }
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+
+.spinnerWrap {
+  position: relative;
+  width: 48px;
+  height: 48px;
+}
+
+.spinner {
+  display: block;
+  position: absolute;
+  inset: 0;
+  border: 2.5px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.spinnerRing {
+  display: block;
+  position: absolute;
+  inset: -8px;
+  border: 1.5px solid var(--color-brand-subtle);
+  border-radius: 50%;
+  animation: pulse 1.8s var(--ease-in-out) infinite;
+}
+
+.loadingText {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Error state ─────────────────────────────────────────────── */
+
+.errorIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-full);
+  background: rgba(232, 70, 42, 0.07);
+  border: 1.5px solid rgba(232, 70, 42, 0.15);
+  color: var(--color-error);
+  margin-bottom: var(--space-2);
+}
+
+.errorTitle {
+  font-family: var(--font-ui);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.errorBody {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  max-width: 260px;
+  line-height: var(--leading-normal);
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: 10px var(--space-5);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.backBtn:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+  transform: translateY(-1px);
+}
