@@ -368,6 +368,7 @@ export default function AppNav() {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [postModalOpen, setPostModalOpen] = useState(false);
+  const isChatPage = /^\/messages\/.+/.test(pathname)
 
   // ── Long Press Logic ──────────────────────────────────────────────────
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -510,7 +511,7 @@ export default function AppNav() {
 
       {/* ════════════════════════════════════════════
           MOBILE TOP BAR  (< 768px)
-          ════════════════════════════════════════════ */}
+          ══════════{`${styles.mobileTopBar} ${isChatPage ? styles.mobileTopBarHidden : ""}`}═════════════ */}
       <header
         className={styles.mobileTopBar}
         role="banner"
@@ -550,7 +551,7 @@ export default function AppNav() {
 
       {/* ════════════════════════════════════════════
           MOBILE BOTTOM TAB BAR  (< 768px)
-          ════════════════════════════════════════════ */}
+         {`${styles.bottomBar} ${isChatPage ? styles.bottomBarHidden : ""}`}═══════════════════════════ */}
       <nav className={styles.bottomBar} aria-label="Tab navigation">
         {/* Home */}
         <Link
