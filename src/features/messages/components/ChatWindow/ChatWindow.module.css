@@ -80,6 +80,8 @@
   border-bottom: 1.5px solid var(--color-border);
   flex-shrink: 0;
   min-height: 60px;
+  position: relative;
+  z-index: 100;
   /* sticky within the flex column — flex-shrink: 0 is enough */
 }
 
