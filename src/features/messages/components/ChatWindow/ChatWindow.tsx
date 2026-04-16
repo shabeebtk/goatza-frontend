@@ -152,6 +152,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const topSentinel = useRef<HTMLDivElement>(null)
   const listRef     = useRef<HTMLDivElement>(null)
   const inputRef    = useRef<HTMLTextAreaElement>(null)
+  const headerRef   = useRef<HTMLDivElement>(null)
   const [input, setInput]         = useState("")
   const [autoScroll, setAutoScroll] = useState(true)
 
@@ -198,6 +199,26 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   useEffect(() => {
     if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [wsMessages.length, autoScroll])
+
+  // ── Native Mobile Visual Viewport Header Fix ──────────────
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return
+    const updateHeader = () => {
+      if (headerRef.current) {
+        // Offset the header back down by the amount the layout viewport has been pushed up
+        headerRef.current.style.transform = `translateY(${window.visualViewport?.offsetTop || 0}px)`
+      }
+    }
+    // Update on resize and scroll of visual viewport
+    window.visualViewport.addEventListener("resize", updateHeader)
+    window.visualViewport.addEventListener("scroll", updateHeader)
+    updateHeader() // Initial check
+    
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateHeader)
+      window.visualViewport?.removeEventListener("scroll", updateHeader)
+    }
+  }, [])
 
   // ── Track scroll — disable auto-scroll if user scrolls up ─
   const handleScroll = useCallback(() => {
@@ -260,7 +281,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       <div className={styles.window}>
 
         {/* ── Fixed header ── */}
-        <div className={styles.header}>
+        <div ref={headerRef} className={styles.header}>
           <Link href="/messages" className={styles.backBtn} aria-label="Back">
             <Icon icon="mdi:arrow-left" width={20} height={20} />
           </Link>
@@ -285,10 +306,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               </div>
             </Link>
           ) : null}
-
+{/* 
           <div className={styles.headerActions}>
             <ConnectionPill status={status} />
-          </div>
+          </div> */}
         </div>
 
         {/* ── Request banner (below header, above messages) ── */}
