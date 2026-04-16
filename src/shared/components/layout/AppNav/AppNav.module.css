@@ -547,7 +547,6 @@
     right: 0;
     z-index: 200;
     height: calc(54px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
     padding-inline: var(--space-4);
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
@@ -778,4 +777,13 @@
 
 .sheetContent {
     padding: var(--space-2) 0 calc(70px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 767px) {
+  .mobileTopBarHidden {
+    display: none !important;
+  }
+  .bottomBarHidden {
+    display: none !important;
+  }
 }
