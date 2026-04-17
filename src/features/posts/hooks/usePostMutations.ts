@@ -6,7 +6,12 @@ import {
     InfiniteData,
     useQuery,
 } from "@tanstack/react-query"
-import { createPostApi, CreatePostPayload, fetchPostsApi, FetchPostsParams, getMyPostSportsApi, toggleLikeApi, createCommentApi, fetchCommentsApi, fetchRepliesApi, Post, PostsListResponse } from "../services/posts.api"
+import {
+    createPostApi, CreatePostPayload,
+    fetchPostsApi, FetchPostsParams, getMyPostSportsApi,
+    toggleLikeApi, createCommentApi, fetchCommentsApi,
+    fetchRepliesApi, Post, PostsListResponse, deletePostApi
+} from "../services/posts.api"
 
 
 export const useCreatePost = () => {
@@ -41,7 +46,7 @@ export const postKeys = {
 
 export const usePostsList = (params: FetchPostsParams = {}, limit = LIMIT) =>
     useInfiniteQuery<PostsListResponse, Error>({
-        queryKey: postKeys.list({ ...params, limit }), 
+        queryKey: postKeys.list({ ...params, limit }),
         queryFn: ({ pageParam = 0 }) =>
             fetchPostsApi({ ...params, limit, offset: pageParam as number }),
         initialPageParam: 0,
@@ -82,7 +87,7 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
                         ...page,
                         results: page.results.map((p: Post) => {
                             if (p.id !== payload.post_id) return p
-                            
+
                             const isChangingType = p.reaction.is_reacted && p.reaction.type !== payload.type
                             const newReacted = p.reaction.is_reacted && payload.type === p.reaction.type ? false : true
                             let newCount = p.likes_count
@@ -100,7 +105,7 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
                                 newCount = Math.max(0, p.likes_count - 1)
                                 newBreakdown[payload.type] = Math.max(0, (newBreakdown[payload.type] || 0) - 1)
                             }
-                            
+
                             return {
                                 ...p,
                                 likes_count: newCount,
@@ -117,7 +122,7 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
 
             // Optimistic update using fuzzy matching on ALL posts lists in the cache
             qc.setQueriesData<InfiniteData<PostsListResponse>>({ queryKey: ["posts", "list"] }, updatePages)
-            
+
             // Also update the Home feed which runs on a different query key!
             qc.setQueriesData({ queryKey: ["feed", "list"] }, updatePages)
 
@@ -170,3 +175,51 @@ export const useCommentReplies = (parentId: string) =>
         queryFn: () => fetchRepliesApi({ parent_id: parentId }),
         enabled: !!parentId,
     })
+
+
+export const useDeletePost = (options: { mode?: "preview" }) => {
+    const qc = useQueryClient()
+
+    return useMutation({
+        mutationFn: deletePostApi,
+
+        onMutate: async (postId: string) => {
+            if (options?.mode === "preview") return
+
+            // cancel ongoing queries
+            await qc.cancelQueries({ queryKey: ["posts", "list"] })
+            await qc.cancelQueries({ queryKey: ["posts", "feed"] })
+
+            const updatePages = (old: any) => {
+                if (!old) return old
+
+                return {
+                    ...old,
+                    pages: old.pages.map((page: any) => ({
+                        ...page,
+                        results: page.results.filter((p: any) => p.id !== postId),
+                    })),
+                }
+            }
+
+            // update ALL post lists
+            qc.setQueriesData({ queryKey: ["posts", "list"] }, updatePages)
+            qc.setQueriesData({ queryKey: ["posts", "feed"] }, updatePages)
+
+            return {}
+        },
+
+        onSuccess: () => {
+            // preview mode - should refetch the posts when deleted
+            if (options?.mode === "preview") {
+                qc.invalidateQueries({ queryKey: ["posts", "list"] })
+            }
+        },
+
+        onError: () => {
+            // fallback → refetch truth
+            qc.invalidateQueries({ queryKey: ["posts", "list"] })
+            qc.invalidateQueries({ queryKey: ["posts", "feed"] })
+        },
+    })
+}

@@ -9,6 +9,8 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import MediaCarousel from "@/features/posts/components/MediaCarousel/MediaCarousel"
 import PostActions from "@/features/posts/components/PostActions/PostActions"
 import PostComments from "@/features/posts/components/PostComments/PostComments"
+import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"   // ← NEW
+import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
 import type { Post } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import styles from "./PostCard.module.css"
@@ -22,16 +24,13 @@ function fmtCount(n: number): string {
   return String(n)
 }
 
-// ── Reaction icon map (matches PostActions) ───────────────────
-
 const REACTION_META: Record<string, { icon: string; color: string }> = {
-  like:    { icon: "mdi:lightning-bolt",          color: "var(--color-brand)" },
-  fire:    { icon: "mdi:fire",                    color: "#FF5E00"            },
-  respect: { icon: "fluent:hand-wave-24-filled",  color: "#FFC83D"            },
-  funny:   { icon: "fluent:emoji-laugh-24-filled", color: "#FFC83D"           },
+  like:    { icon: "mdi:lightning-bolt",           color: "var(--color-brand)" },
+  fire:    { icon: "mdi:fire",                     color: "#FF5E00"            },
+  respect: { icon: "fluent:hand-wave-24-filled",   color: "#FFC83D"            },
+  funny:   { icon: "fluent:emoji-laugh-24-filled", color: "#FFC83D"            },
 }
 
-// Returns up to 3 reaction types that have count > 0, sorted by count desc
 function getTopReactions(
   breakdown: Record<string, number> | undefined
 ): { type: string; icon: string; color: string }[] {
@@ -48,16 +47,12 @@ function getTopReactions(
 
 // ── Content with "see more" ───────────────────────────────────
 
-const CONTENT_LIMIT = 220 // characters before truncation
+const CONTENT_LIMIT = 220
 
 function PostContent({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false)
-
-  // Trim to nearest word boundary so we don't cut mid-word
   const isLong = text.length > CONTENT_LIMIT
-  const trimmed = isLong
-    ? text.slice(0, CONTENT_LIMIT).replace(/\s+\S*$/, "")
-    : text
+  const trimmed = isLong ? text.slice(0, CONTENT_LIMIT).replace(/\s+\S*$/, "") : text
   const display = isLong && !expanded ? trimmed + "…" : text
 
   return (
@@ -80,11 +75,16 @@ function PostContent({ text }: { text: string }) {
 
 interface PostCardProps {
   post:        Post
-  queryParams: FetchPostsParams
+  queryParams: FetchPostsParams,
+  isPreview?: boolean
 }
 
-export default function PostCard({ post, queryParams }: PostCardProps) {
+export default function PostCard({ post, queryParams, isPreview=false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
+  const [showOptions, setShowOptions]   = useState(false)   // ← NEW
+
+  const user       = useAuthStore((s) => s.user)             // ← NEW
+  const isOwn      = user?.id === post.author.id             // ← NEW
 
   const timeAgo      = dayjs(post.created_at).fromNow()
   const topReactions = getTopReactions(post.likes_breakdown)
@@ -92,7 +92,7 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
   return (
     <article className={styles.card}>
 
-      {/* ── Header: avatar + name + time ── */}
+      {/* ── Header ── */}
       <div className={styles.cardHeader}>
         <Link href={`/profile/${post.author.username}`} className={styles.authorLink}>
           <Avatar
@@ -124,7 +124,7 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
                       {post.location.name}{post.location.country_code ? `, ${post.location.country_code}` : ""}
                     </span>
                   </span>
-                )
+                ),
               ]
                 .filter(Boolean)
                 .map((item, index, arr) => (
@@ -137,7 +137,13 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
           </div>
         </Link>
 
-        <button className={styles.moreBtn} type="button" aria-label="More options">
+        {/* ── More button — opens options sheet ── */}
+        <button
+          className={styles.moreBtn}
+          type="button"
+          aria-label="More options"
+          onClick={() => setShowOptions(true)}   // ← CHANGED (was no onClick)
+        >
           <Icon icon="mdi:dots-horizontal" width={20} height={20} />
         </button>
       </div>
@@ -155,33 +161,24 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
       {/* ── Stats row ── */}
       {(post.likes_count > 0 || post.comments_count > 0) && (
         <div className={styles.statsRow}>
-
-          {/* Reaction icons cluster + total count */}
           {post.likes_count > 0 && (
             <span className={styles.statItem}>
-              {/* Stack up to 3 reaction icons */}
               <span className={styles.reactionIcons}>
                 {topReactions.length > 0
                   ? topReactions.map((r) => (
-                      <span
-                        key={r.type}
-                        className={styles.reactionIconBubble}
-                        title={r.type}
-                      >
+                      <span key={r.type} className={styles.reactionIconBubble} title={r.type}>
                         <Icon icon={r.icon} width={13} height={13} color={r.color} />
                       </span>
                     ))
-                  : /* fallback if breakdown missing */
+                  : (
                     <span className={styles.reactionIconBubble}>
                       <Icon icon="mdi:lightning-bolt" width={11} height={11} color="var(--color-brand)" />
                     </span>
-                }
+                  )}
               </span>
               <span className={styles.statCount}>{fmtCount(post.likes_count)}</span>
             </span>
           )}
-
-          {/* Comment count */}
           {post.comments_count > 0 && (
             <button
               className={`${styles.statItem} ${styles.statItemBtn}`}
@@ -190,7 +187,6 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
               {fmtCount(post.comments_count)} comment{post.comments_count !== 1 ? "s" : ""}
             </button>
           )}
-
         </div>
       )}
 
@@ -202,8 +198,16 @@ export default function PostCard({ post, queryParams }: PostCardProps) {
       />
 
       {/* ── Comments ── */}
-      {showComments && (
-        <PostComments postId={post.id} />
+      {showComments && <PostComments postId={post.id} />}
+
+      {/* ── Options sheet ── */}
+      {showOptions && (                                       
+        <PostOptionsSheet
+          postId={post.id}
+          isOwn={isOwn}
+          isPreview={isPreview}
+          onClose={() => setShowOptions(false)}
+        />
       )}
 
     </article>

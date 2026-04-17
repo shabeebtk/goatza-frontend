@@ -199,6 +199,7 @@ export default function PostsList({
                         key={post.id}
                         post={post}
                         queryParams={queryParams}
+                        isPreview={preview}
                     />
                 ))}
             </div>
