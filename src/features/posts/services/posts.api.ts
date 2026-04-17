@@ -209,3 +209,14 @@ export const fetchRepliesApi = async (params: { parent_id: string, limit?: numbe
   const res = await api.get(`/posts/comments/list/replies`, { params: { limit: 20, ...params } })
   return res.data.data
 }
+
+
+
+// DELETE POST 
+
+export const deletePostApi = async (postId: string) => {
+  const res = await api.delete("/posts/delete", {
+    params: { post_id: postId },
+  })
+  return res.data.data
+}

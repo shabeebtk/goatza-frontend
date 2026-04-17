@@ -1,0 +1,219 @@
+/* ============================================================
+   GOATZA — PostOptionsSheet
+   Mobile: slides up from bottom (Instagram-style)
+   Desktop: compact popup anchored near the trigger
+   ============================================================ */
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Backdrop ────────────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;        /* mobile: sheet from bottom */
+  justify-content: center;
+  animation: backdropIn 0.18s var(--ease-out) both;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  .backdrop {
+    align-items: center;        /* desktop: centered */
+    padding: var(--space-6);
+  }
+}
+
+/* ── Sheet ───────────────────────────────────────────────────── */
+
+.sheet {
+  width: 100%;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: sheetUp 0.26s var(--ease-spring) both;
+}
+
+@media (min-width: 640px) {
+  .sheet {
+    max-width: 360px;
+    border-radius: var(--radius-xl);
+    animation: popIn 0.22s var(--ease-spring) both;
+    padding-bottom: 0;
+  }
+}
+
+/* ── Drag handle (mobile only) ───────────────────────────────── */
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  margin: var(--space-3) auto var(--space-2);
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .handle { display: none; }
+}
+
+/* ── Options list ────────────────────────────────────────────── */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) 0;
+}
+
+/* ── Single option row ───────────────────────────────────────── */
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: 15px var(--space-6);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.option:hover {
+  background: var(--color-surface-raised);
+}
+
+.option:active {
+  background: var(--color-brand-subtle);
+}
+
+.option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (min-width: 640px) {
+  .option {
+    padding: 13px var(--space-5);
+    font-size: var(--text-sm);
+  }
+}
+
+/* Danger variant */
+.optionDanger {
+  color: var(--color-error);
+}
+
+.optionDanger:hover {
+  background: rgba(232, 70, 42, 0.06);
+}
+
+/* ── Option icon ─────────────────────────────────────────────── */
+
+.optionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+/* ── Option label ────────────────────────────────────────────── */
+
+.optionLabel {
+  flex: 1;
+  line-height: 1.2;
+}
+
+/* ── Divider between option groups ──────────────────────────── */
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-1) 0;
+}
+
+/* ── Cancel button ───────────────────────────────────────────── */
+
+.cancelBtn {
+  width: calc(100% - var(--space-8));
+  margin: var(--space-2) var(--space-4) var(--space-4);
+  padding: 14px;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.cancelBtn:hover {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
+}
+
+.cancelBtn:active {
+  transform: scale(0.98);
+}
+
+@media (min-width: 640px) {
+  .cancelBtn {
+    margin: var(--space-2) var(--space-4) var(--space-3);
+  }
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+
+.spinner {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-error);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
