@@ -1,28 +1,23 @@
 "use client";
 
-/**
- * Auth-guarded shell for organization admin pages.
- * Uses OrgShell which renders OrgNav (org top bar + bottom tab bar).
- *
- * Route: /organization/admin/[id]/...
- */
-
 import AuthGuard from "@/shared/components/auth/AuthGuard";
 import ActorRouteSync from "@/shared/components/auth/ActorRouteSync";
 import OrgShell from "@/shared/components/layout/OrgShell/OrgShell";
 
 interface OrgAdminLayoutProps {
   children: React.ReactNode;
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function OrgAdminLayout({
+export default async function OrgAdminLayout({
   children,
   params,
 }: OrgAdminLayoutProps) {
+  const { id } = await params;
+
   return (
     <AuthGuard>
-      <OrgShell orgId={params.id}>
+      <OrgShell orgId={id}>
         <ActorRouteSync />
         {children}
       </OrgShell>
