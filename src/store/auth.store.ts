@@ -1,6 +1,9 @@
 import { create } from "zustand"
+import { persist, createJSONStorage } from "zustand/middleware"
 
-type User = {
+export type ActorType = "user" | "organization"
+
+export type User = {
   id: string
   username: string
   email?: string
@@ -8,55 +11,120 @@ type User = {
   profile_photo?: string
 }
 
-type ActorType = "user" | "organization"
-
 type AuthState = {
+  // MEMORY ONLY (not persisted)
   accessToken: string | null
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
 
-  setLoading: (val: boolean) => void
-
+  // SAFE TO PERSIST
   actorType: ActorType
   actorId: string | null
 
-  setAuth: (data: { token: string; user?: User | null }) => void
-  setActor: (actor: { type: ActorType; id?: string | null }) => void
+  // ACTIONS
+  setLoading: (value: boolean) => void
+
+  setSession: (payload: {
+    token: string
+    user: User
+  }) => void
+
+  updateAccessToken: (token: string) => void
+
+  updateUser: (user: User) => void
+
+  switchToUser: () => void
+
+  switchToOrganization: (organizationId: string) => void
+
   clearAuth: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  accessToken: null,
-  user: null,
-  isAuthenticated: false,
-  isLoading: true, // start loading true
-
-  actorType: "user",
-  actorId: null,
-
-  setLoading: (val) => set({ isLoading: val }),
-
-  setAuth: ({ token, user }) =>
-    set((state) => ({
-      accessToken: token,
-      user: user ?? state.user,
-      isAuthenticated: true,
-    })),
-
-  setActor: ({ type, id }) =>
-    set({
-      actorType: type,
-      actorId: id ?? null,
-    }),
-
-  clearAuth: () =>
-    set({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      // MEMORY ONLY
       accessToken: null,
       user: null,
       isAuthenticated: false,
-      isLoading: false, // stop loading
+      isLoading: true,
+
+      // PERSISTED
       actorType: "user",
       actorId: null,
+
+      // -------------------
+      // ACTIONS
+      // -------------------
+
+      setLoading: (value) =>
+        set({
+          isLoading: value,
+        }),
+
+      setSession: ({ token, user }) =>
+        set({
+          accessToken: token,
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+        }),
+
+      updateAccessToken: (token) =>
+        set((state) => ({
+          accessToken: token,
+          isAuthenticated: !!state.user,
+        })),
+
+      updateUser: (user) =>
+        set({
+          user,
+          isAuthenticated: true,
+        }),
+
+      switchToUser: () =>
+        set({
+          actorType: "user",
+          actorId: null,
+        }),
+
+      switchToOrganization: (organizationId) =>
+        set({
+          actorType: "organization",
+          actorId: organizationId,
+        }),
+
+      clearAuth: () =>
+        set({
+          accessToken: null,
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          actorType: "user",
+          actorId: null,
+        }),
     }),
-}))
+    {
+      name: "goatza-auth",
+
+      storage: createJSONStorage(() => localStorage),
+
+      // SAFE VALUES PERSISTED
+      partialize: (state) => ({
+        actorType: state.actorType,
+        actorId: state.actorId,
+      }),
+
+      // ensure memory values reset on rehydrate
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+
+        state.accessToken = null
+        state.user = null
+        state.isAuthenticated = false
+        state.isLoading = true
+      },
+    }
+  )
+)

@@ -1,4 +1,5 @@
 "use client";
+import ActorRouteSync from "@/shared/components/auth/ActorRouteSync";
 /**
  * Auth-guarded shell for all post-login pages.
  * AppShell renders AppNav (top bar + bottom tab bar) and offsets content.
@@ -14,6 +15,7 @@ export default function ProtectedLayout({
   return (
     <AuthGuard>
       <AppShell>
+        <ActorRouteSync />
         {children}
       </AppShell>
     </AuthGuard>

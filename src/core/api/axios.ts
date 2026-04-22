@@ -49,9 +49,7 @@ api.interceptors.response.use(
         const newToken = res.data.data.access_token
 
         // update only token (user remains same)
-        useAuthStore.getState().setAuth({
-          token: newToken,
-        })
+        useAuthStore.getState().updateAccessToken(newToken)
 
         // retry original request
         originalRequest.headers.Authorization = `Bearer ${newToken}`

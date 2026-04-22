@@ -1,7 +1,8 @@
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   googleCallbackApi,
   loginApi,
+  logoutApi,
   signupApi,
   verifyOtpApi,
   type LoginPayload,
@@ -13,7 +14,7 @@ import { useAuthStore } from "@/store/auth.store"
 // ── Login ────────────────────────────────────────────────────
 
 export const useLogin = () => {
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const setSession = useAuthStore((s) => s.setSession)
 
   return useMutation({
     mutationFn: (data: LoginPayload) => loginApi(data),
@@ -24,7 +25,7 @@ export const useLogin = () => {
         return
       }
       // CASE 2: Normal login + setauth 
-      setAuth({
+      setSession({
         token: data.access,
         user: data.user,
       })
@@ -44,26 +45,44 @@ export const useSignup = () => {
 // ── Verify OTP ───────────────────────────────────────────────
 
 export const useVerifyOtp = () => {
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const setSession = useAuthStore((s) => s.setSession)
 
   return useMutation({
     mutationFn: (data: VerifyOtpPayload) => verifyOtpApi(data),
     onSuccess: (data) => {
-      setAuth({ token: data.access, user: data.user })
+      setSession({
+        token: data.access,
+        user: data.user,
+      })
     },
   })
 }
 
 export const useGoogleAuth = () => {
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const setSession = useAuthStore((s) => s.setSession)
 
   return useMutation({
     mutationFn: googleCallbackApi,
     onSuccess: (data) => {
-      setAuth({
+      setSession({
         token: data.access,
         user: data.user,
       })
+    },
+  })
+}
+
+
+export const useLogout = () => {
+  const clearAuth = useAuthStore((s) => s.clearAuth)
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: logoutApi,
+
+    onSettled: async () => {
+      clearAuth()
+      await queryClient.clear()
     },
   })
 }

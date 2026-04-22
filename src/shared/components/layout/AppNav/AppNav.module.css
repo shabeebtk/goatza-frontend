@@ -533,6 +533,20 @@
     color: var(--color-error);
 }
 
+.dropdownItemBadge {
+  margin-left: auto;
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
+  text-transform: uppercase;
+}
+
 /* ─────────────────────────────────────────────────────────────
    MOBILE TOP BAR  (< 768px)
    ───────────────────────────────────────────────────────────── */
