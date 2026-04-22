@@ -2,7 +2,7 @@ import api from "@/core/api/axios"
 
 // ── Types ────────────────────────────────────────────────────
 
-export type UploadType = "profile" | "cover" | "posts"
+export type UploadType = "profile" | "cover" | "posts" | "organization_logo" | "organization_cover"
 
 export type UploadConfigItem = {
   upload_url: string

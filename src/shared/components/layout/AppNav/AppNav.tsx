@@ -20,6 +20,7 @@ import CreatePostModal from "@/features/posts/components/CreatePostModal/CreateP
 import { useAuthStore } from "@/store/auth.store";
 import { Button } from "../../ui";
 import { logoutApi } from "@/features/auth/services/auth.api";
+import { useOrganizations } from "@/features/organization/hooks/useOrganizations";
 
 // ── Static mock data (replace with real auth/org context) ─────────
 const MOCK_USER = {
@@ -31,26 +32,6 @@ const MOCK_USER = {
   messageCount: 2,
 };
 
-const MOCK_ORGS = [
-  {
-    id: "personal",
-    label: "Personal",
-    icon: "mdi:account-outline",
-    type: "personal",
-  },
-  {
-    id: "club-1",
-    label: "Kerala FC",
-    icon: "mdi:shield-outline",
-    type: "club",
-  },
-  {
-    id: "acad-1",
-    label: "Elite Academy",
-    icon: "mdi:school-outline",
-    type: "academy",
-  },
-];
 
 // ── Nav items (desktop + mobile bottom bar) ────────────────────────
 const NAV_ITEMS = [
@@ -138,15 +119,21 @@ function NotifDot({ count }: { count: number }) {
 function AccountDropdown({
   open,
   onClose,
-  activeOrg,
-  onSwitchOrg,
+  actorType,
+  actorId,
+  organizations,
+  onSwitchToUser,
+  onSwitchToOrganization,
   onLogout,
 }: {
-  open: boolean;
-  onClose: () => void;
-  activeOrg: string;
-  onSwitchOrg: (id: string) => void;
-  onLogout: () => void;
+  open: boolean
+  onClose: () => void
+  actorType: "user" | "organization"
+  actorId: string | null
+  organizations: any[]
+  onSwitchToUser: () => void
+  onSwitchToOrganization: (id: string) => void
+  onLogout: () => void
 }) {
   const user = useAuthStore((s) => s.user);
   const ref = useRef<HTMLDivElement>(null);
@@ -192,22 +179,52 @@ function AccountDropdown({
 
       {/* Account switcher */}
       <p className={styles.dropdownSectionLabel}>Account</p>
-      {MOCK_ORGS.map((org) => (
+
+      <button
+        className={`${styles.dropdownItem} ${actorType === "user" ? styles.dropdownItemActive : ""
+          }`}
+        onClick={() => {
+          onSwitchToUser()
+          onClose()
+        }}
+      >
+        <Avatar
+          src={user?.profile_photo}
+          initials={user?.name?.slice(0, 2).toUpperCase() || "U"}
+          size="xs"
+        />
+
+        Personal Account
+
+        {actorType === "user" && (
+          <span className={styles.dropdownItemCheck}>
+            <Icon icon="mdi:check" width={14} height={14} />
+          </span>
+        )}
+      </button>
+
+      {organizations.map((org) => (
         <button
           key={org.id}
-          className={`${styles.dropdownItem} ${activeOrg === org.id ? styles.dropdownItemActive : ""}`}
+          className={`${styles.dropdownItem} ${actorType === "organization" && actorId === org.id
+            ? styles.dropdownItemActive
+            : ""
+            }`}
           onClick={() => {
-            onSwitchOrg(org.id);
-            onClose();
+            onSwitchToOrganization(org.id)
+            onClose()
           }}
-          role="menuitem"
         >
-          <span className={styles.dropdownItemIcon} aria-hidden="true">
-            <Icon icon={org.icon} width={16} height={16} />
-          </span>
-          {org.label}
-          {activeOrg === org.id && (
-            <span className={styles.dropdownItemCheck} aria-hidden="true">
+          <Avatar
+            src={org.logo}
+            initials={org.name?.slice(0, 2).toUpperCase()}
+            size="xs"
+          />
+
+          {org.name}
+
+          {actorType === "organization" && actorId === org.id && (
+            <span className={styles.dropdownItemCheck}>
               <Icon icon="mdi:check" width={14} height={14} />
             </span>
           )}
@@ -228,6 +245,22 @@ function AccountDropdown({
         </span>
         Settings
       </Link>
+
+      <div className={styles.dropdownDivider} />
+      <Link
+        href="/organization/create"
+        className={styles.dropdownItem}
+        role="menuitem"
+        onClick={onClose}
+      >
+        <span className={styles.dropdownItemIcon} aria-hidden="true">
+          <Icon icon="mdi:plus-circle-outline" width={16} height={16} />
+        </span>
+        Create Page
+      </Link>
+
+
+
       <button
         className={`${styles.dropdownItem} ${styles.dropdownItemDanger}`}
         role="menuitem"
@@ -249,15 +282,21 @@ function AccountDropdown({
 function MobileAccountSheet({
   open,
   onClose,
-  activeOrg,
-  onSwitchOrg,
+  actorType,
+  actorId,
+  organizations,
+  onSwitchToUser,
+  onSwitchToOrganization,
   onLogout,
 }: {
-  open: boolean;
-  onClose: () => void;
-  activeOrg: string;
-  onSwitchOrg: (id: string) => void;
-  onLogout: () => void;
+  open: boolean
+  onClose: () => void
+  actorType: "user" | "organization"
+  actorId: string | null
+  organizations: any[]
+  onSwitchToUser: () => void
+  onSwitchToOrganization: (id: string) => void
+  onLogout: () => void
 }) {
   const user = useAuthStore((s) => s.user);
 
@@ -302,22 +341,51 @@ function MobileAccountSheet({
 
           {/* Account switcher */}
           <p className={styles.dropdownSectionLabel}>Account</p>
-          {MOCK_ORGS.map((org) => (
+          <button
+            className={`${styles.dropdownItem} ${actorType === "user" ? styles.dropdownItemActive : ""
+              }`}
+            onClick={() => {
+              onSwitchToUser()
+              onClose()
+            }}
+          >
+            <Avatar
+              src={user?.profile_photo}
+              initials={user?.name?.slice(0, 2).toUpperCase() || "U"}
+              size="xs"
+            />
+
+            Personal Account
+
+            {actorType === "user" && (
+              <span className={styles.dropdownItemCheck}>
+                <Icon icon="mdi:check" width={14} height={14} />
+              </span>
+            )}
+          </button>
+
+          {organizations.map((org) => (
             <button
               key={org.id}
-              className={`${styles.dropdownItem} ${activeOrg === org.id ? styles.dropdownItemActive : ""}`}
+              className={`${styles.dropdownItem} ${actorType === "organization" && actorId === org.id
+                ? styles.dropdownItemActive
+                : ""
+                }`}
               onClick={() => {
-                onSwitchOrg(org.id);
-                onClose();
+                onSwitchToOrganization(org.id)
+                onClose()
               }}
-              role="menuitem"
             >
-              <span className={styles.dropdownItemIcon} aria-hidden="true">
-                <Icon icon={org.icon} width={16} height={16} />
-              </span>
-              {org.label}
-              {activeOrg === org.id && (
-                <span className={styles.dropdownItemCheck} aria-hidden="true">
+              <Avatar
+                src={org.logo}
+                initials={org.name?.slice(0, 2).toUpperCase()}
+                size="xs"
+              />
+
+              {org.name}
+
+              {actorType === "organization" && actorId === org.id && (
+                <span className={styles.dropdownItemCheck}>
                   <Icon icon="mdi:check" width={14} height={14} />
                 </span>
               )}
@@ -363,12 +431,21 @@ export default function AppNav() {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [activeOrg, setActiveOrg] = useState("personal");
   const avatarRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [postModalOpen, setPostModalOpen] = useState(false);
   const isChatPage = /^\/messages\/.+/.test(pathname)
+
+  const actorType = useAuthStore((s) => s.actorType)
+  const actorId = useAuthStore((s) => s.actorId)
+
+  const switchToUser = useAuthStore((s) => s.switchToUser)
+  const switchToOrganization = useAuthStore(
+    (s) => s.switchToOrganization
+  )
+
+  const { data: organizations = [] } = useOrganizations()
 
   // ── Long Press Logic ──────────────────────────────────────────────────
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -395,6 +472,20 @@ export default function AppNav() {
     clearAuth();
     router.push("/auth");
   };
+
+  const handleSwitchToUser = () => {
+    switchToUser()
+    setDropdownOpen(false)
+    setMobileSheetOpen(false)
+    router.push("/home")
+  }
+
+  const handleSwitchToOrganization = (orgId: string) => {
+    switchToOrganization(orgId)
+    setDropdownOpen(false)
+    setMobileSheetOpen(false)
+    router.push(`/organization/admin/${orgId}/home`)
+  }
 
   return (
     <>
@@ -501,8 +592,11 @@ export default function AppNav() {
             <AccountDropdown
               open={dropdownOpen}
               onClose={() => setDropdownOpen(false)}
-              activeOrg={activeOrg}
-              onSwitchOrg={setActiveOrg}
+              actorType={actorType}
+              actorId={actorId}
+              organizations={organizations}
+              onSwitchToUser={handleSwitchToUser}
+              onSwitchToOrganization={handleSwitchToOrganization}
               onLogout={handleLogout}
             />
           </div>
@@ -661,8 +755,11 @@ export default function AppNav() {
       <MobileAccountSheet
         open={mobileSheetOpen}
         onClose={() => setMobileSheetOpen(false)}
-        activeOrg={activeOrg}
-        onSwitchOrg={setActiveOrg}
+        actorType={actorType}
+        actorId={actorId}
+        organizations={organizations}
+        onSwitchToUser={handleSwitchToUser}
+        onSwitchToOrganization={handleSwitchToOrganization}
         onLogout={handleLogout}
       />
 

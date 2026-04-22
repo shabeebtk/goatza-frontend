@@ -16,15 +16,15 @@ import styles from "./EditProfileModal.module.css"
 // ── Zod schema ────────────────────────────────────────────────
 
 const schema = z.object({
-  name:      z.string().min(1, "Name is required").max(60),
-  username:  z
+  name: z.string().min(1, "Name is required").max(60),
+  username: z
     .string()
     .min(3, "At least 3 characters")
     .max(30, "Max 30 characters")
     .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and _"),
-  headline:  z.string().max(120).optional(),
-  about:     z.string().max(600).optional(),
-  gender:    z.enum(["male", "female", "other", ""]).optional(),
+  headline: z.string().max(120).optional(),
+  about: z.string().max(600).optional(),
+  gender: z.enum(["male", "female", "other", ""]).optional(),
   height_cm: z.coerce.number().min(50).max(300).nullable().optional(),
   weight_kg: z.coerce.number().min(20).max(400).nullable().optional(),
 })
@@ -95,15 +95,15 @@ function Field({
 // ── Main component ────────────────────────────────────────────
 
 interface EditProfileModalProps {
-  profile:  UserProfile
-  onClose:  () => void
+  profile: UserProfile
+  onClose: () => void
   onSaved?: (updated: UserProfile) => void
 }
 
 export default function EditProfileModal({ profile, onClose, onSaved }: EditProfileModalProps) {
   const updateProfileData = useUpdateProfileData(profile.username)
-  const checkUsername     = useCheckUsername()
-  const setAuth           = useAuthStore.getState().setAuth
+  const checkUsername = useCheckUsername()
+  const updateUser = useAuthStore.getState().updateUser
 
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle")
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -115,13 +115,13 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
     if (!profile.location) return null
     // Reconstruct a minimal MapboxCity from existing profile location
     return {
-      label:        [profile.location.city, profile.location.country_code].filter(Boolean).join(", "),
-      name:         profile.location.city,
-      state:        "",                        // not stored in profile read response
+      label: [profile.location.city, profile.location.country_code].filter(Boolean).join(", "),
+      name: profile.location.city,
+      state: "",                        // not stored in profile read response
       country_code: profile.location.country_code,
-      latitude:     profile.location.latitude,
-      longitude:    profile.location.longitude,
-      external_id:  "",                        // not stored, will be fresh from picker
+      latitude: profile.location.latitude,
+      longitude: profile.location.longitude,
+      external_id: "",                        // not stored, will be fresh from picker
     }
   })
 
@@ -147,11 +147,11 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
-      name:      profile.name      ?? "",
-      username:  profile.username  ?? "",
-      headline:  profile.headline  ?? "",
-      about:     profile.about     ?? "",
-      gender:    (profile.gender as FormValues["gender"]) ?? "",
+      name: profile.name ?? "",
+      username: profile.username ?? "",
+      headline: profile.headline ?? "",
+      about: profile.about ?? "",
+      gender: (profile.gender as FormValues["gender"]) ?? "",
       height_cm: profile.height_cm ?? undefined,
       weight_kg: profile.weight_kg ?? undefined,
     },
@@ -163,19 +163,19 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   useEffect(() => {
     const current = watchedUsername?.trim()
     if (!current || current === profile.username) { setUsernameStatus("idle"); return }
-    if (!/^[a-zA-Z0-9_]{3,30}$/.test(current))  { setUsernameStatus("idle"); return }
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(current)) { setUsernameStatus("idle"); return }
 
     setUsernameStatus("checking")
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       const result = await checkUsername.mutateAsync(current).catch(() => null)
-      if (!result)               setUsernameStatus("invalid")
+      if (!result) setUsernameStatus("invalid")
       else if (result.available) setUsernameStatus("available")
-      else                       setUsernameStatus("taken")
+      else setUsernameStatus("taken")
     }, 500)
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedUsername, profile.username])
 
   // ── Submit ────────────────────────────────────────────────────
@@ -187,11 +187,11 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
 
     const payload: Record<string, unknown> = {}
 
-    if (dirtyFields.name)      payload.name      = values.name
-    if (dirtyFields.username)  payload.username  = values.username
-    if (dirtyFields.headline)  payload.headline  = values.headline ?? ""
-    if (dirtyFields.about)     payload.about     = values.about    ?? ""
-    if (dirtyFields.gender)    payload.gender    = values.gender   || null
+    if (dirtyFields.name) payload.name = values.name
+    if (dirtyFields.username) payload.username = values.username
+    if (dirtyFields.headline) payload.headline = values.headline ?? ""
+    if (dirtyFields.about) payload.about = values.about ?? ""
+    if (dirtyFields.gender) payload.gender = values.gender || null
     if (dirtyFields.height_cm) payload.height_cm = values.height_cm ?? null
     if (dirtyFields.weight_kg) payload.weight_kg = values.weight_kg ?? null
 
@@ -203,14 +203,14 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       } else {
         // Build full LocationPayload from MapboxCity
         const loc: LocationPayload = {
-          name:         selectedCity.name,
-          type:         "city",
-          city:         selectedCity.name,
-          state:        selectedCity.state,
+          name: selectedCity.name,
+          type: "city",
+          city: selectedCity.name,
+          state: selectedCity.state,
           country_code: selectedCity.country_code,
-          latitude:     selectedCity.latitude,
-          longitude:    selectedCity.longitude,
-          external_id:  selectedCity.external_id,
+          latitude: selectedCity.latitude,
+          longitude: selectedCity.longitude,
+          external_id: selectedCity.external_id,
         }
         payload.location = loc
       }
@@ -222,15 +222,19 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       const updated = await updateProfileData.mutateAsync(payload)
 
       // Sync auth store username if it changed
-      if (dirtyFields.username) {
-        setAuth({
-          token: useAuthStore.getState().accessToken!,
-          user:  { ...useAuthStore.getState().user!, username: updated.username },
+      const currentUser = useAuthStore.getState().user
+
+      if (currentUser) {
+        updateUser({
+          ...currentUser,
+          username: updated.username,
+          name: updated.name,
+          profile_photo: updated.profile_photo,
         })
       }
 
       if (onSaved) onSaved(updated)
-      else         onClose()
+      else onClose()
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object"
@@ -247,7 +251,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   }
 
   const headlineLen = watch("headline")?.length ?? 0
-  const aboutLen    = watch("about")?.length    ?? 0
+  const aboutLen = watch("about")?.length ?? 0
 
   // Dirty = react-hook-form fields changed OR location changed
   const isFormDirty = isDirty || locationChanged
