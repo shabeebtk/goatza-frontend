@@ -31,34 +31,8 @@
 }
 
 @keyframes pulse-org {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--color-org-rgb, 79 70 229), 0.35); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--color-brand-rgb, 79 70 229), 0.35); }
   50%       { box-shadow: 0 0 0 5px transparent; }
-}
-
-/* ── Org accent color ──────────────────────────────────────────
-   Override --color-org and --color-org-subtle in your theme
-   to brand each organisation differently.
-   ─────────────────────────────────────────────────────────── */
-:root {
-  --color-org:        #4f46e5;   /* indigo — distinct from brand green */
-  --color-org-hover:  #4338ca;
-  --color-org-subtle: rgba(79, 70, 229, 0.08);
-  --color-org-muted:  rgba(79, 70, 229, 0.28);
-  --color-org-glow:   rgba(79, 70, 229, 0.30);
-  --shadow-org:       0 0 0 3px rgba(79, 70, 229, 0.18);
-}
-
-/* ─────────────────────────────────────────────────────────────
-   ORG ACCENT STRIPE  — thin colored line at very top of nav
-   ───────────────────────────────────────────────────────────── */
-.orgStripe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-org) 0%, var(--color-org-hover) 100%);
-  pointer-events: none;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -79,8 +53,8 @@
   width: 34px;
   height: 34px;
   border-radius: var(--radius-md);
-  background: var(--color-org-subtle);
-  border: 1.5px solid var(--color-org-muted);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -92,7 +66,7 @@
 
 .logoLink:hover .logoImgWrap {
   transform: scale(1.06);
-  box-shadow: var(--shadow-org);
+  box-shadow: var(--shadow-brand);
 }
 
 .logoImg {
@@ -105,7 +79,7 @@
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
   font-size: var(--text-sm);
-  color: var(--color-org);
+  color: var(--color-brand);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
 }
@@ -135,9 +109,9 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
-  color: var(--color-org);
-  background: var(--color-org-subtle);
-  border: 1px solid var(--color-org-muted);
+  color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
   border-radius: var(--radius-sm);
   padding: 1px 5px;
   width: fit-content;
@@ -164,7 +138,7 @@
   width: 16px;
   height: 16px;
   border-radius: var(--radius-full);
-  background: var(--color-org);
+  background: var(--color-brand);
   color: #fff;
   border: 1.5px solid var(--color-surface);
   display: flex;
@@ -180,7 +154,7 @@
   width: 13px;
   height: 13px;
   border-radius: var(--radius-full);
-  background: var(--color-org);
+  background: var(--color-brand);
   color: #fff;
   border: 1.5px solid var(--color-surface);
   display: flex;
@@ -250,11 +224,11 @@
 
 .topNavLink:hover {
   color: var(--color-text-primary);
-  background: var(--color-org-subtle);
+  background: var(--color-brand-subtle);
 }
 
 .topNavLinkActive {
-  color: var(--color-org);
+  color: var(--color-brand);
 }
 
 .topNavLinkActive::after {
@@ -264,7 +238,7 @@
   left: 20%;
   right: 20%;
   height: 2px;
-  background: var(--color-org);
+  background: var(--color-brand);
   border-radius: 2px 2px 0 0;
 }
 
@@ -305,9 +279,9 @@
 }
 
 .avatarBtn:hover {
-  border-color: var(--color-org-muted);
-  background: var(--color-org-subtle);
-  box-shadow: var(--shadow-org);
+  border-color: var(--color-brand-muted);
+  background: var(--color-brand-subtle);
+  box-shadow: var(--shadow-brand);
 }
 
 .chevronBtn {
@@ -325,7 +299,7 @@
 }
 
 .avatarBtn:hover .avatarChevron {
-  color: var(--color-org);
+  color: var(--color-brand);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -378,7 +352,7 @@
 }
 
 .dropdownHeader:hover {
-  background: var(--color-org-subtle);
+  background: var(--color-brand-subtle);
 }
 
 .dropdownUserInfo {
@@ -404,7 +378,7 @@
 
 .dropdownHandle {
   font-size: var(--text-xs);
-  color: var(--color-org);
+  color: var(--color-brand);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -446,13 +420,13 @@
 }
 
 .dropdownItem:hover {
-  background: var(--color-org-subtle);
-  color: var(--color-org);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
 }
 
 .dropdownItemActive {
-  color: var(--color-org);
-  background: var(--color-org-subtle);
+  color: var(--color-brand);
+  background: var(--color-brand-subtle);
   font-weight: var(--weight-semi);
 }
 
@@ -481,14 +455,14 @@
 
 .dropdownItem:hover .dropdownItemIcon,
 .dropdownItemActive .dropdownItemIcon {
-  color: var(--color-org);
+  color: var(--color-brand);
 }
 
 .dropdownItemCheck {
   display: flex;
   align-items: center;
   margin-left: auto;
-  color: var(--color-org);
+  color: var(--color-brand);
   line-height: 0;
 }
 
@@ -548,8 +522,8 @@
 
 .mobileIconBtn:hover,
 .mobileIconBtn:active {
-  background: var(--color-org-subtle);
-  color: var(--color-org);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -589,9 +563,9 @@
   min-width: 44px;
 }
 
-.bottomTab:active { color: var(--color-org); }
+.bottomTab:active { color: var(--color-brand); }
 
-.bottomTabActive { color: var(--color-org); }
+.bottomTabActive { color: var(--color-brand); }
 
 /* Active pip — org color */
 .bottomTabActive::before {
@@ -602,7 +576,7 @@
   transform: translateX(-50%);
   width: 20px;
   height: 3px;
-  background: var(--color-org);
+  background: var(--color-brand);
   border-radius: 0 0 3px 3px;
 }
 
@@ -623,8 +597,8 @@
 }
 
 .bottomTabAvatarActive {
-  border: 2px solid var(--color-org) !important;
-  box-shadow: 0 0 0 1px var(--color-org-subtle) !important;
+  border: 2px solid var(--color-brand) !important;
+  box-shadow: 0 0 0 1px var(--color-brand-subtle) !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -695,8 +669,8 @@
 }
 
 .sheetCloseBtn:hover {
-  background: var(--color-org-subtle);
-  color: var(--color-org);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
 }
 
 .sheetSpacer { width: 36px; }

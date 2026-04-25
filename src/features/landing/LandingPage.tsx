@@ -161,7 +161,7 @@ export default function LandingPage() {
 
           <div className="container-tight" style={{ position: "relative", zIndex: 2 }}>
             <div className={styles.heroCopy}>
-              <Badge variant="brand" dot>Now Live · Join Today</Badge>
+              <Badge variant="brand" dot>Now Beta testing</Badge>
 
               <h1 className={styles.heroHeadline}>
                 Where the{" "}
