@@ -360,7 +360,6 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           ═══════════════════════════════════════ */}
       <header className={styles.topNav} role="banner">
         {/* Org accent stripe */}
-        <div className={styles.orgStripe} aria-hidden="true" />
 
         <div className={styles.topNavInner}>
           {/* Left: org logo + name */}

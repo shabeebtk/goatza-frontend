@@ -636,10 +636,6 @@ export default function OrganizationSetup() {
                 </p>
               )}
 
-              <div className={styles.skipHint}>
-                <Icon icon="mdi:information-outline" width={16} height={16} />
-                Skipping is fine — you can add sports from org settings.
-              </div>
             </div>
           )}
 

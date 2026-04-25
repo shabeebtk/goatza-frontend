@@ -1,0 +1,714 @@
+/* ============================================================
+   GOATZA — OrgProfile.module.css
+   Sports organization profile. Mirrors UserProfile quality.
+   ============================================================ */
+
+@keyframes profileIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+/* ── Page wrapper ─────────────────────────────────────────── */
+
+.profilePage {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+  padding: 0 0 var(--space-16);
+  animation: profileIn 0.5s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .profilePage { padding: var(--space-4) var(--space-6) var(--space-8); }
+}
+
+/* ── Card ─────────────────────────────────────────────────── */
+
+.profileCard {
+  background: var(--color-surface);
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+@media (min-width: 640px) {
+  .profileCard {
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* ── Cover ────────────────────────────────────────────────── */
+
+.coverWrap {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) { .coverWrap { height: 210px; } }
+
+.coverImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Fallback — branded dark gradient with sport icon ghost */
+.coverFallback {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    var(--primitive-ink-950) 0%,
+    var(--primitive-neutral-800) 60%,
+    #0d2018 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primitive-green-alpha-180);
+}
+
+/* SVG grid lines */
+.coverGrid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--primitive-green-alpha-50) 1px, transparent 1px),
+    linear-gradient(90deg, var(--primitive-green-alpha-50) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+.coverOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.40) 100%);
+  pointer-events: none;
+}
+
+.coverEditBtn {
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 7px 12px;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background var(--duration-base), border-color var(--duration-base);
+}
+
+.coverEditBtn:hover {
+  background: rgba(0, 181, 98, 0.6);
+  border-color: var(--color-brand);
+}
+
+
+.coverViewBtn {
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius-full);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+ 
+.coverViewBtn:hover {
+  background: rgba(0,0,0,0.65);
+}
+
+/* ── Profile body ─────────────────────────────────────────── */
+
+.profileBody {
+  padding: 0 var(--space-5) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .profileBody { padding: 0 var(--space-8) var(--space-8); }
+}
+
+/* ── Avatar row ───────────────────────────────────────────── */
+
+.avatarRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: -44px;
+}
+
+@media (min-width: 640px) { .avatarRow { margin-top: -52px; } }
+
+.avatarWrap { position: relative; flex-shrink: 0; }
+
+.avatarClickWrap {
+  position: relative;
+  display: inline-flex;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.profileAvatar {
+  border: 3px solid var(--color-surface) !important;
+  box-shadow: var(--shadow-md) !important;
+  background: var(--color-surface-raised) !important;
+  border-radius: var(--radius-md) !important; /* square-ish for orgs */
+}
+
+.avatarEditOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity var(--duration-base);
+  cursor: pointer;
+}
+
+.avatarClickWrap:hover .avatarEditOverlay { opacity: 1; }
+
+/* Top-right area of avatar row */
+.profileActionsTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  flex: 1;
+}
+
+.topBadgesRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* ── Name block ───────────────────────────────────────────── */
+
+.nameBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.profileName {
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-3xl), 6vw, var(--text-4xl));
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1;
+}
+
+.profileUsername {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Verified badge */
+.verifiedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  flex-shrink: 0;
+}
+
+/* Badges row — sport, location */
+.badgesRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+}
+
+/* ── Generic badge ────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badgeType {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.badgeLevel {
+  background: rgba(255, 170, 0, 0.08);
+  border: 1px solid rgba(255, 170, 0, 0.18);
+  color: #c47f00;
+}
+
+@media (prefers-color-scheme: dark) {
+  .badgeLevel {
+    background: rgba(255, 190, 30, 0.10);
+    border-color: rgba(255, 190, 30, 0.22);
+    color: #f0a500;
+  }
+}
+
+.badgeSportPrimary {
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+.badgeSport {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.badgeLocation {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* Primary sport dot indicator */
+.primaryDot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  margin-left: 2px;
+}
+
+/* ── Headline ─────────────────────────────────────────────── */
+
+.profileHeadline {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.profileHeadlineEmpty {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Stats row ────────────────────────────────────────────── */
+
+.statsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.statPill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  color: var(--color-ink);
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.statLabel {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.statDivider {
+  width: 1px;
+  height: 32px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ── Action buttons ───────────────────────────────────────── */
+
+.profileActionsBase {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.actionBtnFull {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.actionBtnFull :global(button),
+.actionBtnFull :global(a) {
+  width: 100%;
+}
+
+.followingBtn {
+  border-color: var(--color-brand-muted) !important;
+  color: var(--color-brand-hover) !important;
+  background: var(--color-brand-subtle) !important;
+}
+
+.followingBtn:hover {
+  border-color: var(--color-error) !important;
+  color: var(--color-error) !important;
+  background: rgba(232, 70, 42, 0.06) !important;
+}
+
+/* ── Section divider ──────────────────────────────────────── */
+
+.sectionDivider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+/* ── Generic section ──────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+/* ── About ────────────────────────────────────────────────── */
+
+.aboutText {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-loose);
+  white-space: pre-wrap;
+}
+
+.emptyHint {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: var(--text-sm);
+}
+
+.websiteLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-brand-hover);
+  text-decoration: none;
+  transition: color var(--duration-fast);
+  width: fit-content;
+}
+
+.websiteLink:hover { color: var(--color-brand-active); }
+
+.externalIcon { opacity: 0.6; }
+
+/* ── Sports grid ──────────────────────────────────────────── */
+
+.sportsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.sportCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.sportCardPrimary {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+.sportCardIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sportCardName { line-height: 1; }
+
+.sportCardPrimaryLabel {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  background: var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+}
+
+/* ── Locations ────────────────────────────────────────────── */
+
+.locationsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.locationItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.locationIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--color-brand);
+  padding-top: 1px;
+}
+
+.locationText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.locationName {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.locationAddress {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locationMeta {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.locationMapLink {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast), background var(--duration-fast);
+  text-decoration: none;
+}
+
+.locationMapLink:hover {
+  color: var(--color-brand-hover);
+  background: var(--color-brand-subtle);
+}
+
+/* Show more / less button */
+.showMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  transition: color var(--duration-fast);
+}
+
+.showMoreBtn:hover { color: var(--color-brand-active); }
+
+/* ── Skeleton ─────────────────────────────────────────────── */
+
+.profileSkeleton {
+  max-width: 760px;
+  margin-inline: auto;
+  padding: var(--space-4);
+}
+
+.skeletonBlock {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+.skeletonCover {
+  width: 100%;
+  height: 160px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.skeletonBody {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skeletonAvatar { width: 80px; height: 80px; border-radius: var(--radius-md); margin-top: -40px; }
+.skeletonLine   { height: 24px; width: 55%; }
+.skeletonLineSm { height: 16px; width: 35%; }
+
+.skeletonStats {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.skeletonStat { height: 40px; width: 64px; }
+
+/* ── Error state ──────────────────────────────────────────── */
+
+.profileError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 320px;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* ── Touch ────────────────────────────────────────────────── */
+
+@media (hover: none) {
+  .avatarEditOverlay { display: none; }
+}
+
+@media (max-width: 420px) {
+  .profileActionsBase { gap: var(--space-1); }
+}

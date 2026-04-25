@@ -1,18 +1,8 @@
-"use client"
+import OrgProfile from "@/features/organization/component/OrganizationProfile/OrganizationProfile"
 
-import { logoutApi } from "@/features/auth/services/auth.api"
-import { useAuthStore } from "@/store/auth.store"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import api from "@/core/api/axios"
-import FeedList from "@/features/feed/components/FeedList/FeedList"
-
-export default function OrganizationAdminHomePage() {
+export default function OrganizationProfilePage() {
   
   return (
-    <div>
-      admin profile page
-    </div>
+  < OrgProfile orgId="019dc47c-e11f-72c7-8012-467d2797c6bb" isOwn />
   )
 }
