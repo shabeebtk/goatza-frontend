@@ -3,6 +3,7 @@ import imageCompression from "browser-image-compression"
 
 import api from "@/core/api/axios"
 import { getUploadSignatureApi, uploadToCloudinaryApi, UploadType } from "@/features/profile/services/upload.api"
+import { orgKeys } from "./useOrganizations"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ const updateOrgMediaApi = async (
   orgId: string,
   payload: OrgMediaPayload
 ): Promise<void> => {
-  await api.patch(`/organizations/update/logo/cover`, { org_id: orgId, ...payload })
+  await api.post(`/organizations/update/logo/cover`, { org_id: orgId, ...payload })
 }
 
 // ── Hook ─────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ export const useOrgPhotoUpload = (orgId: string) => {
     onSuccess: ({ type, secure_url }) => {
       // Update org detail cache
       qc.setQueriesData(
-        { queryKey: ["org", orgId] },
+        { queryKey: orgKeys.detail(orgId) },
         (old: unknown) => {
           if (!old || typeof old !== "object") return old
           return type === "logo"
@@ -80,24 +81,25 @@ export const useOrgPhotoUpload = (orgId: string) => {
         }
       )
       // Also invalidate the list so org switcher logo refreshes
-      qc.invalidateQueries({ queryKey: ["organizations", "list"] })
+      qc.invalidateQueries({ queryKey: orgKeys.list() })
     },
   })
 
   const deleteLogo = useMutation({
     mutationFn: () => updateOrgMediaApi(orgId, { is_delete_logo: true }),
     onSuccess: () => {
-      qc.setQueriesData({ queryKey: ["org", orgId] }, (old: unknown) => {
+      qc.setQueriesData({ queryKey: orgKeys.detail(orgId) }, (old: unknown) => {
         if (!old || typeof old !== "object") return old
         return { ...(old as object), logo: null }
       })
+      qc.invalidateQueries({ queryKey: orgKeys.list() })
     },
   })
 
   const deleteCover = useMutation({
     mutationFn: () => updateOrgMediaApi(orgId, { is_delete_cover: true }),
     onSuccess: () => {
-      qc.setQueriesData({ queryKey: ["org", orgId] }, (old: unknown) => {
+      qc.setQueriesData({ queryKey: orgKeys.detail(orgId) }, (old: unknown) => {
         if (!old || typeof old !== "object") return old
         return { ...(old as object), cover_image: null }
       })

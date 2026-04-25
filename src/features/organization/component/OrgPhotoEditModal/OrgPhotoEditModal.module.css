@@ -21,6 +21,7 @@
   align-items: flex-end;
   justify-content: center;
   animation: backdropIn 0.2s var(--ease-out) both;
+  padding: 0;
 }
 
 @media (min-width: 640px) {

@@ -212,8 +212,9 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
 
 
     return (
-        <div className={styles.profilePage}>
-            <div className={styles.profileCard}>
+        <>
+            <div className={styles.profilePage}>
+                <div className={styles.profileCard}>
 
                 {/* ── Cover ──────────────────────────────────────── */}
                 <div className={styles.coverWrap}>
@@ -486,19 +487,18 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
 
                 </div>
             </div>
+        </div>
 
-
-            {photoModal && (
-                <OrgPhotoEditModal
-                    type={photoModal}
-                    currentSrc={photoModal === "logo" ? org.logo : org.cover_image}
-                    orgId={orgId}
-                    isOwn={isOwn}
-                    onClose={() => setPhotoModal(null)}
-                />
-            )}
-
-        </div >
+        {photoModal && (
+            <OrgPhotoEditModal
+                type={photoModal}
+                currentSrc={photoModal === "logo" ? org.logo : org.cover_image}
+                orgId={orgId}
+                isOwn={isOwn}
+                onClose={() => setPhotoModal(null)}
+            />
+        )}
+    </>
     )
 }
 

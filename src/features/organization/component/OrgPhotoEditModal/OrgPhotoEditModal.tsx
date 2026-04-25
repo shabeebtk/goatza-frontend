@@ -175,10 +175,10 @@ export default function OrgPhotoEditModal({
 
             {/* Hint for logo crop shape */}
             {type === "logo" && (
-              <p className={styles.cropHint}>
+              <div className={styles.cropHint}>
                 <Icon icon="mdi:crop-square" width={14} height={14} />
                 Logo is cropped square
-              </p>
+              </div>
             )}
 
             <div className={styles.actionSheet}>
