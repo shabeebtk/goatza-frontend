@@ -1,8 +1,12 @@
 import OrgProfile from "@/features/organization/component/OrganizationProfile/OrganizationProfile"
 
-export default function OrganizationProfilePage() {
-  
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function OrganizationProfilePage({ params }: PageProps) {
+  const { id } = await params;
   return (
-  < OrgProfile orgId="019dc47c-e11f-72c7-8012-467d2797c6bb" isOwn />
+    <OrgProfile orgId={id} isOwn />
   )
 }

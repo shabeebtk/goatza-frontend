@@ -3,78 +3,79 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
-import Image from "next/image"
 import Link from "next/link"
-import imageCompression from "browser-image-compression"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import { useCreateOrganization } from "../../hooks/useOrganizations"
 import type { MapboxCity } from "@/shared/services/mapbox.service"
 import styles from "./OrganizationSetup.module.css"
 import { CreateOrganizationPayload, OrgLevel, OrgType } from "../../types"
-import { getUploadSignatureApi, uploadToCloudinaryApi } from "@/features/profile/services/upload.api"
 
-// ── Org type definitions ───────────────────────────────────────
+// ── Org type definitions ──────────────────────────────────────────
 
 type OrgTypeConfig = {
-  type: OrgType
-  label: string
-  icon: string
+  type:        OrgType
+  label:       string
+  icon:        string
   description: string
-  examples: string
+  examples:    string
 }
 
 const ORG_TYPES: OrgTypeConfig[] = [
   {
-    type: "club",
-    label: "Club",
-    icon: "mdi:shield-star-outline",
+    type:        "club",
+    label:       "Club",
+    icon:        "mdi:shield-star-outline",
     description: "A sports club with members, teams and regular activities.",
-    examples: "Football club, cricket club, sports society",
+    examples:    "Football club, cricket club, sports society",
   },
   {
-    type: "team",
-    label: "Team",
-    icon: "mdi:account-group-outline",
+    type:        "team",
+    label:       "Team",
+    icon:        "mdi:account-group-outline",
     description: "A competitive team that plays matches in a league or tournament.",
-    examples: "District team, college team, franchise",
+    examples:    "District team, college team, franchise",
   },
   {
-    type: "academy",
-    label: "Academy",
-    icon: "mdi:school-outline",
+    type:        "academy",
+    label:       "Academy",
+    icon:        "mdi:school-outline",
     description: "A structured training program focused on developing athletes.",
-    examples: "Football academy, tennis coaching center",
+    examples:    "Football academy, tennis coaching center",
   },
   {
-    type: "school",
-    label: "School",
-    icon: "mdi:domain",
+    type:        "school",
+    label:       "School",
+    icon:        "mdi:domain",
     description: "An educational institution with sports programs.",
-    examples: "School, college, university sports department",
+    examples:    "School, college, university sports department",
   },
 ]
 
 const ORG_LEVELS: { value: OrgLevel; label: string }[] = [
-  { value: "youth", label: "Youth" },
-  { value: "amateur", label: "Amateur" },
+  { value: "youth",             label: "Youth" },
+  { value: "amateur",           label: "Amateur" },
   { value: "semi_professional", label: "Semi-Professional" },
-  { value: "professional", label: "Professional" },
+  { value: "professional",      label: "Professional" },
 ]
 
-// ── Step tracker ──────────────────────────────────────────────
+// ── Step tracker ──────────────────────────────────────────────────
 
 type Step = "type" | "details" | "location" | "sports" | "review"
 const STEPS: Step[] = ["type", "details", "location", "sports", "review"]
 
 function StepIndicator({ current }: { current: Step }) {
-  const idx = STEPS.indexOf(current)
+  const idx    = STEPS.indexOf(current)
   const labels = ["Type", "Details", "Location", "Sports", "Review"]
   return (
     <div className={styles.stepIndicator}>
       {STEPS.map((s, i) => (
         <div key={s} className={styles.stepItem}>
-          <div className={`${styles.stepDot} ${i < idx ? styles.stepDone : i === idx ? styles.stepActive : ""}`}>
+          <div
+            className={`${styles.stepDot} ${
+              i < idx ? styles.stepDone : i === idx ? styles.stepActive : ""
+            }`}
+          >
             {i < idx
               ? <Icon icon="mdi:check" width={12} height={12} />
               : <span>{i + 1}</span>
@@ -92,14 +93,12 @@ function StepIndicator({ current }: { current: Step }) {
   )
 }
 
-// ── Type selector card ────────────────────────────────────────
+// ── Type selector card ────────────────────────────────────────────
 
 function TypeCard({
-  config,
-  selected,
-  onSelect,
+  config, selected, onSelect,
 }: {
-  config: OrgTypeConfig
+  config:   OrgTypeConfig
   selected: boolean
   onSelect: () => void
 }) {
@@ -124,30 +123,25 @@ function TypeCard({
   )
 }
 
-// ── Logo uploader ─────────────────────────────────────────────
+// ── Logo uploader ─────────────────────────────────────────────────
+//
+// NO upload here — stores the raw File + a local object URL for preview.
+// Cloudinary upload happens after org creation via useCreateOrganization.
 
 function LogoUploader({
-  value,
-  onChange,
-  uploading,
-  onUpload,
+  previewUrl,
+  onFileSelect,
+  onClear,
 }: {
-  value: string | null
-  onChange: (url: string) => void
-  uploading: boolean
-  onUpload: (file: File) => void
+  previewUrl:   string | null
+  onFileSelect: (file: File) => void
+  onClear:      () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) onUpload(file)
+    if (file) onFileSelect(file)
     e.target.value = ""
   }
 
@@ -157,38 +151,34 @@ function LogoUploader({
         type="button"
         className={styles.logoBtn}
         onClick={() => inputRef.current?.click()}
-        disabled={uploading}
         aria-label="Upload organization logo"
       >
-        {mounted && value ? (
-          <img
-            src={value}
-            alt="Logo"
-            width={80}
-            height={80}
-            className={styles.logoPreview}
-          />
+        {previewUrl ? (
+          <img src={previewUrl} alt="Logo preview" className={styles.logoPreview} />
         ) : (
           <div className={styles.logoPlaceholder}>
-            {uploading
-              ? <span className={styles.logoSpinner} />
-              : <Icon icon="mdi:camera-plus-outline" width={28} height={28} />
-            }
+            <Icon icon="mdi:camera-plus-outline" width={28} height={28} />
           </div>
         )}
       </button>
-      {value && (
+
+      {previewUrl && (
         <button
           type="button"
           className={styles.logoRemove}
-          onClick={() => onChange("")}
+          onClick={onClear}
           aria-label="Remove logo"
         >
           <Icon icon="mdi:close" width={14} height={14} />
           Remove
         </button>
       )}
+
       <p className={styles.logoHint}>PNG or JPG · Max 5 MB · Square recommended</p>
+      <p className={styles.logoHint} style={{ color: "var(--color-brand-hover)" }}>
+        Logo will be uploaded after your page is created
+      </p>
+
       <input
         ref={inputRef}
         type="file"
@@ -201,14 +191,12 @@ function LogoUploader({
   )
 }
 
-// ── Sport chip ────────────────────────────────────────────────
+// ── Sport chip ────────────────────────────────────────────────────
 
 function SportChip({
-  sport,
-  selected,
-  onToggle,
+  sport, selected, onToggle,
 }: {
-  sport: { id: string; name: string; icon_name: string }
+  sport:    { id: string; name: string; icon_name: string }
   selected: boolean
   onToggle: () => void
 }) {
@@ -220,23 +208,21 @@ function SportChip({
     >
       <Icon icon={sport.icon_name} width={16} height={16} />
       {sport.name}
-      {selected && <Icon icon="mdi:check" width={13} height={13} className={styles.sportChipCheck} />}
+      {selected && (
+        <Icon icon="mdi:check" width={13} height={13} className={styles.sportChipCheck} />
+      )}
     </button>
   )
 }
 
-// ── Field wrapper ─────────────────────────────────────────────
+// ── Field wrapper ─────────────────────────────────────────────────
 
 function Field({
-  label,
-  hint,
-  error,
-  required,
-  children,
+  label, hint, error, required, children,
 }: {
-  label: string
-  hint?: string
-  error?: string
+  label:    string
+  hint?:    string
+  error?:   string
   required?: boolean
   children: React.ReactNode
 }) {
@@ -258,7 +244,7 @@ function Field({
   )
 }
 
-// ── Review row ────────────────────────────────────────────────
+// ── Review row ────────────────────────────────────────────────────
 
 function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
@@ -270,73 +256,72 @@ function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-// ── Main component ────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────
 
 export default function OrganizationSetup() {
-  const router = useRouter()
-  const { data: sports = [] } = useSportsList()
+  const { data: sports = [] }               = useSportsList()
   const { mutate: createOrg, isPending: creating } = useCreateOrganization()
 
-  // ── State ─────────────────────────────────────────────────
+  // ── Step state ────────────────────────────────────────────────
   const [step, setStep] = useState<Step>("type")
 
   // Step 1
   const [orgType, setOrgType] = useState<OrgType | null>(null)
 
   // Step 2
-  const [name, setName] = useState("")
-  const [headline, setHeadline] = useState("")
+  const [name, setName]               = useState("")
+  const [headline, setHeadline]       = useState("")
   const [description, setDescription] = useState("")
-  const [level, setLevel] = useState<OrgLevel | "">("")
-  const [website, setWebsite] = useState("")
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const [logoUploading, setLogoUploading] = useState(false)
+  const [level, setLevel]             = useState<OrgLevel | "">("")
+  const [website, setWebsite]         = useState("")
+
+  // ── Logo — local file only, no Cloudinary yet ─────────────────
+  const [logoFile, setLogoFile]           = useState<File | null>(null)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+
+  const handleLogoSelect = useCallback((file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((e) => ({ ...e, logo: "File must be under 5 MB" }))
+      return
+    }
+    // Revoke previous object URL to avoid memory leaks
+    if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl)
+
+    const preview = URL.createObjectURL(file)
+    setLogoFile(file)
+    setLogoPreviewUrl(preview)
+    setErrors((e) => { const n = { ...e }; delete n.logo; return n })
+  }, [logoPreviewUrl])
+
+  const handleLogoClear = useCallback(() => {
+    if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl)
+    setLogoFile(null)
+    setLogoPreviewUrl(null)
+  }, [logoPreviewUrl])
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => { if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 3
-  const [city, setCity] = useState<MapboxCity | null>(null)
+  const [city, setCity]       = useState<MapboxCity | null>(null)
   const [address, setAddress] = useState("")
   const [locName, setLocName] = useState("")
 
   // Step 4
   const [selectedSports, setSelectedSports] = useState<string[]>([])
 
-  // Validation errors
+  // Errors
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // ── Logo upload ────────────────────────────────────────────
-  const handleLogoUpload = useCallback(async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((e) => ({ ...e, logo: "File must be under 5 MB" }))
-      return
-    }
-    setLogoUploading(true)
-    try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 800,
-        useWebWorker: true,
-        fileType: "image/webp",
-      })
-      const sig = await getUploadSignatureApi("organization_logo")
-      const { secure_url } = await uploadToCloudinaryApi(compressed, sig.uploads[0])
-      setLogoUrl(secure_url)
-      setErrors((e) => { const n = { ...e }; delete n.logo; return n })
-    } catch {
-      setErrors((e) => ({ ...e, logo: "Upload failed. Please try again." }))
-    } finally {
-      setLogoUploading(false)
-    }
-  }, [])
-
-  // ── City auto-fill ─────────────────────────────────────────
+  // ── City auto-fill ────────────────────────────────────────────
   const handleCityChange = (selected: MapboxCity | null) => {
     setCity(selected)
-    if (selected && !locName) {
-      setLocName("Main Branch")
-    }
+    if (selected && !locName) setLocName("Main Branch")
   }
 
-  // ── Validation per step ────────────────────────────────────
+  // ── Validation ────────────────────────────────────────────────
   const validateStep = (): boolean => {
     const errs: Record<string, string> = {}
 
@@ -345,20 +330,21 @@ export default function OrganizationSetup() {
     }
 
     if (step === "details") {
-      if (!name.trim()) errs.name = "Name is required"
+      if (!name.trim())           errs.name    = "Name is required"
       else if (name.trim().length < 2) errs.name = "Name must be at least 2 characters"
-      if (website && !/^https?:\/\/.+/.test(website)) errs.website = "Must start with http:// or https://"
+      if (website && !/^https?:\/\/.+/.test(website))
+        errs.website = "Must start with http:// or https://"
     }
 
-    if (step === "location" && city) {
-      if (!address.trim()) errs.address = "Address is required when location is set"
+    if (step === "location" && city && !address.trim()) {
+      errs.address = "Address is required when location is set"
     }
 
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
 
-  // ── Navigation ─────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────
   const next = () => {
     if (!validateStep()) return
     const idx = STEPS.indexOf(step)
@@ -370,43 +356,44 @@ export default function OrganizationSetup() {
     if (idx > 0) setStep(STEPS[idx - 1])
   }
 
-  // ── Submit ─────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────
   const handleSubmit = () => {
     if (!orgType || !name.trim()) return
 
     const payload: CreateOrganizationPayload = {
-      name: name.trim(),
-      type: orgType,
-      ...(headline && { headline: headline.trim() }),
+      name:  name.trim(),
+      type:  orgType,
+      ...(headline    && { headline:    headline.trim() }),
       ...(description && { description: description.trim() }),
-      ...(website && { website: website.trim() }),
-      ...(logoUrl && { logo: logoUrl }),
-      ...(level && { level: level as OrgLevel }),
+      ...(website     && { website:     website.trim() }),
+      ...(level       && { level:       level as OrgLevel }),
       ...(selectedSports.length > 0 && { sport_ids: selectedSports }),
       ...(city && {
         location: {
-          name: locName.trim() || "Main Branch",
-          address: address.trim(),
-          city: city.name,
-          state: city.state,
+          name:         locName.trim() || "Main Branch",
+          address:      address.trim(),
+          city:         city.name,
+          state:        city.state,
           country_code: city.country_code,
-          latitude: city.latitude,
-          longitude: city.longitude,
+          latitude:     city.latitude,
+          longitude:    city.longitude,
         },
       }),
+      // NOTE: logo is NOT sent here — uploaded after org creation
     }
 
-    createOrg(payload)
+    createOrg({
+      payload,
+      logoFile: logoFile ?? null,   // hook handles Cloudinary upload post-create
+    })
   }
 
-  // ── Render steps ───────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────
 
   return (
     <div className={styles.page}>
-      {/* Background */}
       <div className={styles.bgGrid} aria-hidden="true" />
 
-      {/* Header */}
       <header className={styles.header}>
         <Link href="/home" className={styles.headerLogo} aria-label="Go home">
           <Icon icon="mdi:arrow-left" width={18} height={18} />
@@ -419,7 +406,6 @@ export default function OrganizationSetup() {
       <main className={styles.main}>
         <div className={styles.card}>
 
-          {/* Step indicator */}
           <StepIndicator current={step} />
 
           {/* ── STEP 1: TYPE ─────────────────────────────── */}
@@ -438,10 +424,7 @@ export default function OrganizationSetup() {
                     key={t.type}
                     config={t}
                     selected={orgType === t.type}
-                    onSelect={() => {
-                      setOrgType(t.type)
-                      setErrors({})
-                    }}
+                    onSelect={() => { setOrgType(t.type); setErrors({}) }}
                   />
                 ))}
               </div>
@@ -469,13 +452,11 @@ export default function OrganizationSetup() {
                 </p>
               </div>
 
-              {/* Logo */}
               <Field label="Logo" hint="A square logo works best." error={errors.logo}>
                 <LogoUploader
-                  value={logoUrl}
-                  onChange={setLogoUrl}
-                  uploading={logoUploading}
-                  onUpload={handleLogoUpload}
+                  previewUrl={logoPreviewUrl}
+                  onFileSelect={handleLogoSelect}
+                  onClear={handleLogoClear}
                 />
               </Field>
 
@@ -517,7 +498,9 @@ export default function OrganizationSetup() {
                     <button
                       key={l.value}
                       type="button"
-                      className={`${styles.levelChip} ${level === l.value ? styles.levelChipSelected : ""}`}
+                      className={`${styles.levelChip} ${
+                        level === l.value ? styles.levelChipSelected : ""
+                      }`}
                       onClick={() => setLevel(level === l.value ? "" : l.value)}
                     >
                       {l.label}
@@ -526,7 +509,11 @@ export default function OrganizationSetup() {
                 </div>
               </Field>
 
-              <Field label="Website" hint="Optional. Must start with https://" error={errors.website}>
+              <Field
+                label="Website"
+                hint="Optional. Must start with https://"
+                error={errors.website}
+              >
                 <input
                   className={styles.input}
                   placeholder="https://yourclub.com"
@@ -576,7 +563,12 @@ export default function OrganizationSetup() {
                     />
                   </Field>
 
-                  <Field label="Address" required error={errors.address} hint="Street address or landmark">
+                  <Field
+                    label="Address"
+                    required
+                    error={errors.address}
+                    hint="Street address or landmark"
+                  >
                     <input
                       className={styles.input}
                       placeholder="Near Municipal Stadium, Kannur"
@@ -635,7 +627,6 @@ export default function OrganizationSetup() {
                   {selectedSports.length} sport{selectedSports.length !== 1 ? "s" : ""} selected
                 </p>
               )}
-
             </div>
           )}
 
@@ -650,42 +641,67 @@ export default function OrganizationSetup() {
               </div>
 
               <div className={styles.reviewCard}>
-
-                {/* Logo + name */}
                 <div className={styles.reviewHero}>
                   <div className={styles.reviewLogoWrap}>
-                    {logoUrl
-                      ? <Image src={logoUrl} alt="" width={64} height={64} className={styles.reviewLogo} />
-                      : (
-                        <div className={styles.reviewLogoFallback}>
-                          <Icon icon={ORG_TYPES.find((t) => t.type === orgType)?.icon ?? "mdi:domain"} width={28} height={28} />
-                        </div>
-                      )
-                    }
+                    {logoPreviewUrl ? (
+                      <img
+                        src={logoPreviewUrl}
+                        alt=""
+                        width={64}
+                        height={64}
+                        className={styles.reviewLogo}
+                      />
+                    ) : (
+                      <div className={styles.reviewLogoFallback}>
+                        <Icon
+                          icon={
+                            ORG_TYPES.find((t) => t.type === orgType)?.icon ?? "mdi:domain"
+                          }
+                          width={28}
+                          height={28}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <p className={styles.reviewName}>{name}</p>
                     <p className={styles.reviewType}>
                       {ORG_TYPES.find((t) => t.type === orgType)?.label}
-                      {level && ` · ${ORG_LEVELS.find((l) => l.value === level)?.label}`}
+                      {level &&
+                        ` · ${ORG_LEVELS.find((l) => l.value === level)?.label}`}
                     </p>
                   </div>
                 </div>
 
+                {/* Logo upload notice */}
+                {logoFile && (
+                  <div className={styles.reviewLogoNotice}>
+                    <Icon icon="mdi:cloud-upload-outline" width={14} height={14} />
+                    Logo will be uploaded after your page is created
+                  </div>
+                )}
+
                 <div className={styles.reviewDivider} />
 
-                <ReviewRow label="Tagline" value={headline} />
-                <ReviewRow label="About" value={description} />
-                <ReviewRow label="Website" value={website} />
+                <ReviewRow label="Tagline"  value={headline} />
+                <ReviewRow label="About"    value={description} />
+                <ReviewRow label="Website"  value={website} />
                 <ReviewRow
                   label="Location"
-                  value={city ? `${locName || "Main Branch"} · ${address}, ${city.name}` : undefined}
+                  value={
+                    city
+                      ? `${locName || "Main Branch"} · ${address}, ${city.name}`
+                      : undefined
+                  }
                 />
                 <ReviewRow
                   label="Sports"
                   value={
                     selectedSports.length > 0
-                      ? sports.filter((s) => selectedSports.includes(s.id)).map((s) => s.name).join(", ")
+                      ? sports
+                          .filter((s) => selectedSports.includes(s.id))
+                          .map((s) => s.name)
+                          .join(", ")
                       : undefined
                   }
                 />
@@ -693,14 +709,14 @@ export default function OrganizationSetup() {
                 {!headline && !description && !city && selectedSports.length === 0 && (
                   <p className={styles.reviewMinimal}>
                     <Icon icon="mdi:information-outline" width={14} height={14} />
-                    Only name and type are set. You can add more details later from org settings.
+                    Only name and type are set. You can add more details later.
                   </p>
                 )}
               </div>
             </div>
           )}
 
-          {/* ── Footer nav ───────────────────────────────── */}
+          {/* ── Footer ───────────────────────────────────── */}
           <div className={styles.footer}>
             {step !== "type" && (
               <button
@@ -743,9 +759,15 @@ export default function OrganizationSetup() {
                   disabled={creating}
                 >
                   {creating ? (
-                    <><span className={styles.spinner} /> Creating…</>
+                    <>
+                      <span className={styles.spinner} />
+                      {logoFile ? "Creating & uploading logo…" : "Creating…"}
+                    </>
                   ) : (
-                    <><Icon icon="mdi:check-circle-outline" width={18} height={18} /> Create Page</>
+                    <>
+                      <Icon icon="mdi:check-circle-outline" width={18} height={18} />
+                      Create Page
+                    </>
                   )}
                 </button>
               )}

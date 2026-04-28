@@ -18,6 +18,7 @@ import { useOrgDetail, useFollowOrg } from "@/features/organization/hooks/useOrg
 import type { OrgLocation, OrgSport, OrganizationDetail } from "@/features/organization/types"
 import styles from "./OrganizationProfile.module.css"
 import OrgPhotoEditModal from "../OrgPhotoEditModal/OrgPhotoEditModal"
+import EditOrgProfileModal from "../EditOrgProfileModal/EditOrgProfileModal"
 
 // ── Constants ──────────────────────────────────────────────────────
 
@@ -194,6 +195,7 @@ interface OrgProfileInnerProps {
 
 function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
     const [photoModal, setPhotoModal] = useState<"logo" | "cover" | null>(null)
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
     const [showAllLocations, setShowAllLocations] = useState(false)
     const [isFollowing, setIsFollowing] = useState(false)
@@ -341,6 +343,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                                     fullWidth
                                     className={styles.actionBtnFull}
                                     leftIcon={<Icon icon="mdi:pencil-outline" width={15} height={15} />}
+                                    onClick={() => setIsEditModalOpen(true)}
                                 >
                                     Edit Organization
                                 </Button>
@@ -488,17 +491,25 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                 </div>
             </div>
         </div>
+        
+        {/* ── Modals ── */}
+            {photoModal && (
+                <OrgPhotoEditModal
+                    type={photoModal}
+                    currentSrc={photoModal === "logo" ? org.logo : org.cover_image}
+                    orgId={orgId}
+                    isOwn={isOwn}
+                    onClose={() => setPhotoModal(null)}
+                />
+            )}
 
-        {photoModal && (
-            <OrgPhotoEditModal
-                type={photoModal}
-                currentSrc={photoModal === "logo" ? org.logo : org.cover_image}
-                orgId={orgId}
-                isOwn={isOwn}
-                onClose={() => setPhotoModal(null)}
-            />
-        )}
-    </>
+            {isEditModalOpen && (
+                <EditOrgProfileModal
+                    org={org}
+                    onClose={() => setIsEditModalOpen(false)}
+                />
+            )}
+        </>
     )
 }
 

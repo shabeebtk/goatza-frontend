@@ -21,7 +21,7 @@ import { LOGO_URL } from "@/constants"
 import { useAuthStore } from "@/store/auth.store"
 import { logoutApi } from "@/features/auth/services/auth.api"
 import { useOrganizations } from "@/features/organization/hooks/useOrganizations"
-
+import { useQueryClient } from "@tanstack/react-query"
 // ── Helpers ────────────────────────────────────────────────────────
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -320,6 +320,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
 
   const { data: organizations = [] } = useOrganizations()
   const currentOrg = organizations.find((o: any) => o.id === orgId)
+  const queryClient = useQueryClient();
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -329,16 +330,19 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const handleLogout = async () => {
     try { await logoutApi() } catch (_) {}
     clearAuth()
+    queryClient.clear();
     router.push("/auth")
   }
 
   const handleSwitchToUser = () => {
     switchToUser()
+    queryClient.clear();
     router.push("/home")
   }
 
   const handleSwitchToOrganization = (id: string) => {
     switchToOrganization(id)
+    queryClient.clear();
     router.push(`/organization/admin/${id}/home`)
   }
 
@@ -432,7 +436,6 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           MOBILE TOP BAR  (< 768px)
           ═══════════════════════════════════════ */}
       <header className={styles.mobileTopBar} role="banner" aria-label="Organization mobile header">
-        <div className={styles.orgStripe} aria-hidden="true" />
         <OrgLogoMark
           orgId={orgId}
           logoUrl={currentOrg?.logo}
