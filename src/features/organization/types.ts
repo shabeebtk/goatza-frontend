@@ -73,13 +73,15 @@ export type OrganizationDetail = {
 // ── Payloads ──────────────────────────────────────────────────────
 
 export type OrgLocationPayload = {
+  id?:          string | null
   name:         string
   address:      string
   city:         string
   state:        string
   country_code: string
-  latitude:     number
-  longitude:    number
+  latitude:     number | null
+  longitude:    number | null
+  is_primary?:  boolean
 }
 
 export type CreateOrganizationPayload = {

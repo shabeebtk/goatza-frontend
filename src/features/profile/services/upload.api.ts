@@ -29,12 +29,18 @@ export type UpdateMediaPayload = {
 }
 
 // ── Step 1: Get signed upload config from backend ─────────────
+
 export const getUploadSignatureApi = async (
-  type: UploadType,
-  count = 1
+  type:    UploadType,
+  count    = 1,
+  org_id?: string,         
 ): Promise<UploadSignatureResponse> => {
   const res = await api.get("/user/get/upload/signature", {
-    params: { type, count },
+    params: {
+      type,
+      count,
+      ...(org_id ? { org_id } : {}),   
+    },
   })
   return res.data.data
 }

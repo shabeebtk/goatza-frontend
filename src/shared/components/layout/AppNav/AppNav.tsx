@@ -21,6 +21,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { Button } from "../../ui";
 import { logoutApi } from "@/features/auth/services/auth.api";
 import { useOrganizations } from "@/features/organization/hooks/useOrganizations";
+import { useQueryClient } from "@tanstack/react-query";
 
 // ── Static mock data (replace with real auth/org context) ─────────
 const MOCK_USER = {
@@ -446,6 +447,7 @@ export default function AppNav() {
   )
 
   const { data: organizations = [] } = useOrganizations()
+  const queryClient = useQueryClient();
 
   // ── Long Press Logic ──────────────────────────────────────────────────
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -470,6 +472,7 @@ export default function AppNav() {
       await logoutApi();
     } catch (e) { }
     clearAuth();
+    queryClient.clear();
     router.push("/auth");
   };
 
@@ -477,6 +480,7 @@ export default function AppNav() {
     switchToUser()
     setDropdownOpen(false)
     setMobileSheetOpen(false)
+    queryClient.clear();
     router.push("/home")
   }
 
@@ -484,6 +488,7 @@ export default function AppNav() {
     switchToOrganization(orgId)
     setDropdownOpen(false)
     setMobileSheetOpen(false)
+    queryClient.clear();
     router.push(`/organization/admin/${orgId}/home`)
   }
 
