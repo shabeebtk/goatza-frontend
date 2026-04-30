@@ -25,10 +25,10 @@ function fmtCount(n: number): string {
 }
 
 const REACTION_META: Record<string, { icon: string; color: string }> = {
-  like:    { icon: "mdi:lightning-bolt",           color: "var(--color-brand)" },
-  fire:    { icon: "mdi:fire",                     color: "#FF5E00"            },
-  respect: { icon: "fluent:hand-wave-24-filled",   color: "#FFC83D"            },
-  funny:   { icon: "fluent:emoji-laugh-24-filled", color: "#FFC83D"            },
+  like: { icon: "mdi:lightning-bolt", color: "var(--color-brand)" },
+  fire: { icon: "mdi:fire", color: "#FF5E00" },
+  respect: { icon: "fluent:hand-wave-24-filled", color: "#FFC83D" },
+  funny: { icon: "fluent:emoji-laugh-24-filled", color: "#FFC83D" },
 }
 
 function getTopReactions(
@@ -71,30 +71,37 @@ function PostContent({ text }: { text: string }) {
   )
 }
 
+
 // ── Post card ─────────────────────────────────────────────────
 
 interface PostCardProps {
-  post:        Post
+  post: Post
   queryParams: FetchPostsParams,
   isPreview?: boolean
 }
 
-export default function PostCard({ post, queryParams, isPreview=false }: PostCardProps) {
+export default function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
-  const [showOptions, setShowOptions]   = useState(false)   // ← NEW
+  const [showOptions, setShowOptions] = useState(false)   // ← NEW
 
-  const user       = useAuthStore((s) => s.user)             // ← NEW
-  const isOwn      = user?.id === post.author.id             // ← NEW
+  const user = useAuthStore((s) => s.user)             // ← NEW
+  const isOwn = user?.id === post.author.id             // ← NEW
 
-  const timeAgo      = dayjs(post.created_at).fromNow()
+  const timeAgo = dayjs(post.created_at).fromNow()
   const topReactions = getTopReactions(post.likes_breakdown)
+
+  function getAuthorProfileHref(post: Post): string {
+    return post.author_type === "organization"
+      ? `/organization/profile/${post.author.username}`
+      : `/profile/${post.author.username}`
+  }
 
   return (
     <article className={styles.card}>
 
       {/* ── Header ── */}
       <div className={styles.cardHeader}>
-        <Link href={`/profile/${post.author.username}`} className={styles.authorLink}>
+        <Link href={getAuthorProfileHref(post)} className={styles.authorLink}>
           <Avatar
             src={post.author.profile_photo}
             initials={post.author.name?.slice(0, 2).toUpperCase()}
@@ -166,10 +173,10 @@ export default function PostCard({ post, queryParams, isPreview=false }: PostCar
               <span className={styles.reactionIcons}>
                 {topReactions.length > 0
                   ? topReactions.map((r) => (
-                      <span key={r.type} className={styles.reactionIconBubble} title={r.type}>
-                        <Icon icon={r.icon} width={13} height={13} color={r.color} />
-                      </span>
-                    ))
+                    <span key={r.type} className={styles.reactionIconBubble} title={r.type}>
+                      <Icon icon={r.icon} width={13} height={13} color={r.color} />
+                    </span>
+                  ))
                   : (
                     <span className={styles.reactionIconBubble}>
                       <Icon icon="mdi:lightning-bolt" width={11} height={11} color="var(--color-brand)" />
@@ -201,7 +208,7 @@ export default function PostCard({ post, queryParams, isPreview=false }: PostCar
       {showComments && <PostComments postId={post.id} />}
 
       {/* ── Options sheet ── */}
-      {showOptions && (                                       
+      {showOptions && (
         <PostOptionsSheet
           postId={post.id}
           isOwn={isOwn}

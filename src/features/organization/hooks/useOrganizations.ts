@@ -54,12 +54,12 @@ export const useOrganizations = () => {
 
 // ── Detail ────────────────────────────────────────────────────────
 
-export const useOrgDetail = (orgId: string) => {
+export const useOrgDetail = (identifier: string, by: "id" | "username" = "id") => {
   return useQuery({
-    queryKey: orgKeys.detail(orgId),
-    queryFn:  () => getOrganizationDetailApi(orgId),
+    queryKey: orgKeys.detail(identifier),
+    queryFn: () => getOrganizationDetailApi(identifier, by),
     staleTime: 1000 * 60 * 3,
-    enabled:  !!orgId,
+    enabled: !!identifier,
   })
 }
 

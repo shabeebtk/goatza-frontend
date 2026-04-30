@@ -7,7 +7,7 @@ import Link from "next/link"
 
 import { useRouter } from "next/navigation"
 
-export default function SinglePostPage({
+export default function UserPostsPage({
   params,
 }: {
   params: Promise<{ id: string }>
