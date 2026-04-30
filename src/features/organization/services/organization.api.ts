@@ -20,14 +20,17 @@ export const createOrganizationApi = async (
 
 
 export const getOrganizationDetailApi = async (
-  orgId: string
+  identifier: string,
+  by: "id" | "username" = "id"
 ): Promise<OrganizationDetail> => {
   const res = await api.get("/organizations/details", {
-    params: { organization_id: orgId, type: "all" },
+    params: {
+      ...(by === "id" ? { organization_id: identifier } : { username: identifier }),
+      type: "all",
+    },
   })
   return res.data.data
 }
-
 
 
 // ── Logo / cover update ───────────────────────────────────────────

@@ -303,7 +303,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               username={profile.username}
               isOwn={isMe}
               preview
-              onCreatePost={() => {/* wire up if you want the CTA here */ }}
+              onCreatePost={() => {/* wire up if want the CTA here */ }}
             />
 
           </div>
