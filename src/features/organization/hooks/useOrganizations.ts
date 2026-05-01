@@ -15,6 +15,7 @@ import {
   OrganizationDetail,
   OrganizationMini,
 } from "../types"
+import { useAuthStore } from "@/store/auth.store"
 import {
   getUploadSignatureApi,
   uploadToCloudinaryApi,
@@ -82,6 +83,7 @@ export type CreateOrgInput = {
 export const useCreateOrganization = () => {
   const qc     = useQueryClient()
   const router = useRouter()
+  const switchToOrganization = useAuthStore((s) => s.switchToOrganization)
 
   return useMutation({
     mutationFn: async ({ payload, logoFile }: CreateOrgInput) => {
@@ -114,6 +116,7 @@ export const useCreateOrganization = () => {
     },
 
     onSuccess: (org) => {
+      switchToOrganization(org.id)
       qc.invalidateQueries({ queryKey: orgKeys.all() })
       router.push(`/organization/admin/${org.id}/home`)
     },
@@ -185,9 +188,21 @@ import { OrgLocationPayload } from "../types"
 
 export const useUpdateOrganization = (orgId: string) => {
   const qc = useQueryClient()
+  const upsertOrganization = useAuthStore((s) => s.upsertOrganization)
+
   return useMutation({
-    mutationFn: (payload: Record<string, unknown>) => updateOrganizationApi(payload as any),
-    onSuccess: () => {
+    mutationFn: (payload: Partial<OrganizationDetail>) => updateOrganizationApi(payload),
+    onSuccess: (updatedOrganization) => {
+      upsertOrganization({
+        id: updatedOrganization.id,
+        name: updatedOrganization.name,
+        username: updatedOrganization.username,
+        type: updatedOrganization.type,
+        logo: updatedOrganization.logo,
+        headline: updatedOrganization.headline,
+        is_verified: updatedOrganization.is_verified,
+      })
+
       qc.invalidateQueries({ queryKey: orgKeys.detail(orgId) })
       qc.invalidateQueries({ queryKey: orgKeys.list() })
     },

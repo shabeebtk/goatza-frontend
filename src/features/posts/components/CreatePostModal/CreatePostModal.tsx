@@ -238,11 +238,12 @@ interface CreatePostModalProps {
   username:       string
   userAvatarUrl?: string
   userInitials?:  string
+  displayName?:   string
   onClose:        () => void
 }
 
 export default function CreatePostModal({
-  username, userAvatarUrl, userInitials, onClose,
+  username, userAvatarUrl, userInitials, displayName, onClose,
 }: CreatePostModalProps) {
   const router     = useRouter()
   const createPost = useCreatePost()
@@ -428,7 +429,9 @@ export default function CreatePostModal({
           <div className={styles.authorRow}>
             <Avatar src={userAvatarUrl} initials={userInitials} size="md" />
             <div className={styles.authorMeta}>
-              <span className={styles.authorName}>@{username}</span>
+              <span className={styles.authorName}>
+                {displayName ? `${displayName} ` : ""}@{username}
+              </span>
               {composing && (
                 <div className={styles.authorBadges}>
                   <VisibilityBtn value={visibility} onChange={setVisibility} />

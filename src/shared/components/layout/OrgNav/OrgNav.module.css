@@ -302,6 +302,41 @@
   color: var(--color-brand);
 }
 
+.topNavCreateBtn {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .topNavCreateBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 8px 16px;
+    background: var(--color-brand);
+    color: var(--color-on-brand);
+    border: none;
+    border-radius: var(--radius-full);
+    font-family: var(--font-ui);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-base);
+    flex-shrink: 0;
+  }
+
+  .topNavCreateBtn:hover {
+    background: var(--color-brand-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-brand);
+  }
+
+  .topNavCreateBtn:active {
+    transform: scale(0.96);
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    NOTIFICATION BADGE
    ───────────────────────────────────────────────────────────── */
@@ -586,6 +621,37 @@
   align-items: center;
   justify-content: center;
   line-height: 0;
+}
+
+.bottomTabCreate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  height: 100%;
+  text-decoration: none;
+}
+
+.bottomTabCreateInner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  box-shadow: var(--shadow-brand);
+  transition:
+    background var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base);
+  margin-top: -8px;
+}
+
+.bottomTabCreate:active .bottomTabCreateInner {
+  background: var(--color-brand-hover);
+  transform: scale(0.93);
 }
 
 /* Avatar tab button */
