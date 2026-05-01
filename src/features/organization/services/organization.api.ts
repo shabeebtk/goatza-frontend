@@ -54,7 +54,7 @@ export const updateOrgMediaApi = async (
 // ── Update ───────────────────────────────────────────────────────
 
 export const updateOrganizationApi = async (
-  payload: Partial<Organization>
+  payload: Partial<OrganizationDetail>
 ): Promise<OrganizationDetail> => {
   const res = await api.patch("/organizations/update", payload)
   return res.data.data

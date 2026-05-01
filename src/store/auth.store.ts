@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
+import type { OrganizationMini } from "@/features/organization/types"
 
 export type ActorType = "user" | "organization"
 
@@ -11,6 +12,27 @@ export type User = {
   profile_photo?: string
 }
 
+export type OrganizationActor = OrganizationMini
+
+const ORG_ADMIN_ROUTE_REGEX = /^\/organization\/admin\/([^/?#]+)/
+
+const findOrgById = (
+  organizations: OrganizationActor[],
+  id: string | null
+) => {
+  if (!id) return null
+  return organizations.find((org) => org.id === id) ?? null
+}
+
+const uniqueOrganizations = (organizations: OrganizationActor[]) => {
+  const seen = new Set<string>()
+  return organizations.filter((org) => {
+    if (!org.id || seen.has(org.id)) return false
+    seen.add(org.id)
+    return true
+  })
+}
+
 type AuthState = {
   // MEMORY ONLY (not persisted)
   accessToken: string | null
@@ -18,9 +40,11 @@ type AuthState = {
   isAuthenticated: boolean
   isLoading: boolean
 
-  // SAFE TO PERSIST
+  // actor context
   actorType: ActorType
   actorId: string | null
+  organizations: OrganizationActor[]
+  currentOrganization: OrganizationActor | null
 
   // ACTIONS
   setLoading: (value: boolean) => void
@@ -34,9 +58,17 @@ type AuthState = {
 
   updateUser: (user: User) => void
 
+  setOrganizations: (organizations: OrganizationActor[]) => void
+
+  upsertOrganization: (organization: OrganizationActor) => void
+
+  removeOrganization: (organizationId: string) => void
+
   switchToUser: () => void
 
   switchToOrganization: (organizationId: string) => void
+
+  syncActorFromPath: (pathname: string) => void
 
   clearAuth: () => void
 }
@@ -50,9 +82,11 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: true,
 
-      // PERSISTED
+      // ACTOR CONTEXT
       actorType: "user",
       actorId: null,
+      organizations: [],
+      currentOrganization: null,
 
       // -------------------
       // ACTIONS
@@ -64,12 +98,16 @@ export const useAuthStore = create<AuthState>()(
         }),
 
       setSession: ({ token, user }) =>
-        set({
+        set((state) => ({
           accessToken: token,
           user,
           isAuthenticated: true,
           isLoading: false,
-        }),
+          currentOrganization:
+            state.actorType === "organization"
+              ? findOrgById(state.organizations, state.actorId)
+              : null,
+        })),
 
       updateAccessToken: (token) =>
         set((state) => ({
@@ -83,16 +121,127 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
         }),
 
+      setOrganizations: (organizations) =>
+        set((state) => {
+          const nextOrganizations = uniqueOrganizations(organizations)
+          const nextCurrentOrganization =
+            state.actorType === "organization"
+              ? findOrgById(nextOrganizations, state.actorId)
+              : null
+
+          if (state.actorType === "organization" && state.actorId && !nextCurrentOrganization) {
+            return {
+              organizations: nextOrganizations,
+              actorType: "user" as const,
+              actorId: null,
+              currentOrganization: null,
+            }
+          }
+
+          return {
+            organizations: nextOrganizations,
+            currentOrganization: nextCurrentOrganization,
+          }
+        }),
+
+      upsertOrganization: (organization) =>
+        set((state) => {
+          const exists = state.organizations.some((org) => org.id === organization.id)
+          const nextOrganizations = exists
+            ? state.organizations.map((org) =>
+                org.id === organization.id ? organization : org
+              )
+            : [organization, ...state.organizations]
+
+          return {
+            organizations: nextOrganizations,
+            currentOrganization:
+              state.actorType === "organization"
+                ? findOrgById(nextOrganizations, state.actorId)
+                : null,
+          }
+        }),
+
+      removeOrganization: (organizationId) =>
+        set((state) => {
+          const nextOrganizations = state.organizations.filter(
+            (org) => org.id !== organizationId
+          )
+
+          if (state.actorType === "organization" && state.actorId === organizationId) {
+            return {
+              organizations: nextOrganizations,
+              actorType: "user" as const,
+              actorId: null,
+              currentOrganization: null,
+            }
+          }
+
+          return {
+            organizations: nextOrganizations,
+            currentOrganization:
+              state.actorType === "organization"
+                ? findOrgById(nextOrganizations, state.actorId)
+                : null,
+          }
+        }),
+
       switchToUser: () =>
-        set({
-          actorType: "user",
-          actorId: null,
+        set((state) => {
+          if (state.actorType === "user" && !state.actorId && !state.currentOrganization) {
+            return state
+          }
+
+          return {
+            actorType: "user" as const,
+            actorId: null,
+            currentOrganization: null,
+          }
         }),
 
       switchToOrganization: (organizationId) =>
-        set({
-          actorType: "organization",
-          actorId: organizationId,
+        set((state) => {
+          const nextOrgId = organizationId?.trim()
+          if (!nextOrgId) return state
+
+          return {
+            actorType: "organization" as const,
+            actorId: nextOrgId,
+            currentOrganization: findOrgById(state.organizations, nextOrgId),
+          }
+        }),
+
+      syncActorFromPath: (pathname) =>
+        set((state) => {
+          if (!pathname) return state
+
+          const match = pathname.match(ORG_ADMIN_ROUTE_REGEX)
+
+          if (match?.[1]) {
+            const orgId = decodeURIComponent(match[1])
+
+            if (state.actorType === "organization" && state.actorId === orgId) {
+              return {
+                currentOrganization: findOrgById(state.organizations, orgId),
+              }
+            }
+
+            return {
+              actorType: "organization" as const,
+              actorId: orgId,
+              currentOrganization: findOrgById(state.organizations, orgId),
+            }
+          }
+
+          if (state.actorType === "user" && !state.actorId && !state.currentOrganization) {
+            return state
+          }
+
+          return {
+            actorType: "user" as const,
+            actorId: null,
+            currentOrganization: null,
+          }
         }),
 
       clearAuth: () =>
@@ -103,6 +252,8 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
           actorType: "user",
           actorId: null,
+          organizations: [],
+          currentOrganization: null,
         }),
     }),
     {
@@ -124,6 +275,8 @@ export const useAuthStore = create<AuthState>()(
         state.user = null
         state.isAuthenticated = false
         state.isLoading = true
+        state.organizations = []
+        state.currentOrganization = null
       },
     }
   )

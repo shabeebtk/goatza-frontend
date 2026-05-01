@@ -1,12 +1,31 @@
-import OrgProfile from "@/features/organization/component/OrganizationProfile/OrganizationProfile"
+"use client"
 
-interface PageProps {
+import { use } from "react"
+import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
+import { useAuthStore } from "@/store/auth.store"
+
+export default function UserPostsPage({
+  params,
+}: {
   params: Promise<{ id: string }>
-}
+}) {
+  const { id } = use(params)
+  const currentOrganization = useAuthStore((s) => s.currentOrganization)
+  const organizations = useAuthStore((s) => s.organizations)
 
-export default async function OrganizationProfilePage({ params }: PageProps) {
-  const { id } = await params;
+  const organization =
+    currentOrganization?.id === id
+      ? currentOrganization
+      : organizations.find((org) => org.id === id)
+
+  if (!organization?.username) return null
+
   return (
-    <OrgProfile orgId={id} isOwn />
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "var(--space-4)" }}>
+      <PostsList
+        username={organization.username}
+        isOwn
+      />
+    </div>
   )
 }
