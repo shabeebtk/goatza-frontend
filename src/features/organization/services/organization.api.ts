@@ -77,3 +77,20 @@ export const deleteOrgLocationApi = async (
     params: { location_id: locationId },
   })
 }
+
+export type OrgFollowPayload = {
+  target_type: "organization"
+  target_id: string
+}
+
+export const followOrganizationApi = async (
+  payload: OrgFollowPayload
+): Promise<void> => {
+  await api.post("/connections/user/follow", payload)
+}
+
+export const unfollowOrganizationApi = async (
+  payload: OrgFollowPayload
+): Promise<void> => {
+  await api.post("/connections/user/unfollow", payload)
+}

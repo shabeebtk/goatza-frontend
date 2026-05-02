@@ -38,12 +38,17 @@ function buildNavItems(orgId: string) {
       label: "Messages",
     },
     {
-      href: `${base}/members`,
-      icon: "mdi:account-group-outline",
-      iconActive: "mdi:account-group",
-      label: "Members",
+      href: `${base}/notifications`,
+      icon: "mdi:bell-outline",
+      iconActive: "mdi:bell",
+      label: "Alerts",
     },
   ]
+}
+
+const MOCK_ORG = {
+  notifCount: 4,
+  messageCount: 2,
 }
 
 function OrgLogoMark({
@@ -76,6 +81,39 @@ function OrgLogoMark({
   )
 }
 
+function SearchBar({ compact = false }: { compact?: boolean }) {
+  const [focused, setFocused] = useState(false)
+
+  return (
+    <div
+      className={`${styles.searchWrap} ${compact ? styles.searchCompact : ""} ${focused ? styles.searchFocused : ""}`}
+    >
+      <span className={styles.searchIcon} aria-hidden="true">
+        <Icon icon="mdi:magnify" width={18} height={18} />
+      </span>
+      <input
+        type="search"
+        placeholder="Search members, teams, events..."
+        className={styles.searchInput}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        aria-label="Search"
+      />
+      {focused && <kbd className={styles.searchKbd} aria-hidden="true">Ctrl+K</kbd>}
+    </div>
+  )
+}
+
+function NotifDot({ count }: { count: number }) {
+  if (!count) return null
+
+  return (
+    <span className={styles.notifBadge} aria-label={`${count} notifications`}>
+      {count > 9 ? "9+" : count}
+    </span>
+  )
+}
+
 export default function OrgNav({ orgId }: { orgId: string }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -100,7 +138,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       : organizations.find((organization) => organization.id === orgId)
 
   const NAV_ITEMS = buildNavItems(orgId)
-  const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) => item.label !== "Members")
+  const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) => item.label !== "Alerts")
   const MOBILE_LEFT_ITEMS = MOBILE_NAV_ITEMS.slice(0, 2)
   const MOBILE_RIGHT_ITEMS = MOBILE_NAV_ITEMS.slice(2)
 
@@ -164,9 +202,26 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         <div className={styles.topNavInner}>
           <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
 
+          <div className={styles.topNavCenter}>
+            <SearchBar />
+          </div>
+
           <nav className={styles.topNavLinks} aria-label="Organization navigation">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname.startsWith(item.href)
+              const hasAlert =
+                item.href === `${orgBase(orgId)}/messages`
+                  ? MOCK_ORG.messageCount > 0
+                  : item.href === `${orgBase(orgId)}/notifications`
+                    ? MOCK_ORG.notifCount > 0
+                    : false
+              const alertCount =
+                item.href === `${orgBase(orgId)}/messages`
+                  ? MOCK_ORG.messageCount
+                  : item.href === `${orgBase(orgId)}/notifications`
+                    ? MOCK_ORG.notifCount
+                    : 0
+
               return (
                 <Link
                   key={item.href}
@@ -177,6 +232,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
                 >
                   <span className={styles.topNavLinkIcon} aria-hidden="true">
                     <Icon icon={isActive ? item.iconActive : item.icon} width={22} height={22} />
+                    {hasAlert && <NotifDot count={alertCount} />}
                   </span>
                   <span className={styles.topNavLinkLabel}>{item.label}</span>
                 </Link>
@@ -251,6 +307,18 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         <div className={styles.mobileTopActions}>
           <Link href={`${orgBase(orgId)}/search`} className={styles.mobileIconBtn} aria-label="Search">
             <Icon icon="mdi:magnify" width={24} height={24} />
+          </Link>
+          <Link
+            href={`${orgBase(orgId)}/notifications`}
+            className={`${styles.mobileIconBtn} ${styles.mobileIconBtnRelative}`}
+            aria-label="Notifications"
+          >
+            <Icon
+              icon={pathname.startsWith(`${orgBase(orgId)}/notifications`) ? "mdi:bell" : "mdi:bell-outline"}
+              width={24}
+              height={24}
+            />
+            <NotifDot count={MOCK_ORG.notifCount} />
           </Link>
         </div>
       </header>

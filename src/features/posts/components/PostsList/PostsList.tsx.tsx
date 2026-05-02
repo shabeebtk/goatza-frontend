@@ -21,7 +21,7 @@ import type { FetchPostsParams } from "../../services/posts.api"
 import styles from "./PostsList.module.css"
 import Link from "next/link"
 import PostSkeleton from "../PostCard/PostCardSkeleton"
-
+import { useNavigation } from "@/shared/services/navigation.service"
 
 // ── Empty state ───────────────────────────────────────────────
 
@@ -90,6 +90,7 @@ interface PostsListProps {
     username?: string
     postId?: string
     isOwn?: boolean
+    type? : 'user' | 'organization'
     onCreatePost?: () => void
     preview?: boolean
 }
@@ -97,10 +98,14 @@ interface PostsListProps {
 export default function PostsList({
     username,
     postId,
+    type='user',
     isOwn = false,
     onCreatePost,
     preview = false
 }: PostsListProps) {
+
+    const { toPostsList } = useNavigation()
+
     const queryParams: FetchPostsParams = {}
     if (username) queryParams.username = username
     if (postId) queryParams.post_id = postId
@@ -178,7 +183,10 @@ export default function PostsList({
                 <div className={styles.previewHeader}>
                     <h2 className={styles.previewTitle}>Posts</h2>
                     {totalCount > 1 && (
-                        <Link href={`/profile/${username}/posts`} className={styles.viewAllBtn}>
+                        <Link
+                            href={toPostsList(username, type)}
+                            className={styles.viewAllBtn}
+                        >
                             View All {totalCount} posts
                             <Icon icon="mdi:arrow-right" width={15} height={15} />
                         </Link>
