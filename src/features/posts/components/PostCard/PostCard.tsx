@@ -14,6 +14,7 @@ import { useAuthStore } from "@/store/auth.store"                               
 import type { Post } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import styles from "./PostCard.module.css"
+import { useNavigation } from "@/shared/services/navigation.service"
 
 dayjs.extend(relativeTime)
 
@@ -82,18 +83,20 @@ interface PostCardProps {
 
 export default function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
-  const [showOptions, setShowOptions] = useState(false)   // ← NEW
+  const [showOptions, setShowOptions] = useState(false)
 
-  const user = useAuthStore((s) => s.user)             // ← NEW
-  const isOwn = user?.id === post.author.id             // ← NEW
+  const user = useAuthStore((s) => s.user)
+  const isOwn = user?.id === post.author.id
+  const { toProfile } = useNavigation()
 
   const timeAgo = dayjs(post.created_at).fromNow()
   const topReactions = getTopReactions(post.likes_breakdown)
 
   function getAuthorProfileHref(post: Post): string {
-    return post.author_type === "organization"
-      ? `/organization/profile/${post.author.username}`
-      : `/profile/${post.author.username}`
+    return toProfile(
+      post.author.username,
+      post.author_type as "user" | "organization"
+    )
   }
 
   return (

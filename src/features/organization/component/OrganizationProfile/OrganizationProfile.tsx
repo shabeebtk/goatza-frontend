@@ -199,13 +199,17 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
     const [showAllLocations, setShowAllLocations] = useState(false)
-    const [isFollowing, setIsFollowing] = useState(false)
 
-    const { follow, unfollow } = useFollowOrg(orgId)
+    const { follow, unfollow } = useFollowOrg(orgId, org.username)
     const followLoading = follow.isPending || unfollow.isPending
 
-    const handleFollow = () => { setIsFollowing(true); follow.mutate() }
-    const handleUnfollow = () => { setIsFollowing(false); unfollow.mutate() }
+    const rel = org.relationship
+    const isMe = isOwn || (rel?.is_me ?? false)
+    const isFollowing = rel?.is_following ?? false
+    const isFollowedBy = rel?.is_followed_by ?? false
+
+    const handleFollow = () => { follow.mutate() }
+    const handleUnfollow = () => { unfollow.mutate() }
 
     const allLocations = org.locations ?? []
     const visibleLocations = showAllLocations ? allLocations : allLocations.slice(0, 1)
@@ -235,7 +239,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                         )}
                         <div className={styles.coverOverlay} aria-hidden="true" />
 
-                        {isOwn && (
+                        {isMe && (
                             <button
                                 className={styles.coverEditBtn}
                                 aria-label="Change cover photo"
@@ -247,7 +251,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                             </button>
                         )}
 
-                        {!isOwn && org.cover_image && (
+                        {!isMe && org.cover_image && (
                             <button
                                 className={styles.coverViewBtn}
                                 onClick={() => setPhotoModal("cover")}
@@ -269,7 +273,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                                     className={styles.avatarClickWrap}
                                     onClick={() => setPhotoModal("logo")}
                                     type="button"
-                                    aria-label={isOwn ? "Change logo" : "View logo"}
+                                    aria-label={isMe ? "Change logo" : "View logo"}
 
                                 >
                                     <Avatar
@@ -278,7 +282,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                                         size="xl"
                                         className={styles.profileAvatar}
                                     />
-                                    {isOwn && (
+                                    {isMe && (
                                         <span className={styles.avatarEditOverlay} aria-hidden="true">
                                             <Icon icon="mdi:camera-outline" width={22} height={22} />
                                         </span>
@@ -321,7 +325,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                         {/* Headline */}
                         {org.headline ? (
                             <p className={styles.profileHeadline}>{org.headline}</p>
-                        ) : isOwn ? (
+                        ) : isMe ? (
                             <p className={styles.profileHeadlineEmpty}>
                                 Add a headline — click Edit Organization
                             </p>
@@ -331,12 +335,18 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                         <div className={styles.statsRow}>
                             <StatPill value={org.followers_count} label="Followers" />
                             <div className={styles.statDivider} />
+                            {isMe && (
+                                <>
+                                    <StatPill value={org.following_count ?? 0} label="Following" />
+                                    <div className={styles.statDivider} />
+                                </>
+                            )}
                             <StatPill value={org.posts_count} label="Posts" />
                         </div>
 
                         {/* Action buttons */}
                         <div className={styles.profileActionsBase}>
-                            {isOwn ? (
+                            {isMe ? (
                                 <>
                                     <Button
                                         variant="outline"
@@ -370,7 +380,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                                             }
                                             className={isFollowing ? styles.followingBtn : undefined}
                                         >
-                                            {isFollowing ? "Following" : "Follow"}
+                                            {isFollowing ? "Following" : isFollowedBy ? "Follow Back" : "Follow"}
                                         </Button>
                                     </span>
                                     <Button
@@ -390,7 +400,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                         </div>
 
                         {/* ── About ────────────────────────────────────── */}
-                        {(org.description || isOwn) && (
+                        {(org.description || isMe) && (
                             <>
                                 <div className={styles.sectionDivider} />
                                 <div className={styles.section}>
@@ -491,7 +501,8 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                         <div className={styles.sectionDivider} />
                         <PostsList
                             username={org.username}
-                            isOwn={isOwn}
+                            type="organization"
+                            isOwn={isMe}
                             preview
                             onCreatePost={() => {/* wire up if you want the CTA here */ }}
                         />
@@ -508,7 +519,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                     type={photoModal}
                     currentSrc={photoModal === "logo" ? org.logo : org.cover_image}
                     orgId={orgId}
-                    isOwn={isOwn}
+                    isOwn={isMe}
                     onClose={() => setPhotoModal(null)}
                 />
             )}

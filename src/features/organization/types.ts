@@ -51,6 +51,13 @@ export type OrgSport = {
   is_primary: boolean
 }
 
+export type OrgRelationship = {
+  is_me: boolean
+  is_following: boolean
+  is_followed_by: boolean
+  is_connected: boolean
+}
+
 export type OrganizationDetail = {
   id:              string
   name:            string
@@ -64,10 +71,12 @@ export type OrganizationDetail = {
   website:         string
   level:           OrgLevel | ""
   followers_count: number
+  following_count?: number
   posts_count:     number
   locations:       OrgLocation[]
   sports:          OrgSport[]
   created_at:      string
+  relationship?:   OrgRelationship
 }
 
 // ── Payloads ──────────────────────────────────────────────────────

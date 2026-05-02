@@ -7,7 +7,9 @@ import api from "@/core/api/axios"
 
 import {
   createOrganizationApi,
+  followOrganizationApi,
   getOrganizationDetailApi,
+  unfollowOrganizationApi,
   updateOrgMediaApi,
 } from "../services/organization.api"
 import {
@@ -125,56 +127,111 @@ export const useCreateOrganization = () => {
 
 // ── Follow ────────────────────────────────────────────────────────
 
-const followOrganizationApi = async (orgId: string): Promise<void> => {
-  await api.post(`/organizations/${orgId}/follow`)
-}
-
-const unfollowOrganizationApi = async (orgId: string): Promise<void> => {
-  await api.delete(`/organizations/${orgId}/follow`)
-}
-
-export const useFollowOrg = (orgId: string) => {
+export const useFollowOrg = (orgId: string, username?: string) => {
   const qc = useQueryClient()
+  const keys = [orgKeys.detail(orgId), ...(username ? [orgKeys.detail(username)] : [])]
+
+  const mutateOrgCache = (
+    updater: (old: OrganizationDetail) => OrganizationDetail
+  ) => {
+    keys.forEach((key) => {
+      qc.setQueryData<OrganizationDetail>(key, (old) =>
+        old ? updater(old) : old
+      )
+    })
+  }
 
   const follow = useMutation({
-    mutationFn: () => followOrganizationApi(orgId),
+    mutationFn: () => followOrganizationApi({
+      target_type: "organization",
+      target_id: orgId,
+    }),
 
     onMutate: async () => {
-      await qc.cancelQueries({ queryKey: orgKeys.detail(orgId) })
-      const prev = qc.getQueryData<OrganizationDetail>(orgKeys.detail(orgId))
-      qc.setQueryData<OrganizationDetail>(orgKeys.detail(orgId), (old) =>
-        old ? { ...old, followers_count: old.followers_count + 1 } : old
+      await Promise.all(keys.map((key) => qc.cancelQueries({ queryKey: key })))
+
+      const prevEntries = keys.map((key) => ({
+        key,
+        data: qc.getQueryData<OrganizationDetail>(key),
+      }))
+
+      mutateOrgCache((old) => ({
+        ...old,
+        followers_count: old.followers_count + 1,
+        relationship: old.relationship
+          ? { ...old.relationship, is_following: true }
+          : {
+              is_me: false,
+              is_following: true,
+              is_followed_by: false,
+              is_connected: false,
+            },
+      }))
+
+      const prev = prevEntries.filter(
+        (entry): entry is { key: readonly unknown[]; data: OrganizationDetail } => Boolean(entry.data)
       )
+
       return { prev }
     },
 
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(orgKeys.detail(orgId), ctx.prev)
+      ctx?.prev?.forEach(({ key, data }) => {
+        qc.setQueryData<OrganizationDetail>(key, data)
+      })
     },
 
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: orgKeys.detail(orgId) })
+      keys.forEach((key) => {
+        qc.invalidateQueries({ queryKey: key })
+      })
     },
   })
 
   const unfollow = useMutation({
-    mutationFn: () => unfollowOrganizationApi(orgId),
+    mutationFn: () => unfollowOrganizationApi({
+      target_type: "organization",
+      target_id: orgId,
+    }),
 
     onMutate: async () => {
-      await qc.cancelQueries({ queryKey: orgKeys.detail(orgId) })
-      const prev = qc.getQueryData<OrganizationDetail>(orgKeys.detail(orgId))
-      qc.setQueryData<OrganizationDetail>(orgKeys.detail(orgId), (old) =>
-        old ? { ...old, followers_count: Math.max(0, old.followers_count - 1) } : old
+      await Promise.all(keys.map((key) => qc.cancelQueries({ queryKey: key })))
+
+      const prevEntries = keys.map((key) => ({
+        key,
+        data: qc.getQueryData<OrganizationDetail>(key),
+      }))
+
+      mutateOrgCache((old) => ({
+        ...old,
+        followers_count: Math.max(0, old.followers_count - 1),
+        relationship: old.relationship
+          ? { ...old.relationship, is_following: false }
+          : {
+              is_me: false,
+              is_following: false,
+              is_followed_by: false,
+              is_connected: false,
+            },
+      }))
+
+      const prev = prevEntries.filter(
+        (entry): entry is { key: readonly unknown[]; data: OrganizationDetail } => Boolean(entry.data)
       )
+
       return { prev }
     },
 
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(orgKeys.detail(orgId), ctx.prev)
+      ctx?.prev?.forEach(({ key, data }) => {
+        qc.setQueryData<OrganizationDetail>(key, data)
+      })
     },
 
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: orgKeys.detail(orgId) })
+      keys.forEach((key) => {
+        qc.invalidateQueries({ queryKey: key })
+      })
     },
   })
 

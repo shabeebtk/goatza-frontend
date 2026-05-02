@@ -45,6 +45,7 @@ type AuthState = {
   actorId: string | null
   organizations: OrganizationActor[]
   currentOrganization: OrganizationActor | null
+  isOrgAdminView: boolean
 
   // ACTIONS
   setLoading: (value: boolean) => void
@@ -87,6 +88,7 @@ export const useAuthStore = create<AuthState>()(
       actorId: null,
       organizations: [],
       currentOrganization: null,
+      isOrgAdminView: false,
 
       // -------------------
       // ACTIONS
@@ -135,6 +137,7 @@ export const useAuthStore = create<AuthState>()(
               actorType: "user" as const,
               actorId: null,
               currentOrganization: null,
+              isOrgAdminView: false
             }
           }
 
@@ -149,8 +152,8 @@ export const useAuthStore = create<AuthState>()(
           const exists = state.organizations.some((org) => org.id === organization.id)
           const nextOrganizations = exists
             ? state.organizations.map((org) =>
-                org.id === organization.id ? organization : org
-              )
+              org.id === organization.id ? organization : org
+            )
             : [organization, ...state.organizations]
 
           return {
@@ -174,6 +177,7 @@ export const useAuthStore = create<AuthState>()(
               actorType: "user" as const,
               actorId: null,
               currentOrganization: null,
+              isOrgAdminView: false
             }
           }
 
@@ -196,6 +200,7 @@ export const useAuthStore = create<AuthState>()(
             actorType: "user" as const,
             actorId: null,
             currentOrganization: null,
+            isOrgAdminView: false
           }
         }),
 
@@ -223,6 +228,7 @@ export const useAuthStore = create<AuthState>()(
             if (state.actorType === "organization" && state.actorId === orgId) {
               return {
                 currentOrganization: findOrgById(state.organizations, orgId),
+                isOrgAdminView: true,   
               }
             }
 
@@ -230,6 +236,7 @@ export const useAuthStore = create<AuthState>()(
               actorType: "organization" as const,
               actorId: orgId,
               currentOrganization: findOrgById(state.organizations, orgId),
+              isOrgAdminView: true,   
             }
           }
 
@@ -241,6 +248,7 @@ export const useAuthStore = create<AuthState>()(
             actorType: "user" as const,
             actorId: null,
             currentOrganization: null,
+            isOrgAdminView: false
           }
         }),
 
@@ -254,6 +262,7 @@ export const useAuthStore = create<AuthState>()(
           actorId: null,
           organizations: [],
           currentOrganization: null,
+          isOrgAdminView: false
         }),
     }),
     {
