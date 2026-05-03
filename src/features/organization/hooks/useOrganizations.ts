@@ -168,8 +168,8 @@ export const useFollowOrg = (orgId: string, username?: string) => {
             },
       }))
 
-      const prev = prevEntries.filter(
-        (entry): entry is { key: readonly unknown[]; data: OrganizationDetail } => Boolean(entry.data)
+      const prev = prevEntries.flatMap((entry) =>
+        entry.data ? [{ key: entry.key, data: entry.data }] : []
       )
 
       return { prev }
@@ -215,8 +215,8 @@ export const useFollowOrg = (orgId: string, username?: string) => {
             },
       }))
 
-      const prev = prevEntries.filter(
-        (entry): entry is { key: readonly unknown[]; data: OrganizationDetail } => Boolean(entry.data)
+      const prev = prevEntries.flatMap((entry) =>
+        entry.data ? [{ key: entry.key, data: entry.data }] : []
       )
 
       return { prev }
