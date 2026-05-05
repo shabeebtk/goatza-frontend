@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import { useGetOrCreateConversation } from "@/features/messages/hooks/useConversationQueries"
+import { useAuthStore } from "@/store/auth.store"
 import styles from "./MessageResolver.module.css"
 
 interface MessageResolverProps {
@@ -12,16 +13,19 @@ interface MessageResolverProps {
 
 export default function MessageResolver({ username }: MessageResolverProps) {
   const router = useRouter()
+  const isOrgAdminView = useAuthStore((s) => s.isOrgAdminView)
+  const actorId = useAuthStore((s) => s.actorId)
+  const basePath = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
   const { mutate: getOrCreate, isError, isPending } = useGetOrCreateConversation()
 
   useEffect(() => {
     if (!username) return
     getOrCreate(username, {
       onSuccess: (data) => {
-        router.replace(`/chat/${data.conversation_id}`)
+        router.replace(`${basePath}/chat/${data.conversation_id}`)
       },
     })
-  }, [username]) // eslint-disable-line
+  }, [username, basePath]) // eslint-disable-line
 
   if (isError) {
     return (
@@ -35,7 +39,7 @@ export default function MessageResolver({ username }: MessageResolverProps) {
         </p>
         <button
           className={styles.backBtn}
-          onClick={() => router.push("/messages")}
+          onClick={() => router.push(basePath)}
           type="button"
         >
           <Icon icon="mdi:arrow-left" width={16} height={16} />

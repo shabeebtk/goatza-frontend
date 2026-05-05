@@ -38,7 +38,7 @@ function getMessagePreview(
   const msg = conv.last_message
   if (!msg) return "Start a conversation"
 
-  const isMe = msg.sender_id === myUserId
+  const isMe = (msg.sender?.id || msg.sender_id) === myUserId
   const prefix = isMe ? "You: " : ""
 
   if (msg.message_type === "image") return `${prefix}📷 Photo`
@@ -104,9 +104,11 @@ function EmptyState({ tab }: { tab: Tab }) {
 function ConversationRow({
   conv,
   myUserId,
+  basePath,
 }: {
   conv: Conversation
   myUserId: string | undefined
+  basePath: string
 }) {
   const hasUnread = conv.unread_count > 0
   const preview = getMessagePreview(conv, myUserId)
@@ -115,14 +117,14 @@ function ConversationRow({
 
   return (
     <Link
-      href={`/chat/${conv.id}`}
+      href={`${basePath}/chat/${conv.id}`}
       className={`${styles.row} ${hasUnread ? styles.rowUnread : ""}`}
     >
       {/* Avatar */}
       <div className={styles.rowAvatar}>
         <Avatar
-          src={conv.other_user.profile_photo}
-          initials={conv.other_user.name?.slice(0, 2).toUpperCase() || "?"}
+          src={conv.other_participant.avatar}
+          initials={conv.other_participant.name?.slice(0, 2).toUpperCase() || "?"}
           size="md"
         />
         {/* Online indicator placeholder — wire up when you add presence */}
@@ -132,7 +134,7 @@ function ConversationRow({
       <div className={styles.rowContent}>
         <div className={styles.rowTop}>
           <span className={`${styles.rowName} ${hasUnread ? styles.rowNameUnread : ""}`}>
-            {conv.other_user.name}
+            {conv.other_participant.name}
           </span>
           {timeStr && (
             <span className={`${styles.rowTime} ${hasUnread ? styles.rowTimeUnread : ""}`}>
@@ -155,8 +157,8 @@ function ConversationRow({
         </div>
 
         {/* Headline */}
-        {conv.other_user.headline && (
-          <p className={styles.rowHeadline}>{conv.other_user.headline}</p>
+        {conv.other_participant.headline && (
+          <p className={styles.rowHeadline}>{conv.other_participant.headline}</p>
         )}
       </div>
 
@@ -219,6 +221,13 @@ export default function ConversationsList() {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const user = useAuthStore((s) => s.user)
+  const isOrgAdminView = useAuthStore((s) => s.isOrgAdminView)
+  const actorId = useAuthStore((s) => s.actorId)
+  
+  const basePath = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
+  const myActorId = isOrgAdminView && actorId ? actorId : user?.id
+
+  const [isMounted, setIsMounted] = useState(false)
 
   // Listen to realtime notifications to refresh list
   useConversationsSocket()
@@ -228,6 +237,10 @@ export default function ConversationsList() {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(t)
   }, [search])
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const { data: conversations, isLoading, isError } = useConversations({
     type: tab,
@@ -240,6 +253,8 @@ export default function ConversationsList() {
     setDebouncedSearch("")
   }, [])
 
+  if (!isMounted) return null
+
   return (
     <div className={styles.container}>
 
@@ -247,7 +262,7 @@ export default function ConversationsList() {
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>Messages</h1>
-          <Link href="/messages/new" className={styles.newBtn} aria-label="New message">
+          <Link href={`${basePath}/new`} className={styles.newBtn} aria-label="New message">
             <Icon icon="mdi:pencil-plus-outline" width={20} height={20} />
           </Link>
         </div>
@@ -301,7 +316,8 @@ export default function ConversationsList() {
             <ConversationRow
               key={conv.id}
               conv={conv}
-              myUserId={user?.id}
+              myUserId={myActorId}
+              basePath={basePath}
             />
           ))
         )}

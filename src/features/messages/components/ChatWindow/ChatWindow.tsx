@@ -8,6 +8,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import isToday from "dayjs/plugin/isToday"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useAuthStore } from "@/store/auth.store"
+import { useNavigation } from "@/shared/services/navigation.service"
 import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
 import {
@@ -148,6 +149,10 @@ interface ChatWindowProps {
 
 export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const user        = useAuthStore((s) => s.user)
+  const isOrgAdminView = useAuthStore((s) => s.isOrgAdminView)
+  const actorId     = useAuthStore((s) => s.actorId)
+  const { toProfile } = useNavigation()
+  
   const bottomRef   = useRef<HTMLDivElement>(null)
   const topSentinel = useRef<HTMLDivElement>(null)
   const listRef     = useRef<HTMLDivElement>(null)
@@ -155,6 +160,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const headerRef   = useRef<HTMLDivElement>(null)
   const [input, setInput]         = useState("")
   const [autoScroll, setAutoScroll] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
 
   // ── Data ──────────────────────────────────────────────────
   const { data: detail, isLoading: detailLoading } = useConversationDetail(conversationId)
@@ -180,7 +186,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       .map((m) => ({ 
         id: m.id, 
         content: m.content, 
-        sender_id: m.sender_id, 
+        sender_id: m.sender?.id || m.sender_id, 
         created_at: m.created_at,
         pending: (m as any).pending,
         failed: (m as any).failed
@@ -190,6 +196,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
   // ── Mark read on mount ────────────────────────────────────
   useEffect(() => {
+    setIsMounted(true)
     if (detail?.unread_count && detail.unread_count > 0) {
       markRead(conversationId)
     }
@@ -271,9 +278,13 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // ── Derived ───────────────────────────────────────────────
   const grouped      = groupByDate(wsMessages)
   const isLoading    = detailLoading || historyLoading
-  const otherUser    = detail?.other_user
+  const otherUser    = detail?.other_participant
   const isRequested  = detail?.status === "requested"
   const canMessage   = detail?.can_message ?? true
+  const basePath     = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
+  const myActorId    = isOrgAdminView && actorId ? actorId : user?.id
+
+  if (!isMounted) return null
 
   return (
     // The outer page wrapper constrains width on desktop, full-screen on mobile
@@ -282,7 +293,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
         {/* ── Fixed header ── */}
         <div ref={headerRef} className={styles.header}>
-          <Link href="/messages" className={styles.backBtn} aria-label="Back">
+          <Link href={basePath} className={styles.backBtn} aria-label="Back">
             <Icon icon="mdi:arrow-left" width={20} height={20} />
           </Link>
 
@@ -292,9 +303,9 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               <div className={styles.headerSkeletonText} />
             </div>
           ) : otherUser ? (
-            <Link href={`/profile/${otherUser.username}`} className={styles.headerUser}>
+            <Link href={toProfile(otherUser.username, otherUser.type)} className={styles.headerUser}>
               <Avatar
-                src={otherUser.profile_photo}
+                src={otherUser.avatar}
                 initials={otherUser.name?.slice(0, 2).toUpperCase()}
                 size="sm"
               />
@@ -347,7 +358,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               <div key={label}>
                 <DateDivider label={label} />
                 {msgs.map((msg, idx) => {
-                  const isMine   = msg.sender_id === user?.id
+                  const isMine   = msg.sender_id === myActorId
                   const next     = msgs[idx + 1]
                   // Show time if: last in group, different sender next, or >5 min gap
                   const showTime =

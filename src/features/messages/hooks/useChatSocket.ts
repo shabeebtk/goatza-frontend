@@ -31,7 +31,7 @@ type WsIncomingMessage = {
     type: "message" | "error"
     message_id?: string
     content?: string
-    sender_id?: string
+    sender?: any
     created_at?: string
     message?: string
 }
@@ -43,10 +43,20 @@ type UseChatSocketReturn = {
 
 // ── Build WS URL ──────────────────────────────────────────────
 
-function buildWsUrl(conversationId: string | null): string | null {
+function buildWsUrl(
+    conversationId: string | null,
+    actorType: "user" | "organization",
+    actorId: string | null
+): string | null {
     if (!conversationId) return null
     const base = process.env.NEXT_PUBLIC_WS_URL
-    return `${base}/ws/chat/${conversationId}/`
+    let url = `${base}/ws/chat/${conversationId}/`
+    
+    if (actorType === "organization" && actorId) {
+        url += `?actor_type=organization&org_id=${actorId}`
+    }
+    
+    return url
 }
 
 // ── Hook ──────────────────────────────────────────────────────
@@ -54,6 +64,8 @@ function buildWsUrl(conversationId: string | null): string | null {
 export function useChatSocket(conversationId: string | null): UseChatSocketReturn {
     const user = useAuthStore((s) => s.user)
     const token = useAuthStore((s) => s.accessToken)
+    const actorType = useAuthStore((s) => s.actorType)
+    const actorId = useAuthStore((s) => s.actorId)
     const queryClient = useQueryClient()
 
     // Track optimistic message IDs so we can confirm/replace them
@@ -63,13 +75,14 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
     const handleMessage = useCallback((data: unknown) => {
         const payload = data as WsIncomingMessage
         if (payload.type !== "message") return
-        if (!payload.message_id || !payload.content || !payload.sender_id || !conversationId) return
+        if (!payload.message_id || !payload.content || !payload.sender?.id || !conversationId) return
 
         const incoming: Message = {
             id: payload.message_id,
             content: payload.content,
             message_type: "text",
-            sender_id: payload.sender_id,
+            sender_id: payload.sender.id,
+            sender: payload.sender,
             created_at: payload.created_at ?? new Date().toISOString(),
         }
 
@@ -86,7 +99,7 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 if (exists) return old
 
                 // Find pending optimistic message
-                const myId = user?.id ?? ""
+                const myId = actorType === "organization" && actorId ? actorId : (user?.id ?? "")
                 const pendingIdx = firstPage.results.findIndex(
                     (m) => (m as any).pending && m.sender_id === myId && m.content === incoming.content
                 )
@@ -107,10 +120,10 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 }
             }
         )
-    }, [user?.id, conversationId, queryClient])
+    }, [user?.id, actorType, actorId, conversationId, queryClient])
 
     const { send: wsSend, status } = useWebSocket({
-        url: buildWsUrl(conversationId),
+        url: buildWsUrl(conversationId, actorType, actorId),
         token,
         onMessage: handleMessage,
     })
@@ -118,7 +131,9 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
     // ── Send with optimistic update ───────────────────────────
     const send = useCallback((text: string) => {
         const trimmed = text.trim()
-        if (!trimmed || !user?.id || !conversationId) return
+        const myId = actorType === "organization" && actorId ? actorId : user?.id
+        
+        if (!trimmed || !myId || !conversationId) return
 
         // Optimistic insert
         const tempId = `temp_${Date.now()}_${Math.random()}`
@@ -126,7 +141,7 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
             id: tempId,
             content: trimmed,
             message_type: "text",
-            sender_id: user.id,
+            sender_id: myId,
             created_at: new Date().toISOString(),
             pending: true,
         }
@@ -151,7 +166,7 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
 
         // Send over WS
         wsSend({ message: trimmed })
-    }, [wsSend, user?.id, conversationId, queryClient])
+    }, [wsSend, user?.id, actorType, actorId, conversationId, queryClient])
 
     return { send, status }
 }

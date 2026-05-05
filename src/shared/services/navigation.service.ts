@@ -57,9 +57,17 @@ export function useNavigation() {
     return `/profile/${username}/posts`
   }
 
+  function toMessage(username: string) {
+    if (isOrgAdminView && currentOrg) {
+      return `/organization/admin/${currentOrg.id}/messages/${username}`
+    }
+    return `/messages/${username}`
+  }
+
   return {
     toProfile,
     toPost,
     toPostsList,
+    toMessage,
   }
 }
