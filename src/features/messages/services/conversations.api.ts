@@ -13,12 +13,13 @@ export type GetOrCreateConversationResult = {
   can_message:     boolean
 }
 
-export type ConversationUser = {
+export type ConversationParticipant = {
     id: string
     username: string
     name: string
-    profile_photo: string
-    headline: string
+    avatar: string
+    type: "user" | "organization"
+    headline?: string
 }
 
 export type LastMessage = {
@@ -26,13 +27,7 @@ export type LastMessage = {
     content: string
     message_type: MessageType
     sender_id: string
-    sender_user?: {
-        id: string
-        username: string
-        name: string
-        profile_photo: string
-        headline?: string
-    }
+    sender?: ConversationParticipant
     created_at: string
 }
 
@@ -42,7 +37,7 @@ export type Conversation = {
     status: ConversationStatus
     last_message: LastMessage | null
     last_message_at: string | null
-    other_user: ConversationUser
+    other_participant: ConversationParticipant
     unread_count: number
 }
 
@@ -59,13 +54,7 @@ export type Message = {
     content: string
     message_type: MessageType
     sender_id: string
-    sender_user?: {
-        id: string
-        username: string
-        name: string
-        profile_photo: string
-        headline?: string
-    }
+    sender?: ConversationParticipant
     created_at: string
 }
 

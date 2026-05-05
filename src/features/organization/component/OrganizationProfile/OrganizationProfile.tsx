@@ -17,6 +17,7 @@ import Button from "@/shared/components/ui/Button/Button"
 import { useOrgDetail, useFollowOrg } from "@/features/organization/hooks/useOrganizations"
 import type { OrgLocation, OrgSport, OrganizationDetail } from "@/features/organization/types"
 import styles from "./OrganizationProfile.module.css"
+import { useNavigation } from "@/shared/services/navigation.service"
 import OrgPhotoEditModal from "../OrgPhotoEditModal/OrgPhotoEditModal"
 import EditOrgProfileModal from "../EditOrgProfileModal/EditOrgProfileModal"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
@@ -197,6 +198,7 @@ interface OrgProfileInnerProps {
 function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
     const [photoModal, setPhotoModal] = useState<"logo" | "cover" | null>(null)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const { toMessage } = useNavigation()
 
     const [showAllLocations, setShowAllLocations] = useState(false)
 
@@ -388,6 +390,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                                         size="sm"
                                         fullWidth
                                         className={styles.actionBtnFull}
+                                        href={toMessage(org.username)}
                                         leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
                                     >
                                         Message

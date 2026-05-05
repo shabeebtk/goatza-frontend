@@ -13,6 +13,7 @@ import {
   useUserProfile,
   useFollowUser,
 } from "@/features/profile/hooks/useProfileQueries"
+import { useNavigation } from "@/shared/services/navigation.service"
 import type { UserProfile } from "@/features/profile/services/profile.api"
 import styles from "./UserProfile.module.css"
 
@@ -66,6 +67,7 @@ type PhotoModalType = "profile" | "cover" | null
 
 export default function UserProfile({ username, isOwn = false }: UserProfileProps) {
   const router = useRouter()
+  const { toMessage } = useNavigation()
   const { data: profile, isLoading, isError } = useUserProfile(username)
 
   const [photoModal, setPhotoModal] = useState<PhotoModalType>(null)
@@ -260,7 +262,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                     </span>
                   )}
                   <Button
-                    href={`/messages/${profile.username}`}
+                    href={toMessage(profile.username)}
                     variant="outline"
                     size="sm"
                     fullWidth
