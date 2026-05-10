@@ -46,16 +46,14 @@ function EmptyState({
                     <p className={styles.emptyBody}>
                         Post open trials, private trials, or scholarship calls to find the best talent.
                     </p>
-                    {onCreate && (
-                        <button
-                            className={styles.emptyCreateBtn}
-                            onClick={onCreate}
-                            type="button"
-                        >
-                            <Icon icon="mdi:plus" width={18} height={18} />
-                            Post a Recruitment
-                        </button>
-                    )}
+                    <CreateRecruitmentTrigger>
+                        {(open) => (
+                            <button className={styles.createBtn} onClick={open} type="button">
+                                <Icon icon="mdi:plus" width={16} height={16} />
+                                Post Recruitment
+                            </button>
+                        )}
+                    </CreateRecruitmentTrigger>
                 </>
             ) : (
                 <p className={styles.emptyBody}>No active recruitments at the moment.</p>
