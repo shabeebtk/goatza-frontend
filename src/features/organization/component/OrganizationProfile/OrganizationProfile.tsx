@@ -21,6 +21,7 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import OrgPhotoEditModal from "../OrgPhotoEditModal/OrgPhotoEditModal"
 import EditOrgProfileModal from "../EditOrgProfileModal/EditOrgProfileModal"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
+import RecruitmentsList from "@/features/recruitments/components/RecruitmentsList/RecruitmentsList"
 
 // ── Constants ──────────────────────────────────────────────────────
 
@@ -510,6 +511,15 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                             onCreatePost={() => {/* wire up if you want the CTA here */ }}
                         />
 
+
+                        <div className={styles.sectionDivider} />
+                        <RecruitmentsList
+                            username={org.username}
+                            isOwn={isMe}
+                            preview
+                            showOrg={false}
+                        />
+
                         {/* Future sections (Posts, Achievements, Facilities) slot in here */}
 
                     </div>
@@ -540,18 +550,18 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
 // ── Public API ─────────────────────────────────────────────────────
 
 interface OrgProfileProps {
-  orgId?: string
-  username?: string
-  isOwn?: boolean
+    orgId?: string
+    username?: string
+    isOwn?: boolean
 }
 
 export default function OrgProfile({ orgId, username, isOwn = false }: OrgProfileProps) {
-  const identifier = orgId ?? username!
-  const by = orgId ? "id" : "username"
-  const { data: org, isLoading, isError } = useOrgDetail(identifier, by)
+    const identifier = orgId ?? username!
+    const by = orgId ? "id" : "username"
+    const { data: org, isLoading, isError } = useOrgDetail(identifier, by)
 
-  if (isLoading) return <OrgProfileSkeleton />
-  if (isError || !org) return <OrgProfileError />
+    if (isLoading) return <OrgProfileSkeleton />
+    if (isError || !org) return <OrgProfileError />
 
-  return <OrgProfileInner org={org} isOwn={isOwn} orgId={org.id} />
+    return <OrgProfileInner org={org} isOwn={isOwn} orgId={org.id} />
 }
