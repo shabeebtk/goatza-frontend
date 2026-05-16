@@ -92,7 +92,7 @@
   /* shadow / glow */
 
   /* ── Foreground on brand bg (button text etc.) */
-  --color-on-brand: var(--primitive-ink-950);
+  --color-on-brand: var(--primitive-neutral-0);
   /* dark text on green btn */
 
   /* ── Text */
