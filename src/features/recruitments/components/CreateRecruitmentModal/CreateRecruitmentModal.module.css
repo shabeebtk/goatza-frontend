@@ -1203,3 +1203,473 @@
   text-transform: uppercase;
   animation: fadeIn 0.3s var(--ease-out) 0.4s both;
 }
+
+
+/* ── Section divider ─────────────────────────────────────────── */
+ 
+.sectionDivider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-1) 0;
+}
+ 
+/* ── Field sub-label ─────────────────────────────────────────── */
+ 
+.fieldSubLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: -2px;
+}
+ 
+/* ── Optional tag ────────────────────────────────────────────── */
+ 
+.optionalTag {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+}
+ 
+/* ── Space-1.5 utility ────────────────────────────────────────── */
+ 
+/* If --space-1_5 is not defined in your tokens, add this: */
+/* :root { --space-1_5: 0.375rem; } */
+ 
+/* ── Age category builder ─────────────────────────────────────── */
+ 
+.ageCategoryBuilder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+ 
+.agePresetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+ 
+.agePresetChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+ 
+.agePresetChip:hover:not(:disabled):not(.agePresetChipActive) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+ 
+.agePresetChipActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+  cursor: default;
+}
+ 
+.agePresetChipCustom {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+ 
+.agePresetChipCustom:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+ 
+.ageCategoryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+ 
+.ageCategoryCard {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-surface-raised);
+  animation: fadeIn 0.2s var(--ease-out) both;
+}
+ 
+.ageCategoryCardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+ 
+.ageTitleInput {
+  flex: 1;
+  font-weight: var(--weight-bold) !important;
+}
+ 
+/* Reporting time row */
+ 
+.reportingTimeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+ 
+.reportingTimeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--duration-fast);
+}
+ 
+.reportingTimeToggle:hover:not(:disabled) {
+  color: var(--color-brand-hover);
+}
+ 
+.reportingTimeToggleActive {
+  color: var(--color-brand-hover);
+}
+ 
+.reportingTimeInput {
+  width: 130px !important;
+  flex: none !important;
+  font-size: var(--text-sm) !important;
+  padding: 7px var(--space-3) !important;
+}
+ 
+/* Empty hint */
+ 
+.emptyHint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+ 
+/* ── Venue map input ──────────────────────────────────────────── */
+ 
+.venueMapInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+ 
+.venueMapIcon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+ 
+.venueMapInput {
+  padding-left: calc(var(--space-3) + 15px + var(--space-2)) !important;
+}
+ 
+/* ── Generic list builder ─────────────────────────────────────── */
+ 
+.listBuilder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+ 
+.listBuilderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  animation: fadeIn 0.2s var(--ease-out) both;
+}
+ 
+.listBuilderInput {
+  flex: 1;
+}
+ 
+.listBuilderIcon {
+  color: var(--color-brand-hover);
+  flex-shrink: 0;
+}
+ 
+/* Icon select for benefits */
+ 
+.iconSelect {
+  width: 90px;
+  flex-shrink: 0;
+  padding: 8px var(--space-2);
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+ 
+/* ── Requirements builder ─────────────────────────────────────── */
+ 
+.requirementsBuilder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+ 
+.reqPresetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1_5);
+  margin-bottom: var(--space-1);
+}
+ 
+.reqPresetChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+ 
+.reqPresetChip:hover:not(:disabled):not(.reqPresetChipActive) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+ 
+.reqPresetChipActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+  cursor: default;
+}
+ 
+/* Mandatory toggle button */
+ 
+.mandatoryToggle {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+ 
+.mandatoryToggleOn {
+  border-color: var(--color-error);
+  background: rgba(232, 70, 42, 0.07);
+  color: var(--color-error);
+}
+ 
+/* ── Contact row ──────────────────────────────────────────────── */
+ 
+.contactRow {
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr auto;
+  gap: var(--space-2);
+  align-items: center;
+  animation: fadeIn 0.2s var(--ease-out) both;
+}
+ 
+@media (max-width: 480px) {
+  .contactRow {
+    grid-template-columns: 80px 1fr auto;
+    grid-template-rows: auto auto;
+  }
+ 
+  .contactValueInput {
+    grid-column: 1 / -1;
+  }
+}
+ 
+.contactTypeSelect {
+  padding: 8px var(--space-2) !important;
+  font-size: 0.65rem !important;
+  letter-spacing: var(--tracking-wide) !important;
+  text-transform: uppercase;
+}
+ 
+.contactNameInput {
+  min-width: 0;
+}
+ 
+.contactValueInput {
+  min-width: 0;
+}
+ 
+.contactAddRow {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+ 
+.contactAddBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+ 
+.contactAddBtn:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+ 
+/* ── Review step ──────────────────────────────────────────────── */
+ 
+.reviewHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--color-brand);
+}
+ 
+.reviewSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+ 
+.reviewSection:last-of-type {
+  border-bottom: none;
+}
+ 
+.reviewSectionTitle {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+ 
+.reviewRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+ 
+.reviewRowIcon {
+  color: var(--color-brand-hover);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+ 
+.reviewRowLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  min-width: 80px;
+  flex-shrink: 0;
+  letter-spacing: var(--tracking-wide);
+}
+ 
+.reviewRowValue {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+ 
+.reviewPublishNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+}

@@ -109,6 +109,38 @@ export type Recruitment = {
 
 // ── Detail (full — user + org-owner fields) ───────────────────
 
+export type RecruitmentAgeCategory = {
+  id: string
+  title: string
+  min_birth_year: number
+  max_birth_year: number
+  reporting_time: string | null   // "HH:MM:SS" | null
+  display_order?: number
+}
+ 
+export type RecruitmentBenefit = {
+  id: string
+  title: string
+  icon_name: string
+  display_order?: number
+}
+ 
+export type RecruitmentRequirement = {
+  id: string
+  title: string
+  is_mandatory: boolean
+  display_order?: number
+}
+ 
+export type RecruitmentContact = {
+  id: string
+  name: string
+  contact_type: "phone" | "email"
+  value: string
+}
+ 
+// ── Detail (full — user + org-owner fields) ───────────────────
+ 
 export type RecruitmentDetail = {
   id: string
   title: string
@@ -116,9 +148,8 @@ export type RecruitmentDetail = {
   description: string
   recruitment_type: RecruitmentType
   visibility: RecruitmentVisibility
+  apply_method: "goatza" | "external" | "contact"
   gender: RecruitmentGender | ""
-  min_age: number | null
-  max_age: number | null
   experience_level: string
   application_deadline: string | null
   event_date: string | null
@@ -127,21 +158,28 @@ export type RecruitmentDetail = {
   fee_amount: string | null
   fee_currency: string
   payment_note: string
+  venue_name: string
+  venue_link: string
   location_name: string
   city: string
   country_code: string
   latitude: number | null
   longitude: number | null
+  external_apply_url: string
   applications_count: number
   organization: RecruitmentOrganization
   sport: RecruitmentSport
   positions: RecruitmentPosition[]
   media: RecruitmentMedia[]
   questions: RecruitmentQuestion[]
+  age_categories: RecruitmentAgeCategory[]
+  benefits: RecruitmentBenefit[]
+  requirements: RecruitmentRequirement[]
+  contacts: RecruitmentContact[]
   my_application: MyApplication | null
   can_apply: boolean
   created_at: string
-
+ 
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
   shortlisted_count?: number
@@ -184,6 +222,34 @@ export type CreateRecruitmentLocationPayload = {
   longitude?: number
 }
 
+export type CreateRecruitmentAgeCategoryPayload = {
+  title: string
+  min_birth_year: number
+  max_birth_year: number
+  reporting_time?: string   // "HH:MM:SS" or undefined
+  display_order: number
+}
+ 
+export type CreateRecruitmentBenefitPayload = {
+  title: string
+  icon_name: string
+  display_order: number
+}
+ 
+export type CreateRecruitmentRequirementPayload = {
+  title: string
+  is_mandatory: boolean
+  display_order: number
+}
+ 
+export type CreateRecruitmentContactPayload = {
+  name?: string
+  contact_type: "phone" | "email"
+  value: string
+}
+ 
+// ── Updated full payload ──────────────────────────────────────
+ 
 export type CreateRecruitmentPayload = {
   title: string
   short_description: string
@@ -192,8 +258,6 @@ export type CreateRecruitmentPayload = {
   visibility: RecruitmentVisibility
   gender?: RecruitmentGender | "all"
   sport_id: string
-  min_age?: number
-  max_age?: number
   experience_level?: string
   application_deadline?: string    // ISO 8601
   event_date?: string              // ISO 8601
@@ -202,8 +266,17 @@ export type CreateRecruitmentPayload = {
   fee_amount?: string
   fee_currency?: string
   payment_note?: string
+  // Venue
+  venue_name?: string
+  venue_link?: string
+  // Location
   location?: CreateRecruitmentLocationPayload
-  positions?: CreateRecruitmentPositionPayload[]
+  // Collections
+  positions?: CreateRecruitmentPositionPayload[]        // [] means "Any"
+  age_categories?: CreateRecruitmentAgeCategoryPayload[]
+  benefits?: CreateRecruitmentBenefitPayload[]
+  requirements?: CreateRecruitmentRequirementPayload[]
+  contacts?: CreateRecruitmentContactPayload[]
   questions?: CreateRecruitmentQuestionPayload[]
   media?: CreateRecruitmentMediaPayload[]
 }
