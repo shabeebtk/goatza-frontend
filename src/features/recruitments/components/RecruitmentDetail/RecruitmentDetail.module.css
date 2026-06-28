@@ -275,6 +275,12 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
+/* Positioning context so the StatusChangeMenu dropdown anchors to the button */
+.statusChangeWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .btnSecondary {
   display: inline-flex;
   align-items: center;

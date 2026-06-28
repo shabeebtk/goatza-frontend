@@ -6,7 +6,14 @@ import {
   type RecruitmentsListResponse,
 } from "../services/recruitments.api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { createRecruitmentApi, type CreateRecruitmentPayload } from "../services/recruitments.api"
+import {
+  createRecruitmentApi,
+  updateRecruitmentApi,
+  changeRecruitmentStatusApi,
+  type CreateRecruitmentPayload,
+  type RecruitmentPayload,
+  type RecruitmentStatus,
+} from "../services/recruitments.api"
 
 
 // ── Query keys ────────────────────────────────────────────────
@@ -49,11 +56,53 @@ export const useRecruitmentDetail = (recruitmentId: string) =>
 
 export const useCreateRecruitment = () => {
   const queryClient = useQueryClient()
- 
+
   return useMutation({
     mutationFn: (payload: CreateRecruitmentPayload) => createRecruitmentApi(payload),
     onSuccess: () => {
       // Invalidate all recruitment lists so they refresh
+      queryClient.invalidateQueries({ queryKey: ["recruitments"] })
+    },
+  })
+}
+
+export const useUpdateRecruitment = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recruitmentId,
+      payload,
+    }: {
+      recruitmentId: string
+      payload: RecruitmentPayload
+    }) => updateRecruitmentApi(recruitmentId, payload),
+    onSuccess: (_data, variables) => {
+      // Refresh the edited recruitment's detail + all lists
+      queryClient.invalidateQueries({
+        queryKey: recruitmentKeys.detail(variables.recruitmentId),
+      })
+      queryClient.invalidateQueries({ queryKey: ["recruitments"] })
+    },
+  })
+}
+
+export const useChangeRecruitmentStatus = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recruitmentId,
+      status,
+    }: {
+      recruitmentId: string
+      status: RecruitmentStatus
+    }) => changeRecruitmentStatusApi(recruitmentId, status),
+    onSuccess: (_data, variables) => {
+      // Refresh the recruitment's detail (status pill) + all lists
+      queryClient.invalidateQueries({
+        queryKey: recruitmentKeys.detail(variables.recruitmentId),
+      })
       queryClient.invalidateQueries({ queryKey: ["recruitments"] })
     },
   })

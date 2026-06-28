@@ -62,6 +62,7 @@ export type RecruitmentMedia = {
   id: string
   media_type: "image" | "video"
   file_url: string
+  public_id: string
   thumbnail_url: string
   duration: number | null
   order: number
@@ -182,6 +183,7 @@ export type RecruitmentDetail = {
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
+  max_applications?: number | null
   shortlisted_count?: number
   selected_count?: number
   views_count?: number
@@ -212,6 +214,10 @@ export type CreateRecruitmentMediaPayload = {
   public_id: string
   media_type: "image" | "video"
   order: number
+  // Optional — sent when preserving already-uploaded media on edit so
+  // video thumbnails/durations are not lost. New uploads omit them.
+  thumbnail_url?: string
+  duration?: number
 }
 
 export type CreateRecruitmentLocationPayload = {
@@ -329,5 +335,31 @@ export const createRecruitmentApi = async (
   payload: CreateRecruitmentPayload
 ): Promise<CreateRecruitmentResponse> => {
   const res = await api.post("/recruitments/create", payload)
+  return res.data.data
+}
+
+// Create and update share the exact same body shape.
+export type RecruitmentPayload = CreateRecruitmentPayload
+
+export const updateRecruitmentApi = async (
+  recruitmentId: string,
+  payload: RecruitmentPayload
+): Promise<CreateRecruitmentResponse> => {
+  const res = await api.patch(`/recruitments/${recruitmentId}/update`, payload)
+  return res.data.data
+}
+
+// ── Status change ─────────────────────────────────────────────
+
+export type ChangeRecruitmentStatusResponse = {
+  recruitment_id: string
+  status: RecruitmentStatus
+}
+
+export const changeRecruitmentStatusApi = async (
+  recruitmentId: string,
+  status: RecruitmentStatus
+): Promise<ChangeRecruitmentStatusResponse> => {
+  const res = await api.patch(`/recruitments/${recruitmentId}/status`, { status })
   return res.data.data
 }

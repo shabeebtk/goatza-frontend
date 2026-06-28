@@ -23,6 +23,8 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useRecruitmentDetail } from "../../hooks/useRecruitments"
+import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
+import { STATUS_TRANSITIONS } from "../../statusTransitions"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
   RecruitmentMedia,
@@ -408,17 +410,16 @@ interface RecruitmentDetailProps {
   recruitmentId: string
   isOrgView?: boolean
   onEdit?: () => void
-  onStatusChange?: (status: string) => void
 }
 
 export default function RecruitmentDetail({
   recruitmentId,
   isOrgView = false,
   onEdit,
-  onStatusChange,
 }: RecruitmentDetailProps) {
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
   const { toProfile } = useNavigation()
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
 
   if (isLoading) return <DetailSkeleton />
 
@@ -435,6 +436,10 @@ export default function RecruitmentDetail({
   const typeMeta   = TYPE_META[r.recruitment_type]   ?? TYPE_META.open_trial
   const statusMeta = r.status ? (STATUS_META[r.status] ?? STATUS_META.draft) : null
   const deadlinePast = isDeadlinePast(r.application_deadline)
+
+  // Owner status control: only offer transitions valid for the current status.
+  const orgStatus = r.status ?? "draft"
+  const canChangeStatus = (STATUS_TRANSITIONS[orgStatus] ?? []).length > 0
 
   const primaryPositions   = r.positions?.filter((p) => p.is_primary) ?? []
   const secondaryPositions = r.positions?.filter((p) => !p.is_primary) ?? []
@@ -509,28 +514,37 @@ export default function RecruitmentDetail({
         {/* Org-view action row */}
         {isOrgView && (
           <div className={styles.orgActions}>
-            {/* TODO(api): enable once the recruitment-edit endpoint is wired */}
             <button
               className={styles.btnSecondary}
               type="button"
               onClick={onEdit}
-              disabled
-              title="Editing recruitments is coming soon"
             >
               <Icon icon="mdi:pencil-outline" width={15} height={15} />
               Edit
             </button>
-            {/* TODO(api): enable once the status-change endpoint is wired */}
-            <button
-              className={styles.btnSecondary}
-              type="button"
-              onClick={() => onStatusChange?.(r.status ?? "draft")}
-              disabled
-              title="Status changes are coming soon"
-            >
-              <Icon icon="mdi:swap-horizontal" width={15} height={15} />
-              Change Status
-            </button>
+            <div className={styles.statusChangeWrap}>
+              <button
+                className={styles.btnSecondary}
+                type="button"
+                onClick={() => setStatusMenuOpen((o) => !o)}
+                onMouseDown={(e) => e.stopPropagation()}
+                disabled={!canChangeStatus}
+                title={canChangeStatus ? undefined : "This recruitment is cancelled"}
+                aria-haspopup="menu"
+                aria-expanded={statusMenuOpen}
+              >
+                <Icon icon="mdi:swap-horizontal" width={15} height={15} />
+                Change Status
+              </button>
+              {canChangeStatus && statusMenuOpen && (
+                <StatusChangeMenu
+                  open
+                  onClose={() => setStatusMenuOpen(false)}
+                  recruitmentId={recruitmentId}
+                  currentStatus={orgStatus}
+                />
+              )}
+            </div>
             <Link
               href={`/organization/admin/${r.organization.id}/recruitments/${r.id}/applications`}
               className={styles.btnPrimary}
