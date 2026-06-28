@@ -21,6 +21,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useNavigation } from "@/shared/services/navigation.service"
 import { useRecruitmentDetail } from "../../hooks/useRecruitments"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
@@ -417,6 +418,7 @@ export default function RecruitmentDetail({
   onStatusChange,
 }: RecruitmentDetailProps) {
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
+  const { toProfile } = useNavigation()
 
   if (isLoading) return <DetailSkeleton />
 
@@ -453,7 +455,7 @@ export default function RecruitmentDetail({
       <div className={styles.headerCard}>
 
         {/* Org row */}
-        <Link href={`/organization/${r.organization.username}`} className={styles.orgRow}>
+        <Link href={toProfile(r.organization.username, "organization")} className={styles.orgRow}>
           <Avatar
             src={r.organization.logo}
             initials={r.organization.name?.slice(0, 2).toUpperCase()}
@@ -507,11 +509,25 @@ export default function RecruitmentDetail({
         {/* Org-view action row */}
         {isOrgView && (
           <div className={styles.orgActions}>
-            <button className={styles.btnSecondary} type="button" onClick={onEdit}>
+            {/* TODO(api): enable once the recruitment-edit endpoint is wired */}
+            <button
+              className={styles.btnSecondary}
+              type="button"
+              onClick={onEdit}
+              disabled
+              title="Editing recruitments is coming soon"
+            >
               <Icon icon="mdi:pencil-outline" width={15} height={15} />
               Edit
             </button>
-            <button className={styles.btnSecondary} type="button" onClick={() => onStatusChange?.(r.status ?? "draft")}>
+            {/* TODO(api): enable once the status-change endpoint is wired */}
+            <button
+              className={styles.btnSecondary}
+              type="button"
+              onClick={() => onStatusChange?.(r.status ?? "draft")}
+              disabled
+              title="Status changes are coming soon"
+            >
               <Icon icon="mdi:swap-horizontal" width={15} height={15} />
               Change Status
             </button>

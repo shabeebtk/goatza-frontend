@@ -1,8 +1,8 @@
 "use client"
 
 /**
- * /organization/admin/[id]/recruitments/[recruitmentId]/page.tsx
- * Org-admin view of a recruitment — shows stats, edit, status change
+ * /recruitments/[recruitmentId]/page.tsx
+ * User-facing view of a recruitment — apply CTA / application status (no isOrgView)
  */
 
 import { use } from "react"

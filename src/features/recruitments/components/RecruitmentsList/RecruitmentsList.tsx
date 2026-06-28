@@ -23,6 +23,7 @@ import RecruitmentCard from "../RecruitmentCard/RecruitmentCard"
 import RecruitmentCardSkeleton from "../RecruitmentCard/RecruitmentCardSkeleton"
 import { useRecruitmentsList } from "../../hooks/useRecruitments"
 import type { FetchRecruitmentsParams } from "../../services/recruitments.api"
+import { useNavigation } from "@/shared/services/navigation.service"
 import styles from "./RecruitmentsList.module.css"
 import CreateRecruitmentTrigger from "../CreateRecruitmentModal/CreateRecruitmentTrigger"
 
@@ -102,6 +103,8 @@ export default function RecruitmentsList({
     preview = false,
     showOrg = true,
 }: RecruitmentsListProps) {
+    const { toRecruitmentsList } = useNavigation()
+
     const queryParams: FetchRecruitmentsParams = {}
     if (username) queryParams.username = username
 
@@ -196,7 +199,7 @@ export default function RecruitmentsList({
                     <h2 className={styles.previewTitle}>Recruitments</h2>
                     {totalCount > 1 && (
                         <Link
-                            href={`/organization/profile/${username}/recruitments`}
+                            href={toRecruitmentsList(username)}
                             className={styles.viewAllBtn}
                         >
                             View All {totalCount}

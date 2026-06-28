@@ -64,10 +64,30 @@ export function useNavigation() {
     return `/messages/${username}`
   }
 
+  function toRecruitment(recruitmentId: string) {
+    // admin context: stay inside admin routes so the active actor isn't reset
+    if (isOrgAdminView && currentOrg) {
+      return `/organization/admin/${currentOrg.id}/recruitments/${recruitmentId}`
+    }
+
+    return `/recruitments/${recruitmentId}`
+  }
+
+  function toRecruitmentsList(username: string) {
+    // recruitments belong to organizations; keep the org's own list inside admin
+    if (isOrgAdminView && currentOrg && currentOrg.username === username) {
+      return `/organization/admin/${currentOrg.id}/recruitments`
+    }
+
+    return `/organization/profile/${username}/recruitments`
+  }
+
   return {
     toProfile,
     toPost,
     toPostsList,
     toMessage,
+    toRecruitment,
+    toRecruitmentsList,
   }
 }

@@ -5,6 +5,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useNavigation } from "@/shared/services/navigation.service"
 import styles from "./RecruitmentCard.module.css"
 import { Recruitment } from "../../services/recruitments.api"
 
@@ -69,6 +70,8 @@ export default function RecruitmentCard({
   recruitment,
   showOrg = true,
 }: RecruitmentCardProps) {
+  const { toRecruitment, toProfile } = useNavigation()
+
   const typeMeta =
     TYPE_META[recruitment.recruitment_type] ?? TYPE_META.open_trial
   const statusMeta = STATUS_META[recruitment.status] ?? STATUS_META.active
@@ -91,7 +94,7 @@ export default function RecruitmentCard({
       {showOrg && (
         <div className={styles.orgRow}>
           <Link
-            href={`/organization/${recruitment.organization.username}`}
+            href={toProfile(recruitment.organization.username, "organization")}
             className={styles.orgLink}
           >
             <Avatar
@@ -136,7 +139,7 @@ export default function RecruitmentCard({
         </div>
         <div className={styles.titleBlock}>
           <Link
-            href={`/recruitments/${recruitment.id}`}
+            href={toRecruitment(recruitment.id)}
             className={styles.titleLink}
           >
             <h3 className={styles.title}>{recruitment.title}</h3>
@@ -202,7 +205,7 @@ export default function RecruitmentCard({
           )}
 
           <Link
-            href={`/recruitments/${recruitment.id}`}
+            href={toRecruitment(recruitment.id)}
             className={styles.applyBtn}
           >
             View

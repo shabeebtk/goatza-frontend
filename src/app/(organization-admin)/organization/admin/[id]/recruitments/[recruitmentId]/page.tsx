@@ -27,13 +27,13 @@ export default function OrgRecruitmentDetailPage({ params }: OrgRecruitmentDetai
   if (!organization) return null
 
   const handleEdit = () => {
-    // TODO: open edit modal / navigate to edit page
-    console.log("Edit recruitment", recruitmentId)
+    // TODO(api): open the edit modal / navigate to the edit page once the
+    // recruitment-edit endpoint is wired. The button stays disabled until then.
   }
 
-  const handleStatusChange = (currentStatus: string) => {
-    // TODO: open status-change sheet
-    console.log("Change status for", recruitmentId, "current:", currentStatus)
+  const handleStatusChange = () => {
+    // TODO(api): open the status-change sheet once the status endpoint is wired.
+    // The button stays disabled until then.
   }
 
   return (
