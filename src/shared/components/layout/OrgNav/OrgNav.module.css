@@ -381,6 +381,14 @@
   flex-shrink: 0;
 }
 
+/* Positioning context so the CreateMenu dropdown anchors to the "+" button */
+.createBtnWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .topNavCreateBtn {
   display: none;
 }

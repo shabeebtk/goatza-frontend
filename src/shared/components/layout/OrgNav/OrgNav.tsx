@@ -10,7 +10,9 @@ import { useAuthStore } from "@/store/auth.store"
 import { logoutApi } from "@/features/auth/services/auth.api"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
+import CreateMenu, { type CreateAction } from "@/shared/components/layout/CreateMenu/CreateMenu"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateRecruitmentModal/CreateRecruitmentTrigger"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -122,6 +124,8 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
+  const [recruitmentOpen, setRecruitmentOpen] = useState(false)
 
   const user = useAuthStore((state) => state.user)
   const clearAuth = useAuthStore((state) => state.clearAuth)
@@ -136,6 +140,24 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     activeOrganization?.id === orgId
       ? activeOrganization
       : organizations.find((organization) => organization.id === orgId)
+
+  // Data-driven create actions — add a new entry here to grow the "+" menu.
+  const createActions: CreateAction[] = [
+    {
+      id: "post",
+      label: "Create post",
+      sublabel: "Share an update",
+      icon: "mdi:image-plus-outline",
+      onSelect: () => setPostModalOpen(true),
+    },
+    {
+      id: "recruitment",
+      label: "Create recruitment",
+      sublabel: "Post a trial or search",
+      icon: "mdi:bullhorn-outline",
+      onSelect: () => setRecruitmentOpen(true),
+    },
+  ]
 
   const NAV_ITEMS = buildNavItems(orgId)
   const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) => item.label !== "Alerts")
@@ -162,8 +184,10 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     const onResize = () => {
       if (window.innerWidth >= 768) {
         setSheetOpen(false)
+        setCreateMenuOpen(false) // close the mobile create sheet
       } else {
         setDropdownOpen(false)
+        setCreateMenuOpen(false) // close the desktop create dropdown
       }
     }
 
@@ -240,14 +264,24 @@ export default function OrgNav({ orgId }: { orgId: string }) {
             })}
           </nav>
 
-          <button
-            className={styles.topNavCreateBtn}
-            onClick={() => setPostModalOpen(true)}
-            type="button"
-            aria-label="Create post"
-          >
-            <Icon icon="mdi:plus" width={18} height={18} />
-          </button>
+          <div className={styles.createBtnWrap}>
+            <button
+              className={styles.topNavCreateBtn}
+              onClick={() => setCreateMenuOpen((open) => !open)}
+              onMouseDown={(event) => event.stopPropagation()}
+              type="button"
+              aria-label="Create"
+              aria-haspopup="menu"
+              aria-expanded={createMenuOpen}
+            >
+              <Icon icon="mdi:plus" width={18} height={18} />
+            </button>
+            <CreateMenu
+              open={createMenuOpen}
+              onClose={() => setCreateMenuOpen(false)}
+              actions={createActions}
+            />
+          </div>
 
           <div className={styles.topNavAvatar}>
             <div className={styles.avatarBtn}>
@@ -344,8 +378,10 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         <button
           className={styles.bottomTabCreate}
           style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-          aria-label="Create post"
-          onClick={() => setPostModalOpen(true)}
+          aria-label="Open create menu"
+          aria-haspopup="menu"
+          aria-expanded={createMenuOpen}
+          onClick={() => setCreateMenuOpen(true)}
         >
           <span className={styles.bottomTabCreateInner} aria-hidden="true">
             <Icon icon="mdi:plus" width={28} height={28} />
@@ -432,6 +468,13 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           onClose={() => setPostModalOpen(false)}
         />
       )}
+
+      {/* Recruitment modal — controlled by the create menu. CreateRecruitmentTrigger
+          keeps its org-actor guard, so it self-renders null for non-org actors. */}
+      <CreateRecruitmentTrigger
+        open={recruitmentOpen}
+        onOpenChange={setRecruitmentOpen}
+      />
     </>
   )
 }
