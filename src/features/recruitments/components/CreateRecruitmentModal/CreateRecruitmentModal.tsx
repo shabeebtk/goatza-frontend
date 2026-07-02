@@ -11,11 +11,14 @@ import {
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import styles from "./CreateRecruitmentModal.module.css"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
 import { useCreateRecruitment, useUpdateRecruitment } from "../../hooks/useRecruitments"
 import type {
     RecruitmentDetail,
     CreateRecruitmentPayload,
     CreateRecruitmentMediaPayload,
+    ApplyMethod,
 } from "../../services/recruitments.api"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -89,6 +92,34 @@ type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 const TOTAL_STEPS = 5
 const STEP_LABELS = ["Basics", "Age & Venue", "Positions", "Media", "Review"]
 
+// Maps a backend field-error key → the wizard step that owns it, so a 400 can
+// jump the user straight to the offending input and show the message inline.
+const FIELD_STEP: Record<string, number> = {
+    title: 0,
+    short_description: 0,
+    sport_id: 0,
+    event_date: 0,
+    application_deadline: 0,
+    max_applications: 0,
+    positions: 2,
+    external_apply_url: 2,
+    contacts: 2,
+    fee_amount: 3,
+    media: 3,
+}
+
+function isValidHttpUrl(value: string): boolean {
+    try {
+        const url = new URL(value)
+        return url.protocol === "http:" || url.protocol === "https:"
+    } catch {
+        return false
+    }
+}
+
+const PHONE_RE = /^\+?\d{7,15}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 // ── Preset age categories ──────────────────────────────────────
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -120,6 +151,12 @@ const BENEFIT_ICONS = [
     { value: "certificate", label: "Certificate", icon: "mdi:certificate-outline" },
     { value: "money", label: "Stipend", icon: "mdi:currency-inr" },
     { value: "network", label: "Networking", icon: "mdi:account-group-outline" },
+]
+
+const APPLY_METHODS: { value: ApplyMethod; label: string; icon: string }[] = [
+    { value: "goatza", label: "On Goatza", icon: "mdi:cellphone-check" },
+    { value: "external", label: "External link", icon: "mdi:open-in-new" },
+    { value: "contact", label: "Contact directly", icon: "mdi:phone-outline" },
 ]
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
@@ -767,6 +804,8 @@ export default function CreateRecruitmentModal({
     const [benefits, setBenefits] = useState<BenefitDraft[]>(() => (init ? mapInitialBenefits(init) : []))
     const [requirements, setRequirements] = useState<RequirementDraft[]>(() => (init ? mapInitialRequirements(init) : []))
     const [contacts, setContacts] = useState<ContactDraft[]>(() => (init ? mapInitialContacts(init) : []))
+    const [applyMethod, setApplyMethod] = useState<ApplyMethod>(() => init?.apply_method ?? "goatza")
+    const [externalApplyUrl, setExternalApplyUrl] = useState(() => init?.external_apply_url ?? "")
 
     // ── Step 3: Media + Payment ───────────────────────────────────
     const [mediaEntries, setMediaEntries] = useState<MediaEntry[]>(() => (init ? mapInitialMedia(init) : []))
@@ -778,7 +817,10 @@ export default function CreateRecruitmentModal({
     // ── Submission ────────────────────────────────────────────────
     const [phase, setPhase] = useState<SubmitPhase>("idle")
     const [submitError, setSubmitError] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+    const [draftSaved, setDraftSaved] = useState(false)
 
+    const toast = useToast()
     const { mutateAsync: createRecruitment } = useCreateRecruitment()
     const { mutateAsync: updateRecruitment } = useUpdateRecruitment()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -804,6 +846,25 @@ export default function CreateRecruitmentModal({
         setAnyPosition(true)
     }
 
+    // Clear a specific field's inline error (called from the mapped inputs).
+    const clearFieldError = (name: string) => {
+        setFieldErrors(prev => {
+            if (!prev[name]) return prev
+            const next = { ...prev }
+            delete next[name]
+            return next
+        })
+    }
+
+    // Inline error under a mapped field (populated from a server 400).
+    const renderFieldError = (name: string) =>
+        fieldErrors[name] ? (
+            <span className={styles.fieldErrorText} role="alert">
+                <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
+                {fieldErrors[name]}
+            </span>
+        ) : null
+
     // ── Validation ────────────────────────────────────────────────
     const validateStep = (): string | null => {
         if (step === 0) {
@@ -811,12 +872,28 @@ export default function CreateRecruitmentModal({
             if (!shortDesc.trim() || shortDesc.trim().length < 10) return "Short description must be at least 10 characters."
             if (!sportId) return "Please select a sport."
             if (!eventDate) return "Please set an event / trial date."
+
+            // deadline must be on or before the event date
+            if (applicationDeadline && eventDate && new Date(applicationDeadline) > new Date(eventDate)) {
+                return "Application deadline must be on or before the event date."
+            }
+            // deadline not in the past — but in edit mode, an unchanged past deadline is fine
+            if (applicationDeadline) {
+                const initialDeadlineLocal = isoToLocalInput(init?.application_deadline ?? null)
+                const deadlineChanged = applicationDeadline !== initialDeadlineLocal
+                if ((!isEdit || deadlineChanged) && new Date(applicationDeadline).getTime() < Date.now()) {
+                    return "Application deadline cannot be in the past."
+                }
+            }
         }
         if (step === 1) {
             for (const cat of ageCategories) {
                 if (!cat.title.trim()) return "All age categories need a title."
                 if (cat.min_birth_year > cat.max_birth_year) return `"${cat.title}": min birth year cannot exceed max birth year.`
                 if (cat.min_birth_year < 1980 || cat.max_birth_year > CURRENT_YEAR) return `"${cat.title}": birth years must be between 1980 and ${CURRENT_YEAR}.`
+            }
+            if (venueLink.trim() && !isValidHttpUrl(venueLink.trim())) {
+                return "Enter a valid venue map URL (including https://)."
             }
         }
         if (step === 2) {
@@ -825,8 +902,25 @@ export default function CreateRecruitmentModal({
                 const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
                 if (hasOptions && q.options.filter(o => o.value.trim()).length < 2) return `Question "${q.question || "untitled"}" needs at least 2 options.`
             }
-            for (const c of contacts) {
-                if (!c.value.trim()) return "All contacts need a value (phone or email)."
+
+            // apply method
+            if (applyMethod === "external") {
+                if (!externalApplyUrl.trim()) return "Add the external application link."
+                if (!isValidHttpUrl(externalApplyUrl.trim())) return "Enter a valid application URL (including https://)."
+            }
+            const filledContacts = contacts.filter(c => c.value.trim())
+            if (applyMethod === "contact" && filledContacts.length === 0) {
+                return "Add at least one contact for players to apply through."
+            }
+
+            // contact format
+            for (const c of filledContacts) {
+                if (c.contact_type === "email" && !EMAIL_RE.test(c.value.trim())) {
+                    return "Enter a valid email address for the email contact."
+                }
+                if (c.contact_type === "phone" && !PHONE_RE.test(c.value.trim().replace(/[\s\-().]/g, ""))) {
+                    return "Enter a valid phone number for the phone contact."
+                }
             }
         }
         if (step === 3) {
@@ -839,11 +933,13 @@ export default function CreateRecruitmentModal({
         const err = validateStep()
         if (err) { setSubmitError(err); return }
         setSubmitError(null)
+        setFieldErrors({})
         setStep(s => Math.min(TOTAL_STEPS - 1, s + 1))
     }
 
     const goPrev = () => {
         setSubmitError(null)
+        setFieldErrors({})
         setStep(s => Math.max(0, s - 1))
     }
 
@@ -886,7 +982,10 @@ export default function CreateRecruitmentModal({
     // ── Build the API payload from current wizard state ───────────
     // Shared by create and edit; `media` is passed in because it is
     // resolved asynchronously during submit (existing + freshly uploaded).
-    const buildPayload = (media: CreateRecruitmentMediaPayload[]): CreateRecruitmentPayload => ({
+    const buildPayload = (
+        media: CreateRecruitmentMediaPayload[],
+        submitStatus?: "draft" | "active",
+    ): CreateRecruitmentPayload => ({
         title: title.trim(),
         short_description: shortDesc.trim(),
         description: description.trim() || undefined,
@@ -902,6 +1001,10 @@ export default function CreateRecruitmentModal({
         fee_amount: isPaid && feeAmount ? feeAmount : undefined,
         fee_currency: isPaid ? feeCurrency : undefined,
         payment_note: isPaid && paymentNote ? paymentNote.trim() : undefined,
+        apply_method: applyMethod,
+        external_apply_url: applyMethod === "external" ? (externalApplyUrl.trim() || undefined) : undefined,
+        // status: create-only draft/publish; omitted entirely in edit mode.
+        ...(submitStatus ? { status: submitStatus } : {}),
         venue_name: venueName.trim() || undefined,
         venue_link: venueLink.trim() || undefined,
         location: location ? {
@@ -942,11 +1045,33 @@ export default function CreateRecruitmentModal({
         media: media.length > 0 ? media : undefined,
     })
 
+    // Map a 400's field errors onto the wizard: show inline + jump to the step.
+    const applyServerFieldErrors = (err: unknown): void => {
+        const errors = getApiFieldErrors(err)
+        if (!errors) return
+        const known: Record<string, string> = {}
+        let jumpStep: number | null = null
+        for (const [key, msg] of Object.entries(errors)) {
+            if (key in FIELD_STEP) {
+                known[key] = msg
+                const s = FIELD_STEP[key]
+                if (jumpStep === null || s < jumpStep) jumpStep = s
+            }
+        }
+        if (Object.keys(known).length > 0) {
+            setFieldErrors(known)
+            if (jumpStep !== null) setStep(jumpStep)
+        }
+    }
+
     // ── Submit (create or update) ─────────────────────────────────
-    const handleSubmit = async () => {
+    // submitStatus is only meaningful on create: "draft" saves a draft,
+    // "active"/undefined publishes. Edit never sends a status.
+    const handleSubmit = async (submitStatus?: "draft" | "active") => {
         const err = validateStep()
         if (err) { setSubmitError(err); return }
         setSubmitError(null)
+        setFieldErrors({})
 
         // 1) Upload only newly-added media. Existing media is preserved as-is.
         const uploadedByEntryId = new Map<string, UploadedMedia>()
@@ -976,13 +1101,15 @@ export default function CreateRecruitmentModal({
                             e.id === entry.id ? { ...e, status: "done", progress: 100, result: uploaded } : e
                         ))
                     } catch (uploadErr) {
-                        const msg = uploadErr instanceof Error ? uploadErr.message : "Upload failed"
+                        const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
                         setMediaEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: "error", error: msg } : e))
                         throw new Error(msg)
                     }
                 }
             } catch (uploadErr) {
-                setSubmitError(uploadErr instanceof Error ? uploadErr.message : "Upload failed")
+                const msg = getApiErrorMessage(uploadErr, "Media upload failed. Please try again.")
+                toast.show({ title: "Media upload failed", message: msg, variant: "error" })
+                setSubmitError(msg)
                 setPhase("idle")
                 return
             }
@@ -1005,29 +1132,44 @@ export default function CreateRecruitmentModal({
         setPhase("posting")
 
         try {
-            const payload = buildPayload(finalMedia)
+            // Edit never sends status; create publishes unless saving a draft.
+            const payload = buildPayload(finalMedia, isEdit ? undefined : submitStatus)
 
             if (isEdit && init) {
                 await updateRecruitment({ recruitmentId: init.id, payload })
                 setPhase("done")
+                toast.show({ title: "Recruitment updated", variant: "success" })
                 setTimeout(() => {
                     onUpdated?.(init.id)
                     onClose()
                 }, 1500)
             } else {
                 const res = await createRecruitment(payload)
+                const isDraft = submitStatus === "draft"
+                setDraftSaved(isDraft)
                 setPhase("done")
+                toast.show({
+                    title: isDraft ? "Draft saved" : "Recruitment published",
+                    variant: "success",
+                })
                 setTimeout(() => {
                     onCreated?.(res.recruitment_id)
                     onClose()
                 }, 2000)
             }
         } catch (submitErr) {
-            setSubmitError(
-                submitErr instanceof Error
-                    ? submitErr.message
-                    : isEdit ? "Failed to update recruitment." : "Failed to create recruitment."
+            const msg = getApiErrorMessage(
+                submitErr,
+                isEdit ? "Couldn't update recruitment. Please try again."
+                    : "Couldn't publish recruitment. Please try again."
             )
+            toast.show({
+                title: isEdit ? "Couldn't update recruitment" : "Couldn't publish recruitment",
+                message: msg,
+                variant: "error",
+            })
+            setSubmitError(msg)
+            applyServerFieldErrors(submitErr)
             setPhase("idle")
         }
     }
@@ -1043,8 +1185,9 @@ export default function CreateRecruitmentModal({
                     <div className={styles.stepContent}>
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Title <span className={styles.required}>*</span></label>
-                            <input className={styles.fieldInput} placeholder="e.g. U17 Open Football Trials" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} disabled={isSubmitting} />
+                            <input className={styles.fieldInput} placeholder="e.g. U17 Open Football Trials" value={title} onChange={e => { setTitle(e.target.value); clearFieldError("title") }} maxLength={120} disabled={isSubmitting} />
                             <span className={styles.fieldHint}>{title.length}/120</span>
+                            {renderFieldError("title")}
                         </div>
 
                         <div className={styles.fieldGroup}>
@@ -1102,11 +1245,13 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldRow}>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Trial / Event Date <span className={styles.required}>*</span></label>
-                                <input className={styles.fieldInput} type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} disabled={isSubmitting} />
+                                <input className={styles.fieldInput} type="datetime-local" value={eventDate} onChange={e => { setEventDate(e.target.value); clearFieldError("event_date") }} disabled={isSubmitting} />
+                                {renderFieldError("event_date")}
                             </div>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Application Deadline</label>
-                                <input className={styles.fieldInput} type="datetime-local" value={applicationDeadline} onChange={e => setApplicationDeadline(e.target.value)} disabled={isSubmitting} />
+                                <input className={styles.fieldInput} type="datetime-local" value={applicationDeadline} onChange={e => { setApplicationDeadline(e.target.value); clearFieldError("application_deadline") }} disabled={isSubmitting} />
+                                {renderFieldError("application_deadline")}
                             </div>
                         </div>
 
@@ -1294,13 +1439,58 @@ export default function CreateRecruitmentModal({
 
                         <div className={styles.sectionDivider} />
 
+                        {/* How players apply */}
+                        <div className={styles.fieldGroup}>
+                            <label className={styles.fieldLabel}>How players apply</label>
+                            <div className={styles.applyMethodRow}>
+                                {APPLY_METHODS.map(m => (
+                                    <button
+                                        key={m.value}
+                                        type="button"
+                                        className={`${styles.applyMethodChip} ${applyMethod === m.value ? styles.applyMethodChipActive : ""}`}
+                                        onClick={() => { setApplyMethod(m.value); clearFieldError("external_apply_url") }}
+                                        disabled={isSubmitting}
+                                    >
+                                        <Icon icon={m.icon} width={16} height={16} />
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {applyMethod === "external" && (
+                                <div className={styles.applyMethodDetail}>
+                                    <input
+                                        className={styles.fieldInput}
+                                        placeholder="https://yourclub.com/apply"
+                                        value={externalApplyUrl}
+                                        onChange={e => { setExternalApplyUrl(e.target.value); clearFieldError("external_apply_url") }}
+                                        type="url"
+                                        disabled={isSubmitting}
+                                    />
+                                    {renderFieldError("external_apply_url")}
+                                    <p className={styles.fieldSubLabel}>Players are sent here to apply.</p>
+                                </div>
+                            )}
+                            {applyMethod === "goatza" && (
+                                <p className={styles.fieldSubLabel}>Players apply in-app through Goatza.</p>
+                            )}
+                            {applyMethod === "contact" && (
+                                <p className={styles.fieldSubLabel}>Players reach out using the contacts below.</p>
+                            )}
+                        </div>
+
+                        <div className={styles.sectionDivider} />
+
                         {/* Contacts */}
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>
                                 Contact Info
-                                <span className={styles.fieldLabelMuted}> — optional</span>
+                                <span className={styles.fieldLabelMuted}>
+                                    {applyMethod === "contact" ? " — required" : " — optional"}
+                                </span>
                             </label>
                             <ContactsBuilder contacts={contacts} onChange={setContacts} disabled={isSubmitting} />
+                            {renderFieldError("contacts")}
                         </div>
                     </div>
                 )
@@ -1312,6 +1502,7 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Banner / Photos</label>
                             <MediaPreview entries={mediaEntries} onRemove={removeMedia} disabled={isSubmitting} />
+                            {renderFieldError("media")}
                             {mediaEntries.length < 5 && (
                                 <button className={styles.mediaAddBtn} onClick={() => fileInputRef.current?.click()} type="button" disabled={isSubmitting}>
                                     <Icon icon="mdi:image-plus-outline" width={18} height={18} />
@@ -1353,7 +1544,8 @@ export default function CreateRecruitmentModal({
                                         </div>
                                         <div className={styles.fieldGroup}>
                                             <label className={styles.fieldLabel}>Amount <span className={styles.required}>*</span></label>
-                                            <input className={styles.fieldInput} type="number" min={0} step="0.01" placeholder="e.g. 300" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} disabled={isSubmitting} />
+                                            <input className={styles.fieldInput} type="number" min={0} step="0.01" placeholder="e.g. 300" value={feeAmount} onChange={e => { setFeeAmount(e.target.value); clearFieldError("fee_amount") }} disabled={isSubmitting} />
+                                            {renderFieldError("fee_amount")}
                                         </div>
                                     </div>
                                     <div className={styles.fieldGroup}>
@@ -1411,6 +1603,7 @@ export default function CreateRecruitmentModal({
                         <div className={styles.reviewSection}>
                             <p className={styles.reviewSectionTitle}>Positions & Questions</p>
                             <ReviewRow icon="mdi:run" label="Positions" value={anyPosition ? "Any" : selectedPositions.map(p => p.name).join(", ")} />
+                            <ReviewRow icon="mdi:send-outline" label="Apply via" value={applyMethod === "goatza" ? "Goatza app" : applyMethod === "external" ? "External link" : "Contact"} />
                             <ReviewRow icon="mdi:help-circle-outline" label="Questions" value={questions.length > 0 ? `${questions.length} question${questions.length > 1 ? "s" : ""}` : null} />
                             <ReviewRow icon="mdi:gift-outline" label="Benefits" value={benefits.length > 0 ? `${benefits.length} benefit${benefits.length > 1 ? "s" : ""}` : null} />
                             <ReviewRow icon="mdi:clipboard-list-outline" label="Requirements" value={requirements.length > 0 ? `${requirements.length} item${requirements.length > 1 ? "s" : ""}` : null} />
@@ -1439,7 +1632,7 @@ export default function CreateRecruitmentModal({
                 <div className={styles.modal}>
                     <div className={styles.doneState}>
                         <span className={styles.doneTick}><Icon icon="mdi:check-circle" width={52} height={52} /></span>
-                        <span className={styles.doneLabel}>{isEdit ? "Changes Saved!" : "Recruitment Created!"}</span>
+                        <span className={styles.doneLabel}>{isEdit ? "Changes Saved!" : draftSaved ? "Draft Saved!" : "Recruitment Published!"}</span>
                         <p className={styles.doneSubtitle}>{isEdit ? "Updating…" : "Redirecting…"}</p>
                     </div>
                 </div>
@@ -1514,10 +1707,23 @@ export default function CreateRecruitmentModal({
                     <div className={styles.footerRight}>
                         <span className={styles.stepCounter}>{step + 1} / {TOTAL_STEPS}</span>
                         {isLastStep ? (
-                            <button className={styles.publishBtn} onClick={handleSubmit} disabled={isSubmitting} type="button">
-                                <Icon icon={isEdit ? "mdi:content-save-outline" : "mdi:whistle-outline"} width={15} height={15} />
-                                {isEdit ? "Save Changes" : "Publish"}
-                            </button>
+                            <>
+                                {!isEdit && (
+                                    <button className={styles.draftBtn} onClick={() => handleSubmit("draft")} disabled={isSubmitting} type="button">
+                                        <Icon icon="mdi:content-save-edit-outline" width={15} height={15} />
+                                        Save Draft
+                                    </button>
+                                )}
+                                <button
+                                    className={styles.publishBtn}
+                                    onClick={() => (isEdit ? handleSubmit() : handleSubmit("active"))}
+                                    disabled={isSubmitting}
+                                    type="button"
+                                >
+                                    <Icon icon={isEdit ? "mdi:content-save-outline" : "mdi:whistle-outline"} width={15} height={15} />
+                                    {isEdit ? "Save Changes" : "Publish"}
+                                </button>
+                            </>
                         ) : (
                             <button className={styles.nextBtn} onClick={goNext} disabled={isSubmitting} type="button">
                                 Next <Icon icon="mdi:chevron-right" width={16} height={16} />

@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
-import { isAxiosError } from "axios"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useChangeRecruitmentStatus } from "../../hooks/useRecruitments"
 import { STATUS_TRANSITIONS, type RecruitmentStatusAction } from "../../statusTransitions"
 import type { RecruitmentStatus } from "../../services/recruitments.api"
@@ -16,26 +16,6 @@ import styles from "./StatusChangeMenu.module.css"
  * (mirrors the AccountSwitcher sheet pattern). Only valid next-statuses are
  * offered; the server stays authoritative on legality.
  */
-
-function extractApiError(err: unknown): string {
-  if (isAxiosError(err)) {
-    const data = err.response?.data as { message?: string; error?: string } | undefined
-    const raw = data?.error
-    if (raw) {
-      // The view does error=str(DRF ValidationError), which stringifies as
-      // "[ErrorDetail(string='message', code='invalid')]".
-      const detail = raw.match(/string=['"](.+?)['"](?:,|\))/)
-      if (detail?.[1]) return detail[1]
-      // Fallback: a plain "['message']" list form.
-      const list = raw.match(/^\[['"](.+?)['"]\]$/)
-      if (list?.[1]) return list[1]
-      const trimmed = raw.trim()
-      if (trimmed && trimmed !== "[]") return trimmed
-    }
-    if (data?.message) return data.message
-  }
-  return "Couldn't update the status. Please try again."
-}
 
 interface StatusChangeMenuProps {
   open: boolean
@@ -92,7 +72,7 @@ export default function StatusChangeMenu({
       onClose()
     } catch (err) {
       // Server is the source of truth — show its message, don't flip optimistically.
-      setError(extractApiError(err))
+      setError(getApiErrorMessage(err, "Couldn't update the status. Please try again."))
     }
   }
 

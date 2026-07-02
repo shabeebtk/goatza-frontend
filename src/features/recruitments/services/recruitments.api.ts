@@ -253,9 +253,11 @@ export type CreateRecruitmentContactPayload = {
   contact_type: "phone" | "email"
   value: string
 }
- 
+
+export type ApplyMethod = "goatza" | "external" | "contact"
+
 // ── Updated full payload ──────────────────────────────────────
- 
+
 export type CreateRecruitmentPayload = {
   title: string
   short_description: string
@@ -268,6 +270,11 @@ export type CreateRecruitmentPayload = {
   application_deadline?: string    // ISO 8601
   event_date?: string              // ISO 8601
   max_applications?: number
+  // Draft vs publish — create only (omit / "active" publishes, "draft" saves).
+  status?: "draft" | "active"
+  // How players apply
+  apply_method?: ApplyMethod
+  external_apply_url?: string
   is_paid: boolean
   fee_amount?: string
   fee_currency?: string
