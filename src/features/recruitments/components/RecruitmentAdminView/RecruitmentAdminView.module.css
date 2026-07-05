@@ -1,0 +1,65 @@
+/* ============================================================
+   GOATZA — RecruitmentAdminView tabs
+   ============================================================ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tabBar {
+  display: flex;
+  gap: var(--space-1);
+  padding: 4px;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px var(--space-3);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.tab:hover:not(.tabActive) { color: var(--color-text-secondary) }
+
+.tabActive {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.tabActive .tabCount {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}

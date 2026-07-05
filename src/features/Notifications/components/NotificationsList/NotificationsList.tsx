@@ -6,6 +6,7 @@ import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useNavigation } from "@/shared/services/navigation.service"
 import NotificationBell from "../NotificationBell/NotificationBell"
 import {
   useNotifications,
@@ -26,6 +27,7 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   comment: "mdi:comment",
   mention: "mdi:at",
   connection: "mdi:account-network",
+  recruitment_application: "mdi:account-multiple-plus",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -35,12 +37,14 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   comment: "#3b82f6",
   mention: "#f59e0b",
   connection: "var(--color-brand)",
+  recruitment_application: "var(--color-brand)",
 }
 
 // ── Single notification item ──────────────────────────────────
 
 function NotificationItem({ notif }: { notif: Notification }) {
   const { mutate: markRead } = useMarkNotificationRead()
+  const { toRecruitment } = useNavigation()
   const actor = notif.actors[0]
 
   const handleClick = () => {
@@ -50,12 +54,24 @@ function NotificationItem({ notif }: { notif: Notification }) {
   const icon = NOTIF_ICON[notif.type] ?? "mdi:bell"
   const color = NOTIF_COLOR[notif.type] ?? "var(--color-brand)"
 
+  const isRecruitment = notif.type === "recruitment_application"
+
+  // Recruitment applies land on the org-admin applicants tab. toRecruitment()
+  // resolves the /organization/admin/<orgId>/… base path from the active org
+  // actor (these notifications only arrive while acting as the org).
   const href =
-    notif.post
-      ? `/posts/${notif.post.id}`
-      : notif.actors[0]
-        ? `/profile/${notif.actors[0].username || notif.actors[0].name.toLowerCase().replace(/\s+/g, "")}`
-        : "#"
+    isRecruitment && notif.recruitment
+      ? `${toRecruitment(notif.recruitment.id)}?tab=applicants`
+      : notif.post
+        ? `/posts/${notif.post.id}`
+        : actor
+          ? `/profile/${actor.username || actor.name.toLowerCase().replace(/\s+/g, "")}`
+          : "#"
+
+  // Grouped recruitment notification → stack the applicant avatars (backend
+  // sends up to 2 top actors + others_count).
+  const stackedActors = isRecruitment ? notif.actors.slice(0, 3) : []
+  const useStack = isRecruitment && stackedActors.length > 1
 
   return (
     <Link
@@ -66,13 +82,31 @@ function NotificationItem({ notif }: { notif: Notification }) {
       {/* Unread pip */}
       {!notif.is_read && <span className={styles.unreadPip} aria-label="Unread" />}
 
-      {/* Avatar + type badge */}
+      {/* Avatar(s) + type badge */}
       <div className={styles.avatarWrap}>
-        <Avatar
-          src={actor?.avatar}
-          initials={actor?.name?.slice(0, 2).toUpperCase() || "?"}
-          size="md"
-        />
+        {useStack ? (
+          <div className={styles.stackedAvatars}>
+            {stackedActors.map((a, i) => (
+              <span
+                key={a.id}
+                className={styles.stackedAvatar}
+                style={{ zIndex: stackedActors.length - i }}
+              >
+                <Avatar
+                  src={a.avatar}
+                  initials={a.name?.slice(0, 2).toUpperCase() || "?"}
+                  size="sm"
+                />
+              </span>
+            ))}
+          </div>
+        ) : (
+          <Avatar
+            src={actor?.avatar}
+            initials={actor?.name?.slice(0, 2).toUpperCase() || "?"}
+            size="md"
+          />
+        )}
         <span
           className={styles.typeIcon}
           style={{ background: color }}
@@ -86,19 +120,30 @@ function NotificationItem({ notif }: { notif: Notification }) {
       <div className={styles.content}>
         <p className={styles.text}>{notif.text}</p>
 
-        {notif.post?.content && (
-          <p className={styles.postSnippet}>
-            "{notif.post.content.length > 60
-              ? notif.post.content.slice(0, 60) + "…"
-              : notif.post.content}"
-          </p>
-        )}
+        {isRecruitment ? (
+          notif.recruitment && (
+            <p className={styles.recruitmentContext}>
+              <Icon icon="mdi:bullhorn-variant-outline" width={11} height={11} />
+              {notif.recruitment.title}
+            </p>
+          )
+        ) : (
+          <>
+            {notif.post?.content && (
+              <p className={styles.postSnippet}>
+                &quot;{notif.post.content.length > 60
+                  ? notif.post.content.slice(0, 60) + "…"
+                  : notif.post.content}&quot;
+              </p>
+            )}
 
-        {notif.comment?.text && (
-          <p className={styles.commentSnippet}>
-            <Icon icon="mdi:comment-outline" width={11} height={11} />
-            {notif.comment.text}
-          </p>
+            {notif.comment?.text && (
+              <p className={styles.commentSnippet}>
+                <Icon icon="mdi:comment-outline" width={11} height={11} />
+                {notif.comment.text}
+              </p>
+            )}
+          </>
         )}
 
         <time className={styles.time} dateTime={notif.created_at}>
@@ -160,7 +205,7 @@ function EmptyState() {
       </span>
       <p className={styles.emptyTitle}>All caught up</p>
       <p className={styles.emptySubtitle}>
-        No notifications yet. When people follow or interact with you, you'll see it here.
+        No notifications yet. When people follow or interact with you, you&apos;ll see it here.
       </p>
     </div>
   )

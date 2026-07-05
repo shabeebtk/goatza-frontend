@@ -1,0 +1,27 @@
+/* Application status pill — colours mirror the RecruitmentDetail app banner. */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badge svg { flex-shrink: 0 }
+
+.applied     { color: #2563eb; background: rgba(37, 99, 235, 0.07);  border-color: rgba(37, 99, 235, 0.18); }
+.reviewing   { color: #0891b2; background: rgba(8, 145, 178, 0.07);  border-color: rgba(8, 145, 178, 0.18); }
+.shortlisted { color: #7c3aed; background: rgba(124, 58, 237, 0.07); border-color: rgba(124, 58, 237, 0.18); }
+.invited     { color: #b45309; background: rgba(180, 83, 9, 0.07);   border-color: rgba(180, 83, 9, 0.18); }
+.selected    { color: var(--color-success); background: rgba(0, 181, 98, 0.10); border-color: rgba(0, 181, 98, 0.22); }
+.rejected    { color: var(--color-error);   background: rgba(232, 70, 42, 0.08); border-color: rgba(232, 70, 42, 0.18); }
+.withdrawn   { color: var(--color-text-muted); background: var(--color-surface-raised); border-color: var(--color-border); }

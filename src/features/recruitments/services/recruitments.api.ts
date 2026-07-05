@@ -370,3 +370,100 @@ export const changeRecruitmentStatusApi = async (
   const res = await api.patch(`/recruitments/${recruitmentId}/status`, { status })
   return res.data.data
 }
+
+// ── Apply (player) ────────────────────────────────────────────
+
+export type ApplyAnswerPayload = {
+  question_id: string
+  // Free-text answer (short_text / long_text / number). Omitted for option types.
+  answer_text?: string
+  // Chosen option ids (select / radio → one, checkbox → one or more).
+  selected_option_ids?: string[]
+}
+
+export type ApplyRecruitmentPayload = {
+  // Contact the applicant chose to share for THIS application (prefilled from
+  // their profile, but editable). Stored as submitted by the backend.
+  shared_name: string
+  shared_email?: string
+  shared_phone: string
+  answers: ApplyAnswerPayload[]
+}
+
+export type ApplyRecruitmentResponse = {
+  application_id: string
+  status: ApplicationStatus
+  applied_at: string
+}
+
+export const applyRecruitmentApi = async (
+  recruitmentId: string,
+  payload: ApplyRecruitmentPayload
+): Promise<ApplyRecruitmentResponse> => {
+  const res = await api.post(`/recruitments/${recruitmentId}/apply`, payload)
+  return res.data.data
+}
+
+// ── Org-side applicants (read-only) ───────────────────────────
+
+export type ApplicantMini = {
+  id: string
+  username: string
+  name: string
+  avatar: string
+  headline: string
+}
+
+export type ApplicantListItem = {
+  id: string
+  status: ApplicationStatus
+  applied_at: string
+  shared_name: string
+  shared_email: string
+  shared_phone: string
+  applicant: ApplicantMini
+}
+
+export type ApplicationAnswer = {
+  question: string
+  field_type: QuestionFieldType
+  answer_text: string
+  selected_options: string[]
+}
+
+export type ApplicationDetail = ApplicantListItem & {
+  answers: ApplicationAnswer[]
+}
+
+// Every application status → count for the recruitment (zeros included).
+export type ApplicationStatusCounts = Record<ApplicationStatus, number>
+
+export type RecruitmentApplicantsResponse = {
+  count: number
+  limit: number
+  offset: number
+  results: ApplicantListItem[]
+  status_counts: ApplicationStatusCounts
+}
+
+export type FetchRecruitmentApplicantsParams = {
+  status?: ApplicationStatus
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export const fetchRecruitmentApplicantsApi = async (
+  recruitmentId: string,
+  params: FetchRecruitmentApplicantsParams
+): Promise<RecruitmentApplicantsResponse> => {
+  const res = await api.get(`/recruitments/${recruitmentId}/applications`, { params })
+  return res.data.data
+}
+
+export const fetchApplicationDetailApi = async (
+  applicationId: string
+): Promise<ApplicationDetail> => {
+  const res = await api.get(`/recruitments/applications/${applicationId}/details`)
+  return res.data.data
+}

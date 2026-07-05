@@ -23,6 +23,7 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useRecruitmentDetail } from "../../hooks/useRecruitments"
+import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
 import type {
@@ -268,10 +269,12 @@ function ApplyCTA({
   r,
   deadlinePast,
   compact = false,
+  onApply,
 }: {
   r: TRecruitmentDetail
   deadlinePast: boolean
   compact?: boolean
+  onApply?: () => void
 }) {
   const method = r.apply_method
 
@@ -359,7 +362,7 @@ function ApplyCTA({
   return (
     <div className={`${styles.applyCta} ${compact ? styles.applyCtaCompact : ""}`}>
       {r.can_apply ? (
-        <button className={styles.btnApply} type="button">
+        <button className={styles.btnApply} type="button" onClick={onApply}>
           <Icon icon="mdi:send-outline" width={16} height={16} />
           Apply Now
         </button>
@@ -420,6 +423,7 @@ export default function RecruitmentDetail({
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
   const { toProfile } = useNavigation()
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [applyOpen, setApplyOpen] = useState(false)
 
   if (isLoading) return <DetailSkeleton />
 
@@ -546,7 +550,7 @@ export default function RecruitmentDetail({
               )}
             </div>
             <Link
-              href={`/organization/admin/${r.organization.id}/recruitments/${r.id}/applications`}
+              href={`/organization/admin/${r.organization.id}/recruitments/${r.id}?tab=applicants`}
               className={styles.btnPrimary}
             >
               <Icon icon="mdi:account-multiple-outline" width={15} height={15} />
@@ -565,7 +569,7 @@ export default function RecruitmentDetail({
 
         {/* User: apply CTA */}
         {!isOrgView && !r.my_application && (
-          <ApplyCTA r={r} deadlinePast={deadlinePast} />
+          <ApplyCTA r={r} deadlinePast={deadlinePast} onApply={() => setApplyOpen(true)} />
         )}
       </div>
 
@@ -740,38 +744,8 @@ export default function RecruitmentDetail({
         </section>
       )}
 
-      {/* ── Questions ── */}
-      {(r.questions?.length ?? 0) > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:comment-question-outline" width={16} height={16} />
-            Application Questions
-            <span className={styles.sectionCount}>{r.questions.length}</span>
-          </h2>
-          <div className={styles.questionsList}>
-            {r.questions.map((q, i) => (
-              <div key={q.id} className={styles.questionItem}>
-                <div className={styles.questionHeader}>
-                  <span className={styles.questionNum}>{i + 1}</span>
-                  <span className={styles.questionText}>
-                    {q.question}
-                    {q.is_required && <span className={styles.required}>*</span>}
-                  </span>
-                  <span className={styles.fieldTypeBadge}>{q.field_type.replace("_", " ")}</span>
-                </div>
-                {q.options.length > 0 && (
-                  <div className={styles.questionOptions}>
-                    {q.options.map((opt) => (
-                      <span key={opt.id} className={styles.optionChip}>{opt.value}</span>
-                    ))}
-                  </div>
-                )}
-                {q.help_text && <p className={styles.questionHelp}>{q.help_text}</p>}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Application questions are intentionally NOT shown here — they're only
+          surfaced in the apply modal (ApplyRecruitmentModal) at apply time. */}
 
       {/* ── Contacts (always shown; primary CTA if apply_method=contact) ── */}
       {contacts.length > 0 && r.apply_method !== "contact" && (
@@ -899,8 +873,13 @@ export default function RecruitmentDetail({
       {/* ── Bottom sticky apply CTA (user, no application yet, can_apply or external) ── */}
       {!isOrgView && !r.my_application && (r.can_apply || r.apply_method === "external" || r.apply_method === "contact") && (
         <div className={styles.bottomCta}>
-          <ApplyCTA r={r} deadlinePast={deadlinePast} compact />
+          <ApplyCTA r={r} deadlinePast={deadlinePast} compact onApply={() => setApplyOpen(true)} />
         </div>
+      )}
+
+      {/* ── Apply modal (goatza in-app apply only) ── */}
+      {applyOpen && (
+        <ApplyRecruitmentModal recruitment={r} onClose={() => setApplyOpen(false)} />
       )}
 
     </div>

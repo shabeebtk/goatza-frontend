@@ -38,6 +38,13 @@ export type NotificationType =
   | "comment"
   | "mention"
   | "connection"
+  | "recruitment_application"
+
+export type NotificationRecruitment = {
+  id: string
+  title: string
+  status: string
+}
 
 export type Notification = {
   id: string
@@ -49,6 +56,7 @@ export type Notification = {
   created_at: string
   post: NotificationPost | null
   comment: NotificationComment | null
+  recruitment?: NotificationRecruitment | null
 }
 
 export type NotificationsResponse = {
