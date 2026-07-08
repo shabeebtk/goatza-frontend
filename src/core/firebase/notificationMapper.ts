@@ -1,7 +1,7 @@
 import { ToastContextValue } from "@/shared/components/ui/Toast/Toast"
 
 export const handleNotificationToast = (
-  data: any,
+  data: Record<string, string>,
   toast: ToastContextValue
 ) => {
   const type = data.type
@@ -51,6 +51,24 @@ export const handleNotificationToast = (
           label: "Reply",
           onClick: () => {
             window.location.href = `/post/${data.target_id}`
+          },
+        },
+      })
+      break
+
+    case "recruitment_application_status":
+      toast.show({
+        title: data.title || "Application update",
+        message: data.body,
+        avatarSrc: data.actor_avatar,
+        avatarInitials: data.actor_initials,
+        variant: "info",
+        position: "top-right",
+        duration: 5000,
+        action: {
+          label: "View",
+          onClick: () => {
+            window.location.href = `/recruitments/${data.recruitment_id}`
           },
         },
       })

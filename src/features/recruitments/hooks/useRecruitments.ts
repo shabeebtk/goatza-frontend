@@ -13,12 +13,17 @@ import {
   applyRecruitmentApi,
   fetchRecruitmentApplicantsApi,
   fetchApplicationDetailApi,
+  withdrawApplicationApi,
+  bulkUpdateApplicationStatusApi,
+  updateApplicationStatusApi,
   type CreateRecruitmentPayload,
   type RecruitmentPayload,
   type RecruitmentStatus,
   type ApplyRecruitmentPayload,
   type RecruitmentApplicantsResponse,
   type FetchRecruitmentApplicantsParams,
+  type BulkStatusTarget,
+  type SingleStatusTarget,
 } from "../services/recruitments.api"
 
 
@@ -173,6 +178,88 @@ export const useApplyRecruitment = () => {
       queryClient.invalidateQueries({
         queryKey: recruitmentKeys.detail(variables.recruitmentId),
       })
+    },
+  })
+}
+
+// ── Withdraw (player) ─────────────────────────────────────────
+
+export const useWithdrawApplication = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+    }: {
+      applicationId: string
+      recruitmentId: string
+    }) => withdrawApplicationApi(applicationId),
+    onSuccess: (_data, variables) => {
+      // Refetch detail so the banner flips to Withdrawn (+ Reapply). Never
+      // optimistically flip — the server is authoritative.
+      queryClient.invalidateQueries({
+        queryKey: recruitmentKeys.detail(variables.recruitmentId),
+      })
+      // Also refresh any recruitment lists so cards elsewhere aren't stale.
+      queryClient.invalidateQueries({ queryKey: ["recruitments"] })
+    },
+  })
+}
+
+// ── Org status changes (bulk + single) ────────────────────────
+
+export const useBulkUpdateApplicationStatus = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recruitmentId,
+      applicationIds,
+      status,
+      note,
+    }: {
+      recruitmentId: string
+      applicationIds: string[]
+      status: BulkStatusTarget
+      note?: string
+    }) =>
+      bulkUpdateApplicationStatusApi(recruitmentId, {
+        applicationIds,
+        status,
+        note,
+      }),
+    onSuccess: (_data, variables) => {
+      // Refresh rows + status_counts chips for every filter variation.
+      queryClient.invalidateQueries({
+        queryKey: ["recruitments", "applicants", variables.recruitmentId],
+      })
+    },
+  })
+}
+
+export const useUpdateApplicationStatus = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      status,
+      note,
+    }: {
+      applicationId: string
+      recruitmentId?: string
+      status: SingleStatusTarget
+      note?: string
+    }) => updateApplicationStatusApi(applicationId, { status, note }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: applicantKeys.detail(variables.applicationId),
+      })
+      if (variables.recruitmentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["recruitments", "applicants", variables.recruitmentId],
+        })
+      }
     },
   })
 }

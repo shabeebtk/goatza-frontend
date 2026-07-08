@@ -28,6 +28,7 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   mention: "mdi:at",
   connection: "mdi:account-network",
   recruitment_application: "mdi:account-multiple-plus",
+  recruitment_application_status: "mdi:clipboard-check-outline",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -38,6 +39,7 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   mention: "#f59e0b",
   connection: "var(--color-brand)",
   recruitment_application: "var(--color-brand)",
+  recruitment_application_status: "#7c3aed",
 }
 
 // ── Single notification item ──────────────────────────────────
@@ -54,24 +56,29 @@ function NotificationItem({ notif }: { notif: Notification }) {
   const icon = NOTIF_ICON[notif.type] ?? "mdi:bell"
   const color = NOTIF_COLOR[notif.type] ?? "var(--color-brand)"
 
-  const isRecruitment = notif.type === "recruitment_application"
+  // Org-side "someone applied" (grouped, → admin applicants tab) vs player-side
+  // "your status changed" (single, → the player recruitment detail). Both show
+  // the recruitment title context line.
+  const isApply = notif.type === "recruitment_application"
+  const isStatus = notif.type === "recruitment_application_status"
+  const isRecruitment = isApply || isStatus
 
-  // Recruitment applies land on the org-admin applicants tab. toRecruitment()
-  // resolves the /organization/admin/<orgId>/… base path from the active org
-  // actor (these notifications only arrive while acting as the org).
   const href =
-    isRecruitment && notif.recruitment
-      ? `${toRecruitment(notif.recruitment.id)}?tab=applicants`
-      : notif.post
-        ? `/posts/${notif.post.id}`
-        : actor
-          ? `/profile/${actor.username || actor.name.toLowerCase().replace(/\s+/g, "")}`
-          : "#"
+    isStatus && notif.recruitment
+      ? `/recruitments/${notif.recruitment.id}`
+      : isApply && notif.recruitment
+        // toRecruitment() resolves the /organization/admin/<orgId>/… base path
+        // from the active org actor (apply notifications only arrive as the org).
+        ? `${toRecruitment(notif.recruitment.id)}?tab=applicants`
+        : notif.post
+          ? `/posts/${notif.post.id}`
+          : actor
+            ? `/profile/${actor.username || actor.name.toLowerCase().replace(/\s+/g, "")}`
+            : "#"
 
-  // Grouped recruitment notification → stack the applicant avatars (backend
-  // sends up to 2 top actors + others_count).
-  const stackedActors = isRecruitment ? notif.actors.slice(0, 3) : []
-  const useStack = isRecruitment && stackedActors.length > 1
+  // Only grouped applies stack avatars; status changes are single-actor (the org).
+  const stackedActors = isApply ? notif.actors.slice(0, 3) : []
+  const useStack = isApply && stackedActors.length > 1
 
   return (
     <Link

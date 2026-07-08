@@ -6,20 +6,198 @@
  * answer, plus a link to the applicant's public profile.
  */
 
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
-import { useApplicationDetail } from "../../hooks/useRecruitments"
-import type { ApplicationAnswer } from "../../services/recruitments.api"
+import {
+  useApplicationDetail,
+  useUpdateApplicationStatus,
+} from "../../hooks/useRecruitments"
+import { APPLICATION_STATUS_META } from "../../applicationStatus"
+import type {
+  ApplicationAnswer,
+  ApplicationStatus,
+  SingleStatusTarget,
+} from "../../services/recruitments.api"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import styles from "./ApplicantDetailDrawer.module.css"
 
 dayjs.extend(relativeTime)
+
+// Org status targets — display label + backend value + one-line description.
+// `invited` is intentionally excluded (reserved for personal invites).
+const STATUS_OPTIONS: {
+  status: SingleStatusTarget
+  label: string
+  description: string
+}[] = [
+  { status: "reviewing", label: "Reviewing", description: "Application is under review" },
+  { status: "shortlisted", label: "Shortlist", description: "Add to the shortlist for a closer look" },
+  { status: "selected", label: "Select", description: "Confirm this player is selected" },
+  { status: "rejected", label: "Reject", description: "Not moving forward — the player is notified" },
+]
+
+// ── Set-status control (org, single change — select-style dropdown) ──
+
+function SetStatusSection({
+  applicationId,
+  recruitmentId,
+  currentStatus,
+}: {
+  applicationId: string
+  recruitmentId: string
+  currentStatus: ApplicationStatus
+}) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [rejectConfirm, setRejectConfirm] = useState(false)
+  const { mutate: updateStatus, isPending } = useUpdateApplicationStatus()
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close the menu on outside click / Escape (drawer-local, not a portal).
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setRejectConfirm(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false)
+        setRejectConfirm(false)
+      }
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const run = (target: SingleStatusTarget) => {
+    updateStatus(
+      { applicationId, recruitmentId, status: target },
+      {
+        onSuccess: () => {
+          setOpen(false)
+          setRejectConfirm(false)
+          toast.show({
+            title: `Status updated to ${STATUS_OPTIONS.find((o) => o.status === target)?.label ?? target}`,
+            variant: "success",
+          })
+        },
+        onError: (err) => {
+          toast.show({
+            title: getApiErrorMessage(err, "Couldn't update the status."),
+            variant: "error",
+          })
+        },
+      }
+    )
+  }
+
+  return (
+    <section className={styles.section}>
+      <p className={styles.sectionTitle}>Status</p>
+
+      <div className={styles.statusSelect} ref={ref}>
+        <button
+          className={styles.statusTrigger}
+          onClick={() => { setOpen((o) => !o); setRejectConfirm(false) }}
+          disabled={isPending}
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span className={styles.triggerLabel}>Update status</span>
+          <span className={styles.triggerRight}>
+            <StatusBadge status={currentStatus} />
+            <Icon
+              icon="mdi:chevron-down"
+              width={18}
+              height={18}
+              className={`${styles.triggerChevron} ${open ? styles.triggerChevronOpen : ""}`}
+            />
+          </span>
+        </button>
+
+        {open && (
+          <div className={styles.statusMenu} role="listbox">
+            {rejectConfirm ? (
+              <div className={styles.rejectConfirm} role="alertdialog" aria-label="Confirm reject">
+                <p className={styles.rejectConfirmText}>
+                  Reject this application? The applicant will be notified.
+                </p>
+                <div className={styles.rejectConfirmActions}>
+                  <button
+                    className={styles.rejectCancel}
+                    onClick={() => setRejectConfirm(false)}
+                    disabled={isPending}
+                    type="button"
+                  >
+                    Back
+                  </button>
+                  <button
+                    className={styles.rejectConfirmBtn}
+                    onClick={() => run("rejected")}
+                    disabled={isPending}
+                    type="button"
+                  >
+                    {isPending
+                      ? <span className={styles.miniSpinner} aria-hidden="true" />
+                      : <Icon icon="mdi:close-circle-outline" width={15} height={15} />}
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ) : (
+              STATUS_OPTIONS.map((opt) => {
+                const meta = APPLICATION_STATUS_META[opt.status]
+                const isCurrent = currentStatus === opt.status
+                return (
+                  <button
+                    key={opt.status}
+                    className={`${styles.statusOption} ${isCurrent ? styles.statusOptionCurrent : ""}`}
+                    onClick={() => {
+                      if (isCurrent) return
+                      if (opt.status === "rejected") setRejectConfirm(true)
+                      else run(opt.status)
+                    }}
+                    disabled={isCurrent || isPending}
+                    role="option"
+                    aria-selected={isCurrent}
+                    type="button"
+                  >
+                    <span className={`${styles.optionIcon} ${styles[meta.colorClass]}`}>
+                      <Icon icon={meta.icon} width={18} height={18} />
+                    </span>
+                    <span className={styles.optionText}>
+                      <span className={styles.optionLabel}>{opt.label}</span>
+                      <span className={styles.optionDesc}>{opt.description}</span>
+                    </span>
+                    {isCurrent && (
+                      <Icon icon="mdi:check" width={16} height={16} className={styles.optionCheck} />
+                    )}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
 
 function AnswerBlock({ answer }: { answer: ApplicationAnswer }) {
   const hasOptions = answer.selected_options.length > 0
@@ -44,10 +222,11 @@ function AnswerBlock({ answer }: { answer: ApplicationAnswer }) {
 
 interface ApplicantDetailDrawerProps {
   applicationId: string
+  recruitmentId: string
   onClose: () => void
 }
 
-export default function ApplicantDetailDrawer({ applicationId, onClose }: ApplicantDetailDrawerProps) {
+export default function ApplicantDetailDrawer({ applicationId, recruitmentId, onClose }: ApplicantDetailDrawerProps) {
   const { toProfile } = useNavigation()
   const { data, isLoading, isError } = useApplicationDetail(applicationId)
 
@@ -152,6 +331,20 @@ export default function ApplicantDetailDrawer({ applicationId, onClose }: Applic
                     ))}
                   </div>
                 </section>
+              )}
+
+              {/* Status controls — hidden entirely once withdrawn */}
+              {data.status === "withdrawn" ? (
+                <p className={styles.withdrawnNote}>
+                  <Icon icon="mdi:undo-variant" width={15} height={15} />
+                  This applicant withdrew their application.
+                </p>
+              ) : (
+                <SetStatusSection
+                  applicationId={applicationId}
+                  recruitmentId={recruitmentId}
+                  currentStatus={data.status}
+                />
               )}
 
               {/* Public profile link */}

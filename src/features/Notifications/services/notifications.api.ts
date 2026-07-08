@@ -39,6 +39,7 @@ export type NotificationType =
   | "mention"
   | "connection"
   | "recruitment_application"
+  | "recruitment_application_status"
 
 export type NotificationRecruitment = {
   id: string

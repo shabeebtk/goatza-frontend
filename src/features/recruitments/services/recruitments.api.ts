@@ -467,3 +467,69 @@ export const fetchApplicationDetailApi = async (
   const res = await api.get(`/recruitments/applications/${applicationId}/details`)
   return res.data.data
 }
+
+// ── Withdraw (player) ─────────────────────────────────────────
+
+export type WithdrawApplicationResponse = {
+  application_id: string
+  status: ApplicationStatus
+}
+
+export const withdrawApplicationApi = async (
+  applicationId: string
+): Promise<WithdrawApplicationResponse> => {
+  const res = await api.post(
+    `/recruitments/applications/${applicationId}/withdraw`
+  )
+  return res.data.data
+}
+
+// ── Org status changes (bulk + single) ────────────────────────
+
+// Org status targets — bulk + single share the same set. `invited` is NOT an
+// org target (reserved for the future personal-invite feature).
+export type BulkStatusTarget = "reviewing" | "shortlisted" | "selected" | "rejected"
+export type SingleStatusTarget = "reviewing" | "shortlisted" | "selected" | "rejected"
+
+export type StatusChangeSkip = {
+  id: string
+  reason: "not_found" | "withdrawn" | "no_change"
+}
+
+export type BulkStatusResponse = {
+  updated: string[]
+  skipped: StatusChangeSkip[]
+  status_counts: ApplicationStatusCounts
+}
+
+export const bulkUpdateApplicationStatusApi = async (
+  recruitmentId: string,
+  body: { applicationIds: string[]; status: BulkStatusTarget; note?: string }
+): Promise<BulkStatusResponse> => {
+  const res = await api.post(
+    `/recruitments/${recruitmentId}/applications/bulk-status`,
+    {
+      application_ids: body.applicationIds,
+      status: body.status,
+      note: body.note ?? "",
+    }
+  )
+  return res.data.data
+}
+
+export type SingleStatusResponse = {
+  application_id: string
+  status: ApplicationStatus
+  status_counts: ApplicationStatusCounts
+}
+
+export const updateApplicationStatusApi = async (
+  applicationId: string,
+  body: { status: SingleStatusTarget; note?: string }
+): Promise<SingleStatusResponse> => {
+  const res = await api.post(
+    `/recruitments/applications/${applicationId}/status`,
+    { status: body.status, note: body.note ?? "" }
+  )
+  return res.data.data
+}

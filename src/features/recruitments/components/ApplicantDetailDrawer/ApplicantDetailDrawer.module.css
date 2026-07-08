@@ -318,3 +318,192 @@ a.contactRow:hover { background: var(--color-surface-raised) }
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
+
+/* ── Set-status control (org single change — select dropdown) ── */
+
+.statusSelect { position: relative; }
+
+.statusTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color var(--duration-fast);
+}
+.statusTrigger:hover:not(:disabled) { border-color: var(--color-brand-muted); }
+.statusTrigger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.triggerLabel {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.triggerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.triggerChevron {
+  color: var(--color-text-muted);
+  transition: transform var(--duration-fast);
+  flex-shrink: 0;
+}
+.triggerChevronOpen { transform: rotate(180deg); }
+
+/* Menu — inline expansion, full drawer width (no overflow on mobile). */
+.statusMenu {
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md, 0 6px 20px rgba(0,0,0,0.12));
+  overflow: hidden;
+}
+
+.statusOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+.statusOption:last-child { border-bottom: none; }
+.statusOption:hover:not(:disabled) { background: var(--color-surface-raised); }
+.statusOptionCurrent { cursor: default; background: var(--color-surface-raised); }
+
+/* Icon inherits the accent from the per-status colour class on the same span. */
+.optionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.optionLabel {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.optionDesc {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+}
+
+.optionCheck { color: var(--color-brand); flex-shrink: 0; }
+
+/* Per-status accent for the option icon (drives currentColor). */
+.applied     { color: #2563eb; }
+.reviewing   { color: #0891b2; }
+.shortlisted { color: #7c3aed; }
+.selected    { color: var(--color-success); }
+.rejected    { color: var(--color-error); }
+
+/* Reject inline confirm. */
+.rejectConfirm {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rejectConfirmText {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.rejectConfirmActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.rejectCancel,
+.rejectConfirmBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rejectCancel {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+.rejectCancel:hover:not(:disabled) { border-color: var(--color-text-muted); }
+
+.rejectConfirmBtn {
+  background: var(--color-error);
+  border: 1.5px solid var(--color-error);
+  color: #fff;
+}
+.rejectConfirmBtn:hover:not(:disabled) { filter: brightness(1.05); }
+.rejectCancel:disabled,
+.rejectConfirmBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.miniSpinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Withdrawn — read-only note replaces the status controls. */
+.withdrawnNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

@@ -21,8 +21,10 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
-import { useRecruitmentDetail } from "../../hooks/useRecruitments"
+import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
@@ -227,18 +229,121 @@ function StatCard({ icon, value, label, accent }: { icon: string; value: string 
 
 // ── Application banner ─────────────────────────────────────────
 
-function ApplicationBanner({ status, appliedAt }: { status: ApplicationStatus; appliedAt?: string }) {
-  const meta = APP_STATUS_META[status] ?? APP_STATUS_META.applied
+function ApplicationBanner({
+  r,
+  onReapply,
+}: {
+  r: TRecruitmentDetail
+  onReapply: () => void
+}) {
+  const app = r.my_application!
+  const meta = APP_STATUS_META[app.status] ?? APP_STATUS_META.applied
+  const toast = useToast()
+  const [confirming, setConfirming] = useState(false)
+  const { mutate: withdraw, isPending } = useWithdrawApplication()
+
+  const isWithdrawn = app.status === "withdrawn"
+  // LinkedIn-style: withdraw is allowed from ANY status except withdrawn.
+  const canWithdraw = !isWithdrawn
+  // Once the outcome is final, keep withdraw available but de-emphasized.
+  const isTerminal = app.status === "selected" || app.status === "rejected"
+  // Resilient reapply: offer it whenever the app is withdrawn + in-app apply,
+  // driven by status/apply_method (not can_apply) so it can't silently vanish
+  // if can_apply is momentarily stale. can_apply only gates enabled vs disabled
+  // — the server stays the real gate on submit.
+  const showReapply = isWithdrawn && r.apply_method === "goatza"
+  const reapplyEnabled = showReapply && r.can_apply
+
+  const doWithdraw = () => {
+    withdraw(
+      { applicationId: app.id, recruitmentId: r.id },
+      {
+        onSuccess: () => {
+          setConfirming(false)
+          toast.show({ title: "Application withdrawn", variant: "success" })
+        },
+        onError: (err) => {
+          toast.show({
+            title: getApiErrorMessage(err, "Couldn't withdraw. Please try again."),
+            variant: "error",
+          })
+        },
+      }
+    )
+  }
+
   return (
     <div className={`${styles.appBanner} ${styles[meta.colorClass]}`}>
       <span className={styles.appBannerIcon}><Icon icon={meta.icon} width={22} height={22} /></span>
       <div className={styles.appBannerText}>
         <span className={styles.appBannerLabel}>Your Application</span>
         <span className={styles.appBannerStatus}>{meta.label}</span>
-        {appliedAt && (
-          <span className={styles.appBannerDate}>Applied {dayjs(appliedAt).fromNow()}</span>
+        {app.applied_at && !isWithdrawn && (
+          <span className={styles.appBannerDate}>Applied {dayjs(app.applied_at).fromNow()}</span>
         )}
       </div>
+
+      <div className={styles.appBannerActions}>
+        {showReapply && (
+          <button
+            className={`${styles.appReapplyBtn} ${reapplyEnabled ? "" : styles.appReapplyDisabled}`}
+            onClick={reapplyEnabled ? onReapply : undefined}
+            disabled={!reapplyEnabled}
+            type="button"
+          >
+            <Icon icon="mdi:send-outline" width={15} height={15} />
+            Reapply
+          </button>
+        )}
+
+        {canWithdraw && !confirming && (
+          <button
+            className={`${styles.appWithdrawBtn} ${isTerminal ? styles.appWithdrawMuted : ""}`}
+            onClick={() => setConfirming(true)}
+            type="button"
+          >
+            <Icon icon="mdi:undo-variant" width={15} height={15} />
+            Withdraw
+          </button>
+        )}
+      </div>
+
+      {showReapply && !reapplyEnabled && (
+        <p className={styles.appReapplyHint}>
+          <Icon icon="mdi:information-outline" width={12} height={12} />
+          Recruitment is no longer accepting applications
+        </p>
+      )}
+
+      {canWithdraw && confirming && (
+        <div className={styles.appConfirm} role="alertdialog" aria-label="Confirm withdraw">
+          <p className={styles.appConfirmText}>
+            Withdraw your application? The organization will no longer consider it.
+            You can reapply while the recruitment is open.
+          </p>
+          <div className={styles.appConfirmActions}>
+            <button
+              className={styles.appConfirmCancel}
+              onClick={() => setConfirming(false)}
+              disabled={isPending}
+              type="button"
+            >
+              Keep
+            </button>
+            <button
+              className={styles.appConfirmConfirm}
+              onClick={doWithdraw}
+              disabled={isPending}
+              type="button"
+            >
+              {isPending
+                ? <span className={styles.appConfirmSpinner} aria-hidden="true" />
+                : <Icon icon="mdi:undo-variant" width={15} height={15} />}
+              Withdraw
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -559,12 +664,9 @@ export default function RecruitmentDetail({
           </div>
         )}
 
-        {/* User: application status banner */}
+        {/* User: application status banner (withdraw / reapply live here) */}
         {!isOrgView && r.my_application && (
-          <ApplicationBanner
-            status={r.my_application.status}
-            appliedAt={r.my_application.applied_at}
-          />
+          <ApplicationBanner r={r} onReapply={() => setApplyOpen(true)} />
         )}
 
         {/* User: apply CTA */}

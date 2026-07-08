@@ -348,3 +348,219 @@
   text-align: center;
   font-size: var(--text-sm);
 }
+
+/* ── Selection (round in-card selector + select-all + bulk bar) ── */
+
+/* Card is a positioning context for the overlaid round selector. Full width. */
+.rowCard {
+  position: relative;
+}
+
+/* Selectable rows clear the top-left circle so it never covers the avatar. */
+.rowCardSelectable .row {
+  padding-left: 38px;
+}
+
+.rowCardSelected .row {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
+/* Round selector — compact dot, generous tap target, overlaid top-left. */
+.selectCircle {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.selectDot {
+  width: 19px;
+  height: 19px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+.selectCircle:hover .selectDot { border-color: var(--color-brand-muted); }
+.selectCircle:active .selectDot { transform: scale(0.9); }
+
+.selectDotOn {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+/* Tighter selector + gap on mobile. */
+@media (max-width: 480px) {
+  .selectCircle { top: 4px; left: 4px; width: 28px; height: 28px; }
+  .selectDot { width: 17px; height: 17px; }
+  .rowCardSelectable .row { padding-left: 32px; }
+}
+
+/* Select-all — compact pill/text button. */
+.selectAllRow {
+  display: flex;
+}
+
+.selectAllBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 8px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+}
+.selectAllBtn:hover { border-color: var(--color-brand-muted); }
+.selectAllBtnActive {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+  background: var(--color-brand-subtle);
+}
+
+/* Sticky floating bulk action bar. */
+.bulkBar {
+  position: sticky;
+  bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+}
+
+.bulkInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.bulkCount {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.bulkClear {
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.bulkClear:hover:not(:disabled) { color: var(--color-text-secondary); }
+
+.bulkActions,
+.bulkConfirmActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.bulkBtn,
+.bulkGhost,
+.bulkDanger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform var(--duration-fast) var(--ease-spring), filter var(--duration-fast);
+}
+
+.bulkBtn {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  border: 1.5px solid var(--color-border);
+}
+.bulkBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+.bulkBtnDanger { color: var(--color-error); border-color: var(--color-error); }
+.bulkBtnDanger:hover:not(:disabled) {
+  background: var(--color-error);
+  color: #fff;
+  border-color: var(--color-error);
+}
+
+.bulkConfirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.bulkConfirmText {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+}
+
+.bulkGhost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1.5px solid var(--color-border);
+}
+.bulkGhost:hover:not(:disabled) { border-color: var(--color-text-muted); }
+
+.bulkDanger { background: var(--color-error); color: #fff; border: 1.5px solid var(--color-error); }
+.bulkDanger:hover:not(:disabled) { filter: brightness(1.05); }
+
+.bulkBtn:disabled,
+.bulkGhost:disabled,
+.bulkDanger:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.bulkSpinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--color-border);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: bulkSpin 0.7s linear infinite;
+}
+
+@keyframes bulkSpin { to { transform: rotate(360deg); } }
