@@ -314,6 +314,13 @@ export type FetchRecruitmentsParams = {
   sport_id?: string
   status?: RecruitmentStatus
   recruitment_type?: RecruitmentType
+  // Player-facing discovery filters (global public feed). The backend ignores
+  // junk values, so unset filters are simply omitted from the request.
+  search?: string
+  city?: string
+  experience_level?: string
+  birth_year?: number
+  apply_method?: ApplyMethod
   limit?: number
   offset?: number
 }
@@ -326,6 +333,58 @@ export const fetchRecruitmentsApi = async (
   const res = await api.get("/recruitments/list", {
     params: { limit: 10, ...params },
   })
+  return res.data.data
+}
+
+// ── My applications (player) ──────────────────────────────────
+
+// The org summary embedded on a player's own application row — only the fields
+// the backend's MyApplication serializer returns (no type/headline).
+export type ApplicationOrgSummary = {
+  id: string
+  name: string
+  username: string
+  logo: string
+  is_verified: boolean
+}
+
+export type MyApplicationRecruitment = {
+  id: string
+  title: string
+  recruitment_type: RecruitmentType
+  status: RecruitmentStatus
+  city: string
+  event_date: string | null
+  application_deadline: string | null
+  organization: ApplicationOrgSummary
+  sport: RecruitmentSport
+}
+
+export type MyApplicationListItem = {
+  id: string
+  status: ApplicationStatus
+  applied_at: string
+  updated_at: string
+  recruitment: MyApplicationRecruitment
+}
+
+export type MyApplicationsResponse = {
+  count: number
+  limit: number
+  offset: number
+  results: MyApplicationListItem[]
+}
+
+export type FetchMyApplicationsParams = {
+  status?: ApplicationStatus
+  limit?: number
+  offset?: number
+}
+
+export const fetchMyApplicationsApi = async (
+  params: FetchMyApplicationsParams
+): Promise<MyApplicationsResponse> => {
+  const res = await api.get("/recruitments/applications/my", { params })
   return res.data.data
 }
 

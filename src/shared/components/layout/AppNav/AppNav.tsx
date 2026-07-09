@@ -32,6 +32,12 @@ const NAV_ITEMS = [
     label: "Explore",
   },
   {
+    href: "/recruitments",
+    icon: "mdi:briefcase-search-outline",
+    iconActive: "mdi:briefcase-search",
+    label: "Recruitments",
+  },
+  {
     href: "/messages",
     icon: "mdi:message-outline",
     iconActive: "mdi:message",
@@ -53,28 +59,6 @@ function LogoMark() {
       </div>
       <span className={styles.logoWordmark}>Goatza</span>
     </Link>
-  )
-}
-
-function SearchBar({ compact = false }: { compact?: boolean }) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div
-      className={`${styles.searchWrap} ${compact ? styles.searchCompact : ""} ${focused ? styles.searchFocused : ""}`}
-    >
-      <span className={styles.searchIcon} aria-hidden="true">
-        <Icon icon="mdi:magnify" width={18} height={18} />
-      </span>
-      <input
-        type="search"
-        placeholder="Search athletes, teams, sports..."
-        className={styles.searchInput}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        aria-label="Search"
-      />
-      {focused && <kbd className={styles.searchKbd} aria-hidden="true">⌘K</kbd>}
-    </div>
   )
 }
 
@@ -185,9 +169,6 @@ export default function AppNav() {
       <header className={styles.topNav} role="banner">
         <div className={styles.topNavInner}>
           <LogoMark />
-          <div className={styles.topNavCenter}>
-            <SearchBar />
-          </div>
 
           <nav className={styles.topNavLinks} aria-label="Main navigation">
             {NAV_ITEMS.map((item) => {
@@ -223,69 +204,71 @@ export default function AppNav() {
             })}
           </nav>
 
-          <button
-            className={styles.topNavCreateBtn}
-            onClick={() => setPostModalOpen(true)}
-            type="button"
-            aria-label="Create post"
-          >
-            <Icon icon="mdi:plus" width={18} height={18} />
-          </button>
+          <div className={styles.topNavRight}>
+            <button
+              className={styles.topNavCreateBtn}
+              onClick={() => setPostModalOpen(true)}
+              type="button"
+              aria-label="Create post"
+            >
+              <Icon icon="mdi:plus" width={18} height={18} />
+            </button>
 
-          <div className={styles.topNavAvatar}>
-            <div className={styles.avatarBtn}>
-              <Link
-                href="/profile"
-                style={{ display: "flex", borderRadius: "50%" }}
-                aria-label="My Profile"
-              >
-                <Avatar
-                  src={user?.profile_photo}
-                  initials={user?.name?.slice(0, 2).toUpperCase()}
-                  size="sm"
-                  online
-                />
-              </Link>
-              <button
-                onClick={() => setDropdownOpen((open) => !open)}
-                aria-haspopup="true"
-                aria-expanded={dropdownOpen}
-                aria-label="Account menu"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "0 4px",
-                  cursor: "pointer",
-                }}
-              >
-                <Icon
-                  icon={dropdownOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
-                  width={16}
-                  height={16}
-                  className={styles.avatarChevron}
-                  aria-hidden="true"
-                />
-              </button>
+            <div className={styles.topNavAvatar}>
+              <div className={styles.avatarBtn}>
+                <Link
+                  href="/profile"
+                  style={{ display: "flex", borderRadius: "50%" }}
+                  aria-label="My Profile"
+                >
+                  <Avatar
+                    src={user?.profile_photo}
+                    initials={user?.name?.slice(0, 2).toUpperCase()}
+                    size="sm"
+                    online
+                  />
+                </Link>
+                <button
+                  onClick={() => setDropdownOpen((open) => !open)}
+                  aria-haspopup="true"
+                  aria-expanded={dropdownOpen}
+                  aria-label="Account menu"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Icon
+                    icon={dropdownOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
+                    width={16}
+                    height={16}
+                    className={styles.avatarChevron}
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+
+              <AccountSwitcher
+                mode="user"
+                styles={styles}
+                actorType={actorType}
+                actorId={actorId}
+                organizations={organizations}
+                user={user}
+                openDropdown={dropdownOpen}
+                openSheet={mobileSheetOpen}
+                onCloseDropdown={() => setDropdownOpen(false)}
+                onCloseSheet={() => setMobileSheetOpen(false)}
+                onSwitchToUser={handleSwitchToUser}
+                onSwitchToOrganization={handleSwitchToOrganization}
+                onLogout={handleLogout}
+                enableSheet={false}
+              />
             </div>
-
-            <AccountSwitcher
-              mode="user"
-              styles={styles}
-              actorType={actorType}
-              actorId={actorId}
-              organizations={organizations}
-              user={user}
-              openDropdown={dropdownOpen}
-              openSheet={mobileSheetOpen}
-              onCloseDropdown={() => setDropdownOpen(false)}
-              onCloseSheet={() => setMobileSheetOpen(false)}
-              onSwitchToUser={handleSwitchToUser}
-              onSwitchToOrganization={handleSwitchToOrganization}
-              onLogout={handleLogout}
-              enableSheet={false}
-            />
           </div>
         </div>
       </header>
@@ -297,8 +280,12 @@ export default function AppNav() {
       >
         <LogoMark />
         <div className={styles.mobileTopActions}>
-          <Link href="/search" className={styles.mobileIconBtn} aria-label="Search">
-            <Icon icon="mdi:magnify" width={24} height={24} />
+          <Link href="/explore" className={styles.mobileIconBtn} aria-label="Explore">
+            <Icon
+              icon={pathname.startsWith("/explore") ? "mdi:compass" : "mdi:compass-outline"}
+              width={24}
+              height={24}
+            />
           </Link>
           <Link
             href="/notifications"
@@ -329,13 +316,13 @@ export default function AppNav() {
         </Link>
 
         <Link
-          href="/explore"
-          className={`${styles.bottomTab} ${pathname.startsWith("/explore") ? styles.bottomTabActive : ""}`}
-          aria-label="Explore"
-          aria-current={pathname.startsWith("/explore") ? "page" : undefined}
+          href="/recruitments"
+          className={`${styles.bottomTab} ${pathname.startsWith("/recruitments") ? styles.bottomTabActive : ""}`}
+          aria-label="Recruitments"
+          aria-current={pathname.startsWith("/recruitments") ? "page" : undefined}
         >
           <Icon
-            icon={pathname.startsWith("/explore") ? "mdi:compass" : "mdi:compass-outline"}
+            icon={pathname.startsWith("/recruitments") ? "mdi:briefcase-search" : "mdi:briefcase-search-outline"}
             width={26}
             height={26}
           />

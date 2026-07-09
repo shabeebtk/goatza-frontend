@@ -2,8 +2,11 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import {
   fetchRecruitmentsApi,
   fetchRecruitmentDetailApi,
+  fetchMyApplicationsApi,
   type FetchRecruitmentsParams,
   type RecruitmentsListResponse,
+  type FetchMyApplicationsParams,
+  type MyApplicationsResponse,
 } from "../services/recruitments.api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -41,6 +44,11 @@ export const applicantKeys = {
     ["recruitments", "application", applicationId] as const,
 }
 
+export const myApplicationKeys = {
+  list: (p: FetchMyApplicationsParams) =>
+    ["recruitments", "my-applications", p] as const,
+}
+
 // ── Infinite list ──────────────────────────────────────────────
 
 const LIMIT = 10
@@ -59,6 +67,27 @@ export const useRecruitmentsList = (
       return fetched < lastPage.count ? fetched : undefined
     },
     staleTime: 1000 * 60 * 5,
+  })
+
+// ── My applications (player) ──────────────────────────────────
+
+const MY_APPLICATIONS_LIMIT = 20
+
+export const useMyApplications = (params: FetchMyApplicationsParams = {}) =>
+  useInfiniteQuery<MyApplicationsResponse, Error>({
+    queryKey: myApplicationKeys.list({ ...params, limit: MY_APPLICATIONS_LIMIT }),
+    queryFn: ({ pageParam = 0 }) =>
+      fetchMyApplicationsApi({
+        ...params,
+        limit: MY_APPLICATIONS_LIMIT,
+        offset: pageParam as number,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.reduce((sum, p) => sum + p.results.length, 0)
+      return fetched < lastPage.count ? fetched : undefined
+    },
+    staleTime: 1000 * 60,
   })
 
 // ── Detail ─────────────────────────────────────────────────────
