@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
@@ -18,13 +19,27 @@ import type { UserProfile } from "@/features/profile/services/profile.api"
 import styles from "./UserProfile.module.css"
 
 // ── Stat pill ─────────────────────────────────────────────────
-function StatPill({ value, label }: { value: string; label: string }) {
-  return (
-    <div className={styles.statPill}>
+function StatPill({
+  value, label, href,
+}: {
+  value: string; label: string; href?: string
+}) {
+  const content = (
+    <>
       <span className={styles.statValue}>{Number(value).toLocaleString()}</span>
       <span className={styles.statLabel}>{label}</span>
-    </div>
+    </>
   )
+
+  if (href) {
+    return (
+      <Link href={href} className={`${styles.statPill} ${styles.statPillLink}`}>
+        {content}
+      </Link>
+    )
+  }
+
+  return <div className={styles.statPill}>{content}</div>
 }
 
 // ── Follow button ─────────────────────────────────────────────
@@ -67,7 +82,7 @@ type PhotoModalType = "profile" | "cover" | null
 
 export default function UserProfile({ username, isOwn = false }: UserProfileProps) {
   const router = useRouter()
-  const { toMessage } = useNavigation()
+  const { toMessage, toNetwork } = useNavigation()
   const { data: profile, isLoading, isError } = useUserProfile(username)
 
   const [photoModal, setPhotoModal] = useState<PhotoModalType>(null)
@@ -224,11 +239,23 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
 
             {/* Stats */}
             <div className={styles.statsRow}>
-              <StatPill value={profile.followers_count} label="Followers" />
+              <StatPill
+                value={profile.followers_count}
+                label="Followers"
+                href={toNetwork(profile.username, "user", "followers")}
+              />
               <div className={styles.statDivider} />
-              <StatPill value={profile.following_count} label="Following" />
+              <StatPill
+                value={profile.following_count}
+                label="Following"
+                href={toNetwork(profile.username, "user", "following")}
+              />
               <div className={styles.statDivider} />
-              <StatPill value={profile.connections_count} label="Connections" />
+              <StatPill
+                value={profile.connections_count}
+                label="Connections"
+                href={toNetwork(profile.username, "user", "connections")}
+              />
             </div>
 
             {/* Profile Action Buttons (Moved from top) */}
