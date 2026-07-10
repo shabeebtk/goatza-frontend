@@ -78,6 +78,7 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
             // Cancel any outgoing refetches so they don't overwrite our optimistic update
             await qc.cancelQueries({ queryKey: ["posts", "list"] })
             await qc.cancelQueries({ queryKey: ["feed", "list"] })
+            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
 
             const updatePages = (old: any) => {
                 if (!old) return old
@@ -126,6 +127,10 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
             // Also update the Home feed which runs on a different query key!
             qc.setQueriesData({ queryKey: ["feed", "list"] }, updatePages)
 
+            // …and the Explore trending feed (yet another key) so a reaction on a
+            // post shown in Explore updates instantly too.
+            qc.setQueriesData({ queryKey: ["explore", "posts"] }, updatePages)
+
             // we don't return previous context since we update multiple queries.
             // On error we will just invalidate everything.
             return {}
@@ -134,6 +139,7 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
             // Rollback on error by invalidating so it fetches the truth
             qc.invalidateQueries({ queryKey: ["posts", "list"] })
             qc.invalidateQueries({ queryKey: ["feed", "list"] })
+            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
         },
         // We REMOVED onSettled invalidateQueries.
         // The optimistic update handles the UI instantly, and we trust it. 
@@ -189,6 +195,8 @@ export const useDeletePost = (options: { mode?: "preview" }) => {
             // cancel ongoing queries
             await qc.cancelQueries({ queryKey: ["posts", "list"] })
             await qc.cancelQueries({ queryKey: ["posts", "feed"] })
+            await qc.cancelQueries({ queryKey: ["feed", "list"] })
+            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
 
             const updatePages = (old: any) => {
                 if (!old) return old
@@ -202,9 +210,11 @@ export const useDeletePost = (options: { mode?: "preview" }) => {
                 }
             }
 
-            // update ALL post lists
+            // update ALL post lists (profile/list, feed, and explore)
             qc.setQueriesData({ queryKey: ["posts", "list"] }, updatePages)
             qc.setQueriesData({ queryKey: ["posts", "feed"] }, updatePages)
+            qc.setQueriesData({ queryKey: ["feed", "list"] }, updatePages)
+            qc.setQueriesData({ queryKey: ["explore", "posts"] }, updatePages)
 
             return {}
         },
@@ -220,6 +230,8 @@ export const useDeletePost = (options: { mode?: "preview" }) => {
             // fallback → refetch truth
             qc.invalidateQueries({ queryKey: ["posts", "list"] })
             qc.invalidateQueries({ queryKey: ["posts", "feed"] })
+            qc.invalidateQueries({ queryKey: ["feed", "list"] })
+            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
         },
     })
 }

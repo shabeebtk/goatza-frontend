@@ -1,0 +1,123 @@
+/* ============================================================
+   GOATZA — UserCard (compact, for horizontal rails)
+   ============================================================ */
+
+@keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+
+    width: 158px;
+    padding: var(--space-4) var(--space-3);
+
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+
+    transition:
+        border-color var(--duration-base) var(--ease-out),
+        box-shadow var(--duration-base) var(--ease-out),
+        transform var(--duration-base) var(--ease-spring);
+}
+
+.card:hover {
+    border-color: var(--color-brand-muted);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-2px);
+}
+
+.card:active {
+    transform: translateY(0) scale(0.99);
+}
+
+.avatar {
+    margin-bottom: var(--space-1);
+}
+
+.name {
+    width: 100%;
+    font-family: var(--font-ui);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text-primary);
+    line-height: 1.2;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.roleBadge {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+}
+
+.headline {
+    width: 100%;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    line-height: var(--leading-snug);
+
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.location {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    margin-top: auto;
+
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.location svg {
+    flex-shrink: 0;
+}
+
+.locationText {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Skeleton ─────────────────────────────────────────────── */
+
+.skeletonBlock {
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-raised) 25%,
+        var(--color-border) 50%,
+        var(--color-surface-raised) 75%
+    );
+    background-size: 400px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+}
+
+.skeletonAvatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-bottom: var(--space-1);
+}
+
+.skeletonName { width: 80%; height: 13px; }
+.skeletonBadge { width: 52px; height: 16px; border-radius: var(--radius-full); }
+.skeletonHeadline { width: 92%; height: 10px; }
+.skeletonHeadlineSm { width: 66%; height: 10px; }
+.skeletonLocation { width: 58%; height: 10px; margin-top: var(--space-1); }

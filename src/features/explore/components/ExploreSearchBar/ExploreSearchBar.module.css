@@ -1,0 +1,81 @@
+/* ============================================================
+   GOATZA — ExploreSearchBar
+   A button dressed as a search input, stuck below the top nav.
+   ============================================================ */
+
+.wrap {
+    position: sticky;
+    /* Sit right under the fixed AppNav top bar (54px mobile / 60px desktop). */
+    top: calc(54px + env(safe-area-inset-top, 0px));
+    z-index: 90;
+
+    background: var(--color-bg);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+@media (min-width: 768px) {
+    .wrap {
+        top: 60px;
+    }
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+
+    width: 100%;
+    max-width: 680px;
+    margin: 0 auto;
+
+    min-height: 48px;
+    padding: 0 var(--space-4);
+
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+
+    cursor: pointer;
+    text-align: left;
+
+    transition:
+        border-color var(--duration-base) var(--ease-out),
+        box-shadow var(--duration-base) var(--ease-out),
+        transform var(--duration-fast) var(--ease-out);
+}
+
+.bar:hover {
+    border-color: var(--color-brand-muted);
+}
+
+.bar:focus-visible {
+    outline: none;
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.bar:active {
+    transform: scale(0.99);
+}
+
+.icon {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    transition: color var(--duration-base);
+}
+
+.bar:hover .icon {
+    color: var(--color-brand);
+}
+
+.placeholder {
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    color: var(--color-text-muted);
+    line-height: 1;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
