@@ -13,6 +13,8 @@ import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountS
 import CreateMenu, { type CreateAction } from "@/shared/components/layout/CreateMenu/CreateMenu"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateRecruitmentModal/CreateRecruitmentTrigger"
+import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
+import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -48,10 +50,6 @@ function buildNavItems(orgId: string) {
   ]
 }
 
-const MOCK_ORG = {
-  notifCount: 4,
-  messageCount: 2,
-}
 
 function OrgLogoMark({
   orgId,
@@ -140,6 +138,10 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     activeOrganization?.id === orgId
       ? activeOrganization
       : organizations.find((organization) => organization.id === orgId)
+
+  // Live badge counts for the acting organization (actor headers scope these).
+  const notifCount = useUnreadCount().data?.count ?? 0
+  const messageCount = useConversationsUnreadSummary().data?.total ?? 0
 
   // Data-driven create actions — add a new entry here to grow the "+" menu.
   const createActions: CreateAction[] = [
@@ -235,15 +237,15 @@ export default function OrgNav({ orgId }: { orgId: string }) {
               const isActive = pathname.startsWith(item.href)
               const hasAlert =
                 item.href === `${orgBase(orgId)}/messages`
-                  ? MOCK_ORG.messageCount > 0
+                  ? messageCount > 0
                   : item.href === `${orgBase(orgId)}/notifications`
-                    ? MOCK_ORG.notifCount > 0
+                    ? notifCount > 0
                     : false
               const alertCount =
                 item.href === `${orgBase(orgId)}/messages`
-                  ? MOCK_ORG.messageCount
+                  ? messageCount
                   : item.href === `${orgBase(orgId)}/notifications`
-                    ? MOCK_ORG.notifCount
+                    ? notifCount
                     : 0
 
               return (
@@ -344,15 +346,17 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           </Link>
           <Link
             href={`${orgBase(orgId)}/notifications`}
-            className={`${styles.mobileIconBtn} ${styles.mobileIconBtnRelative}`}
+            className={styles.mobileIconBtn}
             aria-label="Notifications"
           >
-            <Icon
-              icon={pathname.startsWith(`${orgBase(orgId)}/notifications`) ? "mdi:bell" : "mdi:bell-outline"}
-              width={24}
-              height={24}
-            />
-            <NotifDot count={MOCK_ORG.notifCount} />
+            <span className={styles.mobileIconBadgeWrap}>
+              <Icon
+                icon={pathname.startsWith(`${orgBase(orgId)}/notifications`) ? "mdi:bell" : "mdi:bell-outline"}
+                width={24}
+                height={24}
+              />
+              <NotifDot count={notifCount} />
+            </span>
           </Link>
         </div>
       </header>
@@ -474,6 +478,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       <CreateRecruitmentTrigger
         open={recruitmentOpen}
         onOpenChange={setRecruitmentOpen}
+        onCreated={() => router.push(`${orgBase(orgId)}/recruitments`)}
       />
     </>
   )

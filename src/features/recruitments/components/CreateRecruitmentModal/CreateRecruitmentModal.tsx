@@ -819,6 +819,7 @@ export default function CreateRecruitmentModal({
     const [submitError, setSubmitError] = useState<string | null>(null)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const [draftSaved, setDraftSaved] = useState(false)
+    const [confirmDiscard, setConfirmDiscard] = useState(false)
 
     const toast = useToast()
     const { mutateAsync: createRecruitment } = useCreateRecruitment()
@@ -826,6 +827,37 @@ export default function CreateRecruitmentModal({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const isSubmitting = phase !== "idle"
     const composing = phase === "idle"
+
+    // ── Unsaved-changes guard ─────────────────────────────────────
+    // Snapshot every editable field so we can tell whether the user has
+    // touched anything since opening. Draft ids are excluded because they're
+    // random per session and would otherwise always read as "changed".
+    const snapshot = JSON.stringify({
+        title, shortDesc, description, recruitmentType, visibility, sportId, gender,
+        experienceLevel, applicationDeadline, eventDate, maxApplications,
+        ageCategories: ageCategories.map(({ id: _id, ...c }) => c),
+        venueName, venueLink,
+        location: location ? { name: location.name, lat: location.latitude, lng: location.longitude } : null,
+        anyPosition,
+        selectedPositions: selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
+        questions: questions.map(({ id: _id, ...q }) => q),
+        benefits: benefits.map(({ id: _id, ...b }) => b),
+        requirements: requirements.map(({ id: _id, ...r }) => r),
+        contacts: contacts.map(({ id: _id, ...c }) => c),
+        applyMethod, externalApplyUrl,
+        media: mediaEntries.map(m => m.result?.file_url ?? m.preview),
+        isPaid, feeAmount, feeCurrency, paymentNote,
+    })
+    // Captured once on first render → represents the pristine (opened) state.
+    const initialSnapshotRef = useRef<string | null>(null)
+    if (initialSnapshotRef.current === null) initialSnapshotRef.current = snapshot
+    const isDirty = initialSnapshotRef.current !== snapshot
+
+    // Close, but confirm first if there are unsaved changes.
+    const requestClose = () => {
+        if (composing && isDirty) setConfirmDiscard(true)
+        else onClose()
+    }
 
     // ── Scroll lock ───────────────────────────────────────────────
     useEffect(() => {
@@ -1643,7 +1675,7 @@ export default function CreateRecruitmentModal({
     return (
         <div
             className={styles.backdrop}
-            onClick={e => { if (e.target === e.currentTarget && composing) onClose() }}
+            onClick={e => { if (e.target === e.currentTarget && composing) requestClose() }}
             role="dialog"
             aria-modal="true"
             aria-label="Create recruitment"
@@ -1658,7 +1690,7 @@ export default function CreateRecruitmentModal({
                             <span className={styles.headerSub}>{displayName || username}</span>
                         </div>
                     </div>
-                    <button className={styles.closeBtn} onClick={onClose} disabled={isSubmitting} type="button" aria-label="Close">
+                    <button className={styles.closeBtn} onClick={requestClose} disabled={isSubmitting} type="button" aria-label="Close">
                         <Icon icon="mdi:close" width={20} height={20} />
                     </button>
                 </div>
@@ -1701,7 +1733,7 @@ export default function CreateRecruitmentModal({
 
                 {/* Footer */}
                 <div className={styles.footer}>
-                    <button className={styles.backBtn} onClick={step === 0 ? onClose : goPrev} disabled={isSubmitting} type="button">
+                    <button className={styles.backBtn} onClick={step === 0 ? requestClose : goPrev} disabled={isSubmitting} type="button">
                         {step === 0 ? "Cancel" : <><Icon icon="mdi:chevron-left" width={16} height={16} /> Back</>}
                     </button>
                     <div className={styles.footerRight}>
@@ -1734,6 +1766,35 @@ export default function CreateRecruitmentModal({
             </div>
 
             <input ref={fileInputRef} type="file" hidden multiple accept="image/*" onChange={handleFileChange} />
+
+            {/* Discard-changes confirmation */}
+            {confirmDiscard && (
+                <div className={styles.confirmOverlay} onClick={() => setConfirmDiscard(false)}>
+                    <div
+                        className={styles.confirmDialog}
+                        onClick={e => e.stopPropagation()}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-label="Discard unsaved changes"
+                    >
+                        <span className={styles.confirmIcon}>
+                            <Icon icon="mdi:alert-outline" width={26} height={26} />
+                        </span>
+                        <h3 className={styles.confirmTitle}>{isEdit ? "Discard changes?" : "Discard this recruitment?"}</h3>
+                        <p className={styles.confirmText}>
+                            The details you&rsquo;ve entered haven&rsquo;t been saved yet and will be lost.
+                        </p>
+                        <div className={styles.confirmActions}>
+                            <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmDiscard(false)}>
+                                Keep editing
+                            </button>
+                            <button type="button" className={styles.confirmDiscardBtn} onClick={() => { setConfirmDiscard(false); onClose() }}>
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

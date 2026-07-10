@@ -1765,3 +1765,101 @@
   text-transform: uppercase;
   color: var(--color-brand-hover);
 }
+/* ── Discard-changes confirmation ────────────────────────────── */
+
+.confirmOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: fadeIn 0.15s var(--ease-out) both;
+}
+
+.confirmDialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 340px;
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.2s var(--ease-spring) both;
+}
+
+.confirmIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
+  color: var(--color-error);
+}
+
+.confirmTitle {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+}
+
+.confirmText {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.confirmCancelBtn,
+.confirmDiscardBtn {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+
+.confirmCancelBtn {
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.confirmCancelBtn:hover {
+  background: var(--color-bg);
+  border-color: var(--color-text-muted);
+}
+
+.confirmDiscardBtn {
+  background: var(--color-error);
+  border: 1.5px solid var(--color-error);
+  color: #fff;
+}
+
+.confirmDiscardBtn:hover {
+  filter: brightness(0.92);
+}

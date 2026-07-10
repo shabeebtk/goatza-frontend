@@ -8,7 +8,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import isToday from "dayjs/plugin/isToday"
 import isYesterday from "dayjs/plugin/isYesterday"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
-import { useConversations } from "../../hooks/useConversationQueries"
+import { useConversations, useConversationsUnreadSummary } from "../../hooks/useConversationQueries"
 import { useConversationsSocket } from "../../hooks/useConversationsSocket"
 import { useAuthStore } from "@/store/auth.store"
 import type { Conversation, MessageType } from "../../services/conversations.api"
@@ -247,6 +247,9 @@ export default function ConversationsList() {
     search: debouncedSearch || undefined,
   })
 
+  // Unread badge counts per tab — updates on read via cache invalidation.
+  const { data: unreadSummary } = useConversationsUnreadSummary()
+
   const handleTabChange = useCallback((t: Tab) => {
     setTab(t)
     setSearch("")
@@ -284,6 +287,9 @@ export default function ConversationsList() {
             type="button"
           >
             Chats
+            {!!unreadSummary?.chats && (
+              <span className={styles.tabBadge}>{getUnreadLabel(unreadSummary.chats)}</span>
+            )}
           </button>
           <button
             role="tab"
@@ -293,7 +299,9 @@ export default function ConversationsList() {
             type="button"
           >
             Requests
-            {/* Request count could be wired here */}
+            {!!unreadSummary?.requests && (
+              <span className={styles.tabBadge}>{getUnreadLabel(unreadSummary.requests)}</span>
+            )}
           </button>
         </div>
       </div>

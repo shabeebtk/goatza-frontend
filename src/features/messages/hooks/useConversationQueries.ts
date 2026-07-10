@@ -2,6 +2,7 @@ import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from "@tansta
 import {
   getOrCreateConversationApi,
   getConversationsApi,
+  getConversationsUnreadSummaryApi,
   getConversationDetailsApi,
   getMessagesApi,
   markConversationReadApi,
@@ -13,10 +14,11 @@ import {
 // ── Query keys ───────────────────────────────────────────────
 
 export const conversationKeys = {
-  all:     ()                               => ["conversations"]                          as const,
-  list:    (params: ConversationsParams)    => ["conversations", "list", params]          as const,
-  detail:  (id: string)                     => ["conversations", "detail", id]            as const,
-  messages:(id: string)                     => ["conversations", "messages", id]          as const,
+  all:           ()                            => ["conversations"]                          as const,
+  list:          (params: ConversationsParams) => ["conversations", "list", params]          as const,
+  detail:        (id: string)                  => ["conversations", "detail", id]            as const,
+  messages:      (id: string)                  => ["conversations", "messages", id]          as const,
+  unreadSummary: ()                            => ["conversations", "unread-summary"]        as const,
 }
 
 // ── Conversations create ────────────────────────────────────────
@@ -40,6 +42,16 @@ export const useConversations = (params: ConversationsParams = {}) =>
     queryKey:       conversationKeys.list(params),
     queryFn:        () => getConversationsApi(params),
     staleTime:      0, // Always refetch on mount so latest chats appear when coming back
+  })
+
+// ── Unread summary (nav badge + tab badges) ───────────────────
+
+export const useConversationsUnreadSummary = () =>
+  useQuery({
+    queryKey:        conversationKeys.unreadSummary(),
+    queryFn:         getConversationsUnreadSummaryApi,
+    staleTime:       1000 * 30,
+    refetchInterval: 1000 * 60, // poll every minute for the nav badge
   })
 
 // ── Conversation detail ───────────────────────────────────────
@@ -90,6 +102,9 @@ export const useMarkRead = () => {
           )
         }
       )
+      // Reading a chat changes the badge counts — refetch the summary so the
+      // nav badge and the Chats/Requests tab badges update immediately.
+      qc.invalidateQueries({ queryKey: conversationKeys.unreadSummary() })
     },
   })
 }

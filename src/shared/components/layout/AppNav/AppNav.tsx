@@ -12,11 +12,8 @@ import { useAuthStore } from "@/store/auth.store"
 import { logoutApi } from "@/features/auth/services/auth.api"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
-
-const MOCK_USER = {
-  notifCount: 4,
-  messageCount: 2,
-}
+import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
+import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 
 const NAV_ITEMS = [
   {
@@ -88,6 +85,10 @@ export default function AppNav() {
   const activeOrganization = useAuthStore((state) => state.currentOrganization)
   const switchToUser = useAuthStore((state) => state.switchToUser)
   const switchToOrganization = useAuthStore((state) => state.switchToOrganization)
+
+  // Live badge counts for the current actor (headers scope these per user/org).
+  const notifCount = useUnreadCount().data?.count ?? 0
+  const messageCount = useConversationsUnreadSummary().data?.total ?? 0
 
   const isChatPage = /^\/messages\/.+/.test(pathname)
 
@@ -175,15 +176,15 @@ export default function AppNav() {
               const isActive = pathname.startsWith(item.href)
               const hasAlert =
                 item.href === "/messages"
-                  ? MOCK_USER.messageCount > 0
+                  ? messageCount > 0
                   : item.href === "/notifications"
-                    ? MOCK_USER.notifCount > 0
+                    ? notifCount > 0
                     : false
               const alertCount =
                 item.href === "/messages"
-                  ? MOCK_USER.messageCount
+                  ? messageCount
                   : item.href === "/notifications"
-                    ? MOCK_USER.notifCount
+                    ? notifCount
                     : 0
 
               return (
@@ -289,15 +290,17 @@ export default function AppNav() {
           </Link>
           <Link
             href="/notifications"
-            className={`${styles.mobileIconBtn} ${styles.mobileIconBtnRelative}`}
+            className={styles.mobileIconBtn}
             aria-label="Notifications"
           >
-            <Icon
-              icon={pathname.startsWith("/notifications") ? "mdi:bell" : "mdi:bell-outline"}
-              width={24}
-              height={24}
-            />
-            <NotifDot count={MOCK_USER.notifCount} />
+            <span className={styles.mobileIconBadgeWrap}>
+              <Icon
+                icon={pathname.startsWith("/notifications") ? "mdi:bell" : "mdi:bell-outline"}
+                width={24}
+                height={24}
+              />
+              <NotifDot count={notifCount} />
+            </span>
           </Link>
         </div>
       </header>
@@ -351,7 +354,7 @@ export default function AppNav() {
               width={26}
               height={26}
             />
-            <NotifDot count={MOCK_USER.messageCount} />
+            <NotifDot count={messageCount} />
           </span>
         </Link>
 

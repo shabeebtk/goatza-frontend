@@ -551,6 +551,15 @@
     position: relative;
 }
 
+/* Icon-sized wrapper so the notification badge hugs the icon (not the button). */
+.mobileIconBadgeWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
 /* ─────────────────────────────────────────────────────────────
    MOBILE BOTTOM TAB BAR  (< 768px)
    ───────────────────────────────────────────────────────────── */

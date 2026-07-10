@@ -156,6 +156,10 @@
 .tab {
   flex: 1;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
@@ -168,6 +172,22 @@
   cursor: pointer;
   transition: color var(--duration-fast);
   text-align: center;
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font-size: 10px;
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .tab:hover {
