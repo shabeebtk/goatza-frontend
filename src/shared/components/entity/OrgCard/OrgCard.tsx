@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import clsx from "clsx"
 import { Icon } from "@iconify/react"
 import { useNavigation } from "@/shared/services/navigation.service"
 import styles from "./OrgCard.module.css"
@@ -18,13 +19,17 @@ interface OrgCardProps {
   org: OrgCardData
   /** Optional action rendered beneath the body — e.g. a follow button. */
   action?: React.ReactNode
+  /** Optional line under the headline — e.g. "city · 3.2 km" in the listing. */
+  meta?: React.ReactNode
+  /** Merged onto the root so consumers (e.g. the vertical grid) can resize it. */
+  className?: string
 }
 
-export default function OrgCard({ org, action }: OrgCardProps) {
+export default function OrgCard({ org, action, meta, className }: OrgCardProps) {
   const { toProfile } = useNavigation()
 
   return (
-    <div className={styles.card}>
+    <div className={clsx(styles.card, className)}>
       <Link href={toProfile(org.username, "organization")} className={styles.body}>
         <span className={styles.logoWrap}>
           {org.logo ? (
@@ -50,6 +55,8 @@ export default function OrgCard({ org, action }: OrgCardProps) {
         </span>
 
         {org.headline && <p className={styles.headline}>{org.headline}</p>}
+
+        {meta && <span className={styles.meta}>{meta}</span>}
       </Link>
 
       {action && <div className={styles.action}>{action}</div>}

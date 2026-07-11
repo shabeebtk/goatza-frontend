@@ -1,8 +1,9 @@
+import clsx from "clsx"
 import styles from "./UserCard.module.css"
 
-export default function UserCardSkeleton() {
+export default function UserCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={styles.card} aria-hidden="true">
+    <div className={clsx(styles.card, className)} aria-hidden="true">
       <div className={`${styles.skeletonBlock} ${styles.skeletonAvatar}`} />
       <div className={`${styles.skeletonBlock} ${styles.skeletonName}`} />
       <div className={`${styles.skeletonBlock} ${styles.skeletonHeadline}`} />

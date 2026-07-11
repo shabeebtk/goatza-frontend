@@ -16,6 +16,7 @@ export type ExploreUser = {
   city: string
   followers_count: number
   distance_km: number | null // null in "popular" mode
+  is_following: boolean
 }
 
 /** Lightweight organization card (ExploreOrgSerializer). */
@@ -31,6 +32,7 @@ export type ExploreOrg = {
   city: string
   followers_count: number
   distance_km: number | null // null in "popular" mode
+  is_following: boolean
 }
 
 export type ExplorePlayersResponse = {
@@ -52,11 +54,21 @@ export type ExplorePostsResponse = {
 
 // ── Params ────────────────────────────────────────────────────
 
-export type FetchExplorePlayersParams = {
+/** Shared listing filters (Stage 1 backend). */
+export type ExploreListFilters = {
+  search?: string
+  sport_id?: string
+  position_id?: string // players only
+  lat?: number
+  lng?: number
+  radius_km?: number
+}
+
+export type FetchExplorePlayersParams = ExploreListFilters & {
   cursor?: string
 }
 
-export type FetchExploreOrgsParams = {
+export type FetchExploreOrgsParams = Omit<ExploreListFilters, "position_id"> & {
   types?: string // comma-separated Organization.Type values (omit = all)
   cursor?: string
 }
@@ -66,19 +78,37 @@ export type FetchExplorePostsParams = {
   seen_ids?: string // comma-separated post ids already shown (max 30)
 }
 
+/**
+ * Drop undefined / null / empty-string values so we never send empty query
+ * params. Numbers (incl. 0 — a valid latitude/longitude) are always kept.
+ */
+const toQuery = (
+  params: Record<string, string | number | undefined>
+): Record<string, string | number> => {
+  const out: Record<string, string | number> = {}
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return
+    if (typeof value === "string" && value.trim() === "") return
+    out[key] = value
+  })
+  return out
+}
+
 // ── API calls ─────────────────────────────────────────────────
 
 export const fetchExplorePlayers = async (
   params: FetchExplorePlayersParams = {}
 ): Promise<ExplorePlayersResponse> => {
-  const res = await api.get("/feed/explore/players", { params })
+  const res = await api.get("/feed/explore/players", { params: toQuery(params) })
   return res.data.data
 }
 
 export const fetchExploreOrganizations = async (
   params: FetchExploreOrgsParams = {}
 ): Promise<ExploreOrgsResponse> => {
-  const res = await api.get("/feed/explore/organizations", { params })
+  const res = await api.get("/feed/explore/organizations", {
+    params: toQuery(params),
+  })
   return res.data.data
 }
 

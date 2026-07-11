@@ -78,6 +78,29 @@
     overflow: hidden;
 }
 
+/* Optional meta line (city · distance) — listing only; rails never pass it. */
+.meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    line-height: 1.3;
+}
+
+.meta > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.meta svg {
+    flex-shrink: 0;
+}
+
 /* Pinned to the bottom so buttons line up across cards of unequal height. */
 .action {
     width: 100%;

@@ -1,5 +1,11 @@
-import ExploreComingSoon from "@/features/explore/components/ExploreComingSoon/ExploreComingSoon"
+import { Suspense } from "react"
+import PlayersListPage from "@/features/explore/components/PlayersListPage/PlayersListPage"
 
+// PlayersListPage reads useSearchParams → needs a Suspense boundary.
 export default function ExplorePlayersPage() {
-  return <ExploreComingSoon title="Players" />
+  return (
+    <Suspense fallback={null}>
+      <PlayersListPage />
+    </Suspense>
+  )
 }

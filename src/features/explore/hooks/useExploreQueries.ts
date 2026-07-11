@@ -3,6 +3,7 @@ import {
   fetchExplorePlayers,
   fetchExploreOrganizations,
   fetchExplorePosts,
+  type ExploreListFilters,
   type ExplorePlayersResponse,
   type ExploreOrgsResponse,
   type ExplorePostsResponse,
@@ -11,13 +12,42 @@ import {
   type FetchExplorePostsParams,
 } from "../api/explore.api"
 
+// ── Filter normalisation ──────────────────────────────────────
+// Strip undefined / empty values so equivalent filter states produce the same
+// query key. An empty result means "no filters" → the key omits the object
+// entirely, keeping the exact same key as the unfiltered rails.
+
+const normalizeFilters = (
+  filters?: ExploreListFilters
+): Record<string, string | number> => {
+  const out: Record<string, string | number> = {}
+  if (!filters) return out
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null) return
+    if (typeof value === "string" && value.trim() === "") return
+    out[key] = value
+  })
+  return out
+}
+
 // ── Query keys ────────────────────────────────────────────────
+// React Query hashes object keys stably (sorted), so a normalized filter object
+// is a safe cache key — any filter change resets pagination cleanly.
 
 export const exploreKeys = {
   all: ["explore"] as const,
-  players: () => ["explore", "players"] as const,
-  // types is part of the key so switching the org filter refetches cleanly.
-  orgs: (types: string) => ["explore", "orgs", types] as const,
+  players: (filters?: ExploreListFilters) => {
+    const clean = normalizeFilters(filters)
+    return Object.keys(clean).length
+      ? (["explore", "players", clean] as const)
+      : (["explore", "players"] as const)
+  },
+  orgs: (types: string, filters?: ExploreListFilters) => {
+    const clean = normalizeFilters(filters)
+    return Object.keys(clean).length
+      ? (["explore", "orgs", types, clean] as const)
+      : (["explore", "orgs", types] as const)
+  },
   posts: () => ["explore", "posts"] as const,
 }
 
@@ -25,12 +55,17 @@ export const exploreKeys = {
 const STALE_TIME = 1000 * 60 * 2
 
 // ── Players ───────────────────────────────────────────────────
+// Called with no args by the ExplorePage rail → key stays ["explore","players"]
+// (unchanged cache/dedupe). With filters → key gains the normalized object.
 
-export const useExplorePlayers = () =>
+export const useExplorePlayers = (filters?: ExploreListFilters) =>
   useInfiniteQuery<ExplorePlayersResponse, Error>({
-    queryKey: exploreKeys.players(),
+    queryKey: exploreKeys.players(filters),
     queryFn: ({ pageParam }) =>
-      fetchExplorePlayers((pageParam as FetchExplorePlayersParams) || {}),
+      fetchExplorePlayers({
+        ...filters,
+        ...(pageParam as FetchExplorePlayersParams),
+      }),
     initialPageParam: { cursor: undefined } as FetchExplorePlayersParams,
     getNextPageParam: (lastPage) =>
       lastPage.next_cursor
@@ -43,13 +78,15 @@ export const useExplorePlayers = () =>
 
 // ── Organizations ─────────────────────────────────────────────
 
-export const useExploreOrgs = (types = "") =>
+export const useExploreOrgs = (types = "", filters?: ExploreListFilters) =>
   useInfiniteQuery<ExploreOrgsResponse, Error>({
-    queryKey: exploreKeys.orgs(types),
-    queryFn: ({ pageParam }) => {
-      const { cursor } = (pageParam as FetchExploreOrgsParams) || {}
-      return fetchExploreOrganizations({ types: types || undefined, cursor })
-    },
+    queryKey: exploreKeys.orgs(types, filters),
+    queryFn: ({ pageParam }) =>
+      fetchExploreOrganizations({
+        ...filters,
+        types: types || undefined,
+        ...(pageParam as FetchExploreOrgsParams),
+      }),
     initialPageParam: { cursor: undefined } as FetchExploreOrgsParams,
     getNextPageParam: (lastPage) =>
       lastPage.next_cursor
