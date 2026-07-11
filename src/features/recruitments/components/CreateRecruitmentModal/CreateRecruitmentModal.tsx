@@ -11,7 +11,15 @@ import {
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import styles from "./CreateRecruitmentModal.module.css"
-import { useCreateRecruitment } from "../../hooks/useRecruitments"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
+import { useCreateRecruitment, useUpdateRecruitment } from "../../hooks/useRecruitments"
+import type {
+    RecruitmentDetail,
+    CreateRecruitmentPayload,
+    CreateRecruitmentMediaPayload,
+    ApplyMethod,
+} from "../../services/recruitments.api"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -59,14 +67,23 @@ type ContactDraft = {
     value: string
 }
 
+type UploadedMedia = {
+    file_url: string
+    public_id: string
+    media_type: "image" | "video"
+    thumbnail_url?: string
+    order: number
+}
+
 type MediaEntry = {
     id: string
-    file: File
+    file: File | null            // null for already-uploaded (existing) media
     preview: string
     progress: number
     status: "idle" | "uploading" | "done" | "error"
     error: string | null
-    result: { file_url: string; public_id: string; media_type: "image" | "video"; order: number } | null
+    result: UploadedMedia | null
+    existing?: boolean           // true → already on the server, skip the upload pipeline
 }
 
 type PositionItem = { position_id: string; is_primary: boolean; name: string }
@@ -74,6 +91,34 @@ type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 
 const TOTAL_STEPS = 5
 const STEP_LABELS = ["Basics", "Age & Venue", "Positions", "Media", "Review"]
+
+// Maps a backend field-error key → the wizard step that owns it, so a 400 can
+// jump the user straight to the offending input and show the message inline.
+const FIELD_STEP: Record<string, number> = {
+    title: 0,
+    short_description: 0,
+    sport_id: 0,
+    event_date: 0,
+    application_deadline: 0,
+    max_applications: 0,
+    positions: 2,
+    external_apply_url: 2,
+    contacts: 2,
+    fee_amount: 3,
+    media: 3,
+}
+
+function isValidHttpUrl(value: string): boolean {
+    try {
+        const url = new URL(value)
+        return url.protocol === "http:" || url.protocol === "https:"
+    } catch {
+        return false
+    }
+}
+
+const PHONE_RE = /^\+?\d{7,15}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ── Preset age categories ──────────────────────────────────────
 
@@ -108,7 +153,128 @@ const BENEFIT_ICONS = [
     { value: "network", label: "Networking", icon: "mdi:account-group-outline" },
 ]
 
+const APPLY_METHODS: { value: ApplyMethod; label: string; icon: string }[] = [
+    { value: "goatza", label: "On Goatza", icon: "mdi:cellphone-check" },
+    { value: "external", label: "External link", icon: "mdi:open-in-new" },
+    { value: "contact", label: "Contact directly", icon: "mdi:phone-outline" },
+]
+
 function uid() { return Math.random().toString(36).slice(2, 10) }
+
+// ── Edit mode: map server detail shapes → wizard draft shapes ──
+
+function isoToLocalInput(iso: string | null): string {
+    if (!iso) return ""
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ""
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function reportingTimeToDraft(t: string | null): { value: string; show: boolean } {
+    if (!t) return { value: "", show: false }
+    // "HH:MM:SS" → "HH:MM"
+    const [h = "", m = ""] = t.split(":")
+    return { value: `${h}:${m}`, show: true }
+}
+
+function mapInitialAgeCategories(r: RecruitmentDetail): AgeCategoryDraft[] {
+    return (r.age_categories ?? []).map((c, idx) => {
+        const rt = reportingTimeToDraft(c.reporting_time)
+        return {
+            id: uid(),
+            title: c.title,
+            min_birth_year: c.min_birth_year,
+            max_birth_year: c.max_birth_year,
+            reporting_time: rt.value,
+            showReportingTime: rt.show,
+            display_order: idx,
+        }
+    })
+}
+
+function mapInitialQuestions(r: RecruitmentDetail): QuestionDraft[] {
+    return (r.questions ?? []).map((q) => ({
+        id: uid(),
+        question: q.question,
+        field_type: q.field_type,
+        is_required: q.is_required,
+        options: (q.options ?? []).map((o) => ({ value: o.value })),
+    }))
+}
+
+function mapInitialBenefits(r: RecruitmentDetail): BenefitDraft[] {
+    return (r.benefits ?? []).map((b, idx) => ({
+        id: uid(),
+        title: b.title,
+        icon_name: b.icon_name || "trophy",
+        display_order: idx,
+    }))
+}
+
+function mapInitialRequirements(r: RecruitmentDetail): RequirementDraft[] {
+    return (r.requirements ?? []).map((req, idx) => ({
+        id: uid(),
+        title: req.title,
+        is_mandatory: req.is_mandatory,
+        display_order: idx,
+    }))
+}
+
+function mapInitialContacts(r: RecruitmentDetail): ContactDraft[] {
+    return (r.contacts ?? []).map((c) => ({
+        id: uid(),
+        name: c.name,
+        contact_type: c.contact_type,
+        value: c.value,
+    }))
+}
+
+function mapInitialPositions(r: RecruitmentDetail): { any: boolean; list: PositionItem[] } {
+    if (!r.positions || r.positions.length === 0) return { any: true, list: [] }
+    return {
+        any: false,
+        list: r.positions.map((p) => ({
+            position_id: p.position.id,
+            is_primary: p.is_primary,
+            name: p.position.name,
+        })),
+    }
+}
+
+function mapInitialLocation(r: RecruitmentDetail): MapboxPlace | null {
+    if (r.latitude == null || r.longitude == null) return null
+    const primary = r.location_name || r.city || "Location"
+    return {
+        label: [r.location_name || r.city, r.country_code].filter(Boolean).join(", "),
+        name: primary,
+        place_type: "place",
+        state: "",
+        country_code: r.country_code,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        external_id: "",
+    }
+}
+
+function mapInitialMedia(r: RecruitmentDetail): MediaEntry[] {
+    return (r.media ?? []).map((m) => ({
+        id: uid(),
+        file: null,
+        preview: m.media_type === "video" ? (m.thumbnail_url || m.file_url) : m.file_url,
+        progress: 100,
+        status: "done",
+        error: null,
+        result: {
+            file_url: m.file_url,
+            public_id: m.public_id,
+            media_type: m.media_type,
+            thumbnail_url: m.thumbnail_url || undefined,
+            order: m.order,
+        },
+        existing: true,
+    }))
+}
 
 // ── Step bar ──────────────────────────────────────────────────
 
@@ -585,6 +751,10 @@ interface CreateRecruitmentModalProps {
     orgId: string
     onClose: () => void
     onCreated?: (recruitmentId: string) => void
+    /** "edit" prefills the wizard from initialRecruitment and PATCHes on save. */
+    mode?: "create" | "edit"
+    initialRecruitment?: RecruitmentDetail
+    onUpdated?: (recruitmentId: string) => void
 }
 
 export default function CreateRecruitmentModal({
@@ -595,53 +765,99 @@ export default function CreateRecruitmentModal({
     orgId,
     onClose,
     onCreated,
+    mode = "create",
+    initialRecruitment,
+    onUpdated,
 }: CreateRecruitmentModalProps) {
+    // Source of truth for prefilling state in edit mode.
+    const init = mode === "edit" ? (initialRecruitment ?? null) : null
+    const isEdit = init !== null
+    const initialPositions = init ? mapInitialPositions(init) : null
+
     // ── Step ─────────────────────────────────────────────────────
     const [step, setStep] = useState(0)
 
     // ── Step 0: Basics ────────────────────────────────────────────
-    const [title, setTitle] = useState("")
-    const [shortDesc, setShortDesc] = useState("")
-    const [description, setDescription] = useState("")
-    const [recruitmentType, setRecruitmentType] = useState<RecruitmentType>("open_trial")
-    const [visibility, setVisibility] = useState<RecruitmentVisibility>("public")
-    const [sportId, setSportId] = useState("")
-    const [gender, setGender] = useState<RecruitmentGender>("male")
-    const [experienceLevel, setExperienceLevel] = useState("")
-    const [applicationDeadline, setApplicationDeadline] = useState("")
-    const [eventDate, setEventDate] = useState("")
-    const [maxApplications, setMaxApplications] = useState("")
+    const [title, setTitle] = useState(() => init?.title ?? "")
+    const [shortDesc, setShortDesc] = useState(() => init?.short_description ?? "")
+    const [description, setDescription] = useState(() => init?.description ?? "")
+    const [recruitmentType, setRecruitmentType] = useState<RecruitmentType>(() => init?.recruitment_type ?? "open_trial")
+    const [visibility, setVisibility] = useState<RecruitmentVisibility>(() => init?.visibility ?? "public")
+    const [sportId, setSportId] = useState(() => init?.sport?.id ?? "")
+    const [gender, setGender] = useState<RecruitmentGender>(() => init?.gender || "all")
+    const [experienceLevel, setExperienceLevel] = useState(() => init?.experience_level ?? "")
+    const [applicationDeadline, setApplicationDeadline] = useState(() => isoToLocalInput(init?.application_deadline ?? null))
+    const [eventDate, setEventDate] = useState(() => isoToLocalInput(init?.event_date ?? null))
+    const [maxApplications, setMaxApplications] = useState(() => (init?.max_applications != null ? String(init.max_applications) : ""))
 
     // ── Step 1: Age + Venue ────────────────────────────────────────
-    const [ageCategories, setAgeCategories] = useState<AgeCategoryDraft[]>([])
-    const [venueName, setVenueName] = useState("")
-    const [venueLink, setVenueLink] = useState("")
-    const [location, setLocation] = useState<MapboxPlace | null>(null)
+    const [ageCategories, setAgeCategories] = useState<AgeCategoryDraft[]>(() => (init ? mapInitialAgeCategories(init) : []))
+    const [venueName, setVenueName] = useState(() => init?.venue_name ?? "")
+    const [venueLink, setVenueLink] = useState(() => init?.venue_link ?? "")
+    const [location, setLocation] = useState<MapboxPlace | null>(() => (init ? mapInitialLocation(init) : null))
     const [locationOpen, setLocationOpen] = useState(false)
 
     // ── Step 2: Positions + Questions ────────────────────────────
-    const [anyPosition, setAnyPosition] = useState(true)
-    const [selectedPositions, setSelectedPositions] = useState<PositionItem[]>([])
-    const [questions, setQuestions] = useState<QuestionDraft[]>([])
-    const [benefits, setBenefits] = useState<BenefitDraft[]>([])
-    const [requirements, setRequirements] = useState<RequirementDraft[]>([])
-    const [contacts, setContacts] = useState<ContactDraft[]>([])
+    const [anyPosition, setAnyPosition] = useState(() => (initialPositions ? initialPositions.any : true))
+    const [selectedPositions, setSelectedPositions] = useState<PositionItem[]>(() => (initialPositions ? initialPositions.list : []))
+    const [questions, setQuestions] = useState<QuestionDraft[]>(() => (init ? mapInitialQuestions(init) : []))
+    const [benefits, setBenefits] = useState<BenefitDraft[]>(() => (init ? mapInitialBenefits(init) : []))
+    const [requirements, setRequirements] = useState<RequirementDraft[]>(() => (init ? mapInitialRequirements(init) : []))
+    const [contacts, setContacts] = useState<ContactDraft[]>(() => (init ? mapInitialContacts(init) : []))
+    const [applyMethod, setApplyMethod] = useState<ApplyMethod>(() => init?.apply_method ?? "goatza")
+    const [externalApplyUrl, setExternalApplyUrl] = useState(() => init?.external_apply_url ?? "")
 
     // ── Step 3: Media + Payment ───────────────────────────────────
-    const [mediaEntries, setMediaEntries] = useState<MediaEntry[]>([])
-    const [isPaid, setIsPaid] = useState(false)
-    const [feeAmount, setFeeAmount] = useState("")
-    const [feeCurrency, setFeeCurrency] = useState("INR")
-    const [paymentNote, setPaymentNote] = useState("")
+    const [mediaEntries, setMediaEntries] = useState<MediaEntry[]>(() => (init ? mapInitialMedia(init) : []))
+    const [isPaid, setIsPaid] = useState(() => init?.is_paid ?? false)
+    const [feeAmount, setFeeAmount] = useState(() => (init?.fee_amount != null ? String(init.fee_amount) : ""))
+    const [feeCurrency, setFeeCurrency] = useState(() => init?.fee_currency || "INR")
+    const [paymentNote, setPaymentNote] = useState(() => init?.payment_note ?? "")
 
     // ── Submission ────────────────────────────────────────────────
     const [phase, setPhase] = useState<SubmitPhase>("idle")
     const [submitError, setSubmitError] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+    const [draftSaved, setDraftSaved] = useState(false)
+    const [confirmDiscard, setConfirmDiscard] = useState(false)
 
+    const toast = useToast()
     const { mutateAsync: createRecruitment } = useCreateRecruitment()
+    const { mutateAsync: updateRecruitment } = useUpdateRecruitment()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const isSubmitting = phase !== "idle"
     const composing = phase === "idle"
+
+    // ── Unsaved-changes guard ─────────────────────────────────────
+    // Snapshot every editable field so we can tell whether the user has
+    // touched anything since opening. Draft ids are excluded because they're
+    // random per session and would otherwise always read as "changed".
+    const snapshot = JSON.stringify({
+        title, shortDesc, description, recruitmentType, visibility, sportId, gender,
+        experienceLevel, applicationDeadline, eventDate, maxApplications,
+        ageCategories: ageCategories.map(({ id: _id, ...c }) => c),
+        venueName, venueLink,
+        location: location ? { name: location.name, lat: location.latitude, lng: location.longitude } : null,
+        anyPosition,
+        selectedPositions: selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
+        questions: questions.map(({ id: _id, ...q }) => q),
+        benefits: benefits.map(({ id: _id, ...b }) => b),
+        requirements: requirements.map(({ id: _id, ...r }) => r),
+        contacts: contacts.map(({ id: _id, ...c }) => c),
+        applyMethod, externalApplyUrl,
+        media: mediaEntries.map(m => m.result?.file_url ?? m.preview),
+        isPaid, feeAmount, feeCurrency, paymentNote,
+    })
+    // Captured once on first render → represents the pristine (opened) state.
+    const initialSnapshotRef = useRef<string | null>(null)
+    if (initialSnapshotRef.current === null) initialSnapshotRef.current = snapshot
+    const isDirty = initialSnapshotRef.current !== snapshot
+
+    // Close, but confirm first if there are unsaved changes.
+    const requestClose = () => {
+        if (composing && isDirty) setConfirmDiscard(true)
+        else onClose()
+    }
 
     // ── Scroll lock ───────────────────────────────────────────────
     useEffect(() => {
@@ -652,7 +868,34 @@ export default function CreateRecruitmentModal({
 
     const { data: sports = [] } = useSportsList()
     const positions = sports.find(s => s.id === sportId)?.positions ?? []
-    useEffect(() => { setSelectedPositions([]); setAnyPosition(true) }, [sportId])
+
+    // Changing the sport invalidates any selected positions. Done in the
+    // select handler (not an effect) so edit-mode prefilled positions survive
+    // the initial mount.
+    const handleSportChange = (nextSportId: string) => {
+        setSportId(nextSportId)
+        setSelectedPositions([])
+        setAnyPosition(true)
+    }
+
+    // Clear a specific field's inline error (called from the mapped inputs).
+    const clearFieldError = (name: string) => {
+        setFieldErrors(prev => {
+            if (!prev[name]) return prev
+            const next = { ...prev }
+            delete next[name]
+            return next
+        })
+    }
+
+    // Inline error under a mapped field (populated from a server 400).
+    const renderFieldError = (name: string) =>
+        fieldErrors[name] ? (
+            <span className={styles.fieldErrorText} role="alert">
+                <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
+                {fieldErrors[name]}
+            </span>
+        ) : null
 
     // ── Validation ────────────────────────────────────────────────
     const validateStep = (): string | null => {
@@ -661,12 +904,28 @@ export default function CreateRecruitmentModal({
             if (!shortDesc.trim() || shortDesc.trim().length < 10) return "Short description must be at least 10 characters."
             if (!sportId) return "Please select a sport."
             if (!eventDate) return "Please set an event / trial date."
+
+            // deadline must be on or before the event date
+            if (applicationDeadline && eventDate && new Date(applicationDeadline) > new Date(eventDate)) {
+                return "Application deadline must be on or before the event date."
+            }
+            // deadline not in the past — but in edit mode, an unchanged past deadline is fine
+            if (applicationDeadline) {
+                const initialDeadlineLocal = isoToLocalInput(init?.application_deadline ?? null)
+                const deadlineChanged = applicationDeadline !== initialDeadlineLocal
+                if ((!isEdit || deadlineChanged) && new Date(applicationDeadline).getTime() < Date.now()) {
+                    return "Application deadline cannot be in the past."
+                }
+            }
         }
         if (step === 1) {
             for (const cat of ageCategories) {
                 if (!cat.title.trim()) return "All age categories need a title."
                 if (cat.min_birth_year > cat.max_birth_year) return `"${cat.title}": min birth year cannot exceed max birth year.`
                 if (cat.min_birth_year < 1980 || cat.max_birth_year > CURRENT_YEAR) return `"${cat.title}": birth years must be between 1980 and ${CURRENT_YEAR}.`
+            }
+            if (venueLink.trim() && !isValidHttpUrl(venueLink.trim())) {
+                return "Enter a valid venue map URL (including https://)."
             }
         }
         if (step === 2) {
@@ -675,8 +934,25 @@ export default function CreateRecruitmentModal({
                 const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
                 if (hasOptions && q.options.filter(o => o.value.trim()).length < 2) return `Question "${q.question || "untitled"}" needs at least 2 options.`
             }
-            for (const c of contacts) {
-                if (!c.value.trim()) return "All contacts need a value (phone or email)."
+
+            // apply method
+            if (applyMethod === "external") {
+                if (!externalApplyUrl.trim()) return "Add the external application link."
+                if (!isValidHttpUrl(externalApplyUrl.trim())) return "Enter a valid application URL (including https://)."
+            }
+            const filledContacts = contacts.filter(c => c.value.trim())
+            if (applyMethod === "contact" && filledContacts.length === 0) {
+                return "Add at least one contact for players to apply through."
+            }
+
+            // contact format
+            for (const c of filledContacts) {
+                if (c.contact_type === "email" && !EMAIL_RE.test(c.value.trim())) {
+                    return "Enter a valid email address for the email contact."
+                }
+                if (c.contact_type === "phone" && !PHONE_RE.test(c.value.trim().replace(/[\s\-().]/g, ""))) {
+                    return "Enter a valid phone number for the phone contact."
+                }
             }
         }
         if (step === 3) {
@@ -689,11 +965,13 @@ export default function CreateRecruitmentModal({
         const err = validateStep()
         if (err) { setSubmitError(err); return }
         setSubmitError(null)
+        setFieldErrors({})
         setStep(s => Math.min(TOTAL_STEPS - 1, s + 1))
     }
 
     const goPrev = () => {
         setSubmitError(null)
+        setFieldErrors({})
         setStep(s => Math.max(0, s - 1))
     }
 
@@ -714,7 +992,9 @@ export default function CreateRecruitmentModal({
     const removeMedia = useCallback((id: string) => {
         setMediaEntries(prev => {
             const e = prev.find(x => x.id === id)
-            if (e) URL.revokeObjectURL(e.preview)
+            // Only object URLs from local files need revoking; existing media
+            // uses remote Cloudinary URLs.
+            if (e && e.preview.startsWith("blob:")) URL.revokeObjectURL(e.preview)
             return prev.filter(x => x.id !== id)
         })
     }, [])
@@ -731,108 +1011,197 @@ export default function CreateRecruitmentModal({
         setSelectedPositions(prev => prev.map(p => ({ ...p, is_primary: p.position_id === id })))
     }
 
-    // ── Submit ────────────────────────────────────────────────────
-    const handleSubmit = async () => {
+    // ── Build the API payload from current wizard state ───────────
+    // Shared by create and edit; `media` is passed in because it is
+    // resolved asynchronously during submit (existing + freshly uploaded).
+    const buildPayload = (
+        media: CreateRecruitmentMediaPayload[],
+        submitStatus?: "draft" | "active",
+    ): CreateRecruitmentPayload => ({
+        title: title.trim(),
+        short_description: shortDesc.trim(),
+        description: description.trim() || undefined,
+        recruitment_type: recruitmentType,
+        visibility,
+        gender,
+        sport_id: sportId,
+        experience_level: experienceLevel || undefined,
+        application_deadline: applicationDeadline ? new Date(applicationDeadline).toISOString() : undefined,
+        event_date: eventDate ? new Date(eventDate).toISOString() : undefined,
+        max_applications: maxApplications ? Number(maxApplications) : undefined,
+        is_paid: isPaid,
+        fee_amount: isPaid && feeAmount ? feeAmount : undefined,
+        fee_currency: isPaid ? feeCurrency : undefined,
+        payment_note: isPaid && paymentNote ? paymentNote.trim() : undefined,
+        apply_method: applyMethod,
+        external_apply_url: applyMethod === "external" ? (externalApplyUrl.trim() || undefined) : undefined,
+        // status: create-only draft/publish; omitted entirely in edit mode.
+        ...(submitStatus ? { status: submitStatus } : {}),
+        venue_name: venueName.trim() || undefined,
+        venue_link: venueLink.trim() || undefined,
+        location: location ? {
+            name: location.name,
+            city: location.place_type === "place" ? location.name : undefined,
+            country_code: location.country_code,
+            latitude: location.latitude,
+            longitude: location.longitude,
+        } : undefined,
+        // send [] if "Any" is selected, otherwise the selected list
+        positions: anyPosition
+            ? []
+            : selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
+        age_categories: ageCategories.map((c, idx) => ({
+            title: c.title.trim(),
+            min_birth_year: c.min_birth_year,
+            max_birth_year: c.max_birth_year,
+            reporting_time: c.showReportingTime && c.reporting_time ? c.reporting_time + ":00" : undefined,
+            display_order: idx,
+        })),
+        benefits: benefits
+            .filter(b => b.title.trim())
+            .map((b, idx) => ({ title: b.title.trim(), icon_name: b.icon_name, display_order: idx })),
+        requirements: requirements
+            .filter(r => r.title.trim())
+            .map((r, idx) => ({ title: r.title.trim(), is_mandatory: r.is_mandatory, display_order: idx })),
+        contacts: contacts
+            .filter(c => c.value.trim())
+            .map(c => ({ name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
+        questions: questions
+            .filter(q => q.question.trim())
+            .map(q => ({
+                question: q.question.trim(),
+                field_type: q.field_type,
+                is_required: q.is_required,
+                options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
+            })),
+        media: media.length > 0 ? media : undefined,
+    })
+
+    // Map a 400's field errors onto the wizard: show inline + jump to the step.
+    const applyServerFieldErrors = (err: unknown): void => {
+        const errors = getApiFieldErrors(err)
+        if (!errors) return
+        const known: Record<string, string> = {}
+        let jumpStep: number | null = null
+        for (const [key, msg] of Object.entries(errors)) {
+            if (key in FIELD_STEP) {
+                known[key] = msg
+                const s = FIELD_STEP[key]
+                if (jumpStep === null || s < jumpStep) jumpStep = s
+            }
+        }
+        if (Object.keys(known).length > 0) {
+            setFieldErrors(known)
+            if (jumpStep !== null) setStep(jumpStep)
+        }
+    }
+
+    // ── Submit (create or update) ─────────────────────────────────
+    // submitStatus is only meaningful on create: "draft" saves a draft,
+    // "active"/undefined publishes. Edit never sends a status.
+    const handleSubmit = async (submitStatus?: "draft" | "active") => {
         const err = validateStep()
         if (err) { setSubmitError(err); return }
         setSubmitError(null)
+        setFieldErrors({})
 
-        let uploadedMedia: { file_url: string; public_id: string; media_type: "image" | "video"; order: number }[] = []
+        // 1) Upload only newly-added media. Existing media is preserved as-is.
+        const uploadedByEntryId = new Map<string, UploadedMedia>()
+        const newEntries = mediaEntries.filter(e => !e.existing)
 
-        if (mediaEntries.length > 0) {
+        if (newEntries.length > 0) {
             setPhase("uploading")
-            setMediaEntries(prev => prev.map(e => ({ ...e, status: "uploading", progress: 0 })))
+            setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "uploading", progress: 0 })))
             try {
-                const sigRes = await getUploadSignatureApi("recruitments", mediaEntries.length, orgId)
+                const sigRes = await getUploadSignatureApi("recruitments", newEntries.length, orgId)
                 const uploads = sigRes.uploads
-                for (let i = 0; i < mediaEntries.length; i++) {
-                    const entry = mediaEntries[i]
+                for (let i = 0; i < newEntries.length; i++) {
+                    const entry = newEntries[i]
+                    const file = entry.file
+                    if (!file) continue
                     const sig = uploads[i]
                     try {
-                        const result = await uploadToCloudinaryApi(entry.file, sig)
-                        setMediaEntries(prev => prev.map((e, idx) =>
-                            idx === i ? { ...e, status: "done", progress: 100, result: { file_url: result.secure_url, public_id: result.public_id, media_type: "image", order: i } } : e
+                        const result = await uploadToCloudinaryApi(file, sig)
+                        const uploaded: UploadedMedia = {
+                            file_url: result.secure_url,
+                            public_id: result.public_id,
+                            media_type: "image",
+                            order: 0,
+                        }
+                        uploadedByEntryId.set(entry.id, uploaded)
+                        setMediaEntries(prev => prev.map(e =>
+                            e.id === entry.id ? { ...e, status: "done", progress: 100, result: uploaded } : e
                         ))
-                        uploadedMedia.push({ file_url: result.secure_url, public_id: result.public_id, media_type: "image", order: i })
-                    } catch (err) {
-                        const msg = err instanceof Error ? err.message : "Upload failed"
-                        setMediaEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "error", error: msg } : e))
+                    } catch (uploadErr) {
+                        const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
+                        setMediaEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: "error", error: msg } : e))
                         throw new Error(msg)
                     }
                 }
-            } catch (err) {
-                setSubmitError(err instanceof Error ? err.message : "Upload failed")
+            } catch (uploadErr) {
+                const msg = getApiErrorMessage(uploadErr, "Media upload failed. Please try again.")
+                toast.show({ title: "Media upload failed", message: msg, variant: "error" })
+                setSubmitError(msg)
                 setPhase("idle")
                 return
             }
         }
 
+        // 2) Final media list in display order (existing + freshly uploaded).
+        const finalMedia: CreateRecruitmentMediaPayload[] = []
+        mediaEntries.forEach((e, idx) => {
+            const src = e.existing && e.result ? e.result : uploadedByEntryId.get(e.id)
+            if (!src) return
+            finalMedia.push({
+                file_url: src.file_url,
+                public_id: src.public_id,
+                media_type: src.media_type,
+                order: idx,
+                ...(src.thumbnail_url ? { thumbnail_url: src.thumbnail_url } : {}),
+            })
+        })
+
         setPhase("posting")
 
         try {
-            const res = await createRecruitment({
-                title: title.trim(),
-                short_description: shortDesc.trim(),
-                description: description.trim() || undefined,
-                recruitment_type: recruitmentType,
-                visibility,
-                gender,
-                sport_id: sportId,
-                experience_level: experienceLevel || undefined,
-                application_deadline: applicationDeadline ? new Date(applicationDeadline).toISOString() : undefined,
-                event_date: eventDate ? new Date(eventDate).toISOString() : undefined,
-                max_applications: maxApplications ? Number(maxApplications) : undefined,
-                is_paid: isPaid,
-                fee_amount: isPaid && feeAmount ? feeAmount : undefined,
-                fee_currency: isPaid ? feeCurrency : undefined,
-                payment_note: isPaid && paymentNote ? paymentNote.trim() : undefined,
-                venue_name: venueName.trim() || undefined,
-                venue_link: venueLink.trim() || undefined,
-                location: location ? {
-                    name: location.name,
-                    city: location.place_type === "place" ? location.name : undefined,
-                    country_code: location.country_code,
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                } : undefined,
-                // send [] if "Any" is selected, otherwise the selected list
-                positions: anyPosition
-                    ? []
-                    : selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
-                age_categories: ageCategories.map((c, idx) => ({
-                    title: c.title.trim(),
-                    min_birth_year: c.min_birth_year,
-                    max_birth_year: c.max_birth_year,
-                    reporting_time: c.showReportingTime && c.reporting_time ? c.reporting_time + ":00" : undefined,
-                    display_order: idx,
-                })),
-                benefits: benefits
-                    .filter(b => b.title.trim())
-                    .map((b, idx) => ({ title: b.title.trim(), icon_name: b.icon_name, display_order: idx })),
-                requirements: requirements
-                    .filter(r => r.title.trim())
-                    .map((r, idx) => ({ title: r.title.trim(), is_mandatory: r.is_mandatory, display_order: idx })),
-                contacts: contacts
-                    .filter(c => c.value.trim())
-                    .map(c => ({ name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
-                questions: questions
-                    .filter(q => q.question.trim())
-                    .map(q => ({
-                        question: q.question.trim(),
-                        field_type: q.field_type,
-                        is_required: q.is_required,
-                        options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
-                    })),
-                media: uploadedMedia.length > 0 ? uploadedMedia : undefined,
-            } as any)
+            // Edit never sends status; create publishes unless saving a draft.
+            const payload = buildPayload(finalMedia, isEdit ? undefined : submitStatus)
 
-            setPhase("done")
-            setTimeout(() => {
-                onCreated?.(res.recruitment_id)
-                onClose()
-            }, 2000)
-        } catch (err) {
-            setSubmitError(err instanceof Error ? err.message : "Failed to create recruitment.")
+            if (isEdit && init) {
+                await updateRecruitment({ recruitmentId: init.id, payload })
+                setPhase("done")
+                toast.show({ title: "Recruitment updated", variant: "success" })
+                setTimeout(() => {
+                    onUpdated?.(init.id)
+                    onClose()
+                }, 1500)
+            } else {
+                const res = await createRecruitment(payload)
+                const isDraft = submitStatus === "draft"
+                setDraftSaved(isDraft)
+                setPhase("done")
+                toast.show({
+                    title: isDraft ? "Draft saved" : "Recruitment published",
+                    variant: "success",
+                })
+                setTimeout(() => {
+                    onCreated?.(res.recruitment_id)
+                    onClose()
+                }, 2000)
+            }
+        } catch (submitErr) {
+            const msg = getApiErrorMessage(
+                submitErr,
+                isEdit ? "Couldn't update recruitment. Please try again."
+                    : "Couldn't publish recruitment. Please try again."
+            )
+            toast.show({
+                title: isEdit ? "Couldn't update recruitment" : "Couldn't publish recruitment",
+                message: msg,
+                variant: "error",
+            })
+            setSubmitError(msg)
+            applyServerFieldErrors(submitErr)
             setPhase("idle")
         }
     }
@@ -848,8 +1217,9 @@ export default function CreateRecruitmentModal({
                     <div className={styles.stepContent}>
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Title <span className={styles.required}>*</span></label>
-                            <input className={styles.fieldInput} placeholder="e.g. U17 Open Football Trials" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} disabled={isSubmitting} />
+                            <input className={styles.fieldInput} placeholder="e.g. U17 Open Football Trials" value={title} onChange={e => { setTitle(e.target.value); clearFieldError("title") }} maxLength={120} disabled={isSubmitting} />
                             <span className={styles.fieldHint}>{title.length}/120</span>
+                            {renderFieldError("title")}
                         </div>
 
                         <div className={styles.fieldGroup}>
@@ -875,7 +1245,7 @@ export default function CreateRecruitmentModal({
                             </div>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Sport <span className={styles.required}>*</span></label>
-                                <select className={styles.fieldSelect} value={sportId} onChange={e => setSportId(e.target.value)} disabled={isSubmitting}>
+                                <select className={styles.fieldSelect} value={sportId} onChange={e => handleSportChange(e.target.value)} disabled={isSubmitting}>
                                     <option value="">— Select sport —</option>
                                     {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
@@ -907,11 +1277,13 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldRow}>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Trial / Event Date <span className={styles.required}>*</span></label>
-                                <input className={styles.fieldInput} type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} disabled={isSubmitting} />
+                                <input className={styles.fieldInput} type="datetime-local" value={eventDate} onChange={e => { setEventDate(e.target.value); clearFieldError("event_date") }} disabled={isSubmitting} />
+                                {renderFieldError("event_date")}
                             </div>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Application Deadline</label>
-                                <input className={styles.fieldInput} type="datetime-local" value={applicationDeadline} onChange={e => setApplicationDeadline(e.target.value)} disabled={isSubmitting} />
+                                <input className={styles.fieldInput} type="datetime-local" value={applicationDeadline} onChange={e => { setApplicationDeadline(e.target.value); clearFieldError("application_deadline") }} disabled={isSubmitting} />
+                                {renderFieldError("application_deadline")}
                             </div>
                         </div>
 
@@ -1099,13 +1471,58 @@ export default function CreateRecruitmentModal({
 
                         <div className={styles.sectionDivider} />
 
+                        {/* How players apply */}
+                        <div className={styles.fieldGroup}>
+                            <label className={styles.fieldLabel}>How players apply</label>
+                            <div className={styles.applyMethodRow}>
+                                {APPLY_METHODS.map(m => (
+                                    <button
+                                        key={m.value}
+                                        type="button"
+                                        className={`${styles.applyMethodChip} ${applyMethod === m.value ? styles.applyMethodChipActive : ""}`}
+                                        onClick={() => { setApplyMethod(m.value); clearFieldError("external_apply_url") }}
+                                        disabled={isSubmitting}
+                                    >
+                                        <Icon icon={m.icon} width={16} height={16} />
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {applyMethod === "external" && (
+                                <div className={styles.applyMethodDetail}>
+                                    <input
+                                        className={styles.fieldInput}
+                                        placeholder="https://yourclub.com/apply"
+                                        value={externalApplyUrl}
+                                        onChange={e => { setExternalApplyUrl(e.target.value); clearFieldError("external_apply_url") }}
+                                        type="url"
+                                        disabled={isSubmitting}
+                                    />
+                                    {renderFieldError("external_apply_url")}
+                                    <p className={styles.fieldSubLabel}>Players are sent here to apply.</p>
+                                </div>
+                            )}
+                            {applyMethod === "goatza" && (
+                                <p className={styles.fieldSubLabel}>Players apply in-app through Goatza.</p>
+                            )}
+                            {applyMethod === "contact" && (
+                                <p className={styles.fieldSubLabel}>Players reach out using the contacts below.</p>
+                            )}
+                        </div>
+
+                        <div className={styles.sectionDivider} />
+
                         {/* Contacts */}
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>
                                 Contact Info
-                                <span className={styles.fieldLabelMuted}> — optional</span>
+                                <span className={styles.fieldLabelMuted}>
+                                    {applyMethod === "contact" ? " — required" : " — optional"}
+                                </span>
                             </label>
                             <ContactsBuilder contacts={contacts} onChange={setContacts} disabled={isSubmitting} />
+                            {renderFieldError("contacts")}
                         </div>
                     </div>
                 )
@@ -1117,6 +1534,7 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Banner / Photos</label>
                             <MediaPreview entries={mediaEntries} onRemove={removeMedia} disabled={isSubmitting} />
+                            {renderFieldError("media")}
                             {mediaEntries.length < 5 && (
                                 <button className={styles.mediaAddBtn} onClick={() => fileInputRef.current?.click()} type="button" disabled={isSubmitting}>
                                     <Icon icon="mdi:image-plus-outline" width={18} height={18} />
@@ -1158,7 +1576,8 @@ export default function CreateRecruitmentModal({
                                         </div>
                                         <div className={styles.fieldGroup}>
                                             <label className={styles.fieldLabel}>Amount <span className={styles.required}>*</span></label>
-                                            <input className={styles.fieldInput} type="number" min={0} step="0.01" placeholder="e.g. 300" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} disabled={isSubmitting} />
+                                            <input className={styles.fieldInput} type="number" min={0} step="0.01" placeholder="e.g. 300" value={feeAmount} onChange={e => { setFeeAmount(e.target.value); clearFieldError("fee_amount") }} disabled={isSubmitting} />
+                                            {renderFieldError("fee_amount")}
                                         </div>
                                     </div>
                                     <div className={styles.fieldGroup}>
@@ -1177,7 +1596,7 @@ export default function CreateRecruitmentModal({
                     <div className={styles.stepContent}>
                         <div className={styles.reviewHeader}>
                             <Icon icon="mdi:clipboard-check-outline" width={20} height={20} />
-                            <span>Review before publishing</span>
+                            <span>{isEdit ? "Review your changes" : "Review before publishing"}</span>
                         </div>
 
                         <div className={styles.reviewSection}>
@@ -1216,6 +1635,7 @@ export default function CreateRecruitmentModal({
                         <div className={styles.reviewSection}>
                             <p className={styles.reviewSectionTitle}>Positions & Questions</p>
                             <ReviewRow icon="mdi:run" label="Positions" value={anyPosition ? "Any" : selectedPositions.map(p => p.name).join(", ")} />
+                            <ReviewRow icon="mdi:send-outline" label="Apply via" value={applyMethod === "goatza" ? "Goatza app" : applyMethod === "external" ? "External link" : "Contact"} />
                             <ReviewRow icon="mdi:help-circle-outline" label="Questions" value={questions.length > 0 ? `${questions.length} question${questions.length > 1 ? "s" : ""}` : null} />
                             <ReviewRow icon="mdi:gift-outline" label="Benefits" value={benefits.length > 0 ? `${benefits.length} benefit${benefits.length > 1 ? "s" : ""}` : null} />
                             <ReviewRow icon="mdi:clipboard-list-outline" label="Requirements" value={requirements.length > 0 ? `${requirements.length} item${requirements.length > 1 ? "s" : ""}` : null} />
@@ -1230,7 +1650,7 @@ export default function CreateRecruitmentModal({
 
                         <div className={styles.reviewPublishNote}>
                             <Icon icon="mdi:rocket-launch-outline" width={14} height={14} />
-                            Looks good? Hit Publish to make it live.
+                            {isEdit ? "Looks good? Save your changes." : "Looks good? Hit Publish to make it live."}
                         </div>
                     </div>
                 )
@@ -1244,8 +1664,8 @@ export default function CreateRecruitmentModal({
                 <div className={styles.modal}>
                     <div className={styles.doneState}>
                         <span className={styles.doneTick}><Icon icon="mdi:check-circle" width={52} height={52} /></span>
-                        <span className={styles.doneLabel}>Recruitment Created!</span>
-                        <p className={styles.doneSubtitle}>Redirecting…</p>
+                        <span className={styles.doneLabel}>{isEdit ? "Changes Saved!" : draftSaved ? "Draft Saved!" : "Recruitment Published!"}</span>
+                        <p className={styles.doneSubtitle}>{isEdit ? "Updating…" : "Redirecting…"}</p>
                     </div>
                 </div>
             </div>
@@ -1255,7 +1675,7 @@ export default function CreateRecruitmentModal({
     return (
         <div
             className={styles.backdrop}
-            onClick={e => { if (e.target === e.currentTarget && composing) onClose() }}
+            onClick={e => { if (e.target === e.currentTarget && composing) requestClose() }}
             role="dialog"
             aria-modal="true"
             aria-label="Create recruitment"
@@ -1266,11 +1686,11 @@ export default function CreateRecruitmentModal({
                     <div className={styles.headerLeft}>
                         <Avatar src={userAvatarUrl} initials={userInitials} size="sm" />
                         <div>
-                            <h2 className={styles.headerTitle}>Post Recruitment</h2>
+                            <h2 className={styles.headerTitle}>{isEdit ? "Edit Recruitment" : "Post Recruitment"}</h2>
                             <span className={styles.headerSub}>{displayName || username}</span>
                         </div>
                     </div>
-                    <button className={styles.closeBtn} onClick={onClose} disabled={isSubmitting} type="button" aria-label="Close">
+                    <button className={styles.closeBtn} onClick={requestClose} disabled={isSubmitting} type="button" aria-label="Close">
                         <Icon icon="mdi:close" width={20} height={20} />
                     </button>
                 </div>
@@ -1298,7 +1718,7 @@ export default function CreateRecruitmentModal({
                         <div className={styles.uploadOverlay}>
                             <div className={styles.uploadOverlayInner}>
                                 <Icon icon="mdi:send-outline" width={28} height={28} />
-                                <span>Publishing…</span>
+                                <span>{isEdit ? "Saving changes…" : "Publishing…"}</span>
                             </div>
                         </div>
                     )}
@@ -1313,16 +1733,29 @@ export default function CreateRecruitmentModal({
 
                 {/* Footer */}
                 <div className={styles.footer}>
-                    <button className={styles.backBtn} onClick={step === 0 ? onClose : goPrev} disabled={isSubmitting} type="button">
+                    <button className={styles.backBtn} onClick={step === 0 ? requestClose : goPrev} disabled={isSubmitting} type="button">
                         {step === 0 ? "Cancel" : <><Icon icon="mdi:chevron-left" width={16} height={16} /> Back</>}
                     </button>
                     <div className={styles.footerRight}>
                         <span className={styles.stepCounter}>{step + 1} / {TOTAL_STEPS}</span>
                         {isLastStep ? (
-                            <button className={styles.publishBtn} onClick={handleSubmit} disabled={isSubmitting} type="button">
-                                <Icon icon="mdi:whistle-outline" width={15} height={15} />
-                                Publish
-                            </button>
+                            <>
+                                {!isEdit && (
+                                    <button className={styles.draftBtn} onClick={() => handleSubmit("draft")} disabled={isSubmitting} type="button">
+                                        <Icon icon="mdi:content-save-edit-outline" width={15} height={15} />
+                                        Save Draft
+                                    </button>
+                                )}
+                                <button
+                                    className={styles.publishBtn}
+                                    onClick={() => (isEdit ? handleSubmit() : handleSubmit("active"))}
+                                    disabled={isSubmitting}
+                                    type="button"
+                                >
+                                    <Icon icon={isEdit ? "mdi:content-save-outline" : "mdi:whistle-outline"} width={15} height={15} />
+                                    {isEdit ? "Save Changes" : "Publish"}
+                                </button>
+                            </>
                         ) : (
                             <button className={styles.nextBtn} onClick={goNext} disabled={isSubmitting} type="button">
                                 Next <Icon icon="mdi:chevron-right" width={16} height={16} />
@@ -1333,6 +1766,35 @@ export default function CreateRecruitmentModal({
             </div>
 
             <input ref={fileInputRef} type="file" hidden multiple accept="image/*" onChange={handleFileChange} />
+
+            {/* Discard-changes confirmation */}
+            {confirmDiscard && (
+                <div className={styles.confirmOverlay} onClick={() => setConfirmDiscard(false)}>
+                    <div
+                        className={styles.confirmDialog}
+                        onClick={e => e.stopPropagation()}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-label="Discard unsaved changes"
+                    >
+                        <span className={styles.confirmIcon}>
+                            <Icon icon="mdi:alert-outline" width={26} height={26} />
+                        </span>
+                        <h3 className={styles.confirmTitle}>{isEdit ? "Discard changes?" : "Discard this recruitment?"}</h3>
+                        <p className={styles.confirmText}>
+                            The details you&rsquo;ve entered haven&rsquo;t been saved yet and will be lost.
+                        </p>
+                        <div className={styles.confirmActions}>
+                            <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmDiscard(false)}>
+                                Keep editing
+                            </button>
+                            <button type="button" className={styles.confirmDiscardBtn} onClick={() => { setConfirmDiscard(false); onClose() }}>
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

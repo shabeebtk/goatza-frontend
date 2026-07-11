@@ -94,13 +94,18 @@ function LazyVideo({
         const obs = new IntersectionObserver(
             ([entry]) => {
                 if (entry.intersectionRatio >= 0.5) {
-                    // Trigger load if not already loading
+                    // Trigger load if not already loading (preload="none" means
+                    // nothing is fetched until the video actually scrolls in).
                     if (el.readyState === 0) {
                         el.load()
                     }
                     el.play().catch(() => { })
                     setPlaying(true)
                 } else {
+                    // Scrolled away → PAUSE so an off-screen video never keeps
+                    // playing or buffering in the background. The 50% threshold
+                    // fires while the item is still near the viewport, before
+                    // content-visibility:auto skips its rendering.
                     el.pause()
                     setPlaying(false)
                 }
@@ -130,7 +135,10 @@ function LazyVideo({
                 muted
                 playsInline
                 loop
-                preload="metadata"  // ← metadata not none, so browser knows dimensions + can start
+                // preload="none": off-screen videos fetch nothing. Dimensions come
+                // from the CSS-sized container and the poster shows the thumbnail,
+                // so no metadata is needed until the observer calls load()/play().
+                preload="none"
                 poster={thumbnail}
                 onCanPlay={() => setVideoReady(true)}  // ← fires earlier than onLoadedData
             />

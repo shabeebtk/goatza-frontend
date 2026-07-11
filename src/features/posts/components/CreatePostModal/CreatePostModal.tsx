@@ -15,6 +15,8 @@ import {
 } from "@/features/posts/services/postUpload.service"
 import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/posts/services/posts.api"
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
+import { useNavigation } from "@/shared/services/navigation.service"
+import { useAuthStore } from "@/store/auth.store"
 import styles from "./CreatePostModal.module.css"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -248,6 +250,8 @@ export default function CreatePostModal({
   const router     = useRouter()
   const createPost = useCreatePost()
   const { data: mySports } = useMyPostSports()
+  const { toPostsList } = useNavigation()
+  const actorType = useAuthStore(s => s.actorType)
 
   // Compose state
   const [content,      setContent]      = useState("")
@@ -256,6 +260,7 @@ export default function CreatePostModal({
   const [entries,      setEntries]      = useState<FileEntry[]>([])
   const [submitError,  setSubmitError]  = useState<string | null>(null)
   const [phase,        setPhase]        = useState<SubmitPhase>("idle")
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   // Location state — managed outside any form library
   const [postLocation,  setPostLocation]  = useState<MapboxPlace | null>(null)
@@ -269,6 +274,20 @@ export default function CreatePostModal({
   const hasVideo     = entries.some(e => e.isVideo)
   const hasImages    = entries.some(e => !e.isVideo)
   const composing    = phase === "idle"
+
+  // ── Unsaved-changes guard ─────────────────────────────────────
+  const isDirty =
+    content.trim() !== "" ||
+    entries.length > 0 ||
+    postLocation !== null ||
+    sportId !== "" ||
+    visibility !== "public"
+
+  // Close, but confirm first if the user has started composing.
+  const requestClose = () => {
+    if (composing && isDirty) setConfirmDiscard(true)
+    else onClose()
+  }
 
   // ── Manage body scroll lock ───────────────────────────────────
   useEffect(() => {
@@ -395,10 +414,13 @@ export default function CreatePostModal({
     }
   }
 
+  // Send the author to their own posts list. For an org actor this resolves to
+  // the org-admin posts page; for a user it stays on the public profile.
+  const postsListHref = toPostsList(username, actorType === "organization" ? "organization" : "user")
   const handleDoneRedirect = useCallback(() => {
     onClose()
-    router.push(`/profile/${username}/posts`)
-  }, [onClose, router, username])
+    router.push(postsListHref)
+  }, [onClose, router, postsListHref])
 
   const contentLen  = content.length
   const charWarning = contentLen > 2800
@@ -407,7 +429,7 @@ export default function CreatePostModal({
   return (
     <div
       className={styles.backdrop}
-      onClick={e => { if (e.target === e.currentTarget && composing) onClose() }}
+      onClick={e => { if (e.target === e.currentTarget && composing) requestClose() }}
       role="dialog"
       aria-modal="true"
       aria-label="Create post"
@@ -417,7 +439,7 @@ export default function CreatePostModal({
         {/* ── Header ── */}
         <div className={styles.header}>
           <h2 className={styles.headerTitle}>Create Post</h2>
-          <button className={styles.closeBtn} onClick={onClose} disabled={isSubmitting} type="button" aria-label="Close">
+          <button className={styles.closeBtn} onClick={requestClose} disabled={isSubmitting} type="button" aria-label="Close">
             <Icon icon="mdi:close" width={20} height={20} />
           </button>
         </div>
@@ -581,6 +603,35 @@ export default function CreatePostModal({
         />
 
       </div>
+
+      {/* Discard-changes confirmation */}
+      {confirmDiscard && (
+        <div className={styles.confirmOverlay} onClick={() => setConfirmDiscard(false)}>
+          <div
+            className={styles.confirmDialog}
+            onClick={e => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Discard post"
+          >
+            <span className={styles.confirmIcon}>
+              <Icon icon="mdi:alert-outline" width={26} height={26} />
+            </span>
+            <h3 className={styles.confirmTitle}>Discard this post?</h3>
+            <p className={styles.confirmText}>
+              What you&rsquo;ve written and added here hasn&rsquo;t been posted yet and will be lost.
+            </p>
+            <div className={styles.confirmActions}>
+              <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmDiscard(false)}>
+                Keep editing
+              </button>
+              <button type="button" className={styles.confirmDiscardBtn} onClick={() => { setConfirmDiscard(false); onClose() }}>
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

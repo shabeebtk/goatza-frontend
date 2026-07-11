@@ -1,0 +1,306 @@
+/* ============================================================
+   GOATZA — ExploreListFilters
+   Desktop inline controls · mobile bottom sheet · chips
+   (mirrors the recruitment discovery filter pattern)
+   ============================================================ */
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* ── Desktop inline bar ───────────────────────────────────────── */
+
+.desktopBar {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .desktopBar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+}
+
+.field {
+    flex: 1 1 160px;
+    min-width: 140px;
+}
+
+.locationField {
+    flex: 1 1 220px;
+    min-width: 190px;
+}
+
+.radiusField {
+    flex: 0 0 120px;
+}
+
+/* ── Mobile bar (Filters button) ──────────────────────────────── */
+
+.mobileBar {
+    display: flex;
+}
+
+@media (min-width: 768px) {
+    .mobileBar {
+        display: none;
+    }
+}
+
+.filtersBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 44px;
+    padding: 0 var(--space-4);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semi);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: border-color var(--duration-base), background var(--duration-base);
+}
+
+.filtersBtn:hover {
+    border-color: var(--color-brand-muted);
+    background: var(--color-brand-subtle);
+}
+
+.filtersBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--color-brand);
+    color: var(--color-on-brand);
+    font-size: 0.65rem;
+    font-weight: var(--weight-bold);
+    border-radius: var(--radius-full);
+}
+
+/* ── Active-filter chips ──────────────────────────────────────── */
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    max-width: 100%;
+    padding: 5px 6px 5px 12px;
+    background: var(--color-brand-subtle);
+    border: 1px solid var(--color-brand-muted);
+    border-radius: var(--radius-full);
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semi);
+    color: var(--color-brand-hover);
+    cursor: pointer;
+    transition: background var(--duration-fast);
+}
+
+.chip:hover {
+    background: var(--color-brand-muted);
+}
+
+.chip > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip svg {
+    flex-shrink: 0;
+}
+
+.clearAll {
+    background: none;
+    border: none;
+    padding: 5px var(--space-2);
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color var(--duration-fast);
+}
+
+.clearAll:hover {
+    color: var(--color-error);
+}
+
+/* ── Mobile bottom sheet ──────────────────────────────────────── */
+
+@keyframes sheetBackdropIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes sheetSlideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sheetBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: sheetBackdropIn 0.2s var(--ease-out) both;
+}
+
+.sheet {
+    width: 100%;
+    max-height: 88vh;
+    background: var(--color-surface);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: sheetSlideUp 0.28s var(--ease-spring) both;
+}
+
+.sheetHandle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+    margin: var(--space-3) auto var(--space-1);
+    flex-shrink: 0;
+}
+
+.sheetHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.sheetTitle {
+    font-family: var(--font-ui);
+    font-weight: var(--weight-bold);
+    font-size: var(--text-base);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-ink);
+}
+
+.sheetClose {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.sheetClose:hover {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand-hover);
+}
+
+.sheetBody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    overflow-y: auto;
+}
+
+.sheetField {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.sheetLabel {
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.sheetActions {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5)
+        calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.sheetClear {
+    flex: 0 0 auto;
+    padding: 0 var(--space-5);
+    height: 46px;
+    background: transparent;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.sheetClear:hover {
+    border-color: var(--color-error);
+    color: var(--color-error);
+}
+
+.sheetApply {
+    flex: 1;
+    height: 46px;
+    background: var(--color-brand);
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-on-brand);
+    cursor: pointer;
+    transition: background var(--duration-fast), transform var(--duration-fast);
+}
+
+.sheetApply:hover {
+    background: var(--color-brand-hover);
+}
+
+.sheetApply:active {
+    transform: scale(0.98);
+}

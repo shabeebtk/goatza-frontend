@@ -1,0 +1,107 @@
+/* ============================================================
+   GOATZA — Recruitments hub page
+   ============================================================ */
+
+.page {
+  max-width: var(--container-tight);
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-4) var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Header ────────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-ink);
+  line-height: var(--leading-tight);
+}
+
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1.5px solid var(--color-border);
+}
+
+.tab {
+  position: relative;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast);
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tabActive {
+  color: var(--color-brand-hover);
+}
+
+.tabActive::after {
+  content: "";
+  position: absolute;
+  bottom: -1.5px;
+  left: var(--space-2);
+  right: var(--space-2);
+  height: 2.5px;
+  background: var(--color-brand);
+  border-radius: 3px 3px 0 0;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Panel ─────────────────────────────────────────────────────── */
+
+.panel:focus-visible {
+  outline: none;
+}
+
+/* ── Suspense fallback ─────────────────────────────────────────── */
+
+.fallback {
+  height: 240px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    100deg,
+    var(--color-surface) 40%,
+    var(--color-surface-raised) 50%,
+    var(--color-surface) 60%
+  );
+  background-size: 200% 100%;
+  animation: fallbackShimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes fallbackShimmer {
+  to { background-position: -200% 0; }
+}

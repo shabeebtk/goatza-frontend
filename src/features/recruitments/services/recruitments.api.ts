@@ -62,6 +62,7 @@ export type RecruitmentMedia = {
   id: string
   media_type: "image" | "video"
   file_url: string
+  public_id: string
   thumbnail_url: string
   duration: number | null
   order: number
@@ -182,6 +183,7 @@ export type RecruitmentDetail = {
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
+  max_applications?: number | null
   shortlisted_count?: number
   selected_count?: number
   views_count?: number
@@ -212,6 +214,10 @@ export type CreateRecruitmentMediaPayload = {
   public_id: string
   media_type: "image" | "video"
   order: number
+  // Optional — sent when preserving already-uploaded media on edit so
+  // video thumbnails/durations are not lost. New uploads omit them.
+  thumbnail_url?: string
+  duration?: number
 }
 
 export type CreateRecruitmentLocationPayload = {
@@ -247,9 +253,11 @@ export type CreateRecruitmentContactPayload = {
   contact_type: "phone" | "email"
   value: string
 }
- 
+
+export type ApplyMethod = "goatza" | "external" | "contact"
+
 // ── Updated full payload ──────────────────────────────────────
- 
+
 export type CreateRecruitmentPayload = {
   title: string
   short_description: string
@@ -262,6 +270,11 @@ export type CreateRecruitmentPayload = {
   application_deadline?: string    // ISO 8601
   event_date?: string              // ISO 8601
   max_applications?: number
+  // Draft vs publish — create only (omit / "active" publishes, "draft" saves).
+  status?: "draft" | "active"
+  // How players apply
+  apply_method?: ApplyMethod
+  external_apply_url?: string
   is_paid: boolean
   fee_amount?: string
   fee_currency?: string
@@ -301,6 +314,13 @@ export type FetchRecruitmentsParams = {
   sport_id?: string
   status?: RecruitmentStatus
   recruitment_type?: RecruitmentType
+  // Player-facing discovery filters (global public feed). The backend ignores
+  // junk values, so unset filters are simply omitted from the request.
+  search?: string
+  city?: string
+  experience_level?: string
+  birth_year?: number
+  apply_method?: ApplyMethod
   limit?: number
   offset?: number
 }
@@ -313,6 +333,58 @@ export const fetchRecruitmentsApi = async (
   const res = await api.get("/recruitments/list", {
     params: { limit: 10, ...params },
   })
+  return res.data.data
+}
+
+// ── My applications (player) ──────────────────────────────────
+
+// The org summary embedded on a player's own application row — only the fields
+// the backend's MyApplication serializer returns (no type/headline).
+export type ApplicationOrgSummary = {
+  id: string
+  name: string
+  username: string
+  logo: string
+  is_verified: boolean
+}
+
+export type MyApplicationRecruitment = {
+  id: string
+  title: string
+  recruitment_type: RecruitmentType
+  status: RecruitmentStatus
+  city: string
+  event_date: string | null
+  application_deadline: string | null
+  organization: ApplicationOrgSummary
+  sport: RecruitmentSport
+}
+
+export type MyApplicationListItem = {
+  id: string
+  status: ApplicationStatus
+  applied_at: string
+  updated_at: string
+  recruitment: MyApplicationRecruitment
+}
+
+export type MyApplicationsResponse = {
+  count: number
+  limit: number
+  offset: number
+  results: MyApplicationListItem[]
+}
+
+export type FetchMyApplicationsParams = {
+  status?: ApplicationStatus
+  limit?: number
+  offset?: number
+}
+
+export const fetchMyApplicationsApi = async (
+  params: FetchMyApplicationsParams
+): Promise<MyApplicationsResponse> => {
+  const res = await api.get("/recruitments/applications/my", { params })
   return res.data.data
 }
 
@@ -329,5 +401,194 @@ export const createRecruitmentApi = async (
   payload: CreateRecruitmentPayload
 ): Promise<CreateRecruitmentResponse> => {
   const res = await api.post("/recruitments/create", payload)
+  return res.data.data
+}
+
+// Create and update share the exact same body shape.
+export type RecruitmentPayload = CreateRecruitmentPayload
+
+export const updateRecruitmentApi = async (
+  recruitmentId: string,
+  payload: RecruitmentPayload
+): Promise<CreateRecruitmentResponse> => {
+  const res = await api.patch(`/recruitments/${recruitmentId}/update`, payload)
+  return res.data.data
+}
+
+// ── Status change ─────────────────────────────────────────────
+
+export type ChangeRecruitmentStatusResponse = {
+  recruitment_id: string
+  status: RecruitmentStatus
+}
+
+export const changeRecruitmentStatusApi = async (
+  recruitmentId: string,
+  status: RecruitmentStatus
+): Promise<ChangeRecruitmentStatusResponse> => {
+  const res = await api.patch(`/recruitments/${recruitmentId}/status`, { status })
+  return res.data.data
+}
+
+// ── Apply (player) ────────────────────────────────────────────
+
+export type ApplyAnswerPayload = {
+  question_id: string
+  // Free-text answer (short_text / long_text / number). Omitted for option types.
+  answer_text?: string
+  // Chosen option ids (select / radio → one, checkbox → one or more).
+  selected_option_ids?: string[]
+}
+
+export type ApplyRecruitmentPayload = {
+  // Contact the applicant chose to share for THIS application (prefilled from
+  // their profile, but editable). Stored as submitted by the backend.
+  shared_name: string
+  shared_email?: string
+  shared_phone: string
+  answers: ApplyAnswerPayload[]
+}
+
+export type ApplyRecruitmentResponse = {
+  application_id: string
+  status: ApplicationStatus
+  applied_at: string
+}
+
+export const applyRecruitmentApi = async (
+  recruitmentId: string,
+  payload: ApplyRecruitmentPayload
+): Promise<ApplyRecruitmentResponse> => {
+  const res = await api.post(`/recruitments/${recruitmentId}/apply`, payload)
+  return res.data.data
+}
+
+// ── Org-side applicants (read-only) ───────────────────────────
+
+export type ApplicantMini = {
+  id: string
+  username: string
+  name: string
+  avatar: string
+  headline: string
+}
+
+export type ApplicantListItem = {
+  id: string
+  status: ApplicationStatus
+  applied_at: string
+  shared_name: string
+  shared_email: string
+  shared_phone: string
+  applicant: ApplicantMini
+}
+
+export type ApplicationAnswer = {
+  question: string
+  field_type: QuestionFieldType
+  answer_text: string
+  selected_options: string[]
+}
+
+export type ApplicationDetail = ApplicantListItem & {
+  answers: ApplicationAnswer[]
+}
+
+// Every application status → count for the recruitment (zeros included).
+export type ApplicationStatusCounts = Record<ApplicationStatus, number>
+
+export type RecruitmentApplicantsResponse = {
+  count: number
+  limit: number
+  offset: number
+  results: ApplicantListItem[]
+  status_counts: ApplicationStatusCounts
+}
+
+export type FetchRecruitmentApplicantsParams = {
+  status?: ApplicationStatus
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export const fetchRecruitmentApplicantsApi = async (
+  recruitmentId: string,
+  params: FetchRecruitmentApplicantsParams
+): Promise<RecruitmentApplicantsResponse> => {
+  const res = await api.get(`/recruitments/${recruitmentId}/applications`, { params })
+  return res.data.data
+}
+
+export const fetchApplicationDetailApi = async (
+  applicationId: string
+): Promise<ApplicationDetail> => {
+  const res = await api.get(`/recruitments/applications/${applicationId}/details`)
+  return res.data.data
+}
+
+// ── Withdraw (player) ─────────────────────────────────────────
+
+export type WithdrawApplicationResponse = {
+  application_id: string
+  status: ApplicationStatus
+}
+
+export const withdrawApplicationApi = async (
+  applicationId: string
+): Promise<WithdrawApplicationResponse> => {
+  const res = await api.post(
+    `/recruitments/applications/${applicationId}/withdraw`
+  )
+  return res.data.data
+}
+
+// ── Org status changes (bulk + single) ────────────────────────
+
+// Org status targets — bulk + single share the same set. `invited` is NOT an
+// org target (reserved for the future personal-invite feature).
+export type BulkStatusTarget = "reviewing" | "shortlisted" | "selected" | "rejected"
+export type SingleStatusTarget = "reviewing" | "shortlisted" | "selected" | "rejected"
+
+export type StatusChangeSkip = {
+  id: string
+  reason: "not_found" | "withdrawn" | "no_change"
+}
+
+export type BulkStatusResponse = {
+  updated: string[]
+  skipped: StatusChangeSkip[]
+  status_counts: ApplicationStatusCounts
+}
+
+export const bulkUpdateApplicationStatusApi = async (
+  recruitmentId: string,
+  body: { applicationIds: string[]; status: BulkStatusTarget; note?: string }
+): Promise<BulkStatusResponse> => {
+  const res = await api.post(
+    `/recruitments/${recruitmentId}/applications/bulk-status`,
+    {
+      application_ids: body.applicationIds,
+      status: body.status,
+      note: body.note ?? "",
+    }
+  )
+  return res.data.data
+}
+
+export type SingleStatusResponse = {
+  application_id: string
+  status: ApplicationStatus
+  status_counts: ApplicationStatusCounts
+}
+
+export const updateApplicationStatusApi = async (
+  applicationId: string,
+  body: { status: SingleStatusTarget; note?: string }
+): Promise<SingleStatusResponse> => {
+  const res = await api.post(
+    `/recruitments/applications/${applicationId}/status`,
+    { status: body.status, note: body.note ?? "" }
+  )
   return res.data.data
 }

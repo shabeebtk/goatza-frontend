@@ -10,7 +10,11 @@ import { useAuthStore } from "@/store/auth.store"
 import { logoutApi } from "@/features/auth/services/auth.api"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
+import CreateMenu, { type CreateAction } from "@/shared/components/layout/CreateMenu/CreateMenu"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateRecruitmentModal/CreateRecruitmentTrigger"
+import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
+import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -46,10 +50,6 @@ function buildNavItems(orgId: string) {
   ]
 }
 
-const MOCK_ORG = {
-  notifCount: 4,
-  messageCount: 2,
-}
 
 function OrgLogoMark({
   orgId,
@@ -122,6 +122,8 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
+  const [recruitmentOpen, setRecruitmentOpen] = useState(false)
 
   const user = useAuthStore((state) => state.user)
   const clearAuth = useAuthStore((state) => state.clearAuth)
@@ -136,6 +138,28 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     activeOrganization?.id === orgId
       ? activeOrganization
       : organizations.find((organization) => organization.id === orgId)
+
+  // Live badge counts for the acting organization (actor headers scope these).
+  const notifCount = useUnreadCount().data?.count ?? 0
+  const messageCount = useConversationsUnreadSummary().data?.total ?? 0
+
+  // Data-driven create actions — add a new entry here to grow the "+" menu.
+  const createActions: CreateAction[] = [
+    {
+      id: "post",
+      label: "Create post",
+      sublabel: "Share an update",
+      icon: "mdi:image-plus-outline",
+      onSelect: () => setPostModalOpen(true),
+    },
+    {
+      id: "recruitment",
+      label: "Create recruitment",
+      sublabel: "Post a trial or search",
+      icon: "mdi:bullhorn-outline",
+      onSelect: () => setRecruitmentOpen(true),
+    },
+  ]
 
   const NAV_ITEMS = buildNavItems(orgId)
   const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) => item.label !== "Alerts")
@@ -162,8 +186,10 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     const onResize = () => {
       if (window.innerWidth >= 768) {
         setSheetOpen(false)
+        setCreateMenuOpen(false) // close the mobile create sheet
       } else {
         setDropdownOpen(false)
+        setCreateMenuOpen(false) // close the desktop create dropdown
       }
     }
 
@@ -211,15 +237,15 @@ export default function OrgNav({ orgId }: { orgId: string }) {
               const isActive = pathname.startsWith(item.href)
               const hasAlert =
                 item.href === `${orgBase(orgId)}/messages`
-                  ? MOCK_ORG.messageCount > 0
+                  ? messageCount > 0
                   : item.href === `${orgBase(orgId)}/notifications`
-                    ? MOCK_ORG.notifCount > 0
+                    ? notifCount > 0
                     : false
               const alertCount =
                 item.href === `${orgBase(orgId)}/messages`
-                  ? MOCK_ORG.messageCount
+                  ? messageCount
                   : item.href === `${orgBase(orgId)}/notifications`
-                    ? MOCK_ORG.notifCount
+                    ? notifCount
                     : 0
 
               return (
@@ -240,14 +266,24 @@ export default function OrgNav({ orgId }: { orgId: string }) {
             })}
           </nav>
 
-          <button
-            className={styles.topNavCreateBtn}
-            onClick={() => setPostModalOpen(true)}
-            type="button"
-            aria-label="Create post"
-          >
-            <Icon icon="mdi:plus" width={18} height={18} />
-          </button>
+          <div className={styles.createBtnWrap}>
+            <button
+              className={styles.topNavCreateBtn}
+              onClick={() => setCreateMenuOpen((open) => !open)}
+              onMouseDown={(event) => event.stopPropagation()}
+              type="button"
+              aria-label="Create"
+              aria-haspopup="menu"
+              aria-expanded={createMenuOpen}
+            >
+              <Icon icon="mdi:plus" width={18} height={18} />
+            </button>
+            <CreateMenu
+              open={createMenuOpen}
+              onClose={() => setCreateMenuOpen(false)}
+              actions={createActions}
+            />
+          </div>
 
           <div className={styles.topNavAvatar}>
             <div className={styles.avatarBtn}>
@@ -310,15 +346,17 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           </Link>
           <Link
             href={`${orgBase(orgId)}/notifications`}
-            className={`${styles.mobileIconBtn} ${styles.mobileIconBtnRelative}`}
+            className={styles.mobileIconBtn}
             aria-label="Notifications"
           >
-            <Icon
-              icon={pathname.startsWith(`${orgBase(orgId)}/notifications`) ? "mdi:bell" : "mdi:bell-outline"}
-              width={24}
-              height={24}
-            />
-            <NotifDot count={MOCK_ORG.notifCount} />
+            <span className={styles.mobileIconBadgeWrap}>
+              <Icon
+                icon={pathname.startsWith(`${orgBase(orgId)}/notifications`) ? "mdi:bell" : "mdi:bell-outline"}
+                width={24}
+                height={24}
+              />
+              <NotifDot count={notifCount} />
+            </span>
           </Link>
         </div>
       </header>
@@ -344,8 +382,10 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         <button
           className={styles.bottomTabCreate}
           style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-          aria-label="Create post"
-          onClick={() => setPostModalOpen(true)}
+          aria-label="Open create menu"
+          aria-haspopup="menu"
+          aria-expanded={createMenuOpen}
+          onClick={() => setCreateMenuOpen(true)}
         >
           <span className={styles.bottomTabCreateInner} aria-hidden="true">
             <Icon icon="mdi:plus" width={28} height={28} />
@@ -432,6 +472,14 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           onClose={() => setPostModalOpen(false)}
         />
       )}
+
+      {/* Recruitment modal — controlled by the create menu. CreateRecruitmentTrigger
+          keeps its org-actor guard, so it self-renders null for non-org actors. */}
+      <CreateRecruitmentTrigger
+        open={recruitmentOpen}
+        onOpenChange={setRecruitmentOpen}
+        onCreated={() => router.push(`${orgBase(orgId)}/recruitments`)}
+      />
     </>
   )
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   getSportsListApi,
+  getSportPositionsApi,
   getUserSportsApi,
   getUserSportsByUsernameApi,
   addUserSportApi,
@@ -15,6 +16,7 @@ import {
 
 export const sportsKeys = {
   masterList:   ()           => ["sports", "masterList"]       as const,
+  positions:    (sportId: string) => ["sports", "positions", sportId] as const,
   userSports:   ()           => ["sports", "me"]               as const,
   userSportsByUsername: (u: string) => ["sports", "user", u]  as const,
 }
@@ -26,6 +28,16 @@ export const useSportsList = () =>
     queryKey: sportsKeys.masterList(),
     queryFn:  getSportsListApi,
     staleTime: 1000 * 60 * 30,   // sports rarely change
+  })
+
+// ── Positions for a selected sport (filter dropdowns) ─────────
+
+export const useSportPositions = (sportId: string) =>
+  useQuery({
+    queryKey: sportsKeys.positions(sportId),
+    queryFn:  () => getSportPositionsApi(sportId),
+    enabled:  !!sportId,
+    staleTime: 1000 * 60 * 30,   // positions rarely change
   })
 
 // ── Own user sports ───────────────────────────────────────────

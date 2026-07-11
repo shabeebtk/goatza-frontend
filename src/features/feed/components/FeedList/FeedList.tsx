@@ -1,11 +1,16 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useMemo, useRef, useCallback } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import { useFeedList } from "../../hooks/useFeedQueries"
 import styles from "./FeedList.module.css"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
+
+// Stable empty reference so memoized PostCards never re-render from a fresh
+// object literal on each FeedList render.
+const EMPTY_QUERY_PARAMS: FetchPostsParams = {}
 
 
 function EmptyState() {
@@ -65,14 +70,19 @@ export default function FeedList() {
         const el = sentinelRef.current
         if (!el) return
         const observer = new IntersectionObserver(handleObserver, {
-            rootMargin: "200px",
+            // Prefetch the next page ~600px early so the user never hits a wall.
+            rootMargin: "600px",
             threshold: 0,
         })
         observer.observe(el)
         return () => observer.disconnect()
     }, [handleObserver])
 
-    const allPosts = data?.pages.flatMap((p) => p.results) || []
+    // Flatten once per data change, not on every render (e.g. isFetchingNextPage).
+    const allPosts = useMemo(
+        () => data?.pages.flatMap((p) => p.results) ?? [],
+        [data]
+    )
 
     if (isLoading) {
         return (
@@ -103,11 +113,9 @@ export default function FeedList() {
         <div className={styles.wrapper}>
             <div className={styles.list}>
                 {allPosts.map((post) => (
-                    <PostCard
-                        key={post.id}
-                        post={post}
-                        queryParams={{}}
-                    />
+                    <div key={post.id} className={styles.feedItem}>
+                        <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
+                    </div>
                 ))}
             </div>
 

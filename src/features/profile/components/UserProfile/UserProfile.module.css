@@ -307,6 +307,21 @@
 
 .statPill { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
 
+.statPillLink {
+  padding: var(--space-1) var(--space-2);
+  margin: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast);
+}
+
+.statPillLink:hover { background: var(--color-surface-raised); }
+.statPillLink:active { transform: scale(0.96); }
+.statPillLink:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
 .statValue {
   font-family: var(--font-display);
   font-size: var(--text-2xl);

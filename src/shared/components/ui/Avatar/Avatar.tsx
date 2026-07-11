@@ -29,7 +29,16 @@ export default function Avatar({
   return (
     <span className={`${styles.avatar} ${sizeMap[size]} ${className}`}>
       {src ? (
-        <img src={src} alt={alt} className={styles.avatarImg} />
+        // Lazy + async so avatars deep in long lists don't fetch/decode until
+        // near the viewport (harmless for above-the-fold avatars — they're in
+        // view, so the browser loads them immediately anyway).
+        <img
+          src={src}
+          alt={alt}
+          className={styles.avatarImg}
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         <span aria-label={alt}>{initials}</span>
       )}

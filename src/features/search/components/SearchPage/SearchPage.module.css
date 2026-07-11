@@ -1,0 +1,102 @@
+/* ============================================================
+   GOATZA — SearchPage (/search sectioned results)
+   ============================================================ */
+
+.page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    width: 100%;
+    max-width: var(--container-tight);
+    margin-inline: auto;
+    padding-bottom: var(--space-12);
+}
+
+/* ── Header (sticky search bar) ───────────────────────────────── */
+
+.head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+
+    border-radius: var(--radius-md);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.back:hover {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand-hover);
+}
+
+/* The input fills the remaining header width. */
+.inputSlot {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* ── Result sections ──────────────────────────────────────────── */
+
+.sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+
+    width: 100%;
+    /* Rails + posts list own their horizontal padding, so none here. */
+    padding-top: var(--space-4);
+}
+
+/* ── Page-level empty state (every section empty) ─────────────── */
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+
+    max-width: 420px;
+    margin: 0 auto;
+    padding: var(--space-16) var(--space-6);
+    text-align: center;
+}
+
+.emptyIcon {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+}
+
+.emptyTitle {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    letter-spacing: 0.02em;
+    color: var(--color-ink);
+    line-height: 1.15;
+}
+
+.emptyBody {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    line-height: var(--leading-loose);
+    max-width: 320px;
+}

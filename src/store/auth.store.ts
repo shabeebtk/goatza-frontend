@@ -7,8 +7,9 @@ export type ActorType = "user" | "organization"
 export type User = {
   id: string
   username: string
-  email?: string
+  email?: string | null
   name?: string
+  phone?: string | null
   profile_photo?: string
 }
 

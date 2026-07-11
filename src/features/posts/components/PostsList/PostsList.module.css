@@ -108,6 +108,14 @@
     animation: fadeInUp 0.4s var(--ease-out) 180ms both;
 }
 
+/* Deep-scroll perf: skip layout/paint for off-screen post cards while reserving
+   an approximate slot. `auto` remembers each card's real height after first
+   render (480px fallback ≈ a typical PostCard with media). */
+.feedItem {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 480px;
+}
+
 /* ── Sentinel (invisible trigger for infinite scroll) ─────────── */
 
 .sentinel {

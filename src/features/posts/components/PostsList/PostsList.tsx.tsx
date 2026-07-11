@@ -13,7 +13,7 @@
  *   onCreatePost — called when CTA button clicked
  */
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useMemo, useRef, useCallback } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import { usePostsList } from "../../hooks/usePostMutations"
@@ -106,9 +106,14 @@ export default function PostsList({
 
     const { toPostsList } = useNavigation()
 
-    const queryParams: FetchPostsParams = {}
-    if (username) queryParams.username = username
-    if (postId) queryParams.post_id = postId
+    // Stable across renders (keyed on the actual filters) so the memoized
+    // PostCards below don't re-render from a fresh object each time.
+    const queryParams: FetchPostsParams = useMemo(() => {
+        const p: FetchPostsParams = {}
+        if (username) p.username = username
+        if (postId) p.post_id = postId
+        return p
+    }, [username, postId])
 
     const {
         data,
@@ -136,7 +141,8 @@ export default function PostsList({
         const el = sentinelRef.current
         if (!el) return
         const observer = new IntersectionObserver(handleObserver, {
-            rootMargin: "200px",
+            // Prefetch the next page ~600px early so the user never hits a wall.
+            rootMargin: "600px",
             threshold: 0,
         })
         observer.observe(el)
@@ -144,7 +150,10 @@ export default function PostsList({
     }, [handleObserver])
 
     // ── All posts flat ────────────────────────────────────────────
-    const allPosts = data?.pages.flatMap((p) => p.results) ?? []
+    const allPosts = useMemo(
+        () => data?.pages.flatMap((p) => p.results) ?? [],
+        [data]
+    )
     const totalCount = data?.pages[0]?.count ?? 0
     const displayPosts = preview ? allPosts.slice(0, 1) : allPosts
 
@@ -203,12 +212,13 @@ export default function PostsList({
 
             <div className={styles.list}>
                 {displayPosts.map((post) => (   // ← displayPosts not allPosts
-                    <PostCard
-                        key={post.id}
-                        post={post}
-                        queryParams={queryParams}
-                        isPreview={preview}
-                    />
+                    <div key={post.id} className={styles.feedItem}>
+                        <PostCard
+                            post={post}
+                            queryParams={queryParams}
+                            isPreview={preview}
+                        />
+                    </div>
                 ))}
             </div>
 

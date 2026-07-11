@@ -1,0 +1,391 @@
+/* ============================================================
+   GOATZA — Network view (followers / following / connections)
+   ============================================================ */
+
+.page {
+  width: 100%;
+  max-width: var(--container-tight);
+  margin-inline: auto;
+  padding: var(--space-4) var(--space-4) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: var(--space-2) 0;
+  background: var(--color-bg);
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.backBtn:hover {
+  background: var(--color-surface-raised);
+}
+
+.backBtn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--duration-fast);
+}
+
+.headerTitle:hover {
+  color: var(--color-brand-hover);
+}
+
+.headerSpacer {
+  width: 40px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1.5px solid var(--color-border);
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  flex: 1 1 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color var(--duration-fast);
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tabCount {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  line-height: 1.1;
+  color: inherit;
+}
+
+.tabLabel {
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+}
+
+.tabActive {
+  color: var(--color-brand-hover);
+}
+
+.tabActive .tabCount {
+  color: var(--color-ink);
+}
+
+.tabActive::after {
+  content: "";
+  position: absolute;
+  bottom: -1.5px;
+  left: var(--space-3);
+  right: var(--space-3);
+  height: 2.5px;
+  background: var(--color-brand);
+  border-radius: 3px 3px 0 0;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Search ─────────────────────────────────────────────────── */
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: var(--space-3) var(--space-8) var(--space-3) var(--space-10);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+/* hide the native search clear control — we render our own */
+.searchInput::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchClear {
+  position: absolute;
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.searchClear:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+/* ── Panel + list ───────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── State boxes (empty / error) ────────────────────────────── */
+
+.stateBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-16) var(--space-6);
+  color: var(--color-text-muted);
+}
+
+.stateIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.stateTitle {
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.stateBody {
+  font-size: var(--text-sm);
+  max-width: 320px;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.retryBtn:hover {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
+/* ── Load-more ──────────────────────────────────────────────── */
+
+.sentinel {
+  height: 1px;
+  width: 100%;
+}
+
+.loadingMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: var(--radius-full);
+  animation: netSpin 0.7s linear infinite;
+}
+
+@keyframes netSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Skeletons ──────────────────────────────────────────────── */
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+}
+
+.skelAvatar,
+.skelLine,
+.skelLineSm,
+.skelBtn {
+  background: linear-gradient(
+    100deg,
+    var(--color-surface-raised) 40%,
+    var(--color-surface) 50%,
+    var(--color-surface-raised) 60%
+  );
+  background-size: 200% 100%;
+  animation: netShimmer 1.3s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skelAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.skelText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+}
+
+.skelLine {
+  height: 12px;
+  width: 45%;
+}
+
+.skelLineSm {
+  height: 10px;
+  width: 65%;
+}
+
+.skelBtn {
+  width: 104px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+@keyframes netShimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Suspense fallback ──────────────────────────────────────── */
+
+.fallback {
+  height: 320px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    100deg,
+    var(--color-surface) 40%,
+    var(--color-surface-raised) 50%,
+    var(--color-surface) 60%
+  );
+  background-size: 200% 100%;
+  animation: netShimmer 1.3s ease-in-out infinite;
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-inline: var(--space-3);
+  }
+}

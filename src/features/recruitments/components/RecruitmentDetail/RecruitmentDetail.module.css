@@ -275,6 +275,12 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
+/* Positioning context so the StatusChangeMenu dropdown anchors to the button */
+.statusChangeWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .btnSecondary {
   display: inline-flex;
   align-items: center;
@@ -296,6 +302,16 @@
 .btnSecondary:hover {
   background: var(--color-brand-subtle);
   border-color: var(--color-brand-muted);
+}
+
+.btnSecondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btnSecondary:disabled:hover {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
 }
 
 .btnPrimary {
@@ -326,7 +342,8 @@
 
 .appBanner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
@@ -345,6 +362,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .appBannerLabel {
@@ -376,6 +395,139 @@
 .appSelected    { color: var(--color-success); background: rgba(0,181,98,0.10); border-color: rgba(0,181,98,0.22); }
 .appRejected    { color: var(--color-error);   background: rgba(232,70,42,0.08); border-color: rgba(232,70,42,0.18); }
 .appWithdrawn   { color: var(--color-text-muted); background: var(--color-surface-raised); border-color: var(--color-border); }
+
+/* ── Application banner actions (withdraw / reapply) ──────────── */
+
+.appBannerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.appReapplyBtn,
+.appWithdrawBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+/* Reapply = solid accent (uses the withdrawn banner's neutral text colour). */
+.appReapplyBtn {
+  background: var(--color-brand);
+  border: 1.5px solid var(--color-brand);
+  color: #fff;
+}
+.appReapplyBtn:hover:not(:disabled) { background: var(--color-brand-hover); transform: translateY(-1px); }
+
+/* Reapply shown but the recruitment is closed → disabled + hint below. */
+.appReapplyDisabled,
+.appReapplyDisabled:hover {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.appReapplyHint {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* Withdraw = outline in the banner's current status colour. */
+.appWithdrawBtn {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  color: inherit;
+  opacity: 0.85;
+}
+.appWithdrawBtn:hover { opacity: 1; transform: translateY(-1px); }
+
+.appWithdrawMuted { opacity: 0.5; font-weight: var(--weight-semi); }
+.appWithdrawMuted:hover { opacity: 0.85; }
+
+/* Inline confirm — spans the full banner width below the row. */
+.appConfirm {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  margin-top: var(--space-1);
+  border-top: 1px solid currentColor;
+}
+
+.appConfirmText {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  opacity: 0.9;
+}
+
+.appConfirmActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.appConfirmCancel,
+.appConfirmConfirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--duration-fast), opacity var(--duration-fast);
+}
+
+.appConfirmCancel {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  color: inherit;
+  opacity: 0.8;
+}
+.appConfirmCancel:hover:not(:disabled) { opacity: 1; }
+
+.appConfirmConfirm {
+  background: var(--color-error);
+  border: 1.5px solid var(--color-error);
+  color: #fff;
+}
+.appConfirmConfirm:hover:not(:disabled) { filter: brightness(1.05); }
+.appConfirmCancel:disabled,
+.appConfirmConfirm:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.appConfirmSpinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: var(--radius-full);
+  animation: spinRot 0.7s linear infinite;
+}
+
+@keyframes spinRot { to { transform: rotate(360deg); } }
 
 /* ── Apply CTA ────────────────────────────────────────────────── */
 

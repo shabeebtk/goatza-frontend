@@ -57,6 +57,28 @@ export function useNavigation() {
     return `/profile/${username}/posts`
   }
 
+  function toNetwork(
+    username: string,
+    authorType: ProfileAuthorType = "user",
+    tab: "followers" | "following" | "connections" = "followers"
+  ) {
+    const query = `?tab=${tab}`
+
+    // admin context: keep links inside the admin route space
+    if (isOrgAdminView && currentOrg) {
+      if (authorType === "organization") {
+        return `/organization/admin/${currentOrg.id}/profile/org/${username}/network${query}`
+      }
+      return `/organization/admin/${currentOrg.id}/profile/user/${username}/network${query}`
+    }
+
+    if (authorType === "organization") {
+      return `/organization/profile/${username}/network${query}`
+    }
+
+    return `/profile/${username}/network${query}`
+  }
+
   function toMessage(username: string) {
     if (isOrgAdminView && currentOrg) {
       return `/organization/admin/${currentOrg.id}/messages/${username}`
@@ -64,10 +86,31 @@ export function useNavigation() {
     return `/messages/${username}`
   }
 
+  function toRecruitment(recruitmentId: string) {
+    // admin context: stay inside admin routes so the active actor isn't reset
+    if (isOrgAdminView && currentOrg) {
+      return `/organization/admin/${currentOrg.id}/recruitments/${recruitmentId}`
+    }
+
+    return `/recruitments/${recruitmentId}`
+  }
+
+  function toRecruitmentsList(username: string) {
+    // recruitments belong to organizations; keep the org's own list inside admin
+    if (isOrgAdminView && currentOrg && currentOrg.username === username) {
+      return `/organization/admin/${currentOrg.id}/recruitments`
+    }
+
+    return `/organization/profile/${username}/recruitments`
+  }
+
   return {
     toProfile,
     toPost,
     toPostsList,
+    toNetwork,
     toMessage,
+    toRecruitment,
+    toRecruitmentsList,
   }
 }

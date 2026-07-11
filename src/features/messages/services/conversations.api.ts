@@ -69,6 +69,13 @@ export type ConversationsParams = {
     search?: string
 }
 
+/** Aggregate unread badge counts for the current actor. */
+export type ConversationUnreadSummary = {
+    chats: number       // unread accepted conversations
+    requests: number    // unread pending message requests
+    total: number       // chats + requests
+}
+
 export type MessagesParams = {
     conversation_id: string
     cursor?: string
@@ -88,6 +95,11 @@ export const getConversationsApi = async (
     params: ConversationsParams = {}
 ): Promise<Conversation[]> => {
     const res = await api.get("/conversations/list", { params })
+    return res.data.data
+}
+
+export const getConversationsUnreadSummaryApi = async (): Promise<ConversationUnreadSummary> => {
+    const res = await api.get("/conversations/unread/summary")
     return res.data.data
 }
 

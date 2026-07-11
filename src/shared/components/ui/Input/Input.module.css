@@ -143,8 +143,16 @@
 .inputAdornRightClickable {
     pointer-events: auto;
     cursor: pointer;
+    /* It's a <button> — strip the default UA border/background so only our own
+       hover chrome shows (otherwise the clear × renders with a grey box). */
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
     padding: 4px;
     border-radius: var(--radius-sm);
+    color: inherit;
+    line-height: 0;
     transition: background var(--duration-fast), color var(--duration-fast);
 }
 

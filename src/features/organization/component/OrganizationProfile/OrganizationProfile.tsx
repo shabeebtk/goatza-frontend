@@ -11,6 +11,7 @@
  */
 
 import { useState } from "react"
+import Link from "next/link"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
@@ -61,13 +62,27 @@ function getPrimaryLocation(locations: OrgLocation[]): OrgLocation | null {
 
 // ── Sub-components ─────────────────────────────────────────────────
 
-function StatPill({ value, label }: { value: number; label: string }) {
-    return (
-        <div className={styles.statPill}>
+function StatPill({
+    value, label, href,
+}: {
+    value: number; label: string; href?: string
+}) {
+    const content = (
+        <>
             <span className={styles.statValue}>{formatCount(value)}</span>
             <span className={styles.statLabel}>{label}</span>
-        </div>
+        </>
     )
+
+    if (href) {
+        return (
+            <Link href={href} className={`${styles.statPill} ${styles.statPillLink}`}>
+                {content}
+            </Link>
+        )
+    }
+
+    return <div className={styles.statPill}>{content}</div>
 }
 
 function VerifiedBadge() {
@@ -199,7 +214,7 @@ interface OrgProfileInnerProps {
 function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
     const [photoModal, setPhotoModal] = useState<"logo" | "cover" | null>(null)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-    const { toMessage } = useNavigation()
+    const { toMessage, toNetwork } = useNavigation()
 
     const [showAllLocations, setShowAllLocations] = useState(false)
 
@@ -336,11 +351,19 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
 
                         {/* Stats */}
                         <div className={styles.statsRow}>
-                            <StatPill value={org.followers_count} label="Followers" />
+                            <StatPill
+                                value={org.followers_count}
+                                label="Followers"
+                                href={toNetwork(org.username, "organization", "followers")}
+                            />
                             <div className={styles.statDivider} />
                             {isMe && (
                                 <>
-                                    <StatPill value={org.following_count ?? 0} label="Following" />
+                                    <StatPill
+                                        value={org.following_count ?? 0}
+                                        label="Following"
+                                        href={toNetwork(org.username, "organization", "following")}
+                                    />
                                     <div className={styles.statDivider} />
                                 </>
                             )}

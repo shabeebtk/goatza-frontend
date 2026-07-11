@@ -1,0 +1,59 @@
+/* ============================================================
+   GOATZA — ExplorePage shell
+   ============================================================ */
+
+.page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding-bottom: var(--space-12);
+}
+
+.sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+
+    width: 100%;
+    /* Cap width on desktop; the rails handle their own horizontal padding, so
+       no inline padding here (would double up on the track). */
+    max-width: 720px;
+    margin: 0 auto;
+
+    padding-top: var(--space-4);
+}
+
+/* ── Page-level empty state (every section empty) ────────────── */
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+
+    max-width: 420px;
+    margin: 0 auto;
+    padding: var(--space-16) var(--space-6);
+    text-align: center;
+}
+
+.emptyIcon {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+}
+
+.emptyTitle {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    line-height: 1;
+}
+
+.emptyBody {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    line-height: var(--leading-loose);
+    max-width: 320px;
+}

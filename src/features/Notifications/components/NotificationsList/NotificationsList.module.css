@@ -200,6 +200,53 @@
   border-color: var(--color-brand-subtle);
 }
 
+/* ── Stacked avatars (grouped recruitment applies) ───────────── */
+
+.stackedAvatars {
+  display: flex;
+  align-items: center;
+}
+
+.stackedAvatar {
+  display: inline-flex;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-surface);
+  background: var(--color-surface);
+}
+
+.stackedAvatar:not(:first-child) {
+  margin-left: -12px;
+}
+
+.itemUnread .stackedAvatar {
+  border-color: var(--color-brand-subtle);
+  background: var(--color-brand-subtle);
+}
+
+/* ── Recruitment context line (title where the post preview sits) ── */
+
+.recruitmentContext {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recruitmentContext svg {
+  flex-shrink: 0;
+  color: var(--color-brand-hover);
+}
+
 /* ── Content ─────────────────────────────────────────────────── */
 
 .content {

@@ -21,7 +21,13 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
-import { useRecruitmentDetail } from "../../hooks/useRecruitments"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
+import { useNavigation } from "@/shared/services/navigation.service"
+import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
+import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
+import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
+import { STATUS_TRANSITIONS } from "../../statusTransitions"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
   RecruitmentMedia,
@@ -223,18 +229,121 @@ function StatCard({ icon, value, label, accent }: { icon: string; value: string 
 
 // ── Application banner ─────────────────────────────────────────
 
-function ApplicationBanner({ status, appliedAt }: { status: ApplicationStatus; appliedAt?: string }) {
-  const meta = APP_STATUS_META[status] ?? APP_STATUS_META.applied
+function ApplicationBanner({
+  r,
+  onReapply,
+}: {
+  r: TRecruitmentDetail
+  onReapply: () => void
+}) {
+  const app = r.my_application!
+  const meta = APP_STATUS_META[app.status] ?? APP_STATUS_META.applied
+  const toast = useToast()
+  const [confirming, setConfirming] = useState(false)
+  const { mutate: withdraw, isPending } = useWithdrawApplication()
+
+  const isWithdrawn = app.status === "withdrawn"
+  // LinkedIn-style: withdraw is allowed from ANY status except withdrawn.
+  const canWithdraw = !isWithdrawn
+  // Once the outcome is final, keep withdraw available but de-emphasized.
+  const isTerminal = app.status === "selected" || app.status === "rejected"
+  // Resilient reapply: offer it whenever the app is withdrawn + in-app apply,
+  // driven by status/apply_method (not can_apply) so it can't silently vanish
+  // if can_apply is momentarily stale. can_apply only gates enabled vs disabled
+  // — the server stays the real gate on submit.
+  const showReapply = isWithdrawn && r.apply_method === "goatza"
+  const reapplyEnabled = showReapply && r.can_apply
+
+  const doWithdraw = () => {
+    withdraw(
+      { applicationId: app.id, recruitmentId: r.id },
+      {
+        onSuccess: () => {
+          setConfirming(false)
+          toast.show({ title: "Application withdrawn", variant: "success" })
+        },
+        onError: (err) => {
+          toast.show({
+            title: getApiErrorMessage(err, "Couldn't withdraw. Please try again."),
+            variant: "error",
+          })
+        },
+      }
+    )
+  }
+
   return (
     <div className={`${styles.appBanner} ${styles[meta.colorClass]}`}>
       <span className={styles.appBannerIcon}><Icon icon={meta.icon} width={22} height={22} /></span>
       <div className={styles.appBannerText}>
         <span className={styles.appBannerLabel}>Your Application</span>
         <span className={styles.appBannerStatus}>{meta.label}</span>
-        {appliedAt && (
-          <span className={styles.appBannerDate}>Applied {dayjs(appliedAt).fromNow()}</span>
+        {app.applied_at && !isWithdrawn && (
+          <span className={styles.appBannerDate}>Applied {dayjs(app.applied_at).fromNow()}</span>
         )}
       </div>
+
+      <div className={styles.appBannerActions}>
+        {showReapply && (
+          <button
+            className={`${styles.appReapplyBtn} ${reapplyEnabled ? "" : styles.appReapplyDisabled}`}
+            onClick={reapplyEnabled ? onReapply : undefined}
+            disabled={!reapplyEnabled}
+            type="button"
+          >
+            <Icon icon="mdi:send-outline" width={15} height={15} />
+            Reapply
+          </button>
+        )}
+
+        {canWithdraw && !confirming && (
+          <button
+            className={`${styles.appWithdrawBtn} ${isTerminal ? styles.appWithdrawMuted : ""}`}
+            onClick={() => setConfirming(true)}
+            type="button"
+          >
+            <Icon icon="mdi:undo-variant" width={15} height={15} />
+            Withdraw
+          </button>
+        )}
+      </div>
+
+      {showReapply && !reapplyEnabled && (
+        <p className={styles.appReapplyHint}>
+          <Icon icon="mdi:information-outline" width={12} height={12} />
+          Recruitment is no longer accepting applications
+        </p>
+      )}
+
+      {canWithdraw && confirming && (
+        <div className={styles.appConfirm} role="alertdialog" aria-label="Confirm withdraw">
+          <p className={styles.appConfirmText}>
+            Withdraw your application? The organization will no longer consider it.
+            You can reapply while the recruitment is open.
+          </p>
+          <div className={styles.appConfirmActions}>
+            <button
+              className={styles.appConfirmCancel}
+              onClick={() => setConfirming(false)}
+              disabled={isPending}
+              type="button"
+            >
+              Keep
+            </button>
+            <button
+              className={styles.appConfirmConfirm}
+              onClick={doWithdraw}
+              disabled={isPending}
+              type="button"
+            >
+              {isPending
+                ? <span className={styles.appConfirmSpinner} aria-hidden="true" />
+                : <Icon icon="mdi:undo-variant" width={15} height={15} />}
+              Withdraw
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -265,10 +374,12 @@ function ApplyCTA({
   r,
   deadlinePast,
   compact = false,
+  onApply,
 }: {
   r: TRecruitmentDetail
   deadlinePast: boolean
   compact?: boolean
+  onApply?: () => void
 }) {
   const method = r.apply_method
 
@@ -356,7 +467,7 @@ function ApplyCTA({
   return (
     <div className={`${styles.applyCta} ${compact ? styles.applyCtaCompact : ""}`}>
       {r.can_apply ? (
-        <button className={styles.btnApply} type="button">
+        <button className={styles.btnApply} type="button" onClick={onApply}>
           <Icon icon="mdi:send-outline" width={16} height={16} />
           Apply Now
         </button>
@@ -407,16 +518,17 @@ interface RecruitmentDetailProps {
   recruitmentId: string
   isOrgView?: boolean
   onEdit?: () => void
-  onStatusChange?: (status: string) => void
 }
 
 export default function RecruitmentDetail({
   recruitmentId,
   isOrgView = false,
   onEdit,
-  onStatusChange,
 }: RecruitmentDetailProps) {
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
+  const { toProfile } = useNavigation()
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [applyOpen, setApplyOpen] = useState(false)
 
   if (isLoading) return <DetailSkeleton />
 
@@ -433,6 +545,10 @@ export default function RecruitmentDetail({
   const typeMeta   = TYPE_META[r.recruitment_type]   ?? TYPE_META.open_trial
   const statusMeta = r.status ? (STATUS_META[r.status] ?? STATUS_META.draft) : null
   const deadlinePast = isDeadlinePast(r.application_deadline)
+
+  // Owner status control: only offer transitions valid for the current status.
+  const orgStatus = r.status ?? "draft"
+  const canChangeStatus = (STATUS_TRANSITIONS[orgStatus] ?? []).length > 0
 
   const primaryPositions   = r.positions?.filter((p) => p.is_primary) ?? []
   const secondaryPositions = r.positions?.filter((p) => !p.is_primary) ?? []
@@ -453,7 +569,7 @@ export default function RecruitmentDetail({
       <div className={styles.headerCard}>
 
         {/* Org row */}
-        <Link href={`/organization/${r.organization.username}`} className={styles.orgRow}>
+        <Link href={toProfile(r.organization.username, "organization")} className={styles.orgRow}>
           <Avatar
             src={r.organization.logo}
             initials={r.organization.name?.slice(0, 2).toUpperCase()}
@@ -507,16 +623,39 @@ export default function RecruitmentDetail({
         {/* Org-view action row */}
         {isOrgView && (
           <div className={styles.orgActions}>
-            <button className={styles.btnSecondary} type="button" onClick={onEdit}>
+            <button
+              className={styles.btnSecondary}
+              type="button"
+              onClick={onEdit}
+            >
               <Icon icon="mdi:pencil-outline" width={15} height={15} />
               Edit
             </button>
-            <button className={styles.btnSecondary} type="button" onClick={() => onStatusChange?.(r.status ?? "draft")}>
-              <Icon icon="mdi:swap-horizontal" width={15} height={15} />
-              Change Status
-            </button>
+            <div className={styles.statusChangeWrap}>
+              <button
+                className={styles.btnSecondary}
+                type="button"
+                onClick={() => setStatusMenuOpen((o) => !o)}
+                onMouseDown={(e) => e.stopPropagation()}
+                disabled={!canChangeStatus}
+                title={canChangeStatus ? undefined : "This recruitment is cancelled"}
+                aria-haspopup="menu"
+                aria-expanded={statusMenuOpen}
+              >
+                <Icon icon="mdi:swap-horizontal" width={15} height={15} />
+                Change Status
+              </button>
+              {canChangeStatus && statusMenuOpen && (
+                <StatusChangeMenu
+                  open
+                  onClose={() => setStatusMenuOpen(false)}
+                  recruitmentId={recruitmentId}
+                  currentStatus={orgStatus}
+                />
+              )}
+            </div>
             <Link
-              href={`/organization/admin/${r.organization.id}/recruitments/${r.id}/applications`}
+              href={`/organization/admin/${r.organization.id}/recruitments/${r.id}?tab=applicants`}
               className={styles.btnPrimary}
             >
               <Icon icon="mdi:account-multiple-outline" width={15} height={15} />
@@ -525,17 +664,14 @@ export default function RecruitmentDetail({
           </div>
         )}
 
-        {/* User: application status banner */}
+        {/* User: application status banner (withdraw / reapply live here) */}
         {!isOrgView && r.my_application && (
-          <ApplicationBanner
-            status={r.my_application.status}
-            appliedAt={r.my_application.applied_at}
-          />
+          <ApplicationBanner r={r} onReapply={() => setApplyOpen(true)} />
         )}
 
         {/* User: apply CTA */}
         {!isOrgView && !r.my_application && (
-          <ApplyCTA r={r} deadlinePast={deadlinePast} />
+          <ApplyCTA r={r} deadlinePast={deadlinePast} onApply={() => setApplyOpen(true)} />
         )}
       </div>
 
@@ -710,38 +846,8 @@ export default function RecruitmentDetail({
         </section>
       )}
 
-      {/* ── Questions ── */}
-      {(r.questions?.length ?? 0) > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:comment-question-outline" width={16} height={16} />
-            Application Questions
-            <span className={styles.sectionCount}>{r.questions.length}</span>
-          </h2>
-          <div className={styles.questionsList}>
-            {r.questions.map((q, i) => (
-              <div key={q.id} className={styles.questionItem}>
-                <div className={styles.questionHeader}>
-                  <span className={styles.questionNum}>{i + 1}</span>
-                  <span className={styles.questionText}>
-                    {q.question}
-                    {q.is_required && <span className={styles.required}>*</span>}
-                  </span>
-                  <span className={styles.fieldTypeBadge}>{q.field_type.replace("_", " ")}</span>
-                </div>
-                {q.options.length > 0 && (
-                  <div className={styles.questionOptions}>
-                    {q.options.map((opt) => (
-                      <span key={opt.id} className={styles.optionChip}>{opt.value}</span>
-                    ))}
-                  </div>
-                )}
-                {q.help_text && <p className={styles.questionHelp}>{q.help_text}</p>}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Application questions are intentionally NOT shown here — they're only
+          surfaced in the apply modal (ApplyRecruitmentModal) at apply time. */}
 
       {/* ── Contacts (always shown; primary CTA if apply_method=contact) ── */}
       {contacts.length > 0 && r.apply_method !== "contact" && (
@@ -869,8 +975,13 @@ export default function RecruitmentDetail({
       {/* ── Bottom sticky apply CTA (user, no application yet, can_apply or external) ── */}
       {!isOrgView && !r.my_application && (r.can_apply || r.apply_method === "external" || r.apply_method === "contact") && (
         <div className={styles.bottomCta}>
-          <ApplyCTA r={r} deadlinePast={deadlinePast} compact />
+          <ApplyCTA r={r} deadlinePast={deadlinePast} compact onApply={() => setApplyOpen(true)} />
         </div>
+      )}
+
+      {/* ── Apply modal (goatza in-app apply only) ── */}
+      {applyOpen && (
+        <ApplyRecruitmentModal recruitment={r} onClose={() => setApplyOpen(false)} />
       )}
 
     </div>

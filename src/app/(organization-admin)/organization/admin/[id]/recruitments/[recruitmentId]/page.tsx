@@ -2,12 +2,13 @@
 
 /**
  * /organization/admin/[id]/recruitments/[recruitmentId]/page.tsx
- * Org-admin view of a recruitment — shows stats, edit, status change
+ * Org-admin view of a recruitment — Details + Applicants tabs.
+ * Thin route file: guards the org actor, then renders the feature view.
  */
 
-import { use } from "react"
+import { use, Suspense } from "react"
 import { useAuthStore } from "@/store/auth.store"
-import RecruitmentDetail from "@/features/recruitments/components/RecruitmentDetail/RecruitmentDetail"
+import RecruitmentAdminView from "@/features/recruitments/components/RecruitmentAdminView/RecruitmentAdminView"
 
 interface OrgRecruitmentDetailPageProps {
   params: Promise<{ id: string; recruitmentId: string }>
@@ -26,24 +27,13 @@ export default function OrgRecruitmentDetailPage({ params }: OrgRecruitmentDetai
 
   if (!organization) return null
 
-  const handleEdit = () => {
-    // TODO: open edit modal / navigate to edit page
-    console.log("Edit recruitment", recruitmentId)
-  }
-
-  const handleStatusChange = (currentStatus: string) => {
-    // TODO: open status-change sheet
-    console.log("Change status for", recruitmentId, "current:", currentStatus)
-  }
-
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "var(--space-4)" }}>
-      <RecruitmentDetail
-        recruitmentId={recruitmentId}
-        isOrgView
-        onEdit={handleEdit}
-        onStatusChange={handleStatusChange}
-      />
+      {/* RecruitmentAdminView reads ?tab from the URL, so it needs a Suspense
+          boundary (useSearchParams). */}
+      <Suspense fallback={null}>
+        <RecruitmentAdminView recruitmentId={recruitmentId} />
+      </Suspense>
     </div>
   )
 }

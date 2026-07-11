@@ -1,0 +1,12 @@
+/* ============================================================
+   GOATZA — SearchInput (/search header field)
+   ============================================================ */
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 0.7s linear infinite;
+    color: var(--color-text-muted);
+}

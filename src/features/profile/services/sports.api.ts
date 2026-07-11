@@ -91,6 +91,17 @@ export const getSportsListApi = async (): Promise<Sport[]> => {
   return res.data.data
 }
 
+/** Positions for a single sport (`/sports/list?sport_id=…` returns just that sport). */
+export const getSportPositionsApi = async (
+  sportId: string
+): Promise<SportPosition[]> => {
+  const res = await api.get("/sports/list", {
+    params: { sport_id: sportId, list_type: "all" },
+  })
+  const sports: Sport[] = res.data.data
+  return sports[0]?.positions ?? []
+}
+
 /** Logged-in user's sports */
 export const getUserSportsApi = async (): Promise<UserSport[]> => {
   const res = await api.get("/sports/user/me/sport/list", { params: { list_type: "all" } })

@@ -136,7 +136,8 @@
 }
 
 .topNavInner {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: var(--space-4);
     max-width: var(--container-wide);
@@ -145,19 +146,25 @@
     height: 60px;
 }
 
-/* Center search */
-.topNavCenter {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    padding-inline: var(--space-4);
+/* Logo pinned to the left column */
+.topNavInner > .logoLink {
+    justify-self: start;
 }
 
-/* Nav links row */
+/* Nav links centered in the middle column */
 .topNavLinks {
     display: flex;
     align-items: center;
     gap: var(--space-1);
+    justify-self: center;
+}
+
+/* Create button + avatar pinned to the right column */
+.topNavRight {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    justify-self: end;
 }
 
 .topNavLink {
@@ -247,85 +254,6 @@
 
 .avatarBtn:hover .avatarChevron {
     color: var(--color-brand-hover);
-}
-
-/* ─────────────────────────────────────────────────────────────
-   SEARCH BAR
-   ───────────────────────────────────────────────────────────── */
-
-.searchWrap {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    max-width: 420px;
-    padding: 9px var(--space-4);
-    background: var(--color-bg);
-    border: 1.5px solid var(--color-border);
-    border-radius: var(--radius-full);
-    transition:
-        border-color var(--duration-base) var(--ease-out),
-        box-shadow var(--duration-base),
-        background var(--duration-base);
-}
-
-.searchWrap:hover {
-    border-color: var(--color-brand-muted);
-}
-
-.searchFocused {
-    border-color: var(--color-brand) !important;
-    box-shadow: 0 0 0 3px var(--color-brand-subtle);
-    background: var(--color-surface);
-}
-
-.searchCompact {
-    max-width: 200px;
-}
-
-.searchIcon {
-    color: var(--color-text-muted);
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    line-height: 0;
-    transition: color var(--duration-base);
-}
-
-.searchFocused .searchIcon {
-    color: var(--color-brand);
-}
-
-.searchInput {
-    flex: 1;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-family: var(--font-body);
-    font-size: var(--text-sm);
-    color: var(--color-text-primary);
-    min-width: 0;
-}
-
-.searchInput::placeholder {
-    color: var(--color-text-muted);
-}
-
-/* Remove default browser search input X */
-.searchInput::-webkit-search-cancel-button {
-    display: none;
-}
-
-.searchKbd {
-    font-family: var(--font-body);
-    font-size: 0.65rem;
-    padding: 2px 5px;
-    background: var(--color-surface-raised);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
-    white-space: nowrap;
-    flex-shrink: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -621,6 +549,15 @@
 
 .mobileIconBtnRelative {
     position: relative;
+}
+
+/* Icon-sized wrapper so the notification badge hugs the icon (not the button). */
+.mobileIconBadgeWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────

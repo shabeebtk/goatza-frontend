@@ -1,0 +1,341 @@
+/* ============================================================
+   GOATZA — StatusChangeMenu
+   Desktop (≥768px): anchored dropdown · Mobile (<768px): bottom sheet.
+   Visual language mirrors the AccountSwitcher / CreateMenu dropdown+sheet.
+   ============================================================ */
+
+@keyframes statusDropDown {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes statusSheetBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes statusSheetSlideUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes statusSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Desktop dropdown ── */
+.dropdownWrap {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .dropdownWrap {
+    display: block;
+  }
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 290px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: statusDropDown 0.2s var(--ease-spring) both;
+  z-index: 300;
+}
+
+/* ── Shared action list ── */
+.menuList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text-secondary);
+  transition:
+    background var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.menuItem:hover:not(:disabled) {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.menuItem:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.menuItemDanger:hover:not(:disabled) {
+  background: rgba(232, 70, 42, 0.08);
+  color: var(--color-error);
+}
+
+.menuItemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+  line-height: 0;
+}
+
+.menuItemDanger .menuItemIcon {
+  background: rgba(232, 70, 42, 0.1);
+  color: var(--color-error);
+}
+
+.menuItemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.menuItemLabel {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-ink);
+  line-height: 1.15;
+}
+
+.menuItemDanger .menuItemLabel {
+  color: var(--color-error);
+}
+
+.menuItemHelper {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-normal);
+  line-height: 1.2;
+}
+
+/* ── Inline confirm panel (destructive) ── */
+.confirmPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.confirmIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: rgba(232, 70, 42, 0.1);
+  color: var(--color-error);
+  line-height: 0;
+}
+
+.confirmTitle {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  color: var(--color-ink);
+  line-height: 1.2;
+}
+
+.confirmBody {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.35;
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.btnGhost,
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex: 1;
+  padding: 10px 14px;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.btnGhost {
+  background: var(--color-surface-raised);
+  color: var(--color-ink);
+  border: 1.5px solid var(--color-border);
+}
+
+.btnGhost:hover:not(:disabled) {
+  border-color: var(--color-brand-muted);
+}
+
+.btnDanger {
+  background: var(--color-error);
+  color: #fff;
+  border: none;
+}
+
+.btnDanger:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.btnGhost:disabled,
+.btnDanger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Inline error ── */
+.error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--space-1) var(--space-2) 0;
+  padding: 8px 10px;
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  background: rgba(232, 70, 42, 0.07);
+  border-radius: var(--radius-sm);
+  line-height: 1.3;
+}
+
+/* ── Spinner ── */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: statusSpin 0.6s linear infinite;
+  display: inline-block;
+}
+
+/* ── Mobile bottom sheet ── */
+.sheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: statusSheetBackdropIn 0.2s var(--ease-out) both;
+}
+
+@media (min-width: 768px) {
+  .sheetBackdrop {
+    display: none;
+  }
+}
+
+.sheetModal {
+  width: 100%;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: statusSheetSlideUp 0.28s var(--ease-spring) both;
+}
+
+.sheetHandle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  margin: var(--space-3) auto var(--space-1);
+  flex-shrink: 0;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.sheetTitle {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.sheetCloseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.sheetCloseBtn:hover:not(:disabled) {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+
+.sheetCloseBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sheetSpacer { width: 36px; }
+
+.sheetContent {
+  padding: var(--space-2) 0 calc(70px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
