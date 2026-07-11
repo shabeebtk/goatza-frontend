@@ -5,10 +5,9 @@ export default function UserCardSkeleton() {
     <div className={styles.card} aria-hidden="true">
       <div className={`${styles.skeletonBlock} ${styles.skeletonAvatar}`} />
       <div className={`${styles.skeletonBlock} ${styles.skeletonName}`} />
-      <div className={`${styles.skeletonBlock} ${styles.skeletonBadge}`} />
       <div className={`${styles.skeletonBlock} ${styles.skeletonHeadline}`} />
       <div className={`${styles.skeletonBlock} ${styles.skeletonHeadlineSm}`} />
-      <div className={`${styles.skeletonBlock} ${styles.skeletonLocation}`} />
+      <div className={`${styles.skeletonBlock} ${styles.skeletonBtn}`} />
     </div>
   )
 }

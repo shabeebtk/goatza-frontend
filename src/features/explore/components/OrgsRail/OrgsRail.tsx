@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import ExploreRailShell from "../ExploreRailShell/ExploreRailShell"
 import OrgCard from "@/shared/components/entity/OrgCard/OrgCard"
 import OrgCardSkeleton from "@/shared/components/entity/OrgCard/OrgCardSkeleton"
+import FollowButton from "@/features/connections/components/FollowButton/FollowButton"
 import { useExploreOrgs } from "../../hooks/useExploreQueries"
 
 const SKELETON_COUNT = 6
@@ -55,7 +56,18 @@ export default function OrgsRail({
       ))}
     >
       {orgs.map((org) => (
-        <OrgCard key={org.id} org={org} />
+        <OrgCard
+          key={org.id}
+          org={org}
+          action={
+            <FollowButton
+              targetId={org.id}
+              targetType="organization"
+              name={org.name}
+              fullWidth
+            />
+          }
+        />
       ))}
     </ExploreRailShell>
   )

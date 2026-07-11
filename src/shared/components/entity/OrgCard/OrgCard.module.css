@@ -1,5 +1,6 @@
 /* ============================================================
    GOATZA — OrgCard (compact, for horizontal rails)
+   logo · name (+verified) · headline · action (follow)
    ============================================================ */
 
 @keyframes shimmer {
@@ -11,9 +12,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
 
-    width: 158px;
+    width: 160px;
     padding: var(--space-4) var(--space-3);
 
     background: var(--color-surface);
@@ -23,18 +24,20 @@
 
     transition:
         border-color var(--duration-base) var(--ease-out),
-        box-shadow var(--duration-base) var(--ease-out),
-        transform var(--duration-base) var(--ease-spring);
+        box-shadow var(--duration-base) var(--ease-out);
 }
 
 .card:hover {
     border-color: var(--color-brand-muted);
     box-shadow: var(--shadow-card);
-    transform: translateY(-2px);
 }
 
-.card:active {
-    transform: translateY(0) scale(0.99);
+.body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
 }
 
 .logoWrap {
@@ -84,23 +87,17 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    transition: color var(--duration-fast);
+}
+
+.body:hover .name {
+    color: var(--color-brand-hover);
 }
 
 .verified {
     color: var(--color-brand);
     flex-shrink: 0;
-}
-
-.meta {
-    font-family: var(--font-ui);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    text-transform: capitalize;
-
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
 }
 
 .headline {
@@ -114,6 +111,11 @@
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+.action {
+    width: 100%;
+    margin-top: auto;
 }
 
 /* ── Skeleton ─────────────────────────────────────────────── */
@@ -138,6 +140,6 @@
 }
 
 .skeletonName { width: 78%; height: 13px; }
-.skeletonMeta { width: 60%; height: 10px; }
 .skeletonHeadline { width: 92%; height: 10px; }
 .skeletonHeadlineSm { width: 68%; height: 10px; }
+.skeletonBtn { width: 100%; height: 32px; border-radius: var(--radius-full); margin-top: var(--space-2); }

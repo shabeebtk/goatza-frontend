@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import ExploreRailShell from "../ExploreRailShell/ExploreRailShell"
 import UserCard from "@/shared/components/entity/UserCard/UserCard"
 import UserCardSkeleton from "@/shared/components/entity/UserCard/UserCardSkeleton"
+import FollowButton from "@/features/connections/components/FollowButton/FollowButton"
 import { useExplorePlayers } from "../../hooks/useExploreQueries"
 
 const SKELETON_COUNT = 6
@@ -43,7 +44,18 @@ export default function PlayersRail() {
       ))}
     >
       {players.map((player) => (
-        <UserCard key={player.id} user={player} />
+        <UserCard
+          key={player.id}
+          user={player}
+          action={
+            <FollowButton
+              targetId={player.id}
+              targetType="user"
+              name={player.name}
+              fullWidth
+            />
+          }
+        />
       ))}
     </ExploreRailShell>
   )

@@ -1,5 +1,6 @@
 /* ============================================================
    GOATZA — UserCard (compact, for horizontal rails)
+   photo · name · headline · action (follow)
    ============================================================ */
 
 @keyframes shimmer {
@@ -11,9 +12,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
 
-    width: 158px;
+    width: 160px;
     padding: var(--space-4) var(--space-3);
 
     background: var(--color-surface);
@@ -23,18 +24,21 @@
 
     transition:
         border-color var(--duration-base) var(--ease-out),
-        box-shadow var(--duration-base) var(--ease-out),
-        transform var(--duration-base) var(--ease-spring);
+        box-shadow var(--duration-base) var(--ease-out);
 }
 
 .card:hover {
     border-color: var(--color-brand-muted);
     box-shadow: var(--shadow-card);
-    transform: translateY(-2px);
 }
 
-.card:active {
-    transform: translateY(0) scale(0.99);
+/* The navigable region (whole card minus the action button). */
+.body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
 }
 
 .avatar {
@@ -53,11 +57,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    transition: color var(--duration-fast);
 }
 
-.roleBadge {
-    font-size: 0.6rem;
-    padding: 3px 8px;
+.body:hover .name {
+    color: var(--color-brand-hover);
 }
 
 .headline {
@@ -73,26 +78,10 @@
     overflow: hidden;
 }
 
-.location {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    max-width: 100%;
+/* Pinned to the bottom so buttons line up across cards of unequal height. */
+.action {
+    width: 100%;
     margin-top: auto;
-
-    font-family: var(--font-ui);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-}
-
-.location svg {
-    flex-shrink: 0;
-}
-
-.locationText {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* ── Skeleton ─────────────────────────────────────────────── */
@@ -117,7 +106,6 @@
 }
 
 .skeletonName { width: 80%; height: 13px; }
-.skeletonBadge { width: 52px; height: 16px; border-radius: var(--radius-full); }
 .skeletonHeadline { width: 92%; height: 10px; }
 .skeletonHeadlineSm { width: 66%; height: 10px; }
-.skeletonLocation { width: 58%; height: 10px; margin-top: var(--space-1); }
+.skeletonBtn { width: 100%; height: 32px; border-radius: var(--radius-full); margin-top: var(--space-2); }
