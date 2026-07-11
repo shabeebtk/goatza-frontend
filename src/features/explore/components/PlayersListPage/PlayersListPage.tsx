@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Icon } from "@iconify/react"
 import UserCard from "@/shared/components/entity/UserCard/UserCard"
 import UserCardSkeleton from "@/shared/components/entity/UserCard/UserCardSkeleton"
@@ -49,8 +50,15 @@ export default function PlayersListPage() {
     fetchNextPage,
   } = useExplorePlayers(apiFilters)
 
-  const players = data?.pages.flatMap((page) => page.results) ?? []
+  const players = useMemo(
+    () => data?.pages.flatMap((page) => page.results) ?? [],
+    [data]
+  )
 
+  // NOTE: UserCard is intentionally NOT wrapped in React.memo — each row passes a
+  // fresh `action` (<FollowButton/>) and `meta` element per render, so a memo
+  // would always miss. Stabilizing those would mean restructuring the card,
+  // which is out of scope for this perf pass.
   return (
     <EntityListShell
       title="Players"

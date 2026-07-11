@@ -1,5 +1,5 @@
 /* ============================================================
-   GOATZA — TrendingPosts (explore vertical post feed)
+   GOATZA — SearchPostsList (vertical post search feed)
    ============================================================ */
 
 @keyframes spin {
@@ -32,11 +32,14 @@
     padding: 0 var(--space-4);
 }
 
-/* Deep-scroll perf: skip layout/paint for off-screen cards, reserving an
-   approximate slot. `auto` lets the browser remember each card's real height
-   after first render (480px fallback ≈ a typical PostCard with media). */
-.feedItem {
+/* Skip layout/paint for off-screen cards while reserving an approximate slot,
+   so a long results list stays cheap to scroll. contain-intrinsic-size is a
+   rough PostCard height (avatar + a few lines + a media block + actions). */
+.item {
     content-visibility: auto;
+    /* `auto` remembers each card's real measured height after first render,
+       falling back to 480px (a typical PostCard with media) — avoids scroll
+       jump vs a fixed guess. */
     contain-intrinsic-size: auto 480px;
 }
 
@@ -135,9 +138,7 @@
     color: var(--color-brand-hover);
 
     cursor: pointer;
-    transition:
-        background var(--duration-fast),
-        border-color var(--duration-fast);
+    transition: background var(--duration-fast), border-color var(--duration-fast);
 }
 
 .retryBtn:hover {

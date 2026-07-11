@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { memo, useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -81,7 +81,7 @@ interface PostCardProps {
   isPreview?: boolean
 }
 
-export default function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
+function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
 
@@ -223,3 +223,10 @@ export default function PostCard({ post, queryParams, isPreview = false }: PostC
     </article>
   )
 }
+
+// Memoized: in the infinite feeds the `post` reference is stable across page
+// appends (React Query structural sharing) and callers pass a stable
+// `queryParams`, so existing cards skip re-render when a new page loads. A
+// caller that passes a fresh queryParams object each render defeats this — keep
+// those references stable at the call site.
+export default memo(PostCard)

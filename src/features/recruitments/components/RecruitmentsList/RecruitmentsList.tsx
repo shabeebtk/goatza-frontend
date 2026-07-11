@@ -16,7 +16,7 @@
  *   showOrg     — pass false when inside org profile (card already shows context)
  */
 
-import { useEffect, useRef, useCallback, useState } from "react"
+import { useEffect, useMemo, useRef, useCallback, useState } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import RecruitmentCard from "../RecruitmentCard/RecruitmentCard"
@@ -136,7 +136,8 @@ export default function RecruitmentsList({
         const el = sentinelRef.current
         if (!el) return
         const observer = new IntersectionObserver(handleObserver, {
-            rootMargin: "200px",
+            // Prefetch the next page ~600px early so the user never hits a wall.
+            rootMargin: "600px",
             threshold: 0,
         })
         observer.observe(el)
@@ -144,7 +145,10 @@ export default function RecruitmentsList({
     }, [handleObserver])
 
     // ── Flatten pages ─────────────────────────────────────────────
-    const allItems = data?.pages.flatMap((p) => p.results) ?? []
+    const allItems = useMemo(
+        () => data?.pages.flatMap((p) => p.results) ?? [],
+        [data]
+    )
     const totalCount = data?.pages[0]?.count ?? 0
     const displayItems = preview ? allItems.slice(0, 1) : allItems
 

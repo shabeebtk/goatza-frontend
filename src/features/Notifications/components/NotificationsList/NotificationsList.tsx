@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useMemo, useRef, useCallback } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
@@ -169,6 +169,8 @@ function NotificationItem({ notif }: { notif: Notification }) {
                 alt="post preview"
                 width={60}
                 height={60}
+                loading="lazy"
+                decoding="async"
                 className={styles.thumbnailImage}
               />
 
@@ -246,12 +248,21 @@ export default function NotificationsList() {
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
-    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 })
+    // Prefetch ~600px early so the next page is ready before the user hits the
+    // bottom. Rows are cheap text (only a 60px thumbnail), so content-visibility
+    // is deliberately NOT applied here — it only pays off on tall media cards.
+    const observer = new IntersectionObserver(handleObserver, {
+      rootMargin: "600px",
+      threshold: 0,
+    })
     observer.observe(el)
     return () => observer.disconnect()
   }, [handleObserver])
 
-  const allNotifications = data?.pages.flatMap((p) => p.results) ?? []
+  const allNotifications = useMemo(
+    () => data?.pages.flatMap((p) => p.results) ?? [],
+    [data]
+  )
   const hasUnread = allNotifications.some((n) => !n.is_read)
 
   if (isError) {

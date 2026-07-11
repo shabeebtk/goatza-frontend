@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Icon } from "@iconify/react"
 import OrgCard from "@/shared/components/entity/OrgCard/OrgCard"
 import OrgCardSkeleton from "@/shared/components/entity/OrgCard/OrgCardSkeleton"
@@ -56,8 +57,13 @@ export default function OrgsListPage({ types, title }: OrgsListPageProps) {
     fetchNextPage,
   } = useExploreOrgs(types, apiFilters)
 
-  const orgs = data?.pages.flatMap((page) => page.results) ?? []
+  const orgs = useMemo(
+    () => data?.pages.flatMap((page) => page.results) ?? [],
+    [data]
+  )
 
+  // NOTE: OrgCard is intentionally NOT wrapped in React.memo — each row passes a
+  // fresh `action`/`meta` element per render, so a memo would always miss.
   return (
     <EntityListShell
       title={title}

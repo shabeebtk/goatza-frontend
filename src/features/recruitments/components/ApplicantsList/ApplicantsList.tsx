@@ -187,7 +187,7 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
-    const observer = new IntersectionObserver(handleObserver, { rootMargin: "200px", threshold: 0 })
+    const observer = new IntersectionObserver(handleObserver, { rootMargin: "600px", threshold: 0 })
     observer.observe(el)
     return () => observer.disconnect()
   }, [handleObserver])

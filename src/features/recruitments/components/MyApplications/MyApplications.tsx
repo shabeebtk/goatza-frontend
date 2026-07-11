@@ -58,7 +58,10 @@ export default function MyApplications({ onBrowse }: MyApplicationsProps) {
     fetchNextPage,
   } = useMyApplications(apiParams)
 
-  const items = data?.pages.flatMap((p) => p.results) ?? []
+  const items = useMemo(
+    () => data?.pages.flatMap((p) => p.results) ?? [],
+    [data]
+  )
   const totalCount = data?.pages[0]?.count ?? 0
 
   return (

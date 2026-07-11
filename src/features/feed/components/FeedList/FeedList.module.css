@@ -41,6 +41,15 @@
 .list > *:nth-child(3) { animation: fadeInUp 0.4s var(--ease-out) 120ms both; }
 .list > *:nth-child(n+4) { animation: fadeInUp 0.4s var(--ease-out) 180ms both; }
 
+/* Deep-scroll perf: skip layout/paint for off-screen post cards while reserving
+   an approximate slot. contain-intrinsic-size uses `auto` so the browser
+   remembers each card's real measured height after first render (falls back to
+   480px — a typical PostCard with media — before that), avoiding scrollbar jump. */
+.feedItem {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 480px;
+}
+
 .sentinel { height: 1px; }
 
 .loadingMore {

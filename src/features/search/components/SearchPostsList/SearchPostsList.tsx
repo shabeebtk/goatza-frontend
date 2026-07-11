@@ -5,18 +5,23 @@ import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
-import { useExplorePosts } from "../../hooks/useExploreQueries"
-import styles from "./TrendingPosts.module.css"
+import { useSearchPosts } from "../../hooks/useSearchQueries"
+import styles from "./SearchPostsList.module.css"
 
-const SKELETON_COUNT = 4
+const SKELETON_COUNT = 3
 
 // Stable reference so memoized PostCards don't re-render on each list render.
 const EMPTY_QUERY_PARAMS: FetchPostsParams = {}
 
+interface SearchPostsListProps {
+  /** Trimmed query (≥ 2 chars — the page gates this). */
+  q: string
+}
+
 function SectionHeader() {
   return (
     <div className={styles.header}>
-      <h2 className={styles.title}>Trending</h2>
+      <h2 className={styles.title}>Posts</h2>
     </div>
   )
 }
@@ -41,20 +46,22 @@ function EndOfList() {
 }
 
 /**
- * Explore "Trending" section — a vertical, infinitely-scrolling list of the
- * existing home-feed PostCard. Structure mirrors FeedList; the underlying hook
- * carries the seen_ids variety pattern so the list differs between visits.
+ * "Posts" search section — a vertical, infinitely-scrolling list of PostCard.
+ * Mirrors explore's TrendingPosts: one IntersectionObserver drives pagination,
+ * `fetchNextPage` is guarded by hasNextPage && !isFetchingNextPage, and the
+ * section hides itself when it settles empty (the page owns the all-empty copy).
  */
-export default function TrendingPosts() {
+export default function SearchPostsList({ q }: SearchPostsListProps) {
   const {
     data,
     isLoading,
     isError,
+    isFetching,
     refetch,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useExplorePosts()
+  } = useSearchPosts(q)
 
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -72,7 +79,7 @@ export default function TrendingPosts() {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(handleObserver, {
-      // Prefetch the next page ~600px early so the user never hits a wall.
+      // Preload well ahead of the true end for a seamless scroll.
       rootMargin: "600px",
       threshold: 0,
     })
@@ -89,7 +96,7 @@ export default function TrendingPosts() {
     return (
       <section className={styles.section}>
         <SectionHeader />
-        <div className={styles.list}>
+        <div className={styles.list} aria-busy="true">
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <PostSkeleton key={i} />
           ))}
@@ -98,7 +105,7 @@ export default function TrendingPosts() {
     )
   }
 
-  // Quiet inline error — a failing trending section must not break the page.
+  // Quiet inline error — a failing posts section must not blank the rails.
   if (isError) {
     return (
       <section className={styles.section}>
@@ -111,7 +118,7 @@ export default function TrendingPosts() {
             className={styles.errorIcon}
             aria-hidden="true"
           />
-          <span className={styles.errorText}>Couldn&apos;t load trending posts.</span>
+          <span className={styles.errorText}>Couldn&apos;t load posts.</span>
           <button type="button" className={styles.retryBtn} onClick={() => refetch()}>
             <Icon icon="mdi:refresh" width={14} height={14} aria-hidden="true" />
             Retry
@@ -121,16 +128,16 @@ export default function TrendingPosts() {
     )
   }
 
-  // Finished loading with nothing → disappear (ExplorePage owns the all-empty state).
+  // Settled empty → disappear (the page owns the single all-empty state).
   if (posts.length === 0) return null
 
   return (
     <section className={styles.section}>
       <SectionHeader />
 
-      <div className={styles.list}>
+      <div className={styles.list} aria-busy={isFetching ? true : undefined}>
         {posts.map((post) => (
-          <div key={post.id} className={styles.feedItem}>
+          <div key={post.id} className={styles.item}>
             <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
           </div>
         ))}

@@ -188,7 +188,10 @@ function NetworkPageInner({ username, profileType }: NetworkPageProps) {
   } = useNetworkList({ username, type: tab, search: committedSearch })
 
   const activeKey = networkKeys.list(username, tab, committedSearch)
-  const rows = data?.pages.flatMap((p) => p.results) ?? []
+  const rows = useMemo(
+    () => data?.pages.flatMap((p) => p.results) ?? [],
+    [data]
+  )
   const totalCount = data?.pages[0]?.count ?? 0
 
   // Active tab shows the live count once loaded; others use profile counts.
@@ -212,7 +215,8 @@ function NetworkPageInner({ username, profileType }: NetworkPageProps) {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(handleObserver, {
-      rootMargin: "300px",
+      // Prefetch the next page ~600px early so the user never hits a wall.
+      rootMargin: "600px",
       threshold: 0,
     })
     observer.observe(el)

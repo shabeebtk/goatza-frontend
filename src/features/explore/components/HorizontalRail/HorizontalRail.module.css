@@ -79,7 +79,13 @@
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
 
-    padding: var(--space-1) var(--space-4) var(--space-2);
+    /* Left inset a touch larger than the header's box padding so the first
+       card lines up under the title text (whose glyph sits slightly in from
+       its 16px box) instead of looking flush on the initial, unscrolled view.
+       Right/gap unchanged, so horizontal scrolling behaves exactly as before. */
+    padding: var(--space-1) var(--space-4) var(--space-2) var(--space-5);
+    /* Snap points respect the same left inset, so a snapped first card keeps it. */
+    scroll-padding-left: var(--space-5);
 
     /* Hidden scrollbar (Firefox + WebKit). */
     scrollbar-width: none;

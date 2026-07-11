@@ -72,7 +72,12 @@ export default function EntityListShell({
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(handleObserver, {
-      rootMargin: "300px",
+      // Prefetch the next page ~600px early so the user never hits a wall.
+      // NOTE: content-visibility is deliberately NOT applied to the grid cards —
+      // they're small (avatar + two lines) and cheap to render, so the intrinsic-
+      // size bookkeeping would cost more than it saves. It's reserved for the
+      // tall media post feeds.
+      rootMargin: "600px",
       threshold: 0,
     })
     observer.observe(el)
