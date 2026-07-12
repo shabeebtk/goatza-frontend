@@ -1,21 +1,28 @@
 "use client"
 
-import { Icon } from "@iconify/react"
-import styles from "./page.module.css"
+import { use } from "react"
+import DashboardView from "@/features/dashboard/components/DashboardView/DashboardView"
+import { useAuthStore } from "@/store/auth.store"
 
-// Sample placeholder — real dashboard content comes later.
-export default function OrganizationDashboardPage() {
+export default function OrganizationDashboardPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
+  const currentOrganization = useAuthStore((s) => s.currentOrganization)
+  const organizations = useAuthStore((s) => s.organizations)
+
+  const organization =
+    currentOrganization?.id === id
+      ? currentOrganization
+      : organizations.find((org) => org.id === id)
+
+  if (!organization?.username) return null
+
   return (
-    <div className={styles.page}>
-      <div className={styles.placeholder}>
-        <span className={styles.iconWrap}>
-          <Icon icon="mdi:view-dashboard-outline" width={34} height={34} />
-        </span>
-        <h1 className={styles.title}>Dashboard</h1>
-        <p className={styles.subtitle}>
-          Your organization overview and insights will live here. Coming soon.
-        </p>
-      </div>
+    <div style={{ maxWidth: 1120, margin: "0 auto", padding: "var(--space-4)" }}>
+      <DashboardView organization={organization} />
     </div>
   )
 }
