@@ -8,10 +8,14 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import isToday from "dayjs/plugin/isToday"
 import isYesterday from "dayjs/plugin/isYesterday"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
-import { useConversations, useConversationsUnreadSummary } from "../../hooks/useConversationQueries"
+import {
+  useConversations,
+  useConversationsUnreadSummary,
+  useMessageTargetSearch,
+} from "../../hooks/useConversationQueries"
 import { useConversationsSocket } from "../../hooks/useConversationsSocket"
 import { useAuthStore } from "@/store/auth.store"
-import type { Conversation, MessageType } from "../../services/conversations.api"
+import type { Conversation, MessageTarget, MessageTargetSource } from "../../services/conversations.api"
 import styles from "./ConversationsList.module.css"
 
 dayjs.extend(relativeTime)
@@ -172,6 +176,62 @@ function ConversationRow({
   )
 }
 
+// ── Search result row (start / resume a conversation) ─────────
+
+// Group order + labels reflect the search priority: existing chats first,
+// then people you follow, then everyone else.
+const SEARCH_GROUP_ORDER: { source: MessageTargetSource; label: string }[] = [
+  { source: "conversation", label: "Your chats" },
+  { source: "following", label: "Following" },
+  { source: "all", label: "Other people" },
+]
+
+function SearchResultRow({
+  target,
+  basePath,
+}: {
+  target: MessageTarget
+  basePath: string
+}) {
+  // Existing conversation → open it directly; otherwise route through the
+  // username resolver, which get-or-creates the conversation (same flow as the
+  // profile "Message" button).
+  const href = target.conversation_id
+    ? `${basePath}/chat/${target.conversation_id}`
+    : `${basePath}/${target.username}`
+
+  const displayName = target.name || target.username
+  const subtitle = target.headline || `@${target.username}`
+
+  return (
+    <Link href={href} className={styles.row}>
+      <div className={styles.rowAvatar}>
+        <Avatar
+          src={target.avatar}
+          initials={displayName.slice(0, 2).toUpperCase() || "?"}
+          size="md"
+        />
+      </div>
+
+      <div className={styles.rowContent}>
+        <div className={styles.rowTop}>
+          <span className={styles.rowName}>{displayName}</span>
+          {target.type === "organization" && (
+            <span className={styles.orgTag}>Org</span>
+          )}
+        </div>
+        <div className={styles.rowBottom}>
+          <span className={styles.rowPreview}>{subtitle}</span>
+        </div>
+      </div>
+
+      <span className={styles.requestedChevron} aria-hidden="true">
+        <Icon icon="mdi:chevron-right" width={18} height={18} />
+      </span>
+    </Link>
+  )
+}
+
 // ── Search bar ─────────────────────────────────────────────────
 
 function SearchBar({
@@ -192,13 +252,13 @@ function SearchBar({
       <input
         ref={inputRef}
         type="search"
-        placeholder="Search conversations…"
+        placeholder="Search people, organizations…"
         className={styles.searchInput}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        aria-label="Search conversations"
+        aria-label="Search people and organizations to message"
       />
       {value && (
         <button
@@ -242,10 +302,19 @@ export default function ConversationsList() {
     setIsMounted(true)
   }, [])
 
+  // Searching switches the panel from the tab list to a global people/org
+  // search (existing chats → followings → everyone else).
+  const isSearching = debouncedSearch.trim().length > 0
+
   const { data: conversations, isLoading, isError } = useConversations({
     type: tab,
-    search: debouncedSearch || undefined,
   })
+
+  const {
+    data: searchResults,
+    isLoading: searchLoading,
+    isError: searchError,
+  } = useMessageTargetSearch(debouncedSearch)
 
   // Unread badge counts per tab — updates on read via cache invalidation.
   const { data: unreadSummary } = useConversationsUnreadSummary()
@@ -258,6 +327,15 @@ export default function ConversationsList() {
 
   if (!isMounted) return null
 
+  // Group search results by source so the priority order is visible.
+  const searchGroups = SEARCH_GROUP_ORDER
+    .map(({ source, label }) => ({
+      source,
+      label,
+      items: (searchResults ?? []).filter((r) => r.source === source),
+    }))
+    .filter((g) => g.items.length > 0)
+
   return (
     <div className={styles.container}>
 
@@ -265,9 +343,6 @@ export default function ConversationsList() {
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>Messages</h1>
-          <Link href={`${basePath}/new`} className={styles.newBtn} aria-label="New message">
-            <Icon icon="mdi:pencil-plus-outline" width={20} height={20} />
-          </Link>
         </div>
 
         {/* Search */}
@@ -277,59 +352,100 @@ export default function ConversationsList() {
           onClear={() => { setSearch(""); setDebouncedSearch("") }}
         />
 
-        {/* Tabs */}
-        <div className={styles.tabs} role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === "active"}
-            className={`${styles.tab} ${tab === "active" ? styles.tabActive : ""}`}
-            onClick={() => handleTabChange("active")}
-            type="button"
-          >
-            Chats
-            {!!unreadSummary?.chats && (
-              <span className={styles.tabBadge}>{getUnreadLabel(unreadSummary.chats)}</span>
-            )}
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === "requested"}
-            className={`${styles.tab} ${tab === "requested" ? styles.tabActive : ""}`}
-            onClick={() => handleTabChange("requested")}
-            type="button"
-          >
-            Requests
-            {!!unreadSummary?.requests && (
-              <span className={styles.tabBadge}>{getUnreadLabel(unreadSummary.requests)}</span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ── List ── */}
-      <div className={styles.list} role="tabpanel">
-        {isError ? (
-          <div className={styles.errorState}>
-            <Icon icon="mdi:alert-circle-outline" width={32} height={32} />
-            <p>Couldn't load conversations.</p>
+        {/* Tabs — hidden while searching (search spans everyone, not one tab) */}
+        {!isSearching && (
+          <div className={styles.tabs} role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === "active"}
+              className={`${styles.tab} ${tab === "active" ? styles.tabActive : ""}`}
+              onClick={() => handleTabChange("active")}
+              type="button"
+            >
+              Chats
+              {!!unreadSummary?.chats && (
+                <span className={styles.tabBadge}>{getUnreadLabel(unreadSummary.chats)}</span>
+              )}
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "requested"}
+              className={`${styles.tab} ${tab === "requested" ? styles.tabActive : ""}`}
+              onClick={() => handleTabChange("requested")}
+              type="button"
+            >
+              Requests
+              {!!unreadSummary?.requests && (
+                <span className={styles.tabBadge}>{getUnreadLabel(unreadSummary.requests)}</span>
+              )}
+            </button>
           </div>
-        ) : isLoading ? (
-          Array.from({ length: 7 }).map((_, i) => (
-            <ConversationSkeleton key={i} />
-          ))
-        ) : !conversations || conversations.length === 0 ? (
-          <EmptyState tab={tab} />
-        ) : (
-          conversations.map((conv) => (
-            <ConversationRow
-              key={conv.id}
-              conv={conv}
-              myUserId={myActorId}
-              basePath={basePath}
-            />
-          ))
         )}
       </div>
+
+      {/* ── Search results (people + orgs to start a chat with) ── */}
+      {isSearching ? (
+        <div className={styles.list}>
+          {searchError ? (
+            <div className={styles.errorState}>
+              <Icon icon="mdi:alert-circle-outline" width={32} height={32} />
+              <p>Couldn’t search right now.</p>
+            </div>
+          ) : searchLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <ConversationSkeleton key={i} />
+            ))
+          ) : searchGroups.length === 0 ? (
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>
+                <Icon icon="mdi:account-search-outline" width={40} height={40} />
+              </span>
+              <p className={styles.emptyTitle}>No matches</p>
+              <p className={styles.emptySubtitle}>
+                No people or organizations found for “{debouncedSearch}”.
+              </p>
+            </div>
+          ) : (
+            searchGroups.map((group) => (
+              <div key={group.source}>
+                <div className={styles.groupLabel}>{group.label}</div>
+                {group.items.map((target) => (
+                  <SearchResultRow
+                    key={`${target.type}-${target.id}`}
+                    target={target}
+                    basePath={basePath}
+                  />
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        /* ── Conversation list ── */
+        <div className={styles.list} role="tabpanel">
+          {isError ? (
+            <div className={styles.errorState}>
+              <Icon icon="mdi:alert-circle-outline" width={32} height={32} />
+              <p>Couldn't load conversations.</p>
+            </div>
+          ) : isLoading ? (
+            Array.from({ length: 7 }).map((_, i) => (
+              <ConversationSkeleton key={i} />
+            ))
+          ) : !conversations || conversations.length === 0 ? (
+            <EmptyState tab={tab} />
+          ) : (
+            conversations.map((conv) => (
+              <ConversationRow
+                key={conv.id}
+                conv={conv}
+                myUserId={myActorId}
+                basePath={basePath}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

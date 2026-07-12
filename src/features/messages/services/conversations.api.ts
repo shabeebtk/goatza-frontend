@@ -69,6 +69,25 @@ export type ConversationsParams = {
     search?: string
 }
 
+/** Where a message-target search result was sourced from (drives grouping). */
+export type MessageTargetSource = "conversation" | "following" | "all"
+
+/**
+ * A person or organization surfaced by the messages search box — someone the
+ * actor can start (or resume) a conversation with.
+ */
+export type MessageTarget = {
+    id: string
+    username: string
+    name: string
+    avatar: string
+    headline: string
+    type: "user" | "organization"
+    /** Set when a direct conversation already exists → open it directly. */
+    conversation_id: string | null
+    source: MessageTargetSource
+}
+
 /** Aggregate unread badge counts for the current actor. */
 export type ConversationUnreadSummary = {
     chats: number       // unread accepted conversations
@@ -95,6 +114,20 @@ export const getConversationsApi = async (
     params: ConversationsParams = {}
 ): Promise<Conversation[]> => {
     const res = await api.get("/conversations/list", { params })
+    return res.data.data
+}
+
+/**
+ * Prioritised people / org search for the messages screen. Returns existing
+ * chats first, then followings, then everyone else (users + organizations).
+ */
+export const searchMessageTargetsApi = async (
+    query: string,
+    limit = 20
+): Promise<MessageTarget[]> => {
+    const res = await api.get("/conversations/search", {
+        params: { q: query, limit },
+    })
     return res.data.data
 }
 

@@ -4,6 +4,7 @@ import QueryProvider from "@/core/react-query/QueryProvider";
 import "./globals.css";
 import Providers from "./providers";
 import { ToastProvider } from "@/shared/components/ui/Toast/Toast";
+import ScrollToTop from "@/shared/components/ScrollToTop/ScrollToTop";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,6 +71,7 @@ export default function RootLayout({
       </head>
 
       <body>
+        <ScrollToTop />
         <QueryProvider>
           <Providers>
             <ToastProvider>

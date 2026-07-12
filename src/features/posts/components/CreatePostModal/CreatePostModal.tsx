@@ -452,7 +452,7 @@ export default function CreatePostModal({
             <Avatar src={userAvatarUrl} initials={userInitials} size="md" />
             <div className={styles.authorMeta}>
               <span className={styles.authorName}>
-                {displayName ? `${displayName} ` : ""}@{username}
+                {displayName ? `${displayName} ` : username}
               </span>
               {composing && (
                 <div className={styles.authorBadges}>

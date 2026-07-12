@@ -2,6 +2,9 @@ import { useAuthStore } from "@/store/auth.store"
 
 type ProfileAuthorType = "user" | "organization"
 
+/** The three explore "view all" listings, shared by user + org contexts. */
+type ExploreListKind = "players" | "organizations" | "academies"
+
 export function useNavigation() {
   const isOrgAdminView = useAuthStore((s) => s.isOrgAdminView)
   const currentOrg = useAuthStore((s) => s.currentOrganization)
@@ -86,6 +89,27 @@ export function useNavigation() {
     return `/messages/${username}`
   }
 
+  // Discovery (explore + search) stays inside the active actor's route space so
+  // opening search / "see all" from an org never flips back to the personal
+  // account. `query` is optional and encoded here when present.
+  function toSearch(query?: string) {
+    const base =
+      isOrgAdminView && currentOrg
+        ? `/organization/admin/${currentOrg.id}/search`
+        : "/search"
+    const trimmed = query?.trim()
+    return trimmed ? `${base}?q=${encodeURIComponent(trimmed)}` : base
+  }
+
+  function toExploreList(kind: ExploreListKind, query?: string) {
+    const base =
+      isOrgAdminView && currentOrg
+        ? `/organization/admin/${currentOrg.id}/explore/${kind}`
+        : `/explore/${kind}`
+    const trimmed = query?.trim()
+    return trimmed ? `${base}?q=${encodeURIComponent(trimmed)}` : base
+  }
+
   function toRecruitment(recruitmentId: string) {
     // admin context: stay inside admin routes so the active actor isn't reset
     if (isOrgAdminView && currentOrg) {
@@ -110,6 +134,8 @@ export function useNavigation() {
     toPostsList,
     toNetwork,
     toMessage,
+    toSearch,
+    toExploreList,
     toRecruitment,
     toRecruitmentsList,
   }

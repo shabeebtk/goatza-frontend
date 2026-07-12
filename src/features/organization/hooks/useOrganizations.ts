@@ -120,7 +120,7 @@ export const useCreateOrganization = () => {
     onSuccess: (org) => {
       switchToOrganization(org.id)
       qc.invalidateQueries({ queryKey: orgKeys.all() })
-      router.push(`/organization/admin/${org.id}/home`)
+      router.push(`/organization/admin/${org.id}/dashboard`)
     },
   })
 }

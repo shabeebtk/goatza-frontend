@@ -9,6 +9,7 @@ import SearchPostsList from "../SearchPostsList/SearchPostsList"
 import SearchPlayersRail from "./SearchPlayersRail"
 import SearchOrgsRail from "./SearchOrgsRail"
 import { useRecentSearches } from "../../hooks/useRecentSearches"
+import { useNavigation } from "@/shared/services/navigation.service"
 import {
   useSearchPlayers,
   useSearchOrgs,
@@ -37,6 +38,7 @@ export default function SearchPage() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const spString = searchParams.toString()
+  const { toExploreList } = useNavigation()
 
   // URL is the source of truth for the committed query.
   const committedQ = searchParams.get("q") ?? ""
@@ -129,8 +131,6 @@ export default function SearchPage() {
     !posts.isError &&
     playersCount + teamsCount + academiesCount + postsCount === 0
 
-  const enc = encodeURIComponent(q)
-
   return (
     <div className={styles.page}>
       <header className={styles.head}>
@@ -183,18 +183,18 @@ export default function SearchPage() {
           onClickCapture={() => save(q)}
           aria-busy={anyFetching ? true : undefined}
         >
-          <SearchPlayersRail q={q} seeAllHref={`/explore/players?q=${enc}`} />
+          <SearchPlayersRail q={q} seeAllHref={toExploreList("players", q)} />
           <SearchOrgsRail
             q={q}
             types={TEAMS_TYPES}
             title="Teams & Clubs"
-            seeAllHref={`/explore/organizations?q=${enc}`}
+            seeAllHref={toExploreList("organizations", q)}
           />
           <SearchOrgsRail
             q={q}
             types={ACADEMY_TYPES}
             title="Academies"
-            seeAllHref={`/explore/academies?q=${enc}`}
+            seeAllHref={toExploreList("academies", q)}
           />
           <SearchPostsList q={q} />
         </div>

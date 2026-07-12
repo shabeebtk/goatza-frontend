@@ -62,6 +62,12 @@ export type ExploreListFilters = {
   lat?: number
   lng?: number
   radius_km?: number
+  /**
+   * Force a discovery mode instead of the backend's auto nearby-else-popular
+   * pick. Used by the org explore page to render "Popular players" and
+   * "Players near you" as two separate rails. Omit for the auto behavior.
+   */
+  mode?: ExploreMode
 }
 
 export type FetchExplorePlayersParams = ExploreListFilters & {

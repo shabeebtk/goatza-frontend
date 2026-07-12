@@ -5,6 +5,7 @@ import ExploreSearchBar from "../ExploreSearchBar/ExploreSearchBar"
 import PlayersRail from "../PlayersRail/PlayersRail"
 import OrgsRail from "../OrgsRail/OrgsRail"
 import TrendingPosts from "../TrendingPosts/TrendingPosts"
+import { useNavigation } from "@/shared/services/navigation.service"
 import {
   useExplorePlayers,
   useExploreOrgs,
@@ -29,6 +30,7 @@ function resultCount(pages?: { results: unknown[] }[]): number {
  * empty" case and show a single friendly page-level empty state.
  */
 export default function ExplorePage() {
+  const { toExploreList } = useNavigation()
   const players = useExplorePlayers()
   const teams = useExploreOrgs(TEAMS_TYPES)
   const academies = useExploreOrgs(ACADEMY_TYPES)
@@ -69,15 +71,15 @@ export default function ExplorePage() {
           <OrgsRail
             types={TEAMS_TYPES}
             nearbyTitle="Teams & Clubs"
-            popularTitle="Popular teams & clubs"
-            seeAllHref="/explore/organizations"
+            popularTitle="teams & clubs"
+            seeAllHref={toExploreList("organizations")}
           />
 
           <OrgsRail
             types={ACADEMY_TYPES}
             nearbyTitle="Academies"
-            popularTitle="Popular academies"
-            seeAllHref="/explore/academies"
+            popularTitle="academies"
+            seeAllHref={toExploreList("academies")}
           />
 
           <TrendingPosts />
