@@ -162,7 +162,7 @@ export default function AppNav() {
     setDropdownOpen(false)
     setMobileSheetOpen(false)
     queryClient.clear()
-    router.push(`/organization/admin/${organizationId}/home`)
+    router.push(`/organization/admin/${organizationId}/dashboard`)
   }
 
   return (

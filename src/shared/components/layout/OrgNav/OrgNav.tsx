@@ -24,16 +24,22 @@ function buildNavItems(orgId: string) {
   const base = orgBase(orgId)
   return [
     {
-      href: `${base}/home`,
-      icon: "mdi:home-outline",
-      iconActive: "mdi:home",
-      label: "Home",
+      href: `${base}/dashboard`,
+      icon: "mdi:view-dashboard-outline",
+      iconActive: "mdi:view-dashboard",
+      label: "Dashboard",
     },
     {
-      href: `${base}/discover`,
+      href: `${base}/feed`,
+      icon: "mdi:newspaper-variant-outline",
+      iconActive: "mdi:newspaper-variant",
+      label: "Feed",
+    },
+    {
+      href: `${base}/explore`,
       icon: "mdi:compass-outline",
       iconActive: "mdi:compass",
-      label: "Discover",
+      label: "Explore",
     },
     {
       href: `${base}/messages`,
@@ -62,8 +68,8 @@ function OrgLogoMark({
 }) {
   return (
     <Link
-      href={`${orgBase(orgId)}/home`}
-      aria-label={`${orgName ?? "Organization"} home`}
+      href={`${orgBase(orgId)}/feed`}
+      aria-label={`${orgName ?? "Organization"} feed`}
       className={styles.logoLink}
     >
       <div className={styles.logoImgWrap}>
@@ -78,29 +84,6 @@ function OrgLogoMark({
         <span className={styles.logoBadge}>Admin</span>
       </div>
     </Link>
-  )
-}
-
-function SearchBar({ compact = false }: { compact?: boolean }) {
-  const [focused, setFocused] = useState(false)
-
-  return (
-    <div
-      className={`${styles.searchWrap} ${compact ? styles.searchCompact : ""} ${focused ? styles.searchFocused : ""}`}
-    >
-      <span className={styles.searchIcon} aria-hidden="true">
-        <Icon icon="mdi:magnify" width={18} height={18} />
-      </span>
-      <input
-        type="search"
-        placeholder="Search members, teams, events..."
-        className={styles.searchInput}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        aria-label="Search"
-      />
-      {focused && <kbd className={styles.searchKbd} aria-hidden="true">Ctrl+K</kbd>}
-    </div>
   )
 }
 
@@ -162,7 +145,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   ]
 
   const NAV_ITEMS = buildNavItems(orgId)
-  const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) => item.label !== "Alerts")
+  // Mobile bottom bar shows Dashboard + Feed (left), Create, Messages (right),
+  // then the profile avatar. Explore lives in the mobile top bar and Alerts in
+  // the top-bar bell, so both are excluded here.
+  const MOBILE_NAV_ITEMS = NAV_ITEMS.filter(
+    (item) => item.label !== "Alerts" && item.label !== "Explore"
+  )
   const MOBILE_LEFT_ITEMS = MOBILE_NAV_ITEMS.slice(0, 2)
   const MOBILE_RIGHT_ITEMS = MOBILE_NAV_ITEMS.slice(2)
 
@@ -219,7 +207,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     setDropdownOpen(false)
     setSheetOpen(false)
     queryClient.clear()
-    router.push(`/organization/admin/${organizationId}/home`)
+    router.push(`/organization/admin/${organizationId}/dashboard`)
   }
 
   return (
@@ -229,10 +217,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
 
           <div className={styles.topNavCenter}>
-            <SearchBar />
-          </div>
-
-          <nav className={styles.topNavLinks} aria-label="Organization navigation">
+            <nav className={styles.topNavLinks} aria-label="Organization navigation">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname.startsWith(item.href)
               const hasAlert =
@@ -264,7 +249,8 @@ export default function OrgNav({ orgId }: { orgId: string }) {
                 </Link>
               )
             })}
-          </nav>
+            </nav>
+          </div>
 
           <div className={styles.createBtnWrap}>
             <button
@@ -341,8 +327,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       <header className={styles.mobileTopBar} role="banner" aria-label="Organization mobile header">
         <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
         <div className={styles.mobileTopActions}>
-          <Link href={`${orgBase(orgId)}/search`} className={styles.mobileIconBtn} aria-label="Search">
-            <Icon icon="mdi:magnify" width={24} height={24} />
+          <Link href={`${orgBase(orgId)}/explore`} className={styles.mobileIconBtn} aria-label="Explore">
+            <Icon
+              icon={pathname.startsWith(`${orgBase(orgId)}/explore`) ? "mdi:compass" : "mdi:compass-outline"}
+              width={24}
+              height={24}
+            />
           </Link>
           <Link
             href={`${orgBase(orgId)}/notifications`}

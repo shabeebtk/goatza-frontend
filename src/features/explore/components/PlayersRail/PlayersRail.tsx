@@ -5,11 +5,24 @@ import ExploreRailShell from "../ExploreRailShell/ExploreRailShell"
 import UserCard from "@/shared/components/entity/UserCard/UserCard"
 import UserCardSkeleton from "@/shared/components/entity/UserCard/UserCardSkeleton"
 import FollowButton from "@/features/connections/components/FollowButton/FollowButton"
+import { useNavigation } from "@/shared/services/navigation.service"
+import type { ExploreMode } from "../../api/explore.api"
 import { useExplorePlayers } from "../../hooks/useExploreQueries"
 
 const SKELETON_COUNT = 6
 
-export default function PlayersRail() {
+interface PlayersRailProps {
+  /**
+   * Force a discovery mode. Set by the org explore page to render popular and
+   * nearby players as two rails. Omit for the user rail, which auto-picks the
+   * mode from the backend response. A forced "nearby" rail self-hides when the
+   * actor has no location (its query comes back empty).
+   */
+  mode?: ExploreMode
+}
+
+export default function PlayersRail({ mode }: PlayersRailProps = {}) {
+  const { toExploreList } = useNavigation()
   const {
     data,
     isLoading,
@@ -18,12 +31,13 @@ export default function PlayersRail() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-  } = useExplorePlayers()
+  } = useExplorePlayers(mode ? { mode } : undefined)
 
   const players = data?.pages.flatMap((p) => p.results) ?? []
-  // Mode is decided on the first page and locked for the rest of the scroll.
-  const mode = data?.pages[0]?.mode
-  const title = mode === "popular" ? "Popular players" : "Players near you"
+  // Forced mode wins; otherwise read the mode the backend decided (locked on
+  // the first page for the rest of the scroll).
+  const resolvedMode = mode ?? data?.pages[0]?.mode
+  const title = resolvedMode === "popular" ? "Popular players" : "Players near you"
 
   const onEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage()
@@ -32,7 +46,7 @@ export default function PlayersRail() {
   return (
     <ExploreRailShell
       title={title}
-      seeAllHref="/explore/players"
+      seeAllHref={toExploreList("players")}
       isLoading={isLoading}
       isError={isError}
       isEmpty={players.length === 0}

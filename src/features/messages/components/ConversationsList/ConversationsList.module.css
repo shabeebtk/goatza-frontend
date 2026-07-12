@@ -48,27 +48,6 @@
   color: var(--color-ink);
 }
 
-.newBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  text-decoration: none;
-  transition:
-    background var(--duration-fast),
-    color var(--duration-fast),
-    transform var(--duration-fast) var(--ease-spring);
-}
-
-.newBtn:hover {
-  background: var(--color-brand-subtle);
-  color: var(--color-brand-hover);
-  transform: scale(1.08);
-}
-
 /* ── Search bar ───────────────────────────────────────────────── */
 
 .searchWrap {
@@ -387,6 +366,43 @@
   display: flex;
   align-items: center;
   line-height: 0;
+}
+
+/* ── Search result grouping ───────────────────────────────────── */
+
+.groupLabel {
+  padding: var(--space-3) var(--space-5) var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+@media (max-width: 767px) {
+  .groupLabel {
+    padding: var(--space-3) var(--space-4) var(--space-2);
+  }
+}
+
+/* Small "Org" pill next to an organization result's name */
+.orgTag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 0.58rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  line-height: 1.6;
 }
 
 /* ── Skeleton ─────────────────────────────────────────────────── */

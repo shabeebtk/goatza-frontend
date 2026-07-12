@@ -7,6 +7,7 @@ import {
   getMessagesApi,
   markConversationReadApi,
   acceptConversationApi,
+  searchMessageTargetsApi,
   type ConversationsParams,
   type MessagesParams,
 } from "../services/conversations.api"
@@ -19,6 +20,7 @@ export const conversationKeys = {
   detail:        (id: string)                  => ["conversations", "detail", id]            as const,
   messages:      (id: string)                  => ["conversations", "messages", id]          as const,
   unreadSummary: ()                            => ["conversations", "unread-summary"]        as const,
+  search:        (query: string)               => ["conversations", "search", query]         as const,
 }
 
 // ── Conversations create ────────────────────────────────────────
@@ -42,6 +44,16 @@ export const useConversations = (params: ConversationsParams = {}) =>
     queryKey:       conversationKeys.list(params),
     queryFn:        () => getConversationsApi(params),
     staleTime:      0, // Always refetch on mount so latest chats appear when coming back
+  })
+
+// ── Message target search (people + orgs to start a chat with) ─
+
+export const useMessageTargetSearch = (query: string) =>
+  useQuery({
+    queryKey: conversationKeys.search(query.trim()),
+    queryFn:  () => searchMessageTargetsApi(query.trim()),
+    enabled:  query.trim().length > 0,
+    staleTime: 1000 * 30,
   })
 
 // ── Unread summary (nav badge + tab badges) ───────────────────
