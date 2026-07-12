@@ -252,12 +252,25 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1_5);
+  /* Let the group (and its inputs) shrink inside the grid instead of forcing
+     the row wider than the modal on narrow screens. */
+  min-width: 0;
 }
 
 .fieldRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Mobile-first: one column so wide inputs (e.g. datetime-local, whose native
+     date+time UI has a large intrinsic width) never push the row off-screen. */
+  grid-template-columns: 1fr;
   gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .fieldRow {
+    /* Two columns on desktop. minmax(0, 1fr) — not plain 1fr — so a wide
+       intrinsic input can shrink instead of overflowing the row. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .fieldLabel {
@@ -281,6 +294,10 @@
 .fieldSelect,
 .fieldTextarea {
   width: 100%;
+  /* Overrides the UA min intrinsic width (notably datetime-local) so width:100%
+     can actually constrain the control to its cell — the fix for the field
+     spilling past the screen edge on mobile. */
+  min-width: 0;
   padding: 10px var(--space-3);
   background: var(--color-surface-raised);
   border: 1.5px solid var(--color-border);

@@ -50,9 +50,12 @@ export default function CreateRecruitmentTrigger({
 
             {open && createPortal(
                 <CreateRecruitmentModal
-                    username={user.username}
-                    userAvatarUrl={user.profile_photo}
-                    userInitials={user.name?.slice(0, 2).toUpperCase() ?? user.username.slice(0, 2).toUpperCase()}
+                    // Recruitments are posted BY the organization, so the header
+                    // identity (avatar/initials/name) comes from the active org,
+                    // not the logged-in user.
+                    username={currentOrg.username}
+                    userAvatarUrl={currentOrg.logo}
+                    userInitials={currentOrg.name?.slice(0, 2).toUpperCase() ?? currentOrg.username.slice(0, 2).toUpperCase()}
                     displayName={currentOrg.name}
                     orgId={currentOrg.id}
                     mode={mode}
