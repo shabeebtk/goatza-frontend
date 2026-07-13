@@ -8,19 +8,20 @@
 
 // ── Image paths ───────────────────────────────────────────────────
 // Source files live in /public/landing. Swap these in one place if the
-// underlying assets ever change. (coach/scout may not exist yet — the
-// UI falls back to an icon tile via LandingImage.)
+// underlying assets ever change. Some new assets may not exist yet — the
+// UI falls back to an icon tile via LandingImage until they land.
 export const landingImages = {
-    hero: "/landing/hero.jpg",
-    showcasePlay: "/landing/showcase-play.jpg",
-    showcaseTrain: "/landing/showcase-train.jpg",
-    showcaseScouted: "/landing/showcase-scouted.jpg",
-    audienceAthlete: "/landing/audience-athlete.jpg",
-    audienceTeam: "/landing/audience-team.jpg",
-    audienceAcademy: "/landing/audience-academy.jpg",
-    audienceCoach: "/landing/audience-coach.jpg",
-    audienceScout: "/landing/audience-scout.jpg",
-    ctaBg: "/landing/cta-bg.jpg",
+    hero: "/landing/hero.webp",
+    showcasePost: "/landing/showcase-post.webp",
+    showcaseDiscovered: "/landing/showcase-discovered.webp",
+    showcaseSelected: "/landing/showcase-selected.webp",
+    personaPlayer: "/landing/persona-player.webp",
+    personaClub: "/landing/persona-club.webp",
+    personaTeam: "/landing/persona-team.webp",
+    personaAcademy: "/landing/persona-academy.webp",
+    personaCoach: "/landing/persona-coach.webp",
+    personaScout: "/landing/persona-scout.webp",
+    ctaBg: "/landing/cta-bg.webp",
 } as const;
 
 // ── Ticker (duplicated for a seamless -50% marquee loop) ──────────
@@ -44,27 +45,27 @@ export interface ShowcaseCard {
 export const showcaseCards: ShowcaseCard[] = [
     {
         key: "post",
-        img: landingImages.showcasePlay,
+        img: landingImages.showcasePost,
         icon: "mdi:soccer",
         label: "Showcase",
         line: "Post your skills and your best match-day moments for the football world to see.",
-        alt: "Footballer showing their skills during a match",
+        alt: "Footballer's skill move being filmed on a phone at a floodlit pitch",
     },
     {
         key: "discovered",
-        img: landingImages.showcaseScouted,
+        img: landingImages.showcaseDiscovered,
         icon: "mdi:radar",
         label: "Get Discovered",
         line: "Scouts, clubs and academies are on Goatza searching for talent like you.",
-        alt: "Scout watching players during a football trial",
+        alt: "Scouts on the sideline watching a player perform",
     },
     {
         key: "selected",
-        img: landingImages.showcaseTrain,
+        img: landingImages.showcaseSelected,
         icon: "mdi:trophy-outline",
         label: "Get Selected",
         line: "Find open trials, apply in a tap, and earn your spot.",
-        alt: "Young footballers training on the pitch",
+        alt: "Young player receiving a jersey after being selected",
     },
 ];
 
@@ -100,8 +101,8 @@ export const personas: Persona[] = [
         key: "player",
         label: "Player",
         icon: "mdi:run-fast",
-        img: landingImages.audienceAthlete,
-        imgAlt: "Footballer portrait",
+        img: landingImages.personaPlayer,
+        imgAlt: "Young footballer standing confidently with a ball",
         tagline: "Your talent, seen by the right people.",
         benefits: [
             "Post your skills & match highlights",
@@ -114,8 +115,8 @@ export const personas: Persona[] = [
         key: "club",
         label: "Club",
         icon: "mdi:shield-crown-outline",
-        img: landingImages.audienceTeam,
-        imgAlt: "Football club squad together on the pitch",
+        img: landingImages.personaClub,
+        imgAlt: "Football squad lined up on a floodlit pitch",
         tagline: "Find the players your club needs.",
         benefits: [
             "Find verified players fast",
@@ -128,8 +129,8 @@ export const personas: Persona[] = [
         key: "team",
         label: "Team",
         icon: "mdi:account-group-outline",
-        img: landingImages.audienceTeam,
-        imgAlt: "Football team huddled together before kick-off",
+        img: landingImages.personaTeam,
+        imgAlt: "Football team celebrating together",
         tagline: "Build your squad, one signing at a time.",
         benefits: [
             "Build your team profile & post as the team",
@@ -142,7 +143,7 @@ export const personas: Persona[] = [
         key: "academy",
         label: "Academy",
         icon: "mdi:school-outline",
-        img: landingImages.audienceAcademy,
+        img: landingImages.personaAcademy,
         imgAlt: "Young players training at a football academy",
         tagline: "Where the next generation gets found.",
         benefits: [
@@ -156,8 +157,8 @@ export const personas: Persona[] = [
         key: "coach",
         label: "Coach",
         icon: "mdi:whistle-outline",
-        img: landingImages.audienceCoach,
-        imgAlt: "Football coach on the touchline",
+        img: landingImages.personaCoach,
+        imgAlt: "Football coach giving instructions from the touchline",
         tagline: "Follow the talent. Shape the talent.",
         benefits: [
             "Browse & follow player content",
@@ -170,8 +171,8 @@ export const personas: Persona[] = [
         key: "scout",
         label: "Scout",
         icon: "mdi:binoculars",
-        img: landingImages.audienceScout,
-        imgAlt: "Scout watching players at a football match",
+        img: landingImages.personaScout,
+        imgAlt: "Scout taking notes in the stands above a floodlit pitch",
         tagline: "Every pitch, one watchlist.",
         benefits: [
             "Discover players by position, age & region",
