@@ -12,6 +12,7 @@ import { LOGO_URL } from "@/constants";
 import useTilt from "@/shared/hooks/useTilt";
 import useScrollReveal from "@/shared/hooks/useScrollReveal";
 import useCounter from "@/shared/hooks/useCounter";
+import useSmoothScroll from "./hooks/useSmoothScroll";
 import LandingImage from "./components/LandingImage";
 import {
   tickerItems,
@@ -682,7 +683,7 @@ function PersonaSelector() {
                 <LandingImage
                   src={p.img}
                   alt=""
-                  sizes="72px"
+                  sizes="56px"
                   className={styles.personaChipImg}
                   fallbackIcon={p.icon}
                   fallbackIconSize={24}
@@ -706,7 +707,7 @@ function PersonaSelector() {
               <LandingImage
                 src={persona.img}
                 alt={persona.imgAlt}
-                sizes="(min-width: 760px) 380px, 100vw"
+                sizes="(min-width: 760px) 420px, 100vw"
                 className={styles.personaPhotoImg}
                 fallbackIcon={persona.icon}
               />
@@ -831,6 +832,7 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
 
   useScrollReveal();
+  useSmoothScroll();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);

@@ -31,7 +31,8 @@
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 100;
-  padding-block: var(--space-3);
+  /* space-2 (not space-3) so the larger 44px logo keeps header height ~60px. */
+  padding-block: var(--space-2);
   border-bottom: 1px solid transparent;
   transition:
     background var(--duration-slow) var(--ease-out),
@@ -122,29 +123,35 @@
   text-decoration: none;
 }
 
+/* No chip — the logo art shows as-is, larger and un-cropped. */
 .logoImgWrap {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
   flex-shrink: 0;
-  box-shadow: var(--shadow-xs);
-  transition:
-    transform var(--duration-base) var(--ease-spring),
-    box-shadow var(--duration-base);
+  transition: transform var(--duration-base) var(--ease-spring);
 }
 
-.logoLockup:hover .logoImgWrap {
-  transform: rotate(-5deg) scale(1.08);
-  box-shadow: var(--shadow-brand);
+.logoLockup:hover .logoImgWrap { transform: scale(1.05); }
+
+.logoImg {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  transition: filter var(--duration-base) var(--ease-out);
 }
 
-.logoImg { width: 34px; height: 34px; object-fit: contain; }
+/* Theme safety — the LOGO_URL artwork is solid black, so it must flip to white
+   on any dark surface (over the hero photo, and anywhere in dark mode). */
+.header:not(.headerScrolled) .logoImg {
+  filter: brightness(0) invert(1) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+@media (prefers-color-scheme: dark) {
+  .logoImg,
+  .footerLogoImg { filter: brightness(0) invert(1); }
+}
 
 .logoWordmark {
   font-family: var(--font-display);
@@ -447,7 +454,14 @@
 
 /* ── SECTION SHARED ───────────────────────────────────────────── */
 
-.section { padding-block: var(--space-16); }
+.section {
+  /* Fixed-header height — keep in sync with .header (logo 44px + 2×space-2). */
+  --landing-header-h: 60px;
+  padding-block: var(--space-16);
+  /* Offsets in-page anchor targets below the fixed header — applies to clicks,
+     direct #hash loads, and keyboard navigation alike. */
+  scroll-margin-top: calc(var(--landing-header-h) + var(--space-4));
+}
 
 @media (min-width: 640px) { .section { padding-block: var(--space-20); } }
 @media (min-width: 900px)  { .section { padding-block: var(--space-24); } }
@@ -1347,6 +1361,20 @@
 
 .personaCta { margin-top: var(--space-6); }
 
+/* Long labels ("Get Started as an Academy") must stay inside the panel on
+   narrow screens — the base .btn is nowrap + no-shrink, so scope an override. */
+.personaCta > a,
+.personaCta > button {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .personaCta > a,
+  .personaCta > button { width: 100%; }
+}
+
 /* ── FINAL CTA — photo background ─────────────────────────────── */
 
 .ctaSection {
@@ -1496,20 +1524,18 @@
 .footerLogoLockup:hover { opacity: 0.75; }
 
 .footerLogoImgWrap {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
   flex-shrink: 0;
-  box-shadow: var(--shadow-xs);
 }
 
-.footerLogoImg { width: 30px; height: 30px; object-fit: contain; }
+.footerLogoImg {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
 
 .footerWordmark {
   font-family: var(--font-display);
