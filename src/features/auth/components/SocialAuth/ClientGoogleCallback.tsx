@@ -27,14 +27,9 @@ export default function ClientGoogleCallback() {
     googleAuth.mutate(
       { code, state },
       {
-        onSuccess: (data) => {
-          // New Google users have no role yet — send them to pick one first.
-          router.replace(
-            data?.user?.is_role_confirmed === false
-              ? "/auth/select-role"
-              : "/home"
-          )
-        },
+        // Onboarding (incl. the mandatory role step for new Google users) now takes
+        // over on /home as a modal, so everyone lands there.
+        onSuccess: () => router.replace("/home"),
         onError: () => router.replace("/auth"),
       }
     )

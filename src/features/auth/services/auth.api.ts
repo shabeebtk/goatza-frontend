@@ -36,6 +36,7 @@ export type AuthUser = {
   email: string
   role: UserRole
   is_role_confirmed: boolean
+  is_onboarding_completed: boolean
   name: string
   profile_photo: string
   is_email_verified: boolean

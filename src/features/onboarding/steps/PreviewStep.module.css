@@ -1,0 +1,45 @@
+/* ============================================================
+   GOATZA — Onboarding · Preview step
+   ============================================================ */
+
+@keyframes onbSpin { to { transform: rotate(360deg); } }
+
+.loadingBody {
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.loadingText { font-size: var(--text-sm); }
+
+/* ── Compact preview body ─────────────────────────────────────── */
+
+.previewBody {
+  gap: var(--space-3);
+}
+
+.previewHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+}
+
+.miniSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: onbSpin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Portal wrapper: creates a stacking context ABOVE the onboarding backdrop
+   (z-index 600) so the reused PhotoEditModal (its own backdrop is z-index 500,
+   position:fixed) paints over the onboarding modal instead of behind/inside it. */
+.photoPortal {
+  position: relative;
+  z-index: 700;
+}

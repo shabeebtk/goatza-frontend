@@ -1,0 +1,302 @@
+/* ============================================================
+   GOATZA — Onboarding · Sports step
+   Sport chips (horizontal scroll), position chips with primary
+   badge, dynamic attribute inputs. Reuses modal scaffold tokens.
+   ============================================================ */
+
+@keyframes onbSpin { to { transform: rotate(360deg); } }
+@keyframes onbFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Loading ──────────────────────────────────────────────────── */
+
+.loadingBody {
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.loadingText { font-size: var(--text-sm); }
+
+/* ── Sport selector (wrapping pills — all sports visible) ─────── */
+
+.sportRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sportChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.sportChip:hover {
+  border-color: var(--color-brand);
+  color: var(--color-text-primary);
+}
+
+.sportChipOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+/* ── Switch confirm ──────────────────────────────────────────── */
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  animation: onbFade 0.16s var(--ease-out) both;
+}
+
+.confirmText {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-snug);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.confirmGhost,
+.confirmPrimary {
+  padding: 8px var(--space-4);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.confirmGhost {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.confirmGhost:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.confirmPrimary {
+  background: var(--color-brand);
+  border: none;
+  color: var(--color-on-brand);
+}
+
+.confirmPrimary:hover { background: var(--color-brand-hover); }
+
+/* ── Group (positions / attributes) ──────────────────────────── */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.groupHint {
+  font-size: 0.65rem;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
+.chipWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ── Position chips ──────────────────────────────────────────── */
+
+.posChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px var(--space-2) 6px var(--space-3);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast);
+}
+
+.posChipOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
+.posChipPrimary {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
+.posChipName {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.posChipOn .posChipName { color: var(--color-brand-hover); }
+
+.primaryBadge {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: 0.6rem;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+.posChipStar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  border-radius: var(--radius-full);
+}
+
+.posChipStar:hover { background: var(--color-surface); }
+
+/* ── Attributes ──────────────────────────────────────────────── */
+
+.attrList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.attrRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attrName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.attrChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px var(--space-3);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.attrChip:hover {
+  border-color: var(--color-brand);
+  color: var(--color-text-primary);
+}
+
+.attrChipOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+
+.footerCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.skipLink {
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: color var(--duration-fast);
+}
+
+.skipLink:hover:not(:disabled) { color: var(--color-text-primary); }
+.skipLink:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Mini spinner ─────────────────────────────────────────────── */
+
+.miniSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: onbSpin 0.65s linear infinite;
+  flex-shrink: 0;
+}

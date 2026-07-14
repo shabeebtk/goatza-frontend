@@ -14,6 +14,7 @@ export type User = {
   profile_photo?: string
   role?: UserRole
   is_role_confirmed?: boolean
+  is_onboarding_completed?: boolean
 }
 
 export type OrganizationActor = OrganizationMini
@@ -64,6 +65,8 @@ type AuthState = {
   updateUser: (user: User) => void
 
   setUserRole: (role: UserRole) => void
+
+  setOnboardingCompleted: () => void
 
   setOrganizations: (organizations: OrganizationActor[]) => void
 
@@ -135,6 +138,15 @@ export const useAuthStore = create<AuthState>()(
         set((state) =>
           state.user
             ? { user: { ...state.user, role, is_role_confirmed: true } }
+            : state
+        ),
+
+      // Flip the onboarding flag in place once /user/onboarding/complete succeeds,
+      // so the onboarding gate stops showing the modal without a full re-fetch.
+      setOnboardingCompleted: () =>
+        set((state) =>
+          state.user
+            ? { user: { ...state.user, is_onboarding_completed: true } }
             : state
         ),
 
