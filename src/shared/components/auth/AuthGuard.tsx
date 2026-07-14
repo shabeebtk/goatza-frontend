@@ -3,6 +3,7 @@
 import { useAuthStore } from "@/store/auth.store"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import OnboardingGate from "@/features/onboarding/components/OnboardingGate"
 
 export default function AuthGuard({
   children,
@@ -13,8 +14,11 @@ export default function AuthGuard({
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/auth") 
+    if (isLoading) return
+
+    if (!isAuthenticated) {
+      router.replace("/auth")
+      return
     }
   }, [isAuthenticated, isLoading])
 
@@ -24,5 +28,13 @@ export default function AuthGuard({
   // prevent rendering protected content
   if (!isAuthenticated) return null
 
-  return <>{children}</>
+  // Onboarding (incl. the mandatory role step for new users) renders as a modal
+  // over the app and follows the user everywhere, so no route-level gating is
+  // needed — deep-linking around it does nothing.
+  return (
+    <>
+      {children}
+      <OnboardingGate />
+    </>
+  )
 }

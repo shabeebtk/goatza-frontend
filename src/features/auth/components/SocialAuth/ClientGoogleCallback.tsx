@@ -27,6 +27,8 @@ export default function ClientGoogleCallback() {
     googleAuth.mutate(
       { code, state },
       {
+        // Onboarding (incl. the mandatory role step for new Google users) now takes
+        // over on /home as a modal, so everyone lands there.
         onSuccess: () => router.replace("/home"),
         onError: () => router.replace("/auth"),
       }

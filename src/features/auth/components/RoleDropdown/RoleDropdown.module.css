@@ -1,0 +1,194 @@
+.root {
+  position: relative;
+  width: 100%;
+}
+
+/* ── Trigger (collapsed control, input-sized) ── */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 48px;
+  padding: 10px var(--space-4);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--color-brand-muted);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.triggerOpen {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.triggerError {
+  border-color: var(--color-error);
+}
+
+.triggerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-brand-hover);
+}
+
+.triggerLabel {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-semi);
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.triggerOpen .chevron {
+  transform: rotate(180deg);
+  color: var(--color-brand);
+}
+
+/* ── Listbox (opened options) ── */
+.listbox {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+  animation: roleDropdownIn 0.16s var(--ease-out) both;
+}
+
+@keyframes roleDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Option (icon + label + description) ── */
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  scroll-margin: var(--space-1);
+}
+
+.option + .option {
+  margin-top: 2px;
+}
+
+.optionActive {
+  background: var(--color-brand-subtle);
+}
+
+.optionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+}
+
+.optionActive .optionIcon,
+.optionSelected .optionIcon {
+  background: var(--color-brand);
+  color: var(--primitive-neutral-0);
+}
+
+.optionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.optionLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+  line-height: var(--leading-snug);
+}
+
+.optionDescription {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+}
+
+.optionCheck {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--color-brand);
+}
+
+/* ── Error text (matches Input/Select field-error pattern) ── */
+.errorMsg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  line-height: var(--leading-snug);
+  padding-left: 2px;
+}

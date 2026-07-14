@@ -1,0 +1,367 @@
+/* ============================================================
+   GOATZA — Onboarding shell
+   Mobile:  fullscreen sheet
+   Desktop: centered card (max 560px)
+   Mirrors EditProfileModal patterns (backdrop, safe areas, spinner).
+   ============================================================ */
+
+@keyframes onbBackdropIn { from { opacity: 0; }                                        to { opacity: 1; } }
+@keyframes onbSlideUp    { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes onbPop        { from { opacity: 0; transform: scale(0.92); }                  to { opacity: 1; transform: scale(1); } }
+
+/* ── Backdrop ─────────────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: onbBackdropIn 0.18s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop { align-items: center; padding: var(--space-6); }
+}
+
+/* ── Modal ────────────────────────────────────────────────────── */
+
+.modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;            /* mobile: full screen */
+  max-height: 100dvh;
+  background: var(--color-surface);
+  overflow: hidden;
+  animation: onbSlideUp 0.24s var(--ease-spring) both;
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 640px) {
+  .modal {
+    height: auto;
+    max-height: 88dvh;
+    max-width: 560px;
+    border-radius: var(--radius-xl);
+    border: 1.5px solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* ── Header (progress + back + close) ─────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  padding-top: calc(var(--space-4) + var(--safe-top));
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.backBtn,
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.backBtn:hover,
+.closeBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+/* Keep the layout stable when Back is unavailable (step 1). */
+.backBtn[data-hidden="true"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Progress segments ────────────────────────────────────────── */
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.progressSeg {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  transition: background var(--duration-base) var(--ease-out);
+}
+
+.progressSegOn {
+  background: var(--color-brand);
+}
+
+/* ── Content region ───────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Step scaffold ────────────────────────────────────────────── */
+
+.stepScaffold {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.stepBody {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .stepBody { padding: var(--space-6); }
+}
+
+.stepIntro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.stepIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+  margin-bottom: var(--space-1);
+}
+
+.stepTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+.stepSubtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+  max-width: 42ch;
+}
+
+/* ── Step footer (sticky primary action) ──────────────────────── */
+
+.stepFooter {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+/* ── Coming-soon placeholder ──────────────────────────────────── */
+
+.comingSoon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Success art ──────────────────────────────────────────────── */
+
+.successArt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  color: var(--color-brand);
+}
+
+/* ── API error banner (matches AuthCard/SelectRole treatment) ──── */
+
+.apiError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 25%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+}
+
+.apiError svg { flex-shrink: 0; }
+
+/* ── Close-warning dialog (nested) ────────────────────────────── */
+
+.warningBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: onbBackdropIn 0.14s var(--ease-out) both;
+}
+
+.warningCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 360px;
+  padding: var(--space-6) var(--space-5);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  animation: onbPop 0.2s var(--ease-spring) both;
+}
+
+.warningIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+  margin-bottom: var(--space-1);
+}
+
+.warningTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+.warningText {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-normal);
+}
+
+.warningActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.warningPrimary {
+  width: 100%;
+  padding: 12px var(--space-6);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.warningPrimary:hover { background: var(--color-brand-hover); }
+.warningPrimary:active { transform: scale(0.97); }
+
+.warningGhost {
+  width: 100%;
+  padding: 12px var(--space-6);
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.warningGhost:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+/* ── Screen-reader only ───────────────────────────────────────── */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

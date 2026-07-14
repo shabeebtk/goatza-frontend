@@ -1,4 +1,5 @@
 import api from "@/core/api/axios"
+import type { UserRole } from "@/shared/constants/roles"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -11,7 +12,7 @@ export type SignupPayload = {
   name: string
   email: string
   password: string
-  role: string
+  role: UserRole
 }
 
 export type VerifyOtpPayload = {
@@ -33,7 +34,9 @@ export type AuthUser = {
   id: string
   username: string
   email: string
-  role: string
+  role: UserRole
+  is_role_confirmed: boolean
+  is_onboarding_completed: boolean
   name: string
   profile_photo: string
   is_email_verified: boolean
@@ -117,5 +120,12 @@ export const googleCallbackApi = async (params: {
   const res = await api.get("/user/auth/google/callback", {
     params,
   })
+  return res.data.data
+}
+
+
+// One-time onboarding step: set the signed-in user's role (used after Google signup)
+export const setRoleApi = async (role: UserRole): Promise<AuthUser> => {
+  const res = await api.post("/user/role", { role })
   return res.data.data
 }

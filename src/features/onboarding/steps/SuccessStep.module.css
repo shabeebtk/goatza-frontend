@@ -1,0 +1,87 @@
+/* ============================================================
+   GOATZA — Onboarding · Success celebration (CSS only)
+   ============================================================ */
+
+@keyframes onbBadgePop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes onbRingPulse {
+  0% { transform: scale(0.7); opacity: 0.55; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes onbConfetti {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(0deg); }
+  15% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot));
+  }
+}
+
+.celebrate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) 0 var(--space-4);
+  min-height: 120px;
+}
+
+/* Pulsing ring behind the badge */
+.ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  border-radius: 50%;
+  border: 2px solid var(--color-brand);
+  animation: onbRingPulse 1.8s var(--ease-out) infinite;
+}
+
+.badge {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+  animation: onbBadgePop 0.5s var(--ease-spring) both;
+}
+
+/* Confetti burst */
+.confettiWrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.confetti {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: onbConfetti 1.2s var(--ease-out) forwards;
+  animation-delay: var(--delay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring,
+  .confetti { animation: none; display: none; }
+  .badge { animation: none; }
+}

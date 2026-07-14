@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { useSearchParams } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
-import { Button, Input, Select, Divider } from "@/shared/components/ui"
+import { Button, Input, Divider } from "@/shared/components/ui"
 import { useLogin, useSignup, useVerifyOtp } from "@/features/auth/hooks/useAuthMutations"
+import { USER_ROLES } from "@/shared/constants/roles"
+import RoleDropdown from "../RoleDropdown/RoleDropdown"
 import styles from "./AuthCard.module.css"
 import { getGoogleLoginUrl } from "../../services/auth.api"
 
@@ -27,7 +29,7 @@ const signUpSchema = z.object({
         .string()
         .min(8, "Password must be at least 8 characters")
         .regex(/[^a-zA-Z0-9]/, "Include at least one special character"),
-    role: z.string().min(1, "Please select your role"),
+    role: z.enum(USER_ROLES, { error: "Please select your role" }),
 })
 
 const otpSchema = z.object({
@@ -107,7 +109,7 @@ function AuthCard() {
 
     const signUpForm = useForm<SignUpFields>({
         resolver: zodResolver(signUpSchema),
-        defaultValues: { Name: "", email: "", password: "", role: "" },
+        defaultValues: { Name: "", email: "", password: "", role: "player" },
     })
 
     const otpForm = useForm<OtpFields>({
@@ -396,19 +398,21 @@ function AuthCard() {
                                 error={signUpForm.formState.errors.password?.message}
                             />
 
-                            <Select
-                                label="I am a…"
-                                placeholder="Select your role"
-                                {...signUpForm.register("role")}
-                                error={signUpForm.formState.errors.role?.message}
-                                options={[
-                                    { value: "player", label: "Athlete / Player" },
-                                    { value: "team", label: "Team / Club" },
-                                    { value: "scout", label: "Scout" },
-                                    { value: "academy", label: "Academy" },
-                                    { value: "coach", label: "Coach" },
-                                ]}
-                            />
+                            <div className={styles.roleField}>
+                                <span className={styles.roleFieldLabel}>I am a…</span>
+                                <Controller
+                                    control={signUpForm.control}
+                                    name="role"
+                                    render={({ field, fieldState }) => (
+                                        <RoleDropdown
+                                            value={field.value ?? "player"}
+                                            onChange={field.onChange}
+                                            error={fieldState.error?.message}
+                                            disabled={isLoading}
+                                        />
+                                    )}
+                                />
+                            </div>
 
                             <Button
                                 variant="brand"

@@ -5,6 +5,7 @@ import {
   loginApi,
   logoutApi,
   resetPasswordApi,
+  setRoleApi,
   signupApi,
   verifyOtpApi,
   type ForgotPasswordPayload,
@@ -14,6 +15,8 @@ import {
   type VerifyOtpPayload,
 } from "../services/auth.api"
 import { useAuthStore } from "@/store/auth.store"
+import { useOnboardingStore } from "@/features/onboarding/store/onboarding.store"
+import type { UserRole } from "@/shared/constants/roles"
 
 // ── Login ────────────────────────────────────────────────────
 
@@ -28,11 +31,13 @@ export const useLogin = () => {
       if ("verification_required" in data) {
         return
       }
-      // CASE 2: Normal login + setauth 
+      // CASE 2: Normal login + setauth
       setSession({
         token: data.access,
         user: data.user,
       })
+      // Fresh login re-evaluates onboarding (clears any prior "Skip for now").
+      useOnboardingStore.getState().resetSession()
     },
   })
 }
@@ -58,6 +63,8 @@ export const useVerifyOtp = () => {
         token: data.access,
         user: data.user,
       })
+      // New signup: start onboarding clean, ignoring any stale skip flag.
+      useOnboardingStore.getState().resetSession()
     },
   })
 }
@@ -90,6 +97,23 @@ export const useGoogleAuth = () => {
         token: data.access,
         user: data.user,
       })
+      // Fresh Google login re-evaluates onboarding (esp. forced role step).
+      useOnboardingStore.getState().resetSession()
+    },
+  })
+}
+
+
+// ── Set role (post-Google onboarding) ────────────────────────
+// One-time role selection. Updates the store user in place on success.
+
+export const useSetRole = () => {
+  const setUserRole = useAuthStore((s) => s.setUserRole)
+
+  return useMutation({
+    mutationFn: (role: UserRole) => setRoleApi(role),
+    onSuccess: (data) => {
+      setUserRole(data.role)
     },
   })
 }
@@ -104,6 +128,8 @@ export const useLogout = () => {
 
     onSettled: async () => {
       clearAuth()
+      // Clear onboarding state + skip flag so the next login starts fresh.
+      useOnboardingStore.getState().resetSession()
       await queryClient.clear()
     },
   })
