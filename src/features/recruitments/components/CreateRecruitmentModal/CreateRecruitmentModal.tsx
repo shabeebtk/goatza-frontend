@@ -146,7 +146,7 @@ const BENEFIT_ICONS = [
     { value: "coach", label: "Coaching", icon: "mdi:whistle-outline" },
     { value: "trophy", label: "Trophy", icon: "mdi:trophy-outline" },
     { value: "award", label: "Award", icon: "mdi:medal-outline" },
-    { value: "travel", label: "Travel", icon: "mdi:airplane-outline" },
+    { value: "travel", label: "Travel", icon: "mdi:airplane" },
     { value: "kit", label: "Kit", icon: "mdi:tshirt-crew-outline" },
     { value: "certificate", label: "Certificate", icon: "mdi:certificate-outline" },
     { value: "money", label: "Stipend", icon: "mdi:currency-inr" },
@@ -278,17 +278,42 @@ function mapInitialMedia(r: RecruitmentDetail): MediaEntry[] {
 
 // ── Step bar ──────────────────────────────────────────────────
 
-function StepBar({ step }: { step: number }) {
+function StepBar({ step, onStepClick, disabled }: {
+    step: number
+    onStepClick: (i: number) => void
+    disabled: boolean
+}) {
+    const barRef = useRef<HTMLDivElement>(null)
+    const activeRef = useRef<HTMLButtonElement>(null)
+
+    // Keep the active step scrolled to the centre of the (horizontally
+    // scrollable) bar as the user advances.
+    useEffect(() => {
+        const bar = barRef.current
+        const active = activeRef.current
+        if (!bar || !active) return
+        const target = active.offsetLeft + active.offsetWidth / 2 - bar.clientWidth / 2
+        bar.scrollTo({ left: Math.max(0, target), behavior: "smooth" })
+    }, [step])
+
     return (
-        <div className={styles.stepBar}>
+        <div className={styles.stepBar} ref={barRef}>
             {STEP_LABELS.map((label, i) => (
-                <div key={i} className={`${styles.stepItem} ${i === step ? styles.stepActive : ""} ${i < step ? styles.stepDone : ""}`}>
+                <button
+                    key={i}
+                    type="button"
+                    ref={i === step ? activeRef : undefined}
+                    onClick={() => onStepClick(i)}
+                    disabled={disabled}
+                    aria-current={i === step ? "step" : undefined}
+                    className={`${styles.stepItem} ${styles.stepItemBtn} ${i === step ? styles.stepActive : ""} ${i < step ? styles.stepDone : ""}`}
+                >
                     <div className={styles.stepDot}>
                         {i < step ? <Icon icon="mdi:check" width={10} height={10} /> : <span>{i + 1}</span>}
                     </div>
                     <span className={styles.stepLabel}>{label}</span>
                     {i < STEP_LABELS.length - 1 && <div className={styles.stepLine} />}
-                </div>
+                </button>
             ))}
         </div>
     )
@@ -296,11 +321,24 @@ function StepBar({ step }: { step: number }) {
 
 // ── Age Category Builder ──────────────────────────────────────
 
-function AgeCategoryBuilder({ categories, onChange, disabled }: {
+function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChange }: {
     categories: AgeCategoryDraft[]
     onChange: (cats: AgeCategoryDraft[]) => void
     disabled: boolean
+    noAge: boolean
+    onNoAgeChange: (v: boolean) => void
 }) {
+    // Switching to "no age category" clears any picked categories — the trial
+    // is then open to all ages and saves with an empty age_categories list.
+    const toggleNoAge = () => {
+        if (!noAge) {
+            onChange([])
+            onNoAgeChange(true)
+        } else {
+            onNoAgeChange(false)
+        }
+    }
+
     const addPreset = (label: string, maxAge: number) => {
         if (categories.find(c => c.title === label)) return
         const { min_birth_year, max_birth_year } = ageToYears(maxAge)
@@ -337,6 +375,23 @@ function AgeCategoryBuilder({ categories, onChange, disabled }: {
 
     return (
         <div className={styles.ageCategoryBuilder}>
+            {/* No age category — open to all ages */}
+            <button
+                type="button"
+                className={`${styles.noAgeToggle} ${noAge ? styles.noAgeToggleActive : ""}`}
+                onClick={toggleNoAge}
+                disabled={disabled}
+            >
+                open to all ages
+            </button>
+
+            {noAge ? (
+                <p className={styles.emptyHint}>
+                    <Icon icon="mdi:information-outline" width={13} height={13} />
+                    Open to all ages — no age category will be shown on the listing.
+                </p>
+            ) : (
+              <>
             {/* Preset chips */}
             <div className={styles.agePresetRow}>
                 {AGE_PRESETS.map(p => (
@@ -445,6 +500,8 @@ function AgeCategoryBuilder({ categories, onChange, disabled }: {
                     Select preset age groups above or add a custom category.
                 </p>
             )}
+              </>
+            )}
         </div>
     )
 }
@@ -460,32 +517,74 @@ function BenefitsBuilder({ benefits, onChange, disabled }: {
     const update = (id: string, patch: Partial<BenefitDraft>) => onChange(benefits.map(b => b.id === id ? { ...b, ...patch } : b))
     const remove = (id: string) => onChange(benefits.filter(b => b.id !== id))
 
+    // Which benefit's icon picker is expanded (only one at a time).
+    const [openPickerId, setOpenPickerId] = useState<string | null>(null)
+    const builderRef = useRef<HTMLDivElement>(null)
+
+    // Close the open picker when clicking outside the builder.
+    useEffect(() => {
+        if (!openPickerId) return
+        const onDown = (e: MouseEvent) => {
+            if (builderRef.current && !builderRef.current.contains(e.target as Node)) {
+                setOpenPickerId(null)
+            }
+        }
+        document.addEventListener("mousedown", onDown)
+        return () => document.removeEventListener("mousedown", onDown)
+    }, [openPickerId])
+
     return (
-        <div className={styles.listBuilder}>
+        <div className={styles.listBuilder} ref={builderRef}>
             {benefits.map((b) => {
                 const iconEntry = BENEFIT_ICONS.find(ic => ic.value === b.icon_name) ?? BENEFIT_ICONS[0]
+                const pickerOpen = openPickerId === b.id
                 return (
-                    <div key={b.id} className={styles.listBuilderRow}>
-                        <select
-                            className={styles.iconSelect}
-                            value={b.icon_name}
-                            onChange={e => update(b.id, { icon_name: e.target.value })}
-                            disabled={disabled}
-                        >
-                            {BENEFIT_ICONS.map(ic => <option key={ic.value} value={ic.value}>{ic.label}</option>)}
-                        </select>
-                        <Icon icon={iconEntry.icon} width={16} height={16} className={styles.listBuilderIcon} />
-                        <input
-                            className={`${styles.fieldInput} ${styles.listBuilderInput}`}
-                            placeholder="e.g. Professional Coaching"
-                            value={b.title}
-                            onChange={e => update(b.id, { title: e.target.value })}
-                            disabled={disabled}
-                            maxLength={80}
-                        />
-                        <button className={styles.removeQBtn} onClick={() => remove(b.id)} type="button" disabled={disabled}>
-                            <Icon icon="mdi:close" width={13} height={13} />
-                        </button>
+                    <div key={b.id} className={styles.benefitItem}>
+                        <div className={styles.listBuilderRow}>
+                            <div className={styles.benefitIconWrap}>
+                                <button
+                                    type="button"
+                                    className={`${styles.benefitIconTrigger} ${pickerOpen ? styles.benefitIconTriggerActive : ""}`}
+                                    onClick={() => setOpenPickerId(pickerOpen ? null : b.id)}
+                                    disabled={disabled}
+                                    title={`Icon: ${iconEntry.label}`}
+                                    aria-label={`Choose benefit icon — current: ${iconEntry.label}`}
+                                    aria-expanded={pickerOpen}
+                                >
+                                    <Icon icon={iconEntry.icon} width={18} height={18} />
+                                    <Icon icon="mdi:chevron-down" width={12} height={12} className={styles.benefitIconChevron} />
+                                </button>
+
+                                {pickerOpen && (
+                                    <div className={styles.benefitIconMenu} role="listbox" aria-label="Benefit icons">
+                                        {BENEFIT_ICONS.map(ic => (
+                                            <button
+                                                key={ic.value}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={ic.value === b.icon_name}
+                                                className={`${styles.benefitIconOption} ${ic.value === b.icon_name ? styles.benefitIconOptionActive : ""}`}
+                                                onClick={() => { update(b.id, { icon_name: ic.value }); setOpenPickerId(null) }}
+                                                title={ic.label}
+                                            >
+                                                <Icon icon={ic.icon} width={18} height={18} />
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <input
+                                className={`${styles.fieldInput} ${styles.listBuilderInput}`}
+                                placeholder="e.g. Professional Coaching"
+                                value={b.title}
+                                onChange={e => update(b.id, { title: e.target.value })}
+                                disabled={disabled}
+                                maxLength={80}
+                            />
+                            <button className={styles.removeQBtn} onClick={() => { remove(b.id); setOpenPickerId(null) }} type="button" disabled={disabled}>
+                                <Icon icon="mdi:close" width={13} height={13} />
+                            </button>
+                        </div>
                     </div>
                 )
             })}
@@ -792,6 +891,9 @@ export default function CreateRecruitmentModal({
 
     // ── Step 1: Age + Venue ────────────────────────────────────────
     const [ageCategories, setAgeCategories] = useState<AgeCategoryDraft[]>(() => (init ? mapInitialAgeCategories(init) : []))
+    // "No age category" = trial open to all ages. In edit mode an existing
+    // recruitment with no categories is treated as open.
+    const [noAgeCategory, setNoAgeCategory] = useState(() => (isEdit ? (init?.age_categories?.length ?? 0) === 0 : false))
     const [venueName, setVenueName] = useState(() => init?.venue_name ?? "")
     const [venueLink, setVenueLink] = useState(() => init?.venue_link ?? "")
     const [location, setLocation] = useState<MapboxPlace | null>(() => (init ? mapInitialLocation(init) : null))
@@ -816,7 +918,6 @@ export default function CreateRecruitmentModal({
 
     // ── Submission ────────────────────────────────────────────────
     const [phase, setPhase] = useState<SubmitPhase>("idle")
-    const [submitError, setSubmitError] = useState<string | null>(null)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const [draftSaved, setDraftSaved] = useState(false)
     const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -835,6 +936,7 @@ export default function CreateRecruitmentModal({
     const snapshot = JSON.stringify({
         title, shortDesc, description, recruitmentType, visibility, sportId, gender,
         experienceLevel, applicationDeadline, eventDate, maxApplications,
+        noAgeCategory,
         ageCategories: ageCategories.map(({ id: _id, ...c }) => c),
         venueName, venueLink,
         location: location ? { name: location.name, lat: location.latitude, lng: location.longitude } : null,
@@ -897,9 +999,15 @@ export default function CreateRecruitmentModal({
             </span>
         ) : null
 
+    // Surface a validation / form error as a toast instead of inline text.
+    const showFormError = (msg: string) =>
+        toast.show({ title: "Please check your details", message: msg, variant: "error" })
+
     // ── Validation ────────────────────────────────────────────────
-    const validateStep = (): string | null => {
-        if (step === 0) {
+    // `s` defaults to the current step but can be passed explicitly so we can
+    // validate intermediate steps when jumping ahead via the step bar.
+    const validateStep = (s: number = step): string | null => {
+        if (s === 0) {
             if (!title.trim() || title.trim().length < 5) return "Title must be at least 5 characters."
             if (!shortDesc.trim() || shortDesc.trim().length < 10) return "Short description must be at least 10 characters."
             if (!sportId) return "Please select a sport."
@@ -918,7 +1026,7 @@ export default function CreateRecruitmentModal({
                 }
             }
         }
-        if (step === 1) {
+        if (s === 1) {
             for (const cat of ageCategories) {
                 if (!cat.title.trim()) return "All age categories need a title."
                 if (cat.min_birth_year > cat.max_birth_year) return `"${cat.title}": min birth year cannot exceed max birth year.`
@@ -928,7 +1036,7 @@ export default function CreateRecruitmentModal({
                 return "Enter a valid venue map URL (including https://)."
             }
         }
-        if (step === 2) {
+        if (s === 2) {
             for (const q of questions) {
                 if (!q.question.trim()) return "All questions must have text."
                 const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
@@ -955,24 +1063,38 @@ export default function CreateRecruitmentModal({
                 }
             }
         }
-        if (step === 3) {
+        if (s === 3) {
             if (isPaid && !feeAmount) return "Enter the fee amount."
         }
         return null
     }
 
-    const goNext = () => {
-        const err = validateStep()
-        if (err) { setSubmitError(err); return }
-        setSubmitError(null)
-        setFieldErrors({})
-        setStep(s => Math.min(TOTAL_STEPS - 1, s + 1))
-    }
+    const goNext = () => goToStep(step + 1)
 
     const goPrev = () => {
-        setSubmitError(null)
         setFieldErrors({})
         setStep(s => Math.max(0, s - 1))
+    }
+
+    // Jump to an arbitrary step (from the step bar). Going back is free; going
+    // forward validates every step in between and stops at the first offender.
+    const goToStep = (target: number) => {
+        if (target === step) return
+        if (target < step) {
+            setFieldErrors({})
+            setStep(target)
+            return
+        }
+        for (let s = step; s < target; s++) {
+            const err = validateStep(s)
+            if (err) {
+                showFormError(err)
+                setStep(s)
+                return
+            }
+        }
+        setFieldErrors({})
+        setStep(Math.min(TOTAL_STEPS - 1, target))
     }
 
     // ── Media ─────────────────────────────────────────────────────
@@ -980,7 +1102,6 @@ export default function CreateRecruitmentModal({
         const files = Array.from(e.target.files ?? [])
         e.target.value = ""
         if (!files.length) return
-        setSubmitError(null)
         const imageFiles = files.filter(f => f.type.startsWith("image/"))
         const newEntries: MediaEntry[] = imageFiles.slice(0, 5 - mediaEntries.length).map(f => ({
             id: uid(), file: f, preview: URL.createObjectURL(f),
@@ -1050,7 +1171,8 @@ export default function CreateRecruitmentModal({
         positions: anyPosition
             ? []
             : selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
-        age_categories: ageCategories.map((c, idx) => ({
+        // "No age category" → open to all ages, save nothing.
+        age_categories: noAgeCategory ? [] : ageCategories.map((c, idx) => ({
             title: c.title.trim(),
             min_birth_year: c.min_birth_year,
             max_birth_year: c.max_birth_year,
@@ -1101,8 +1223,7 @@ export default function CreateRecruitmentModal({
     // "active"/undefined publishes. Edit never sends a status.
     const handleSubmit = async (submitStatus?: "draft" | "active") => {
         const err = validateStep()
-        if (err) { setSubmitError(err); return }
-        setSubmitError(null)
+        if (err) { showFormError(err); return }
         setFieldErrors({})
 
         // 1) Upload only newly-added media. Existing media is preserved as-is.
@@ -1141,7 +1262,6 @@ export default function CreateRecruitmentModal({
             } catch (uploadErr) {
                 const msg = getApiErrorMessage(uploadErr, "Media upload failed. Please try again.")
                 toast.show({ title: "Media upload failed", message: msg, variant: "error" })
-                setSubmitError(msg)
                 setPhase("idle")
                 return
             }
@@ -1200,7 +1320,6 @@ export default function CreateRecruitmentModal({
                 message: msg,
                 variant: "error",
             })
-            setSubmitError(msg)
             applyServerFieldErrors(submitErr)
             setPhase("idle")
         }
@@ -1311,8 +1430,14 @@ export default function CreateRecruitmentModal({
                         {/* Age categories */}
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Age Categories</label>
-                            <p className={styles.fieldSubLabel}>Select preset groups or add custom categories with birth year ranges.</p>
-                            <AgeCategoryBuilder categories={ageCategories} onChange={setAgeCategories} disabled={isSubmitting} />
+                            <p className={styles.fieldSubLabel}>Select preset groups, add custom categories, or mark the trial open to all ages.</p>
+                            <AgeCategoryBuilder
+                                categories={ageCategories}
+                                onChange={setAgeCategories}
+                                disabled={isSubmitting}
+                                noAge={noAgeCategory}
+                                onNoAgeChange={setNoAgeCategory}
+                            />
                         </div>
 
                         <div className={styles.sectionDivider} />
@@ -1696,7 +1821,7 @@ export default function CreateRecruitmentModal({
                 </div>
 
                 {/* Step bar */}
-                <StepBar step={step} />
+                <StepBar step={step} onStepClick={goToStep} disabled={isSubmitting} />
 
                 {/* Body */}
                 <div className={styles.body}>
@@ -1722,13 +1847,6 @@ export default function CreateRecruitmentModal({
                             </div>
                         </div>
                     )}
-
-                    {submitError && (
-                        <p className={styles.submitError} role="alert">
-                            <Icon icon="mdi:alert-circle-outline" width={14} height={14} />
-                            {submitError}
-                        </p>
-                    )}
                 </div>
 
                 {/* Footer */}
@@ -1743,7 +1861,8 @@ export default function CreateRecruitmentModal({
                                 {!isEdit && (
                                     <button className={styles.draftBtn} onClick={() => handleSubmit("draft")} disabled={isSubmitting} type="button">
                                         <Icon icon="mdi:content-save-edit-outline" width={15} height={15} />
-                                        Save Draft
+                                        <span className={styles.btnLabelFull}>Save Draft</span>
+                                        <span className={styles.btnLabelShort}>Draft</span>
                                     </button>
                                 )}
                                 <button
@@ -1753,7 +1872,8 @@ export default function CreateRecruitmentModal({
                                     type="button"
                                 >
                                     <Icon icon={isEdit ? "mdi:content-save-outline" : "mdi:whistle-outline"} width={15} height={15} />
-                                    {isEdit ? "Save Changes" : "Publish"}
+                                    <span className={styles.btnLabelFull}>{isEdit ? "Save Changes" : "Publish"}</span>
+                                    <span className={styles.btnLabelShort}>{isEdit ? "Save" : "Submit"}</span>
                                 </button>
                             </>
                         ) : (

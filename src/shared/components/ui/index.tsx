@@ -6,3 +6,4 @@ export { default as Avatar } from "./Avatar/Avatar";
 export { default as Divider } from "./Divider/Divider";
 export { default as Card } from "./Card/Card";
 export { default as Badge } from "./Badge/Badge";
+export { default as BackHeader } from "./BackHeader/BackHeader";

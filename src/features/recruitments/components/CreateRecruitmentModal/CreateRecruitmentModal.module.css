@@ -153,6 +153,28 @@
   flex-shrink: 0;
 }
 
+/* Step items double as navigation buttons. */
+.stepItemBtn {
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stepItemBtn:disabled {
+  cursor: not-allowed;
+}
+
+.stepItemBtn:not(:disabled):hover .stepDot {
+  border-color: var(--color-brand);
+}
+
+.stepItemBtn:not(:disabled):hover .stepLabel {
+  color: var(--color-brand-hover);
+}
+
 .stepDot {
   width: 22px;
   height: 22px;
@@ -252,7 +274,9 @@
 .fieldGroup {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1_5);
+  /* Space between a subsection label and its content — kept small but enough
+     that title + inputs don't read as one cramped block. */
+  gap: var(--space-2);
   /* Let the group (and its inputs) shrink inside the grid instead of forcing
      the row wider than the modal on narrow screens. */
   min-width: 0;
@@ -1184,6 +1208,36 @@
   cursor: not-allowed;
 }
 
+/* Responsive button labels — short forms kick in on narrow screens so the
+   Back + counter + Save Draft + Publish row fits on one line. */
+.btnLabelFull { display: inline; }
+.btnLabelShort { display: none; }
+
+@media (max-width: 480px) {
+  .footer {
+    gap: var(--space-2);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .footerRight {
+    gap: var(--space-2);
+    /* Keep the primary actions from overflowing; let them shrink if needed. */
+    min-width: 0;
+  }
+
+  .backBtn,
+  .draftBtn,
+  .publishBtn,
+  .nextBtn {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+
+  .btnLabelFull { display: none; }
+  .btnLabelShort { display: inline; }
+}
+
 /* ── Done state ──────────────────────────────────────────────── */
 
 .doneState {
@@ -1365,6 +1419,42 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* "No age category" toggle — open to all ages */
+.noAgeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
+}
+
+.noAgeToggle:hover:not(:disabled):not(.noAgeToggleActive) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+
+.noAgeToggleActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+.noAgeToggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
  
 .agePresetChip {
@@ -1568,6 +1658,92 @@
   outline: none;
 }
  
+/* ── Benefit icon picker ──────────────────────────────────────── */
+
+.benefitItem {
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.2s var(--ease-out) both;
+}
+
+.benefitIconWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.benefitIconTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.benefitIconTrigger:hover:not(:disabled),
+.benefitIconTriggerActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
+.benefitIconTrigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.benefitIconChevron {
+  color: var(--color-text-muted);
+}
+
+/* Small icon-only dropdown, options stacked vertically. */
+.benefitIconMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  animation: fadeIn 0.12s var(--ease-out) both;
+}
+
+.benefitIconOption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
+}
+
+.benefitIconOption:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+.benefitIconOptionActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
 /* ── Requirements builder ─────────────────────────────────────── */
  
 .requirementsBuilder {
@@ -1579,8 +1755,8 @@
 .reqPresetRow {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1_5);
-  margin-bottom: var(--space-1);
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
  
 .reqPresetChip {
@@ -1650,11 +1826,17 @@
   .contactRow {
     grid-template-columns: 80px 1fr auto;
     grid-template-rows: auto auto;
+    row-gap: var(--space-2);
   }
- 
-  .contactValueInput {
-    grid-column: 1 / -1;
-  }
+
+  /* Explicit placement: type + name + remove share the first row, the value
+     input spans the second. Without this, grid auto-placement pushes the
+     remove button onto its own third row (misaligned) because the value input
+     is explicitly placed full-width. */
+  .contactTypeSelect { grid-area: 1 / 1 / 2 / 2; }
+  .contactNameInput  { grid-area: 1 / 2 / 2 / 3; }
+  .contactRow .removeQBtn { grid-area: 1 / 3 / 2 / 4; }
+  .contactValueInput { grid-area: 2 / 1 / 3 / 4; }
 }
  
 .contactTypeSelect {

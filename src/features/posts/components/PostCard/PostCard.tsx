@@ -106,7 +106,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
       <div className={styles.cardHeader}>
         <Link href={getAuthorProfileHref(post)} className={styles.authorLink}>
           <Avatar
-            src={post.author.profile_photo}
+            src={post.author.profile_photo || post.author.logo}
             initials={post.author.name?.slice(0, 2).toUpperCase()}
             size="md"
           />
