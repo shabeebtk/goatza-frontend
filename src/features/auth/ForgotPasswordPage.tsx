@@ -1,11 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import AuthCard from "@/features/auth/components/AuthCard/AuthCard"
-import styles from "./AuthPage.module.css" 
+import ForgotPasswordCard from "@/features/auth/components/ForgotPasswordCard/ForgotPasswordCard"
+import styles from "./AuthPage.module.css"
 import { LOGO_URL } from "@/constants"
 
-export default function AuthPageLayout() {
+export default function ForgotPasswordPageLayout() {
   return (
     <div className={styles.authPage}>
 
@@ -19,8 +19,6 @@ export default function AuthPageLayout() {
 
         {/* Rotated watermark wordmark */}
         <span className={styles.watermark}>GOATZA</span>
-
-        
 
         {/* Bottom tag */}
         <div className={styles.leftTagline}>
@@ -38,10 +36,10 @@ export default function AuthPageLayout() {
 
       </div>
 
-      {/* ── RIGHT PANEL — auth card ── */}
+      {/* ── RIGHT PANEL — reset card ── */}
       <div className={styles.rightPanel}>
 
-        {/* Logo / back home — centered lockup: mark above, wordmark below */}
+        {/* Logo / back home */}
         <Link href="/" className={styles.logoLink} aria-label="Goatza home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -50,7 +48,6 @@ export default function AuthPageLayout() {
             aria-hidden="true"
             className={styles.logoImg}
             onError={(e) => {
-              // if the mark fails, the wordmark below still carries the brand
               e.currentTarget.style.display = "none"
             }}
           />
@@ -58,11 +55,11 @@ export default function AuthPageLayout() {
 
         {/* Card wrapper */}
         <div className={styles.cardWrapper}>
-          <AuthCard />
+          <ForgotPasswordCard />
         </div>
 
         <p className={styles.legalText}>
-          By continuing you agree to Goatza's{" "}
+          By continuing you agree to Goatza&apos;s{" "}
           <Link href="/legal/terms" className={styles.legalLink}>Terms</Link>
           {" & "}
           <Link href="/legal/privacy" className={styles.legalLink}>Privacy Policy</Link>.

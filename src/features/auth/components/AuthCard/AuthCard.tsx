@@ -306,7 +306,7 @@ function AuthCard() {
                         </button>
                     </div>
 
-                    <Divider label="or" style={{ marginBlock: "var(--space-4)" } as React.CSSProperties} />
+                    <Divider label="or" style={{ marginBlock: "var(--space-3)" } as React.CSSProperties} />
 
                     {/* ── API-level error ── */}
                     {apiError && (
@@ -423,7 +423,7 @@ function AuthCard() {
                         </form>
                     )}
 
-                    <p className={styles.authFooterText} style={{ marginTop: "var(--space-4)" }}>
+                    <p className={styles.authFooterText} style={{ marginTop: "var(--space-3)" }}>
                         {isSignUp ? (
                             <>Already have an account?{" "}
                                 <button

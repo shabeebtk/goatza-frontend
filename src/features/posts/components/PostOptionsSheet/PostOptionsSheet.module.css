@@ -55,7 +55,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-bottom);
   animation: sheetUp 0.26s var(--ease-spring) both;
 }
 

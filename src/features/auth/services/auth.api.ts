@@ -19,6 +19,16 @@ export type VerifyOtpPayload = {
   otp: string
 }
 
+export type ForgotPasswordPayload = {
+  email: string
+}
+
+export type ResetPasswordPayload = {
+  email: string
+  otp: string
+  new_password: string
+}
+
 export type AuthUser = {
   id: string
   username: string
@@ -64,6 +74,19 @@ export const signupApi = async (data: SignupPayload): Promise<SignupResponse> =>
 export const verifyOtpApi = async (data: VerifyOtpPayload): Promise<AuthTokenResponse> => {
   const res = await api.post("/user/verify/otp", data)
   return res.data.data
+}
+
+export const forgotPasswordApi = async (
+  data: ForgotPasswordPayload
+): Promise<{ email: string }> => {
+  const res = await api.post("/user/forgot/password", data)
+  return res.data.data
+}
+
+export const resetPasswordApi = async (
+  data: ResetPasswordPayload
+): Promise<void> => {
+  await api.post("/user/reset/password", data)
 }
 
 export const logoutApi = async () => {

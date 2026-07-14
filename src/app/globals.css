@@ -254,6 +254,19 @@
   --radius-lg: 20px;
   --radius-xl: 28px;
   --radius-full: 9999px;
+
+  /* ── Safe-area insets (iOS/Android notch + home indicator).
+     Each falls back to 0px so desktop / Android browser / iOS Safari browser
+     are pixel-identical to no-inset behaviour. Use these tokens everywhere
+     instead of repeating env() calls. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ── Fixed nav band heights (content-box, before adding safe insets) */
+  --top-nav-h: 54px;
+  --bottom-nav-h: 62px;
 }
 
 /* ── 5. MOTION TOKENS ──────────────────────────────────────── */

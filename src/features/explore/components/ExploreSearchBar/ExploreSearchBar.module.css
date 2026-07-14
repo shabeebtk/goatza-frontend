@@ -6,7 +6,7 @@
 .wrap {
     position: sticky;
     /* Sit right under the fixed AppNav top bar (54px mobile / 60px desktop). */
-    top: calc(54px + env(safe-area-inset-top, 0px));
+    top: calc(var(--top-nav-h) + var(--safe-top));
     z-index: 90;
 
     background: var(--color-bg);

@@ -42,7 +42,7 @@
   flex-direction: column;
   width: 100%;
   /* Mobile: cap height so the sheet never slides behind the 54px top AppNav */
-  max-height: calc(100dvh - 54px);
+  max-height: calc(100dvh - var(--top-nav-h) - var(--safe-top));
   background: var(--color-surface);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   overflow: hidden;
@@ -400,7 +400,7 @@
   display: flex;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   flex-shrink: 0;

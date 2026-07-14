@@ -49,7 +49,11 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#000000",
+  // theme-color is set per-section, not globally: landing + auth server pages
+  // export viewport.themeColor = "#000000" (dark); in-app layouts render
+  // <ThemeColorMeta /> (theme-aware). This lets the status bar tint match each
+  // section. iOS standalone status bar uses apple-mobile-web-app-status-bar-style
+  // (black-translucent) + safe-area padding, independent of theme-color.
 };
 
 export default function RootLayout({

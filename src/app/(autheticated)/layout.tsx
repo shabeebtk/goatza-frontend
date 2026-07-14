@@ -6,6 +6,7 @@ import ActorRouteSync from "@/shared/components/auth/ActorRouteSync";
  */
 import AuthGuard from "@/shared/components/auth/AuthGuard";
 import AppShell from "@/shared/components/layout/AppShell/AppShell";
+import ThemeColorMeta from "@/shared/components/ThemeColorMeta/ThemeColorMeta";
 
 export default function ProtectedLayout({
   children,
@@ -13,11 +14,14 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthGuard>
-      <AppShell>
-        <ActorRouteSync />
-        {children}
-      </AppShell>
-    </AuthGuard>
+    <>
+      <ThemeColorMeta />
+      <AuthGuard>
+        <AppShell>
+          <ActorRouteSync />
+          {children}
+        </AppShell>
+      </AuthGuard>
+    </>
   );
 }

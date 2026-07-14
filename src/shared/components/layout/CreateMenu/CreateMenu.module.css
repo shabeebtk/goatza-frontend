@@ -197,7 +197,7 @@
 .sheetSpacer { width: 36px; }
 
 .sheetContent {
-  padding: var(--space-3) var(--space-3) calc(70px + env(safe-area-inset-bottom, 0px));
+  padding: var(--space-3) var(--space-3) calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   display: flex;

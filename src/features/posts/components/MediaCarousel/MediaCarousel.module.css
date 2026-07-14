@@ -293,7 +293,7 @@
 
 .lightboxClose {
   position: absolute;
-  top: var(--space-5);
+  top: calc(var(--space-5) + var(--safe-top));
   right: var(--space-5);
   width: 44px;
   height: 44px;
@@ -313,7 +313,7 @@
 
 .lightboxCounter {
   position: absolute;
-  top: var(--space-5);
+  top: calc(var(--space-5) + var(--safe-top));
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-ui);
@@ -366,7 +366,7 @@
 
 .lightboxDots {
   position: absolute;
-  bottom: var(--space-6);
+  bottom: calc(var(--space-6) + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -392,7 +392,7 @@
 
 .zoomIndicator {
   position: absolute;
-  bottom: var(--space-6);
+  bottom: calc(var(--space-6) + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -442,7 +442,7 @@
 
 .zoomHint {
   position: absolute;
-  bottom: var(--space-6);
+  bottom: calc(var(--space-6) + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;

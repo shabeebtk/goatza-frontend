@@ -5,6 +5,7 @@ import AuthGuard from "@/shared/components/auth/AuthGuard";
 import ActorRouteSync from "@/shared/components/auth/ActorRouteSync";
 import OrgShell from "@/shared/components/layout/OrgShell/OrgShell";
 import OrgMemberGuard from "@/shared/components/auth/OrgMemberGuard";
+import ThemeColorMeta from "@/shared/components/ThemeColorMeta/ThemeColorMeta";
 
 interface OrgAdminLayoutProps {
   children: React.ReactNode;
@@ -18,13 +19,16 @@ export default function OrgAdminLayout({
   const { id } = use(params);
 
   return (
-    <AuthGuard>
-      <OrgMemberGuard orgId={id}>
-        <OrgShell orgId={id}>
-          <ActorRouteSync />
-          {children}
-        </OrgShell>
-      </OrgMemberGuard>
-    </AuthGuard>
+    <>
+      <ThemeColorMeta />
+      <AuthGuard>
+        <OrgMemberGuard orgId={id}>
+          <OrgShell orgId={id}>
+            <ActorRouteSync />
+            {children}
+          </OrgShell>
+        </OrgMemberGuard>
+      </AuthGuard>
+    </>
   );
 }

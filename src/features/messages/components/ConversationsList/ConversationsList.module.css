@@ -8,7 +8,7 @@
 .container {
   max-width: 680px;
   margin-inline: auto;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 18px);
   min-height: 100dvh;
 }
 
