@@ -5,6 +5,7 @@ import {
   loginApi,
   logoutApi,
   resetPasswordApi,
+  setRoleApi,
   signupApi,
   verifyOtpApi,
   type ForgotPasswordPayload,
@@ -14,6 +15,7 @@ import {
   type VerifyOtpPayload,
 } from "../services/auth.api"
 import { useAuthStore } from "@/store/auth.store"
+import type { UserRole } from "@/shared/constants/roles"
 
 // ── Login ────────────────────────────────────────────────────
 
@@ -90,6 +92,21 @@ export const useGoogleAuth = () => {
         token: data.access,
         user: data.user,
       })
+    },
+  })
+}
+
+
+// ── Set role (post-Google onboarding) ────────────────────────
+// One-time role selection. Updates the store user in place on success.
+
+export const useSetRole = () => {
+  const setUserRole = useAuthStore((s) => s.setUserRole)
+
+  return useMutation({
+    mutationFn: (role: UserRole) => setRoleApi(role),
+    onSuccess: (data) => {
+      setUserRole(data.role)
     },
   })
 }

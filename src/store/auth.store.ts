@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 import type { OrganizationMini } from "@/features/organization/types"
+import type { UserRole } from "@/shared/constants/roles"
 
 export type ActorType = "user" | "organization"
 
@@ -11,6 +12,8 @@ export type User = {
   name?: string
   phone?: string | null
   profile_photo?: string
+  role?: UserRole
+  is_role_confirmed?: boolean
 }
 
 export type OrganizationActor = OrganizationMini
@@ -59,6 +62,8 @@ type AuthState = {
   updateAccessToken: (token: string) => void
 
   updateUser: (user: User) => void
+
+  setUserRole: (role: UserRole) => void
 
   setOrganizations: (organizations: OrganizationActor[]) => void
 
@@ -123,6 +128,15 @@ export const useAuthStore = create<AuthState>()(
           user,
           isAuthenticated: true,
         }),
+
+      // Set the role once (after the onboarding /user/role call succeeds) and mark
+      // it confirmed, in place, without disturbing the rest of the session.
+      setUserRole: (role) =>
+        set((state) =>
+          state.user
+            ? { user: { ...state.user, role, is_role_confirmed: true } }
+            : state
+        ),
 
       setOrganizations: (organizations) =>
         set((state) => {
