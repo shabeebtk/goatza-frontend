@@ -1,11 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
+  forgotPasswordApi,
   googleCallbackApi,
   loginApi,
   logoutApi,
+  resetPasswordApi,
   signupApi,
   verifyOtpApi,
+  type ForgotPasswordPayload,
   type LoginPayload,
+  type ResetPasswordPayload,
   type SignupPayload,
   type VerifyOtpPayload,
 } from "../services/auth.api"
@@ -55,6 +59,24 @@ export const useVerifyOtp = () => {
         user: data.user,
       })
     },
+  })
+}
+
+// ── Forgot password ──────────────────────────────────────────
+// Step 1: request an OTP for the given email.
+
+export const useForgotPassword = () => {
+  return useMutation({
+    mutationFn: (data: ForgotPasswordPayload) => forgotPasswordApi(data),
+  })
+}
+
+// ── Reset password ───────────────────────────────────────────
+// Step 2: verify OTP + set the new password.
+
+export const useResetPassword = () => {
+  return useMutation({
+    mutationFn: (data: ResetPasswordPayload) => resetPasswordApi(data),
   })
 }
 

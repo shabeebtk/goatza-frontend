@@ -125,6 +125,10 @@
     align-items: center;
     pointer-events: none;
     transition: color var(--duration-base);
+    /* Keep icons above the input — on focus the input gets a transform, which
+       makes it paint as a positioned element and (with its solid background)
+       would otherwise cover the icons. */
+    z-index: 1;
 }
 
 .inputAdornLeft {

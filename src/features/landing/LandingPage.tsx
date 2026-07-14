@@ -18,7 +18,7 @@ import {
   tickerItems,
   showcaseCards,
   features,
-  steps,
+  // steps, // re-enable with the commented-out HowItWorks section (video clip)
   personas,
   productPreview,
   landingImages,
@@ -87,7 +87,9 @@ function Header({ scrolled }: { scrolled: boolean }) {
           <a href="#for-you" className={styles.headerNavLink}>For You</a>
           <a href="#preview" className={styles.headerNavLink}>The Product</a>
           <a href="#features" className={styles.headerNavLink}>Features</a>
+          {/* TODO: re-enable when the "how it works" video clip is ready
           <a href="#how" className={styles.headerNavLink}>How It Works</a>
+          */}
         </nav>
 
         <div className={styles.headerActions}>
@@ -152,9 +154,9 @@ function HeroSection() {
     return () => obs.disconnect();
   }, []);
 
-  const count1 = useCounter(2800, 1000, statsVisible);
-  const count2 = useCounter(140, 800, statsVisible);
-  const count3 = useCounter(120, 700, statsVisible); // TODO: confirm real figure
+  const count1 = useCounter(100, 1000, statsVisible);
+  const count2 = useCounter(10, 800, statsVisible);
+  const count3 = useCounter(10, 700, statsVisible);
 
   return (
     <section className={styles.hero} aria-label="Hero">
@@ -180,10 +182,6 @@ function HeroSection() {
 
       <div className={`container ${styles.heroInner}`}>
         <div className={styles.heroCopy}>
-          <Badge variant="brand" dot className={styles.heroBadge}>
-            Now Beta testing · Football
-          </Badge>
-
           <h1 className={styles.heroHeadline}>
             {HEADLINE.map((w, i) => (
               <Fragment key={i}>
@@ -212,6 +210,7 @@ function HeroSection() {
             >
               Start for Free
             </Button>
+            {/* TODO: re-enable when the "how it works" video clip is ready
             <Button
               variant="outline"
               size="lg"
@@ -221,6 +220,7 @@ function HeroSection() {
             >
               See How It Works
             </Button>
+            */}
           </div>
 
           <div ref={statsRef} className={styles.heroStats} role="list" aria-label="Platform stats">
@@ -558,6 +558,8 @@ function Features() {
 }
 
 // ── How It Works ─────────────────────────────────────────────────
+// TODO: re-enable when the "how it works" video clip is ready
+/*
 function HowItWorks() {
   const gridRef = useRef<HTMLDivElement>(null);
   const [animate, setAnimate] = useState(false);
@@ -617,6 +619,7 @@ function HowItWorks() {
     </section>
   );
 }
+*/
 
 // ── Persona Selector — "Which one are you?" tabs ─────────────────
 function PersonaSelector() {
@@ -851,7 +854,9 @@ export default function LandingPage() {
         <PersonaSelector />
         <ProductPreview />
         <Features />
+        {/* TODO: re-enable when the "how it works" video clip is ready
         <HowItWorks />
+        */}
         <FinalCTA />
       </main>
       <SiteFooter />

@@ -166,6 +166,15 @@
 .logoLockup:hover .logoWordmark { color: var(--color-brand-hover); }
 .header:not(.headerScrolled) .logoLockup:hover .logoWordmark { color: var(--color-brand); }
 
+/* Mobile (nav hidden): tighten the logo lockup so the mark + wordmark read as
+   one unit, and let space-between push Sign In / Get Started to the far right. */
+@media (max-width: 819px) {
+  .logoLockup { gap: var(--space-1); }
+  .logoImg { height: 34px; }
+  .logoWordmark { font-size: var(--text-lg); }
+  .headerActions { gap: var(--space-2); }
+}
+
 /* ── HERO — full-bleed cinematic photo ────────────────────────── */
 
 .hero {
