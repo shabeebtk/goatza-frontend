@@ -47,7 +47,7 @@ export function useNavigation() {
         if (currentOrg.username === username) {
           return `/organization/admin/${currentOrg.id}/posts`
         }
-        return `/organization/admin/${currentOrg.id}/profile/organization/${username}/posts`
+        return `/organization/admin/${currentOrg.id}/profile/org/${username}/posts`
       }
 
       return `/organization/admin/${currentOrg.id}/profile/user/${username}/posts`

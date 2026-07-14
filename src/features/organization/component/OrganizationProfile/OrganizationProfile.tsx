@@ -22,6 +22,7 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import OrgPhotoEditModal from "../OrgPhotoEditModal/OrgPhotoEditModal"
 import EditOrgProfileModal from "../EditOrgProfileModal/EditOrgProfileModal"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
+import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import RecruitmentsList from "@/features/recruitments/components/RecruitmentsList/RecruitmentsList"
 
 // ── Constants ──────────────────────────────────────────────────────
@@ -214,6 +215,7 @@ interface OrgProfileInnerProps {
 function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
     const [photoModal, setPhotoModal] = useState<"logo" | "cover" | null>(null)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [postModalOpen, setPostModalOpen] = useState(false)
     const { toMessage, toNetwork } = useNavigation()
 
     const [showAllLocations, setShowAllLocations] = useState(false)
@@ -531,7 +533,7 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                             type="organization"
                             isOwn={isMe}
                             preview
-                            onCreatePost={() => {/* wire up if you want the CTA here */ }}
+                            onCreatePost={() => setPostModalOpen(true)}
                         />
 
 
@@ -564,6 +566,16 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                 <EditOrgProfileModal
                     org={org}
                     onClose={() => setIsEditModalOpen(false)}
+                />
+            )}
+
+            {postModalOpen && (
+                <CreatePostModal
+                    username={org.username}
+                    userAvatarUrl={org.logo || undefined}
+                    userInitials={orgInitials}
+                    displayName={org.name}
+                    onClose={() => setPostModalOpen(false)}
                 />
             )}
         </>

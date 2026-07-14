@@ -6,6 +6,7 @@ import ActorRouteSync from "@/shared/components/auth/ActorRouteSync";
 import OrgShell from "@/shared/components/layout/OrgShell/OrgShell";
 import OrgMemberGuard from "@/shared/components/auth/OrgMemberGuard";
 import ThemeColorMeta from "@/shared/components/ThemeColorMeta/ThemeColorMeta";
+import { useMarkAppEntry } from "@/shared/hooks/useSmartBack";
 
 interface OrgAdminLayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,10 @@ export default function OrgAdminLayout({
   params,
 }: OrgAdminLayoutProps) {
   const { id } = use(params);
+
+  // Capture the history baseline once so "back" buttons know whether going
+  // back would leave the app (see useSmartBack).
+  useMarkAppEntry();
 
   return (
     <>

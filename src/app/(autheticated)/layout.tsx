@@ -7,12 +7,17 @@ import ActorRouteSync from "@/shared/components/auth/ActorRouteSync";
 import AuthGuard from "@/shared/components/auth/AuthGuard";
 import AppShell from "@/shared/components/layout/AppShell/AppShell";
 import ThemeColorMeta from "@/shared/components/ThemeColorMeta/ThemeColorMeta";
+import { useMarkAppEntry } from "@/shared/hooks/useSmartBack";
 
 export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Capture the history baseline once so "back" buttons know whether going
+  // back would leave the app (see useSmartBack).
+  useMarkAppEntry();
+
   return (
     <>
       <ThemeColorMeta />

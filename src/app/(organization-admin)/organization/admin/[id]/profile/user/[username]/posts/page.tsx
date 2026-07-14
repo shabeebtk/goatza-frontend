@@ -7,17 +7,20 @@ import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 export default function UserPostsPage({
   params,
 }: {
-  params: Promise<{ username: string }>
+  params: Promise<{ id: string; username: string }>
 }) {
-  const { username } = use(params)
+  const { id, username } = use(params)
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", padding: "var(--space-4)" }}>
-      <BackHeader title="Posts" />
+      <BackHeader
+        title="Posts"
+        fallback={`/organization/admin/${id}/profile/user/${username}`}
+      />
 
       <PostsList
         username={username}
-        type="organization"
+        type="user"
       />
     </div>
   )

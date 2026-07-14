@@ -79,7 +79,9 @@ export type PostAuthor = {
   id: string
   username: string
   name: string
-  profile_photo: string
+  /** User authors expose `profile_photo`; organization authors expose `logo`. */
+  profile_photo?: string
+  logo?: string
   headline: string
 }
 
