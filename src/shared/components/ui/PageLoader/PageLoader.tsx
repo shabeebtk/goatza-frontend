@@ -1,0 +1,72 @@
+"use client"
+
+import { useId, type CSSProperties } from "react"
+import styles from "./PageLoader.module.css"
+
+// Goatza logo traced as a single vector path (dot + swoosh + G body)
+const LOGO_PATH =
+  "M423.8 710.6C477.8 682.2 514.3 656.5 547.5 623.6C569.0 602.3 583.7 583.6 594.1 564.8L597.8 558.0L588.6 558.0C565.3 558.0 545.5 551.2 532.9 538.8C527.3 533.2 522.0 524.9 522.0 521.5C522.0 520.2 530.1 520.0 595.0 520.0C667.2 520.0 668.0 520.0 668.0 522.0C668.0 525.2 662.1 542.8 657.4 553.3C641.3 589.7 613.8 622.9 575.3 652.6C542.7 677.7 502.0 698.2 463.5 708.8C448.8 712.9 427.3 717.0 417.5 717.6L409.5 718.1L423.8 710.6ZM410.0 671.0C382.8 667.2 360.0 651.9 348.9 629.8C342.1 616.3 338.3 595.1 339.5 577.3C343.7 512.7 390.2 450.3 460.0 415.4C493.1 398.9 527.6 390.1 566.8 388.3C574.1 388.0 579.9 387.6 579.7 387.4C579.1 386.8 565.2 384.9 551.6 383.5C532.8 381.6 500.0 381.6 483.0 383.6C437.9 388.7 390.7 406.7 351.9 433.5C347.6 436.4 344.0 438.5 344.0 438.1C344.0 437.6 348.6 432.8 354.3 427.4C403.5 380.1 469.3 349.8 533.4 344.9C558.3 343.0 587.1 346.4 607.5 353.7C626.1 360.4 646.6 373.4 657.6 385.4C672.5 401.7 675.4 417.2 667.0 435.7L664.1 442.1L654.3 437.2C614.9 417.5 556.5 419.8 501.0 443.2C475.9 453.8 453.0 469.1 434.4 487.5C406.3 515.4 391.0 548.8 391.0 582.3C391.0 612.2 403.0 631.2 428.8 642.3C442.1 648.0 453.3 649.8 478.2 650.1C488.0 650.3 496.0 650.7 496.0 651.0C496.0 651.4 490.7 654.2 484.2 657.3C472.6 662.8 457.1 667.9 445.5 669.9C437.0 671.5 417.7 672.1 410.0 671.0ZM645.5 354.0C639.0 352.6 633.8 350.5 627.9 346.7C610.1 335.3 605.1 314.4 615.7 296.3C618.8 290.9 627.9 282.6 633.9 279.6C648.7 272.0 665.4 272.1 680.4 279.7C687.4 283.2 696.2 292.0 700.1 299.3C703.3 305.2 703.5 306.0 703.5 315.5C703.5 324.4 703.2 326.1 700.7 331.2C695.7 341.5 684.1 350.0 670.5 353.5C664.2 355.1 652.2 355.3 645.5 354.0Z"
+
+interface PageLoaderProps {
+  /** Text under the logo, e.g. "Loading..." or "Signing you in..." Pass "" to hide. */
+  label?: string
+  /** Covers the whole viewport when true (default). Set false to embed inside a section. */
+  fullscreen?: boolean
+  /** Logo size in px (default 96) */
+  size?: number
+}
+
+export default function PageLoader({
+  label = "Loading...",
+  fullscreen = true,
+  size = 96,
+}: PageLoaderProps) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "")
+  const clipId = `gz-clip-${uid}`
+  const shineId = `gz-shine-${uid}`
+
+  return (
+    <div
+      className={fullscreen ? styles.fullscreen : styles.inline}
+      role="status"
+      aria-live="polite"
+      aria-label={label || "Loading"}
+    >
+      <svg
+        className={styles.logo}
+        style={{ "--logo-size": `${size}px` } as CSSProperties}
+        viewBox="309 242 425 506"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <defs>
+          <clipPath id={clipId}>
+            <path d={LOGO_PATH} clipRule="evenodd" />
+          </clipPath>
+          <linearGradient id={shineId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="var(--color-brand)" stopOpacity="0" />
+            <stop offset="0.5" stopColor="var(--color-brand)" stopOpacity="0.9" />
+            <stop offset="1" stopColor="var(--color-brand)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        <path d={LOGO_PATH} fill="currentColor" fillRule="evenodd" />
+
+        <g clipPath={`url(#${clipId})`}>
+          <g className={styles.shine}>
+            <rect
+              x="160"
+              y="220"
+              width="140"
+              height="560"
+              fill={`url(#${shineId})`}
+              transform="skewX(-12)"
+            />
+          </g>
+        </g>
+      </svg>
+
+      {label && <p className={styles.label}>{label}</p>}
+    </div>
+  )
+}

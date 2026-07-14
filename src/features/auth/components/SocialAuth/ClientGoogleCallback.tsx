@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useGoogleAuth } from "@/features/auth/hooks/useAuthMutations"
+import PageLoader from "@/shared/components/ui/PageLoader/PageLoader"
 
 export default function ClientGoogleCallback() {
   const router = useRouter()
@@ -18,9 +19,6 @@ export default function ClientGoogleCallback() {
     const code = searchParams.get("code")
     const state = searchParams.get("state")
 
-    console.log("code:", code)
-    console.log("state:", state)
-
     if (!code || !state) {
       router.replace("/auth")
       return
@@ -35,5 +33,5 @@ export default function ClientGoogleCallback() {
     )
   }, []) 
 
-  return <div>Signing you in...</div>
+  return <PageLoader label="Signing you in..." />
 }

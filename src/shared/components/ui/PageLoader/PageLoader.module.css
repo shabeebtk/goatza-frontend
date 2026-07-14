@@ -1,0 +1,91 @@
+/* PageLoader — theme-aware via globals.css tokens.
+   Light/dark handled automatically by --color-bg / --color-ink / --color-brand. */
+
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  background: var(--color-bg);
+}
+
+.inline {
+  position: relative;
+  width: 100%;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+}
+
+.logo {
+  width: var(--logo-size, 96px);
+  height: auto;
+  color: var(--color-ink);
+  animation: gz-breathe 2.4s ease-in-out infinite;
+}
+
+/* Slightly smaller logo on phones */
+@media (max-width: 640px) {
+  .logo {
+    width: calc(var(--logo-size, 96px) * 0.75);
+  }
+}
+
+/* The reflection band sweeping across the logo */
+.shine {
+  animation: gz-sweep 2s ease-in-out infinite;
+}
+
+.label {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm, 0.875rem);
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  animation: gz-fade 2s ease-in-out infinite;
+}
+
+@keyframes gz-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes gz-sweep {
+  0% {
+    transform: translateX(0);
+  }
+  55%,
+  100% {
+    transform: translateX(620px);
+  }
+}
+
+@keyframes gz-fade {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo,
+  .shine,
+  .label {
+    animation: none;
+  }
+}
