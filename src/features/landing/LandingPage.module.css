@@ -31,8 +31,14 @@
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 100;
-  /* space-2 (not space-3) so the larger 44px logo keeps header height ~60px. */
-  padding-block: var(--space-2);
+  /* space-2 (not space-3) so the larger 44px logo keeps header height ~60px.
+     The header stays anchored at top:0, so its background (transparent over the
+     hero, blurred when scrolled) extends behind the status bar; the top padding
+     clears the iOS status bar in standalone. safe-* resolve to 0px everywhere else. */
+  padding-top: calc(var(--space-2) + var(--safe-top));
+  padding-bottom: var(--space-2);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
   border-bottom: 1px solid transparent;
   transition:
     background var(--duration-slow) var(--ease-out),

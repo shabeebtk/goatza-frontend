@@ -534,8 +534,8 @@
   left: 0;
   right: 0;
   z-index: 200;
-  height: calc(54px + env(safe-area-inset-top, 0px));
-  padding-top: 3px; /* stripe offset */
+  height: calc(var(--top-nav-h) + var(--safe-top));
+  padding-top: calc(3px + var(--safe-top)); /* stripe offset + status bar */
   padding-inline: var(--space-4);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
@@ -602,8 +602,10 @@
     left: 0;
     right: 0;
     z-index: 200;
-    height: 62px;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(var(--bottom-nav-h) + var(--safe-bottom));
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
     background: var(--color-surface);
     border-top: 1px solid var(--color-border);
     box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
@@ -768,7 +770,7 @@
 .sheetSpacer { width: 36px; }
 
 .sheetContent {
-  padding: var(--space-2) 0 calc(70px + env(safe-area-inset-bottom, 0px));
+  padding: var(--space-2) 0 calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }

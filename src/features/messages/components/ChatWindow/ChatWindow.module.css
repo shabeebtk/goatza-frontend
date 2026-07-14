@@ -88,8 +88,8 @@
 @media (max-width: 767px) {
   .header {
     /* On mobile add safe area at top (notch) */
-    padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
-    min-height: calc(54px + env(safe-area-inset-top, 0px));
+    padding-top: calc(var(--space-3) + var(--safe-top));
+    min-height: calc(var(--top-nav-h) + var(--safe-top));
   }
 }
 
@@ -444,7 +444,7 @@
 .inputArea {
   flex-shrink: 0;
   padding: var(--space-3) var(--space-4);
-  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--space-3) + var(--safe-bottom));
   background: var(--color-surface);
   border-top: 1.5px solid var(--color-border);
 }

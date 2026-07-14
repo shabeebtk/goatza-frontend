@@ -60,6 +60,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-5);
+  padding-top: calc(var(--space-4) + var(--safe-top));
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   background: var(--color-surface);
@@ -284,7 +285,7 @@
   display: flex;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   flex-shrink: 0;

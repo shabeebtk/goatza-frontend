@@ -14,7 +14,7 @@
     width: 100%;
 
     /* Mobile: offset for top bar (54px) + bottom bar (62px) */
-    padding-top: calc(54px + env(safe-area-inset-top, 0px));
+    padding-top: calc(var(--top-nav-h) + var(--safe-top));
 }
 
 /* Desktop: only top bar (60px), no bottom bar */
