@@ -756,20 +756,27 @@ export default function RecruitmentDetail({
       )}
 
       {/* ── Age Categories ── */}
-      {ageCategories.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:account-group-outline" width={16} height={16} />
-            Age Categories
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
+          <Icon icon="mdi:account-group-outline" width={16} height={16} />
+          Age {ageCategories.length > 0 ? "Categories" : "Category"}
+          {ageCategories.length > 0 && (
             <span className={styles.sectionCount}>{ageCategories.length}</span>
-          </h2>
-          <div className={styles.ageCatGrid}>
-            {ageCategories.map((cat) => (
+          )}
+        </h2>
+        <div className={styles.ageCatGrid}>
+          {ageCategories.length > 0 ? (
+            ageCategories.map((cat) => (
               <AgeCategoryCard key={cat.id} category={cat} />
-            ))}
-          </div>
-        </section>
-      )}
+            ))
+          ) : (
+            <div className={styles.ageCatCard}>
+              <div className={styles.ageCatBadge}>Open</div>
+              <div className={styles.ageCatAges}>All ages welcome</div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Positions ── */}
       <section className={styles.section}>
