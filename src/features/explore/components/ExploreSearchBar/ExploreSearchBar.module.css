@@ -14,6 +14,14 @@
     border-bottom: 1px solid var(--color-border-subtle);
 }
 
+/* Mobile: the top bar auto-hides on scroll, so a sticky search bar would leave
+   a floating gap. Let it scroll away with the content instead. */
+@media (max-width: 767px) {
+    .wrap {
+        position: static;
+    }
+}
+
 @media (min-width: 768px) {
     .wrap {
         top: 60px;

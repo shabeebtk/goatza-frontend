@@ -509,6 +509,15 @@
     border-bottom: 1px solid var(--color-border);
     box-shadow: var(--shadow-sm);
     animation: navFadeIn 0.45s var(--ease-out) both;
+    /* Scroll-linked auto-hide. `--chrome-progress` (0→1) is written by
+       useScrollChrome; translateY(-100%) at 1 slides the bar (incl. its
+       safe-area padding) fully off the top. Transition is 0s during the
+       follow phase so it tracks scroll 1:1 — the snap rule below turns it on
+       only to settle. `!important` beats the entry animation's persisted
+       transform (fill:both); opacity still fades in. */
+    transform: translateY(calc(var(--chrome-progress, 0) * -100%)) !important;
+    transition: transform 0s;
+    will-change: transform;
 }
 
 @media (min-width: 768px) {
@@ -587,6 +596,11 @@
         border-top: 1px solid var(--color-border);
         box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
         animation: tabBarUp 0.45s var(--ease-out) 0.1s both;
+        /* Scroll-linked auto-hide — translateY(100%) at progress 1 slides the
+           bar (incl. safe-area padding) fully off the bottom. See .mobileTopBar. */
+        transform: translateY(calc(var(--chrome-progress, 0) * 100%)) !important;
+        transition: transform 0s;
+        will-change: transform;
     }
 }
 
@@ -762,6 +776,17 @@
   }
   .bottomBarHidden {
     display: none !important;
+  }
+
+  /* ── Settle transition ──────────────────────────────────────────
+     useScrollChrome sets data-chrome-snap on <html> only when the scroll
+     goes quiet, so the bars ease to their fully open/closed rest position.
+     During the follow phase the attribute is absent and the base rule's
+     `transition: transform 0s` keeps the motion locked 1:1 to the scroll.
+     Higher specificity than the base rule → no !important needed here. */
+  :global(html[data-chrome-snap]) .mobileTopBar,
+  :global(html[data-chrome-snap]) .bottomBar {
+    transition: transform 280ms var(--ease-out);
   }
 }
 

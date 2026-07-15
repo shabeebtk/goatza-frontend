@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
+import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 import {
   getBottomNav,
   getDesktopNav,
@@ -104,6 +105,12 @@ export default function AppNav() {
   const messageCount = useConversationsUnreadSummary().data?.total ?? 0
 
   const isChatPage = /^\/messages\/.+/.test(pathname)
+
+  // Scroll-linked auto-hide for the mobile chrome: the bars slide off as you
+  // scroll down and follow you back on the way up, settling smoothly when you
+  // stop. Inert on chat pages (bars already fully hidden there) and, via CSS,
+  // on desktop. Drives the `--chrome-progress` var on <html> — no re-renders.
+  useScrollChrome({ enabled: !isChatPage })
 
   // Nav is driven entirely by the role config — no role branching in JSX.
   const navItems = getNavItems(user?.role)

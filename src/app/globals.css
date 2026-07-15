@@ -298,6 +298,13 @@ html {
   -moz-osx-font-smoothing: grayscale;
   height: 100%;
   width: 100%;
+  /* Root scroller bg matches the app so iOS rubber-band / notch areas never
+     flash white or black at the top/bottom of the page (esp. in standalone).
+     Theme-aware via --color-bg. */
+  background-color: var(--color-bg);
+  /* Kill the document's overscroll chaining / bounce so the fixed chrome and
+     safe-area edges don't reveal a blank gutter under momentum scroll. */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -308,6 +315,7 @@ body {
   color: var(--color-text-primary);
   background-color: var(--color-bg);
   overflow-x: clip;
+  overscroll-behavior-y: none;
   min-height: 100%;
   width: 100%;
 }

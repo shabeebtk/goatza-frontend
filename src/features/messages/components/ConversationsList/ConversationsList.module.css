@@ -28,7 +28,9 @@
 
 @media (max-width: 767px) {
   .header {
-    top: 54px;
+    /* Top bar auto-hides on scroll — scroll the search/chat/request section
+       with the content instead of pinning it (which would float over a gap). */
+    position: static;
     padding: var(--space-3) var(--space-4) 0;
   }
 }
