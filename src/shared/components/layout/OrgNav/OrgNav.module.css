@@ -542,6 +542,14 @@
   box-shadow: var(--shadow-sm);
   animation: navFadeIn 0.4s var(--ease-out) both;
   overflow: visible;
+  /* Scroll-linked auto-hide. `--chrome-progress` (0→1) is written by
+     useScrollChrome; at 1 the bar (incl. safe-area padding) slides off the top.
+     Transition is 0s during follow so it tracks scroll 1:1; the snap rule turns
+     it on only to settle. `!important` beats the entry animation's persisted
+     transform (fill:both); opacity still fades in. */
+  transform: translateY(calc(var(--chrome-progress, 0) * -100%)) !important;
+  transition: transform 0s;
+  will-change: transform;
 }
 
 @media (min-width: 768px) {
@@ -610,7 +618,19 @@
     border-top: 1px solid var(--color-border);
     box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
     animation: tabBarUp 0.4s var(--ease-out) 0.1s both;
+    /* Scroll-linked auto-hide — at progress 1 slides off the bottom (incl.
+       safe-area padding). See .mobileTopBar. */
+    transform: translateY(calc(var(--chrome-progress, 0) * 100%)) !important;
+    transition: transform 0s;
+    will-change: transform;
   }
+}
+
+/* Settle transition — enabled only while data-chrome-snap is set on <html>,
+   so the follow phase stays 1:1 with the scroll and the settle eases. */
+:global(html[data-chrome-snap]) .mobileTopBar,
+:global(html[data-chrome-snap]) .bottomBar {
+  transition: transform 280ms var(--ease-out);
 }
 
 .bottomTab {

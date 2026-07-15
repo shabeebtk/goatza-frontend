@@ -15,6 +15,7 @@ import CreatePostModal from "@/features/posts/components/CreatePostModal/CreateP
 import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateRecruitmentModal/CreateRecruitmentTrigger"
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
+import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -101,6 +102,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
+
+  // Scroll-linked auto-hide for the mobile chrome (same feel as the user app).
+  // Disabled on org chat conversation pages, where ChatWindow takes over the
+  // screen. Drives `--chrome-progress` on <html> — no re-renders on scroll.
+  const isChatPage = /\/organization\/admin\/[^/]+\/messages\/.+/.test(pathname)
+  useScrollChrome({ enabled: !isChatPage })
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
