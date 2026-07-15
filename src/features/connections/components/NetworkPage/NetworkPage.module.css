@@ -50,7 +50,9 @@
 }
 
 .headerTitle {
-  font-family: var(--font-display);
+  /* --font-display (Bebas Neue) is caps-only, which forced lowercase usernames
+     to render in all-caps. Use the UI font so the handle shows as-is. */
+  font-family: var(--font-ui);
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   color: var(--color-ink);
