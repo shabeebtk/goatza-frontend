@@ -25,8 +25,14 @@ const schema = z.object({
   headline: z.string().max(120).optional(),
   about: z.string().max(600).optional(),
   gender: z.enum(["male", "female", "other", ""]).optional(),
-  height_cm: z.coerce.number().min(50).max(300).nullable().optional(),
-  weight_kg: z.coerce.number().min(20).max(400).nullable().optional(),
+  height_cm: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce.number().min(50).max(300).nullable().optional(),
+  ),
+  weight_kg: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce.number().min(20).max(400).nullable().optional(),
+  ),
 })
 
 type FormValues = z.infer<typeof schema>

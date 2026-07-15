@@ -764,3 +764,41 @@
     display: none !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   ROLE-RESOLVING SKELETON
+   Placeholder chrome rendered until the user's role is known, so a
+   wrong nav never flashes for coach/scout. Geometry mirrors the real bars.
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes navSkeletonShimmer {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 0.9; }
+}
+
+.skeletonPill,
+.skeletonPillWide,
+.skeletonCircle {
+    display: inline-block;
+    background: var(--color-surface-raised, var(--color-border));
+    animation: navSkeletonShimmer 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+.skeletonPill {
+    width: 44px;
+    height: 30px;
+    border-radius: var(--radius-md);
+}
+
+.skeletonPillWide {
+    width: 92px;
+    height: 36px;
+    border-radius: var(--radius-full);
+}
+
+.skeletonCircle {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-full);
+}
