@@ -3,10 +3,15 @@
 /**
  * MediaCarousel
  *
- * Single media  → natural size (object-contain), max height 480px
- * Multiple      → fixed height 340px, object-cover, swipeable carousel
- * Fullscreen    → portal lightbox with zoom/pan
- * Video         → autoplay only when visible (IntersectionObserver), muted
+ * Inline feed  → ONE clamped aspect-ratio container (getPostAspectRatio), shared
+ *                by every slide, object-fit: cover, centered. Space is reserved
+ *                before media loads → zero layout shift; a neutral skeleton fills
+ *                the box while loading.
+ * Fullscreen   → portal lightbox showing the UNCROPPED original (object-fit:
+ *                contain, black background) with zoom/pan. The mobile back
+ *                button/gesture closes the viewer instead of navigating away.
+ * Video        → same clamped container + cover; autoplays only when visible
+ *                (IntersectionObserver), muted; lightbox shows it with contain.
  */
 
 import {
@@ -18,6 +23,7 @@ import {
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
+import { getPostAspectRatio } from "@/features/posts/utils/media"
 import styles from "./MediaCarousel.module.css"
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -33,13 +39,9 @@ function fmtDuration(secs: number): string {
 function LazyImage({
     src,
     alt,
-    isSingle,
-    className,
 }: {
     src: string
     alt: string
-    isSingle: boolean
-    className: string
 }) {
     const [loaded, setLoaded] = useState(false)
     const [inView, setInView] = useState(false)
@@ -57,13 +59,13 @@ function LazyImage({
     }, [])
 
     return (
-        <div ref={ref} className={`${styles.mediaItem} ${className}`}>
+        <div ref={ref} className={styles.mediaItem}>
             {!loaded && <div className={styles.mediaSkeleton} />}
             {inView && (
                 <img
                     src={src}
                     alt={alt}
-                    className={`${styles.mediaImg} ${isSingle ? styles.mediaImgContain : styles.mediaImgCover} ${loaded ? styles.mediaImgLoaded : ""}`}
+                    className={`${styles.mediaImg} ${loaded ? styles.mediaImgLoaded : ""}`}
                     onLoad={() => setLoaded(true)}
                     loading="lazy"
                     decoding="async"
@@ -123,14 +125,14 @@ function LazyVideo({
                 <img
                     src={thumbnail}
                     alt="Video thumbnail"
-                    className={`${styles.mediaImg} ${styles.mediaImgCover}`}
-                    style={{ position: "absolute", inset: 0, zIndex: 1 }}
+                    className={styles.mediaImg}
+                    style={{ position: "absolute", inset: 0, zIndex: 1, opacity: 1 }}
                 />
             )}
             <video
                 ref={videoRef}
                 src={src}
-                className={`${styles.mediaImg} ${styles.mediaImgCover}`}
+                className={styles.mediaImg}
                 style={{ opacity: videoReady ? 1 : 0, transition: "opacity 0.2s" }}
                 muted
                 playsInline
@@ -172,7 +174,7 @@ function Lightbox({
 }) {
   const [mounted, setMounted] = useState(false)
   const [idx, setIdx] = useState(startIndex)
-  
+
   // ── Zoom state ──────────────────────────────────────────────
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -186,6 +188,39 @@ function Lightbox({
   const current = media[idx]
   const isZoomed = scale > 1
   const isImage = current.media_type === "image"
+
+  // ── Back-button / gesture handling ──────────────────────────
+  // Keep onClose reachable from the one-shot history effect without making it a
+  // dependency (callers pass a fresh arrow each render).
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
+  const pushedRef = useRef(false)
+
+  useEffect(() => {
+    // Reserve ONE history entry so the mobile back button/gesture closes the
+    // viewer instead of navigating away. Guarded with a ref so React
+    // StrictMode's double-invoked effect (dev) pushes only once — and, crucially,
+    // the cleanup never calls history.back(), which on the StrictMode
+    // mount→cleanup→mount cycle would pop our entry and close the lightbox the
+    // instant it opened. Explicit closes go through requestClose() → back().
+    if (!pushedRef.current) {
+      window.history.pushState({ goatzaLightbox: true }, "")
+      pushedRef.current = true
+    }
+    const onPop = () => onCloseRef.current()
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [])
+
+  // Route every in-app close through the back stack so the button, Esc, backdrop
+  // and the hardware back gesture all behave identically.
+  const requestClose = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.state?.goatzaLightbox) {
+      window.history.back()   // → popstate → onClose
+    } else {
+      onCloseRef.current()
+    }
+  }, [])
 
   // Reset zoom when slide changes
   const resetZoom = useCallback(() => {
@@ -215,7 +250,7 @@ function Lightbox({
   // ── Keyboard ────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { if (isZoomed) resetZoom(); else onClose() }
+      if (e.key === "Escape") { if (isZoomed) resetZoom(); else requestClose() }
       if (e.key === "ArrowRight" && !isZoomed) setIdx((i) => Math.min(i + 1, media.length - 1))
       if (e.key === "ArrowLeft"  && !isZoomed) setIdx((i) => Math.max(i - 1, 0))
       if (e.key === "+" || e.key === "=") setScale((s) => Math.min(s + 0.5, 4))
@@ -223,7 +258,7 @@ function Lightbox({
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [media.length, onClose, isZoomed, resetZoom])
+  }, [media.length, requestClose, isZoomed, resetZoom])
 
   useEffect(() => {
     document.body.style.overflow = "hidden"
@@ -361,11 +396,11 @@ function Lightbox({
       {/* Backdrop — only close if not zoomed */}
       <div
         className={styles.lightboxBg}
-        onClick={() => { if (!isZoomed) onClose() }}
+        onClick={() => { if (!isZoomed) requestClose() }}
       />
 
       {/* Close */}
-      <button className={styles.lightboxClose} onClick={onClose} type="button" aria-label="Close">
+      <button className={styles.lightboxClose} onClick={requestClose} type="button" aria-label="Close">
         <Icon icon="mdi:close" width={24} height={24} />
       </button>
 
@@ -513,9 +548,16 @@ export default function MediaCarousel({ media, postId }: MediaCarouselProps) {
 
     const sorted = [...media].sort((a, b) => a.order - b.order)
 
+    // One clamped ratio (from the first slide) drives the whole carousel so
+    // every slide shares an identical, space-reserved box → no layout shift.
+    const ratio = getPostAspectRatio(sorted)
+
     return (
         <>
-            <div className={`${styles.carousel} ${isSingle ? styles.carouselSingle : styles.carouselMulti}`}>
+            <div
+                className={styles.carousel}
+                style={{ aspectRatio: ratio }}
+            >
 
                 {/* Track */}
                 <div
@@ -545,8 +587,6 @@ export default function MediaCarousel({ media, postId }: MediaCarouselProps) {
                                 <LazyImage
                                     src={item.file_url}
                                     alt={`Media ${i + 1}`}
-                                    isSingle={isSingle}
-                                    className=""
                                 />
                             )}
                         </div>

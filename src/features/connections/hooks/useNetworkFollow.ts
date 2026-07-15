@@ -74,7 +74,12 @@ export const useNetworkFollow = (activeKey: NetworkListKey) => {
     },
 
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: networkKeys.all() })
+      // Reconcile the OTHER network lists, but don't refetch the one the user
+      // is currently looking at. Otherwise unfollowing in the "following" tab
+      // refetches and yanks the row out instantly. The active list keeps its
+      // optimistic state (the row stays, now showing a "Follow" button) and
+      // reconciles naturally on the next visit / window refocus.
+      qc.invalidateQueries({ queryKey: networkKeys.all(), refetchType: "inactive" })
     },
   })
 }

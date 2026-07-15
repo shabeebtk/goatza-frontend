@@ -23,6 +23,7 @@ import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
 import { usePhotoUpload } from "@/features/profile/hooks/usePhotoUpload"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
+import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./PhotoEditModal.module.css"
 
 // ── Types ────────────────────────────────────────────────────
@@ -41,8 +42,8 @@ interface PhotoEditModalProps {
 // ── Aspect ratios per type ────────────────────────────────────
 
 const ASPECT: Record<"profile" | "cover", number> = {
-  profile: 1,           // 1:1 square
-  cover:   16 / 9,      // 16:9
+  profile: 1,                    // 1:1 square
+  cover:   COVER_ASPECT_RATIO,   // 3:1 banner — matches .coverWrap on the profile
 }
 
 const LABELS: Record<"profile" | "cover", string> = {

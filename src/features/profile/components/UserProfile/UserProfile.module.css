@@ -43,12 +43,12 @@
 .coverWrap {
   position: relative;
   width: 100%;
-  height: 160px;
+  /* Fixed banner ratio so what the crop editor shows is exactly what renders
+     here at every viewport width (see COVER_ASPECT_RATIO). */
+  aspect-ratio: 3 / 1;
   background: var(--color-surface-raised);
   overflow: hidden;
 }
-
-@media (min-width: 640px) { .coverWrap { height: 210px; } }
 
 .coverImg { width: 100%; height: 100%; object-fit: cover; display: block; }
 
@@ -410,7 +410,7 @@
   border-radius: var(--radius-md);
 }
 
-.skeletonCover { width: 100%; height: 160px; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.skeletonCover { width: 100%; aspect-ratio: 3 / 1; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
 
 .skeletonBody {
   background: var(--color-surface);

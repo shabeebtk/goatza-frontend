@@ -19,6 +19,7 @@ import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
 import { useOrgPhotoUpload, type OrgPhotoType } from "../../hooks/useOrgPhotoUpload"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
+import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./OrgPhotoEditModal.module.css"
 
 // ── Config ────────────────────────────────────────────────────
@@ -26,8 +27,8 @@ import styles from "./OrgPhotoEditModal.module.css"
 type ModalState = "view" | "crop" | "saving"
 
 const ASPECT: Record<OrgPhotoType, number> = {
-  logo:  1,        // 1:1 — square crop, square preview
-  cover: 16 / 9,
+  logo:  1,                     // 1:1 — square crop, square preview
+  cover: COVER_ASPECT_RATIO,    // 3:1 banner — matches .coverWrap on the profile
 }
 
 const LABELS: Record<OrgPhotoType, string> = {
