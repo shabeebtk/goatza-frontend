@@ -14,39 +14,14 @@ import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
-
-const NAV_ITEMS = [
-  {
-    href: "/home",
-    icon: "mdi:home-outline",
-    iconActive: "mdi:home",
-    label: "Home",
-  },
-  {
-    href: "/explore",
-    icon: "mdi:compass-outline",
-    iconActive: "mdi:compass",
-    label: "Explore",
-  },
-  {
-    href: "/recruitments",
-    icon: "mdi:briefcase-search-outline",
-    iconActive: "mdi:briefcase-search",
-    label: "Recruitments",
-  },
-  {
-    href: "/messages",
-    icon: "mdi:message-outline",
-    iconActive: "mdi:message",
-    label: "Messages",
-  },
-  {
-    href: "/notifications",
-    icon: "mdi:bell-outline",
-    iconActive: "mdi:bell",
-    label: "Alerts",
-  },
-]
+import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
+import {
+  getBottomNav,
+  getDesktopNav,
+  getNavItems,
+  getTopBarNav,
+  type NavBadgeKey,
+} from "@/config/navigation"
 
 function LogoMark() {
   return (
@@ -65,6 +40,45 @@ function NotifDot({ count }: { count: number }) {
     <span className={styles.notifBadge} aria-label={`${count} notifications`}>
       {count > 9 ? "9+" : count}
     </span>
+  )
+}
+
+// Skeleton chrome shown until the user's role resolves, so a wrong nav never
+// flashes for coach/scout. Matches the real bars' geometry to avoid layout shift.
+function NavSkeleton() {
+  return (
+    <>
+      <header className={styles.topNav} role="banner">
+        <div className={styles.topNavInner}>
+          <LogoMark />
+          <nav className={styles.topNavLinks} aria-hidden="true">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <span key={i} className={styles.skeletonPill} />
+            ))}
+          </nav>
+          <div className={styles.topNavRight}>
+            <span className={styles.skeletonPillWide} aria-hidden="true" />
+            <span className={styles.skeletonCircle} aria-hidden="true" />
+          </div>
+        </div>
+      </header>
+
+      <header className={styles.mobileTopBar} role="banner" aria-hidden="true">
+        <LogoMark />
+        <div className={styles.mobileTopActions}>
+          <span className={styles.skeletonCircle} />
+          <span className={styles.skeletonCircle} />
+        </div>
+      </header>
+
+      <nav className={styles.bottomBar} aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <span key={i} className={styles.bottomTab}>
+            <span className={styles.skeletonCircle} />
+          </span>
+        ))}
+      </nav>
+    </>
   )
 }
 
@@ -91,6 +105,17 @@ export default function AppNav() {
   const messageCount = useConversationsUnreadSummary().data?.total ?? 0
 
   const isChatPage = /^\/messages\/.+/.test(pathname)
+
+  // Scroll-linked auto-hide for the mobile chrome: the bars slide off as you
+  // scroll down and follow you back on the way up, settling smoothly when you
+  // stop. Inert on chat pages (bars already fully hidden there) and, via CSS,
+  // on desktop. Drives the `--chrome-progress` var on <html> — no re-renders.
+  useScrollChrome({ enabled: !isChatPage })
+
+  // Nav is driven entirely by the role config — no role branching in JSX.
+  const navItems = getNavItems(user?.role)
+  const badgeCount = (badge: NavBadgeKey | undefined) =>
+    badge === "messages" ? messageCount : badge === "notifications" ? notifCount : 0
 
   const postingOrganization =
     actorType === "organization"
@@ -165,6 +190,15 @@ export default function AppNav() {
     router.push(`/organization/admin/${organizationId}/dashboard`)
   }
 
+  // Role not resolved yet → render skeleton chrome, no nav destinations.
+  if (!navItems) {
+    return <NavSkeleton />
+  }
+
+  const desktopItems = getDesktopNav(navItems)
+  const topBarItems = getTopBarNav(navItems)
+  const bottomItems = getBottomNav(navItems)
+
   return (
     <>
       <header className={styles.topNav} role="banner">
@@ -172,24 +206,13 @@ export default function AppNav() {
           <LogoMark />
 
           <nav className={styles.topNavLinks} aria-label="Main navigation">
-            {NAV_ITEMS.map((item) => {
+            {desktopItems.map((item) => {
               const isActive = pathname.startsWith(item.href)
-              const hasAlert =
-                item.href === "/messages"
-                  ? messageCount > 0
-                  : item.href === "/notifications"
-                    ? notifCount > 0
-                    : false
-              const alertCount =
-                item.href === "/messages"
-                  ? messageCount
-                  : item.href === "/notifications"
-                    ? notifCount
-                    : 0
+              const alertCount = badgeCount(item.badge)
 
               return (
                 <Link
-                  key={item.href}
+                  key={item.id}
                   href={item.href}
                   className={`${styles.topNavLink} ${isActive ? styles.topNavLinkActive : ""}`}
                   aria-label={item.label}
@@ -197,7 +220,7 @@ export default function AppNav() {
                 >
                   <span className={styles.topNavLinkIcon} aria-hidden="true">
                     <Icon icon={isActive ? item.iconActive : item.icon} width={22} height={22} />
-                    {hasAlert && <NotifDot count={alertCount} />}
+                    {alertCount > 0 && <NotifDot count={alertCount} />}
                   </span>
                   <span className={styles.topNavLinkLabel}>{item.label}</span>
                 </Link>
@@ -281,27 +304,29 @@ export default function AppNav() {
       >
         <LogoMark />
         <div className={styles.mobileTopActions}>
-          <Link href="/explore" className={styles.mobileIconBtn} aria-label="Explore">
-            <Icon
-              icon={pathname.startsWith("/explore") ? "mdi:compass" : "mdi:compass-outline"}
-              width={24}
-              height={24}
-            />
-          </Link>
-          <Link
-            href="/notifications"
-            className={styles.mobileIconBtn}
-            aria-label="Notifications"
-          >
-            <span className={styles.mobileIconBadgeWrap}>
-              <Icon
-                icon={pathname.startsWith("/notifications") ? "mdi:bell" : "mdi:bell-outline"}
-                width={24}
-                height={24}
-              />
-              <NotifDot count={notifCount} />
-            </span>
-          </Link>
+          {topBarItems.map((item) => {
+            const isActive = pathname.startsWith(item.href)
+            const alertCount = badgeCount(item.badge)
+
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={styles.mobileIconBtn}
+                aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {item.badge ? (
+                  <span className={styles.mobileIconBadgeWrap}>
+                    <Icon icon={isActive ? item.iconActive : item.icon} width={24} height={24} />
+                    <NotifDot count={alertCount} />
+                  </span>
+                ) : (
+                  <Icon icon={isActive ? item.iconActive : item.icon} width={24} height={24} />
+                )}
+              </Link>
+            )
+          })}
         </div>
       </header>
 
@@ -309,88 +334,86 @@ export default function AppNav() {
         className={`${styles.bottomBar} ${isChatPage ? styles.bottomBarHidden : ""}`}
         aria-label="Tab navigation"
       >
-        <Link
-          href="/home"
-          className={`${styles.bottomTab} ${pathname.startsWith("/home") ? styles.bottomTabActive : ""}`}
-          aria-label="Home"
-          aria-current={pathname.startsWith("/home") ? "page" : undefined}
-        >
-          <Icon icon={pathname.startsWith("/home") ? "mdi:home" : "mdi:home-outline"} width={26} height={26} />
-        </Link>
+        {bottomItems.map((item) => {
+          if (item.kind === "create") {
+            return (
+              <button
+                key={item.id}
+                className={styles.bottomTabCreate}
+                style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                aria-label="Create post"
+                onClick={() => setPostModalOpen(true)}
+              >
+                <span className={styles.bottomTabCreateInner} aria-hidden="true">
+                  <Icon icon="mdi:plus" width={28} height={28} />
+                </span>
+              </button>
+            )
+          }
 
-        <Link
-          href="/recruitments"
-          className={`${styles.bottomTab} ${pathname.startsWith("/recruitments") ? styles.bottomTabActive : ""}`}
-          aria-label="Recruitments"
-          aria-current={pathname.startsWith("/recruitments") ? "page" : undefined}
-        >
-          <Icon
-            icon={pathname.startsWith("/recruitments") ? "mdi:briefcase-search" : "mdi:briefcase-search-outline"}
-            width={26}
-            height={26}
-          />
-        </Link>
+          const isActive = pathname.startsWith(item.href)
 
-        <button
-          className={styles.bottomTabCreate}
-          style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-          aria-label="Create post"
-          onClick={() => setPostModalOpen(true)}
-        >
-          <span className={styles.bottomTabCreateInner} aria-hidden="true">
-            <Icon icon="mdi:plus" width={28} height={28} />
-          </span>
-        </button>
+          if (item.kind === "profile") {
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
+                aria-label="Profile (Long press for account switcher)"
+                aria-current={isActive ? "page" : undefined}
+                onTouchStart={startPress}
+                onTouchEnd={clearPress}
+                onTouchMove={clearPress}
+                onMouseDown={startPress}
+                onMouseUp={clearPress}
+                onMouseLeave={clearPress}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  wasLongPressed.current = true
+                  setMobileSheetOpen(true)
+                }}
+                onClick={(event) => {
+                  if (wasLongPressed.current) {
+                    event.preventDefault()
+                  }
+                }}
+              >
+                {user ? (
+                  <Avatar
+                    src={user.profile_photo}
+                    initials={user.name?.slice(0, 2).toUpperCase() || "U"}
+                    size="xs"
+                    className={isActive ? styles.bottomTabAvatar : ""}
+                  />
+                ) : (
+                  <Icon icon="mdi:account-circle-outline" width={26} height={26} />
+                )}
+              </Link>
+            )
+          }
 
-        <Link
-          href="/messages"
-          className={`${styles.bottomTab} ${pathname.startsWith("/messages") ? styles.bottomTabActive : ""}`}
-          aria-label="Messages"
-          aria-current={pathname.startsWith("/messages") ? "page" : undefined}
-        >
-          <span className={styles.bottomTabIcon} aria-hidden="true">
-            <Icon
-              icon={pathname.startsWith("/messages") ? "mdi:message" : "mdi:message-outline"}
-              width={26}
-              height={26}
-            />
-            <NotifDot count={messageCount} />
-          </span>
-        </Link>
+          // kind === "link"
+          const alertCount = badgeCount(item.badge)
 
-        <Link
-          href="/profile"
-          className={`${styles.bottomTab} ${pathname.startsWith("/profile") ? styles.bottomTabActive : ""}`}
-          aria-label="Profile (Long press for account switcher)"
-          aria-current={pathname.startsWith("/profile") ? "page" : undefined}
-          onTouchStart={startPress}
-          onTouchEnd={clearPress}
-          onTouchMove={clearPress}
-          onMouseDown={startPress}
-          onMouseUp={clearPress}
-          onMouseLeave={clearPress}
-          onContextMenu={(event) => {
-            event.preventDefault()
-            wasLongPressed.current = true
-            setMobileSheetOpen(true)
-          }}
-          onClick={(event) => {
-            if (wasLongPressed.current) {
-              event.preventDefault()
-            }
-          }}
-        >
-          {user ? (
-            <Avatar
-              src={user.profile_photo}
-              initials={user.name?.slice(0, 2).toUpperCase() || "U"}
-              size="xs"
-              className={pathname.startsWith("/profile") ? styles.bottomTabAvatar : ""}
-            />
-          ) : (
-            <Icon icon="mdi:account-circle-outline" width={26} height={26} />
-          )}
-        </Link>
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+            >
+              {item.badge ? (
+                <span className={styles.bottomTabIcon} aria-hidden="true">
+                  <Icon icon={isActive ? item.iconActive : item.icon} width={26} height={26} />
+                  <NotifDot count={alertCount} />
+                </span>
+              ) : (
+                <Icon icon={isActive ? item.iconActive : item.icon} width={26} height={26} />
+              )}
+            </Link>
+          )
+        })}
       </nav>
 
       <AccountSwitcher
