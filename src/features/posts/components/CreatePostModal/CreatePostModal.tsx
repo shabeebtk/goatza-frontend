@@ -17,6 +17,7 @@ import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
+import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
 import styles from "./CreatePostModal.module.css"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -38,6 +39,66 @@ function uid() { return Math.random().toString(36).slice(2, 10) }
 function fmtBytes(b: number) {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// Measure a local file's clamped display ratio (same clamp the feed uses), so
+// the preview shows exactly how the post will be cropped once published.
+function measureRatio(entry: FileEntry): Promise<number> {
+  return new Promise((resolve) => {
+    if (entry.isVideo) {
+      const v = document.createElement("video")
+      v.preload = "metadata"
+      v.onloadedmetadata = () =>
+        resolve(getPostAspectRatio([{ width: v.videoWidth, height: v.videoHeight }]))
+      v.onerror = () => resolve(POST_RATIO_FALLBACK)
+      v.src = entry.preview
+    } else {
+      const img = new Image()
+      img.onload = () =>
+        resolve(getPostAspectRatio([{ width: img.naturalWidth, height: img.naturalHeight }]))
+      img.onerror = () => resolve(POST_RATIO_FALLBACK)
+      img.src = entry.preview
+    }
+  })
+}
+
+// ── Preview video — play/pause only, no native player chrome ──
+
+function PreviewVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+
+  const toggle = () => {
+    const v = ref.current
+    if (!v) return
+    if (v.paused) v.play().catch(() => {})
+    else v.pause()
+  }
+
+  return (
+    <div className={styles.previewVideoWrap} onClick={toggle}>
+      <video
+        ref={ref}
+        src={src}
+        className={styles.previewMedia}
+        playsInline
+        preload="metadata"
+        // No `controls` → no timeline, fullscreen, options menu or download.
+        disablePictureInPicture
+        controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onContextMenu={(e) => e.preventDefault()}
+      />
+      {!playing && (
+        <div className={styles.previewPlayOverlay}>
+          <span className={styles.previewPlayBtn}>
+            <Icon icon="mdi:play" width={26} height={26} />
+          </span>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Visibility toggle ─────────────────────────────────────────
@@ -69,9 +130,22 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
   const [idx, setIdx] = useState(0)
   const touchStartX   = useRef(0)
 
+  // The whole preview is sized by the FIRST item's clamped ratio — matching the
+  // feed exactly, so what the author sees here is what gets posted (no surprise
+  // crop after publishing).
+  const [firstRatio, setFirstRatio] = useState(POST_RATIO_FALLBACK)
+  const firstEntry = entries[0]
+
   useEffect(() => {
     if (idx >= entries.length && entries.length > 0) setIdx(entries.length - 1)
   }, [entries.length, idx])
+
+  useEffect(() => {
+    if (!firstEntry) return
+    let cancelled = false
+    measureRatio(firstEntry).then((r) => { if (!cancelled) setFirstRatio(r) })
+    return () => { cancelled = true }
+  }, [firstEntry])
 
   if (entries.length === 0) return null
   const total   = entries.length
@@ -88,9 +162,14 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
 
   return (
     <div className={styles.previewCarousel}>
-      <div className={styles.previewSlide} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div
+        className={styles.previewSlide}
+        style={{ aspectRatio: firstRatio }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         {current.isVideo ? (
-          <video key={current.id} src={current.preview} className={styles.previewMedia} controls playsInline preload="metadata" />
+          <PreviewVideo key={current.id} src={current.preview} />
         ) : (
           <img key={current.id} src={current.preview} className={styles.previewMedia} alt={`Preview ${idx + 1}`} />
         )}

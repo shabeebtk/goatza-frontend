@@ -416,40 +416,53 @@
 .previewSlide {
   position: relative;
   width: 100%;
-  /* Natural height: cap at 340px on mobile, 420px desktop */
-  max-height: 340px;
+  /* aspect-ratio is set inline from the FIRST item's clamped ratio (same clamp
+     the feed uses) so the preview shows the exact framing/crop the published
+     post will have — no surprise crop after posting. */
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-surface-raised);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-@media (min-width: 640px) {
-  .previewSlide {
-    max-height: 420px;
-  }
 }
 
 .previewMedia {
   width: 100%;
-  max-height: 340px;
-  object-fit: contain;
+  height: 100%;
+  /* Cover + centered — identical to the feed carousel — so the preview crop
+     matches the posted result. */
+  object-fit: cover;
+  object-position: center;
   display: block;
   background: #000;
 }
 
-@media (min-width: 640px) {
-  .previewMedia {
-    max-height: 420px;
-  }
+/* Video preview — play/pause only, no native player chrome */
+.previewVideoWrap {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
 }
 
-/* Video: always fill and show controls */
-.previewSlide video.previewMedia {
-  object-fit: contain;
-  max-height: 340px;
+.previewPlayOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.previewPlayBtn {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
 }
 
 /* ── Per-slide overlays ──────────────────────────────────────── */

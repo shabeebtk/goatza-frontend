@@ -14,26 +14,14 @@
 .carousel {
   position: relative;
   width: 100%;
+  /* aspect-ratio is set inline from getPostAspectRatio() (clamped 0.8–1.7778),
+     so the box reserves its exact height BEFORE any media loads → zero layout
+     shift while scrolling the feed. Every slide shares this one ratio. */
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-surface-raised);
   user-select: none;
   -webkit-user-select: none;
-}
-
-/* Single: natural aspect, max 480px */
-.carouselSingle { max-height: 480px; }
-.carouselSingle .track,
-.carouselSingle .slide,
-.carouselSingle .mediaItem { height: auto; }
-.carouselSingle .mediaImg { height: auto; max-height: 480px; }
-.carouselSingle .mediaItem { min-height: 240px; }
-
-/* Multiple: fixed height */
-.carouselMulti { height: 340px; }
-
-@media (min-width: 640px) {
-  .carouselMulti { height: 380px; }
 }
 
 /* ── Track ───────────────────────────────────────────────────── */
@@ -92,20 +80,15 @@
   width: 100%;
   height: 100%;
   display: block;
+  /* Every slide covers the shared clamped container, centered. The uncropped
+     original is available in the fullscreen lightbox (object-fit: contain). */
+  object-fit: cover;
+  object-position: center;
   opacity: 0;
   transition: opacity 0.3s var(--ease-out);
 }
 
 .mediaImgLoaded { opacity: 1; }
-
-/* Single: contain so nothing crops */
-.mediaImgContain {
-  object-fit: contain;
-  background: var(--color-surface-raised);
-}
-
-/* Multi: fill tile */
-.mediaImgCover { object-fit: cover; }
 
 /* ── Video overlays ──────────────────────────────────────────── */
 

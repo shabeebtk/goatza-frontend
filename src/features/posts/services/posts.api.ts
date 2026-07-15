@@ -40,6 +40,9 @@ export type PostMedia = {
   media_type: "image" | "video"
   thumbnail_url: string
   duration: number | null
+  /** Intrinsic pixel dimensions, extracted server-side. Null for legacy/failed rows. */
+  width: number | null
+  height: number | null
   order: number
 }
 
