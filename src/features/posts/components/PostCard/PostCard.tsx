@@ -86,7 +86,15 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showOptions, setShowOptions] = useState(false)
 
   const user = useAuthStore((s) => s.user)
-  const isOwn = user?.id === post.author.id
+  const actorType = useAuthStore((s) => s.actorType)
+  const currentOrganization = useAuthStore((s) => s.currentOrganization)
+  // A post is "own" (deletable/editable) when the ACTIVE actor authored it —
+  // the user for their posts, or the active org for its posts. This mirrors the
+  // backend, which deletes as the active actor.
+  const isOwn =
+    post.author_type === "organization"
+      ? actorType === "organization" && currentOrganization?.id === post.author.id
+      : actorType === "user" && user?.id === post.author.id
   const { toProfile } = useNavigation()
 
   const timeAgo = dayjs(post.created_at).fromNow()

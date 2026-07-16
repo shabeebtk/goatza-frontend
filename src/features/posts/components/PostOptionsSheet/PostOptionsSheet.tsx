@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import { useRouter } from "next/navigation"
@@ -25,6 +25,7 @@ export default function PostOptionsSheet({
   const toast = useToast()
   const { mutate: deletePost, isPending: isDeleting } = useDeletePost(isPreview ? { mode: "preview" } : {})
   const backdropRef = useRef<HTMLDivElement>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Lock body scroll while open
   useEffect(() => {
@@ -81,105 +82,138 @@ export default function PostOptionsSheet({
         {/* Drag handle (mobile) */}
         <div className={styles.handle} aria-hidden="true" />
 
-        {/* Options */}
-        <div className={styles.options}>
-          {isOwn ? (
-            <>
-              {/* Delete — only owner */}
+        {confirmDelete ? (
+          /* ── Delete confirmation ── */
+          <div className={styles.confirm} role="alertdialog" aria-label="Delete post">
+            <span className={styles.confirmIcon}>
+              <Icon icon="mdi:trash-can-outline" width={26} height={26} />
+            </span>
+            <h3 className={styles.confirmTitle}>Delete this post?</h3>
+            <p className={styles.confirmText}>
+              This can&rsquo;t be undone. The post and its media will be permanently removed.
+            </p>
+            <div className={styles.confirmActions}>
               <button
-                className={`${styles.option} ${styles.optionDanger}`}
+                className={styles.confirmCancelBtn}
+                onClick={() => setConfirmDelete(false)}
+                disabled={isDeleting}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.confirmDeleteBtn}
                 onClick={handleDelete}
                 disabled={isDeleting}
                 type="button"
               >
-                <span className={styles.optionIcon}>
-                  {isDeleting ? (
+                {isDeleting ? (
+                  <>
                     <span className={styles.spinner} aria-hidden="true" />
-                  ) : (
-                    <Icon icon="mdi:trash-can-outline" width={20} height={20} />
-                  )}
-                </span>
-                <span className={styles.optionLabel}>
-                  {isDeleting ? "Deleting…" : "Delete Post"}
-                </span>
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete"
+                )}
               </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Options */}
+            <div className={styles.options}>
+              {isOwn ? (
+                <>
+                  {/* Delete — only owner (asks for confirmation) */}
+                  <button
+                    className={`${styles.option} ${styles.optionDanger}`}
+                    onClick={() => setConfirmDelete(true)}
+                    type="button"
+                  >
+                    <span className={styles.optionIcon}>
+                      <Icon icon="mdi:trash-can-outline" width={20} height={20} />
+                    </span>
+                    <span className={styles.optionLabel}>Delete Post</span>
+                  </button>
 
-              {/* Edit — placeholder for later */}
+                  {/* Edit — placeholder for later */}
+                  <button
+                    className={styles.option}
+                    onClick={() => {
+                      onClose()
+                      // router.push(`/posts/${postId}/edit`) — wire when ready
+                    }}
+                    type="button"
+                  >
+                    <span className={styles.optionIcon}>
+                      <Icon icon="mdi:pencil-outline" width={20} height={20} />
+                    </span>
+                    <span className={styles.optionLabel}>Edit Post</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Report — non-owner */}
+                  <button
+                    className={`${styles.option} ${styles.optionDanger}`}
+                    onClick={onClose}
+                    type="button"
+                  >
+                    <span className={styles.optionIcon}>
+                      <Icon icon="mdi:flag-outline" width={20} height={20} />
+                    </span>
+                    <span className={styles.optionLabel}>Report Post</span>
+                  </button>
+
+                  {/* Unfollow — non-owner */}
+                  <button
+                    className={styles.option}
+                    onClick={onClose}
+                    type="button"
+                  >
+                    <span className={styles.optionIcon}>
+                      <Icon icon="mdi:account-minus-outline" width={20} height={20} />
+                    </span>
+                    <span className={styles.optionLabel}>Unfollow</span>
+                  </button>
+                </>
+              )}
+
+              {/* Copy link — always */}
               <button
                 className={styles.option}
                 onClick={() => {
+                  navigator.clipboard
+                    .writeText(`${window.location.origin}/posts/${postId}`)
+                    .then(() => {
+                      toast.show({
+                        title: "Link copied",
+                        icon: "mdi:link",
+                        position: "bottom-center",
+                        duration: 2000,
+                      })
+                    })
                   onClose()
-                  // router.push(`/posts/${postId}/edit`) — wire when ready
                 }}
                 type="button"
               >
                 <span className={styles.optionIcon}>
-                  <Icon icon="mdi:pencil-outline" width={20} height={20} />
+                  <Icon icon="mdi:link-variant" width={20} height={20} />
                 </span>
-                <span className={styles.optionLabel}>Edit Post</span>
+                <span className={styles.optionLabel}>Copy Link</span>
               </button>
-            </>
-          ) : (
-            <>
-              {/* Report — non-owner */}
-              <button
-                className={`${styles.option} ${styles.optionDanger}`}
-                onClick={onClose}
-                type="button"
-              >
-                <span className={styles.optionIcon}>
-                  <Icon icon="mdi:flag-outline" width={20} height={20} />
-                </span>
-                <span className={styles.optionLabel}>Report Post</span>
-              </button>
+            </div>
 
-              {/* Unfollow — non-owner */}
-              <button
-                className={styles.option}
-                onClick={onClose}
-                type="button"
-              >
-                <span className={styles.optionIcon}>
-                  <Icon icon="mdi:account-minus-outline" width={20} height={20} />
-                </span>
-                <span className={styles.optionLabel}>Unfollow</span>
-              </button>
-            </>
-          )}
-
-          {/* Copy link — always */}
-          <button
-            className={styles.option}
-            onClick={() => {
-              navigator.clipboard
-                .writeText(`${window.location.origin}/posts/${postId}`)
-                .then(() => {
-                  toast.show({
-                    title: "Link copied",
-                    icon: "mdi:link",
-                    position: "bottom-center",
-                    duration: 2000,
-                  })
-                })
-              onClose()
-            }}
-            type="button"
-          >
-            <span className={styles.optionIcon}>
-              <Icon icon="mdi:link-variant" width={20} height={20} />
-            </span>
-            <span className={styles.optionLabel}>Copy Link</span>
-          </button>
-        </div>
-
-        {/* Cancel */}
-        <button
-          className={styles.cancelBtn}
-          onClick={onClose}
-          type="button"
-        >
-          Cancel
-        </button>
+            {/* Cancel */}
+            <button
+              className={styles.cancelBtn}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+          </>
+        )}
       </div>
     </div>,
     document.body

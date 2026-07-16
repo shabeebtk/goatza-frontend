@@ -10,6 +10,7 @@ import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEd
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
+import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import {
   useUserProfile,
   useFollowUser,
@@ -87,6 +88,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
 
   const [photoModal, setPhotoModal] = useState<PhotoModalType>(null)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [postModalOpen, setPostModalOpen] = useState(false)
 
   // After save: redirect if username changed, otherwise just close
   const handleProfileSaved = (updated: UserProfile) => {
@@ -332,7 +334,7 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               username={profile.username}
               isOwn={isMe}
               preview
-              onCreatePost={() => {/* wire up if want the CTA here */ }}
+              onCreatePost={() => setPostModalOpen(true)}
             />
 
           </div>
@@ -356,6 +358,17 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
           profile={profile}
           onClose={() => setEditProfileOpen(false)}
           onSaved={handleProfileSaved}
+        />
+      )}
+
+      {/* ── Create post modal — own profile CTA ── */}
+      {postModalOpen && isMe && (
+        <CreatePostModal
+          username={profile.username}
+          userAvatarUrl={profile.profile_photo}
+          userInitials={profile.name?.slice(0, 2).toUpperCase()}
+          displayName={profile.name}
+          onClose={() => setPostModalOpen(false)}
         />
       )}
     </>
