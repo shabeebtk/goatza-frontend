@@ -222,6 +222,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
         <PostComments
           postId={post.id}
           commentsCount={post.comments_count}
+          isPostOwner={isOwn}
           onClose={() => setShowComments(false)}
         />
       )}

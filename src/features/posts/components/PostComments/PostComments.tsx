@@ -4,7 +4,8 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { Icon } from "@iconify/react"
-import { usePostComments, useCreateComment } from "@/features/posts/hooks/usePostMutations"
+import { usePostComments, useCreateComment, useDeleteComment } from "@/features/posts/hooks/usePostMutations"
+import type { DeleteCommentVars } from "@/features/posts/hooks/usePostMutations"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import CommentItem from "./CommentItem"
@@ -14,10 +15,12 @@ import styles from "./PostComments.module.css"
 interface PostCommentsProps {
   postId: string
   commentsCount?: number
+  /** Active actor owns the post → may delete any comment on it. */
+  isPostOwner?: boolean
   onClose: () => void
 }
 
-export default function PostComments({ postId, commentsCount, onClose }: PostCommentsProps) {
+export default function PostComments({ postId, commentsCount, isPostOwner = false, onClose }: PostCommentsProps) {
   const [text, setText] = useState("")
   const [replyingTo, setReplyingTo] = useState<PostComment | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -31,6 +34,18 @@ export default function PostComments({ postId, commentsCount, onClose }: PostCom
   const currentUser = useAuthStore(s => s.user)
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = usePostComments(postId)
   const { mutate, isPending } = useCreateComment()
+  const { mutate: deleteComment } = useDeleteComment()
+
+  const handleDeleteComment = useCallback((vars: DeleteCommentVars) => {
+    deleteComment(vars, {
+      onError: () => toast.show({
+        title: "Couldn't delete comment",
+        variant: "error",
+        position: "top-right",
+        duration: 3000,
+      }),
+    })
+  }, [deleteComment, toast])
 
   const comments = data?.pages.flatMap(p => p.results) || []
   const count = commentsCount ?? comments.length
@@ -170,7 +185,15 @@ export default function PostComments({ postId, commentsCount, onClose }: PostCom
           ) : (
             <>
               {comments.map(c => (
-                <CommentItem key={c.id} comment={c} onReply={setReplyingTo} onNavigate={onClose} />
+                <CommentItem
+                  key={c.id}
+                  comment={c}
+                  postId={postId}
+                  isPostOwner={isPostOwner}
+                  onReply={setReplyingTo}
+                  onDelete={handleDeleteComment}
+                  onNavigate={onClose}
+                />
               ))}
               {hasNextPage && (
                 <button

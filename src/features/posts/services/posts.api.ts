@@ -236,6 +236,13 @@ export const fetchRepliesApi = async (params: { parent_id: string, limit?: numbe
   return res.data.data
 }
 
+export const deleteCommentApi = async (commentId: string) => {
+  const res = await api.delete(`/posts/comments/delete`, {
+    params: { comment_id: commentId },
+  })
+  return res.data.data
+}
+
 
 
 // DELETE POST 

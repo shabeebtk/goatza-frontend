@@ -11,7 +11,7 @@ import {
     fetchPostsApi, FetchPostsParams, getMyPostSportsApi,
     toggleLikeApi, createCommentApi, fetchCommentsApi,
     fetchRepliesApi, Post, PostsListResponse, deletePostApi,
-    PostComment, CommentsListResponse, updatePostApi
+    PostComment, CommentsListResponse, updatePostApi, deleteCommentApi
 } from "../services/posts.api"
 import { useAuthStore } from "@/store/auth.store"
 
@@ -328,6 +328,107 @@ export const useCommentReplies = (parentId: string) =>
         queryFn: () => fetchRepliesApi({ parent_id: parentId }),
         enabled: !!parentId,
     })
+
+// ── Delete comment (author or post owner) ─────────────────────
+// `parentId` present → deleting a reply. `repliesCount` (top-level only) is how
+// many replies are removed along with it (for the post-count decrement).
+export type DeleteCommentVars = {
+    commentId: string
+    postId: string
+    parentId?: string | null
+    repliesCount?: number
+}
+
+export const useDeleteComment = () => {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: (vars: DeleteCommentVars) => deleteCommentApi(vars.commentId),
+
+        onMutate: async (vars) => {
+            const removed = vars.parentId ? 1 : 1 + (vars.repliesCount ?? 0)
+
+            // 1. Decrement the post's comment count everywhere.
+            await qc.cancelQueries({ queryKey: ["posts", "list"] })
+            await qc.cancelQueries({ queryKey: ["feed", "list"] })
+            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
+
+            type PostInfinite = InfiniteData<{ results: Post[] }>
+            const dec = (old: PostInfinite | undefined): PostInfinite | undefined => {
+                if (!old) return old
+                return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                        ...page,
+                        results: page.results.map((p) =>
+                            p.id === vars.postId
+                                ? { ...p, comments_count: Math.max(0, p.comments_count - removed) }
+                                : p
+                        ),
+                    })),
+                }
+            }
+            qc.setQueriesData<PostInfinite>({ queryKey: ["posts", "list"] }, dec)
+            qc.setQueriesData<PostInfinite>({ queryKey: ["feed", "list"] }, dec)
+            qc.setQueriesData<PostInfinite>({ queryKey: ["explore", "posts"] }, dec)
+
+            // 2. Remove the comment / reply from the open thread.
+            await qc.cancelQueries({ queryKey: commentKeys.list(vars.postId) })
+            qc.setQueryData<InfiniteData<CommentsListResponse>>(
+                commentKeys.list(vars.postId),
+                (old) => {
+                    if (!old) return old
+
+                    if (vars.parentId) {
+                        // Reply → drop from its parent's preview + reply count.
+                        return {
+                            ...old,
+                            pages: old.pages.map((page) => ({
+                                ...page,
+                                results: page.results.map((c) =>
+                                    c.id === vars.parentId
+                                        ? {
+                                            ...c,
+                                            replies_count: Math.max(0, c.replies_count - 1),
+                                            replies_preview: (c.replies_preview ?? []).filter(
+                                                (r) => r.id !== vars.commentId
+                                            ),
+                                        }
+                                        : c
+                                ),
+                            })),
+                        }
+                    }
+
+                    // Top-level → remove the comment row entirely.
+                    return {
+                        ...old,
+                        pages: old.pages.map((page, i) => ({
+                            ...page,
+                            count: i === 0 ? Math.max(0, page.count - 1) : page.count,
+                            results: page.results.filter((c) => c.id !== vars.commentId),
+                        })),
+                    }
+                }
+            )
+
+            return {}
+        },
+
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: commentKeys.list(vars.postId) })
+            if (vars.parentId) {
+                qc.invalidateQueries({ queryKey: commentKeys.replies(vars.parentId) })
+            }
+        },
+
+        onError: (_e, vars) => {
+            qc.invalidateQueries({ queryKey: ["posts", "list"] })
+            qc.invalidateQueries({ queryKey: ["feed", "list"] })
+            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
+            qc.invalidateQueries({ queryKey: commentKeys.list(vars.postId) })
+        },
+    })
+}
 
 
 export const useDeletePost = (options: { mode?: "preview" }) => {

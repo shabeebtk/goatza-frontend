@@ -271,6 +271,75 @@
   text-decoration: none;
 }
 
+/* ── 3-dot menu (delete) ─────────────────────────────────────── */
+
+@keyframes fadeInMenu {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.menuWrap {
+  /* small, top-right corner inside the comment card */
+  position: absolute;
+  top: 3px;
+  right: 3px;
+}
+
+.menuBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.menuBtn:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+.menuDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: fadeInMenu 0.12s var(--ease-out) both;
+}
+
+.menuItemDanger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-error);
+  text-align: left;
+  transition: background var(--duration-fast);
+}
+
+.menuItemDanger:hover {
+  background: rgba(232, 70, 42, 0.08);
+}
+
 .commentBody {
   flex: 1;
   display: flex;
@@ -279,6 +348,7 @@
 }
 
 .commentContentBox {
+  position: relative;
   background: var(--color-surface-raised);
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
@@ -289,6 +359,8 @@
   align-items: center;
   gap: var(--space-2);
   margin-bottom: 2px;
+  /* leave room for the top-right menu button */
+  padding-right: 22px;
 }
 
 .commentName {
@@ -350,6 +422,7 @@
 }
 
 .replyContentBox {
+  position: relative;
   flex: 1;
   background: var(--color-surface-raised);
   border-radius: var(--radius-md);
@@ -360,6 +433,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /* leave room for the top-right menu button */
+  padding-right: 20px;
 }
 
 .replyToTag {
