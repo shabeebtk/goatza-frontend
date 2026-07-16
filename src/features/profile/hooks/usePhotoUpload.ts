@@ -22,8 +22,9 @@ export type PhotoUploadInput = {
 // ── Compression options ──────────────────────────────────────
 
 const COMPRESSION_OPTIONS = {
-  maxSizeMB: 1,             // compress to under 1 MB
-  maxWidthOrHeight: 1600,   // cap resolution
+  maxSizeMB: 2,             // higher ceiling → keeps profile/cover crisp
+  maxWidthOrHeight: 2000,   // higher resolution cap for fullscreen viewing
+  initialQuality: 0.9,      // near-lossless starting quality
   useWebWorker: true,
   fileType: "image/webp",   // modern format
 }

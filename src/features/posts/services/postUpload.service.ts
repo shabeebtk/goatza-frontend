@@ -22,8 +22,11 @@ export const MAX_VIDEO_MB = 300
 export const MAX_VIDEO_SECONDS = 5 * 60   // 5 minutes
 
 const IMAGE_COMPRESSION_OPTIONS = {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 1920,
+    // Keep good quality — feed photos are viewed large and zoomed in the
+    // fullscreen viewer, so allow a higher size ceiling and resolution.
+    maxSizeMB: 2.5,
+    maxWidthOrHeight: 2560,
+    initialQuality: 0.9,
     useWebWorker: true,
     fileType: "image/webp" as const,
 }

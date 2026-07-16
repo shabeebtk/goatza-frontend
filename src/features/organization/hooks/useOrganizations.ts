@@ -34,8 +34,9 @@ export const orgKeys = {
 // ── Compression (shared with OrgPhotoUpload) ──────────────────────
 
 const LOGO_COMPRESSION = {
-  maxSizeMB:        0.5,
-  maxWidthOrHeight: 800,
+  maxSizeMB:        1,        // was 0.5 — less aggressive, sharper logo
+  maxWidthOrHeight: 1200,     // was 800
+  initialQuality:   0.9,
   useWebWorker:     true,
   fileType:         "image/webp" as const,
 }
