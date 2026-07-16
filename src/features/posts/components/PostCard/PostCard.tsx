@@ -10,6 +10,7 @@ import MediaCarousel from "@/features/posts/components/MediaCarousel/MediaCarous
 import PostActions from "@/features/posts/components/PostActions/PostActions"
 import PostComments from "@/features/posts/components/PostComments/PostComments"
 import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"   // ← NEW
+import EditPostModal from "@/features/posts/components/EditPostModal/EditPostModal"
 import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
 import type { Post } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
@@ -84,9 +85,18 @@ interface PostCardProps {
 function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
 
   const user = useAuthStore((s) => s.user)
-  const isOwn = user?.id === post.author.id
+  const actorType = useAuthStore((s) => s.actorType)
+  const currentOrganization = useAuthStore((s) => s.currentOrganization)
+  // A post is "own" (deletable/editable) when the ACTIVE actor authored it —
+  // the user for their posts, or the active org for its posts. This mirrors the
+  // backend, which deletes as the active actor.
+  const isOwn =
+    post.author_type === "organization"
+      ? actorType === "organization" && currentOrganization?.id === post.author.id
+      : actorType === "user" && user?.id === post.author.id
   const { toProfile } = useNavigation()
 
   const timeAgo = dayjs(post.created_at).fromNow()
@@ -223,7 +233,13 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           isOwn={isOwn}
           isPreview={isPreview}
           onClose={() => setShowOptions(false)}
+          onEdit={() => setShowEdit(true)}
         />
+      )}
+
+      {/* ── Edit modal ── */}
+      {showEdit && (
+        <EditPostModal post={post} onClose={() => setShowEdit(false)} />
       )}
 
     </article>

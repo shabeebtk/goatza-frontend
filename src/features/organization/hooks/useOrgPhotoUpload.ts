@@ -21,8 +21,9 @@ const UPLOAD_TYPE_MAP: Record<OrgPhotoType, UploadType> = {
 }
 
 const COMPRESSION_OPTIONS = {
-  maxSizeMB:        1,
-  maxWidthOrHeight: 1600,
+  maxSizeMB:        2,        // higher ceiling → keeps logo/cover crisp
+  maxWidthOrHeight: 2000,     // higher resolution cap
+  initialQuality:   0.9,      // near-lossless starting quality
   useWebWorker:     true,
   fileType:         "image/webp" as const,
 }

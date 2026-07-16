@@ -119,6 +119,22 @@ export const createPostApi = async (payload: CreatePostPayload): Promise<Post> =
   return res.data.data
 }
 
+// ── Edit post (text fields only — media is never changed) ─────
+// `location`: omit = leave unchanged · null = clear · object = set.
+// `sport_id`: null/"" clears the sport.
+export type UpdatePostPayload = {
+  post_id: string
+  content: string
+  visibility: PostVisibility
+  sport_id?: string | null
+  location?: PostLocation | null
+}
+
+export const updatePostApi = async (payload: UpdatePostPayload): Promise<Post> => {
+  const res = await api.patch("/posts/update", payload)
+  return res.data.data
+}
+
 export const getMyPostSportsApi = async (): Promise<PostUserSport[]> => {
   const res = await api.get("/sports/user/me/sport/list")
   return res.data.data
