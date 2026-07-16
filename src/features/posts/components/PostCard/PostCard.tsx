@@ -10,6 +10,7 @@ import MediaCarousel from "@/features/posts/components/MediaCarousel/MediaCarous
 import PostActions from "@/features/posts/components/PostActions/PostActions"
 import PostComments from "@/features/posts/components/PostComments/PostComments"
 import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"   // ← NEW
+import EditPostModal from "@/features/posts/components/EditPostModal/EditPostModal"
 import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
 import type { Post } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
@@ -84,6 +85,7 @@ interface PostCardProps {
 function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
 
   const user = useAuthStore((s) => s.user)
   const actorType = useAuthStore((s) => s.actorType)
@@ -231,7 +233,13 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           isOwn={isOwn}
           isPreview={isPreview}
           onClose={() => setShowOptions(false)}
+          onEdit={() => setShowEdit(true)}
         />
+      )}
+
+      {/* ── Edit modal ── */}
+      {showEdit && (
+        <EditPostModal post={post} onClose={() => setShowEdit(false)} />
       )}
 
     </article>

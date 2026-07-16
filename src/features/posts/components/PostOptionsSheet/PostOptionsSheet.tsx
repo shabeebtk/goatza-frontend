@@ -13,6 +13,7 @@ interface PostOptionsSheetProps {
   isOwn: boolean
   isPreview? : boolean
   onClose: () => void
+  onEdit?: () => void
 }
 
 export default function PostOptionsSheet({
@@ -20,6 +21,7 @@ export default function PostOptionsSheet({
   isOwn,
   isPreview=false,
   onClose,
+  onEdit,
 }: PostOptionsSheetProps) {
   const router = useRouter()
   const toast = useToast()
@@ -136,12 +138,12 @@ export default function PostOptionsSheet({
                     <span className={styles.optionLabel}>Delete Post</span>
                   </button>
 
-                  {/* Edit — placeholder for later */}
+                  {/* Edit — opens the edit modal */}
                   <button
                     className={styles.option}
                     onClick={() => {
                       onClose()
-                      // router.push(`/posts/${postId}/edit`) — wire when ready
+                      onEdit?.()
                     }}
                     type="button"
                   >

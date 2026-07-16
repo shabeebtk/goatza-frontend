@@ -11,7 +11,7 @@ import {
     fetchPostsApi, FetchPostsParams, getMyPostSportsApi,
     toggleLikeApi, createCommentApi, fetchCommentsApi,
     fetchRepliesApi, Post, PostsListResponse, deletePostApi,
-    PostComment, CommentsListResponse
+    PostComment, CommentsListResponse, updatePostApi
 } from "../services/posts.api"
 import { useAuthStore } from "@/store/auth.store"
 
@@ -32,6 +32,30 @@ export const useMyPostSports = () =>
         queryFn: getMyPostSportsApi,
         staleTime: 1000 * 60 * 10,
     })
+
+// ── Edit post — replace the edited post everywhere with server truth ──
+export const useUpdatePost = () => {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: updatePostApi,
+        onSuccess: (updated) => {
+            type PostInfinite = InfiniteData<{ results: Post[] }>
+            const replace = (old: PostInfinite | undefined): PostInfinite | undefined => {
+                if (!old) return old
+                return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                        ...page,
+                        results: page.results.map((p) => (p.id === updated.id ? updated : p)),
+                    })),
+                }
+            }
+            qc.setQueriesData<PostInfinite>({ queryKey: ["posts", "list"] }, replace)
+            qc.setQueriesData<PostInfinite>({ queryKey: ["feed", "list"] }, replace)
+            qc.setQueriesData<PostInfinite>({ queryKey: ["explore", "posts"] }, replace)
+        },
+    })
+}
 
 
 
