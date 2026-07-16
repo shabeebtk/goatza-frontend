@@ -10,8 +10,10 @@ import {
     createPostApi, CreatePostPayload,
     fetchPostsApi, FetchPostsParams, getMyPostSportsApi,
     toggleLikeApi, createCommentApi, fetchCommentsApi,
-    fetchRepliesApi, Post, PostsListResponse, deletePostApi
+    fetchRepliesApi, Post, PostsListResponse, deletePostApi,
+    PostComment, CommentsListResponse
 } from "../services/posts.api"
+import { useAuthStore } from "@/store/auth.store"
 
 
 export const useCreatePost = () => {
@@ -153,13 +155,134 @@ export const useCreateComment = () => {
     const qc = useQueryClient()
     return useMutation({
         mutationFn: createCommentApi,
-        onSuccess: (_, variables) => {
+
+        onMutate: async (variables) => {
+            // Build an optimistic comment/reply from the ACTIVE actor (user or org)
+            // so it appears instantly, then reconcile with server truth on success.
+            const { user, actorType, currentOrganization } = useAuthStore.getState()
+            const org = actorType === "organization" ? currentOrganization : null
+            const isOrg = !!org
+
+            const actor = org
+                ? {
+                    id: org.id,
+                    username: org.username,
+                    name: org.name,
+                    logo: org.logo,
+                    type: org.type,
+                    headline: org.headline,
+                }
+                : {
+                    id: user?.id ?? "me",
+                    username: user?.username ?? "",
+                    name: user?.name ?? "You",
+                    profile_photo: user?.profile_photo,
+                    headline: "",
+                }
+
+            const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+            const createdAt = new Date().toISOString()
+
+            // 1. Bump the post's comment count across every feed/list cache.
+            await qc.cancelQueries({ queryKey: ["posts", "list"] })
+            await qc.cancelQueries({ queryKey: ["feed", "list"] })
+            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
+
+            // Feed / profile-list / explore caches all hold `Post[]` under `results`
+            // (with per-cache extra fields preserved via spread), so one typed
+            // updater bumps the count across every surface.
+            type PostPages = InfiniteData<{ results: Post[] }>
+            const bumpCount = (old: PostPages | undefined): PostPages | undefined => {
+                if (!old) return old
+                return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                        ...page,
+                        results: page.results.map((p) =>
+                            p.id === variables.post_id
+                                ? { ...p, comments_count: p.comments_count + 1 }
+                                : p
+                        ),
+                    })),
+                }
+            }
+            qc.setQueriesData<PostPages>({ queryKey: ["posts", "list"] }, bumpCount)
+            qc.setQueriesData<PostPages>({ queryKey: ["feed", "list"] }, bumpCount)
+            qc.setQueriesData<PostPages>({ queryKey: ["explore", "posts"] }, bumpCount)
+
+            // 2. Insert the optimistic comment/reply into the open thread.
+            await qc.cancelQueries({ queryKey: commentKeys.list(variables.post_id) })
+            qc.setQueryData<InfiniteData<CommentsListResponse>>(
+                commentKeys.list(variables.post_id),
+                (old) => {
+                    if (!old || old.pages.length === 0) return old
+
+                    if (!variables.parent_id) {
+                        // Top-level comment → prepend to the first page (newest first).
+                        const optimistic: PostComment = {
+                            id: tempId,
+                            comment: variables.comment,
+                            created_at: createdAt,
+                            actor,
+                            actor_type: isOrg ? "organization" : "user",
+                            replies_count: 0,
+                            replies_preview: [],
+                        }
+                        return {
+                            ...old,
+                            pages: old.pages.map((page, i) =>
+                                i === 0
+                                    ? { ...page, count: page.count + 1, results: [optimistic, ...page.results] }
+                                    : page
+                            ),
+                        }
+                    }
+
+                    // Reply → append to the parent's preview + bump its reply count.
+                    return {
+                        ...old,
+                        pages: old.pages.map((page) => ({
+                            ...page,
+                            results: page.results.map((c) =>
+                                c.id === variables.parent_id
+                                    ? {
+                                        ...c,
+                                        replies_count: c.replies_count + 1,
+                                        replies_preview: [
+                                            ...(c.replies_preview ?? []),
+                                            { id: tempId, comment: variables.comment, actor, reply_to: null, created_at: createdAt },
+                                        ],
+                                    }
+                                    : c
+                            ),
+                        })),
+                    }
+                }
+            )
+
+            return {}
+        },
+
+        onSuccess: (_data, variables) => {
+            // Reconcile the optimistic entry with server truth (real id/time).
             qc.invalidateQueries({ queryKey: commentKeys.list(variables.post_id) })
             if (variables.parent_id) {
                 qc.invalidateQueries({ queryKey: commentKeys.replies(variables.parent_id) })
             }
-            qc.invalidateQueries({ queryKey: ["posts"] })
-        }
+            // The count was already bumped optimistically — skip the heavy
+            // ["posts"] refetch (mirrors useToggleLike) so the feed doesn't reload.
+        },
+
+        onError: (_e, variables) => {
+            // Roll back every optimistic change by refetching the truth.
+            qc.invalidateQueries({ queryKey: ["posts", "list"] })
+            qc.invalidateQueries({ queryKey: ["feed", "list"] })
+            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
+            qc.invalidateQueries({ queryKey: commentKeys.list(variables.post_id) })
+            if (variables.parent_id) {
+                qc.invalidateQueries({ queryKey: commentKeys.replies(variables.parent_id) })
+            }
+        },
     })
 }
 

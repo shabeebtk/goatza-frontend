@@ -207,8 +207,14 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
         onCommentClick={() => setShowComments(!showComments)}
       />
 
-      {/* ── Comments ── */}
-      {showComments && <PostComments postId={post.id} />}
+      {/* ── Comments (bottom sheet / desktop modal) ── */}
+      {showComments && (
+        <PostComments
+          postId={post.id}
+          commentsCount={post.comments_count}
+          onClose={() => setShowComments(false)}
+        />
+      )}
 
       {/* ── Options sheet ── */}
       {showOptions && (

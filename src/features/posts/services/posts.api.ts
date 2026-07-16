@@ -176,7 +176,12 @@ export type CommentActor = {
   id: string
   username: string
   name: string
-  profile_photo: string
+  /** Present for user actors. */
+  profile_photo?: string
+  /** Present for organization actors. */
+  logo?: string
+  /** Present only for organization actors (club/academy/…) — used to detect org vs user. */
+  type?: string
   headline: string
 }
 
