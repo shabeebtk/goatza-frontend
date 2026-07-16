@@ -569,6 +569,36 @@
   transform: scale(1.1);
 }
 
+/* Adjust / crop button (images) */
+.previewCropBtn {
+  position: absolute;
+  bottom: var(--space-2);
+  left: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  background: rgba(0, 0, 0, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-full);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  z-index: 4;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.previewCropBtn:hover {
+  background: rgba(0, 0, 0, 0.78);
+  transform: translateY(-1px);
+}
+
 /* Video badge */
 .previewVideoBadge {
   position: absolute;

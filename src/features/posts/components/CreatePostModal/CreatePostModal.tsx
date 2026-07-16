@@ -18,19 +18,23 @@ import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
+import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageCropper"
 import styles from "./CreatePostModal.module.css"
 
 // ── Types ─────────────────────────────────────────────────────
 
 type FileEntry = {
   id:       string
-  file:     File
+  file:     File          // current (possibly cropped) file that gets uploaded
+  originalFile: File      // untouched source — re-cropping always starts here
   preview:  string
   isVideo:  boolean
   progress: number
   status:   "idle" | "uploading" | "done" | "error"
   error:    string | null
   result:   PostMediaPayload | null
+  crop?:    CropState     // saved reposition so re-opening the cropper resumes
+  zoom?:    number
 }
 
 type SubmitPhase = "idle" | "uploading" | "posting" | "done"
@@ -122,13 +126,18 @@ function VisibilityBtn({ value, onChange }: {
 
 // ── Media carousel preview ────────────────────────────────────
 
-function MediaCarouselPreview({ entries, onRemove, disabled }: {
+function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
   entries: FileEntry[]
   onRemove: (id: string) => void
+  onCropEntry: (id: string, file: File, crop: CropState, zoom: number) => void
   disabled: boolean
 }) {
   const [idx, setIdx] = useState(0)
   const touchStartX   = useRef(0)
+
+  // Crop editor state — `cropSrc` is a temp object URL of the ORIGINAL image.
+  const [cropId, setCropId]   = useState<string | null>(null)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
 
   // The whole preview is sized by the FIRST item's clamped ratio — matching the
   // feed exactly, so what the author sees here is what gets posted (no surprise
@@ -160,7 +169,29 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
     if (Math.abs(diff) > 40) diff > 0 ? next() : prev()
   }
 
+  // ── Crop editor ───────────────────────────────────────────────
+  const cropEntry = cropId ? entries.find((e) => e.id === cropId) ?? null : null
+
+  const openCropper = (entry: FileEntry) => {
+    setCropSrc(URL.createObjectURL(entry.originalFile))
+    setCropId(entry.id)
+  }
+  const closeCropper = () => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+    setCropId(null)
+  }
+  const applyCrop = (blob: Blob, crop: CropState, zoom: number) => {
+    if (cropEntry) {
+      const base = cropEntry.originalFile.name.replace(/\.[^.]+$/, "") || "photo"
+      const file = new File([blob], `${base}.jpg`, { type: "image/jpeg" })
+      onCropEntry(cropEntry.id, file, crop, zoom)
+    }
+    closeCropper()
+  }
+
   return (
+    <>
     <div className={styles.previewCarousel}>
       <div
         className={styles.previewSlide}
@@ -214,6 +245,18 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
           </div>
         )}
 
+        {/* Adjust / crop — images only, while composing */}
+        {!disabled && !current.isVideo && current.status === "idle" && (
+          <button
+            className={styles.previewCropBtn}
+            onClick={() => openCropper(current)}
+            type="button"
+            aria-label="Adjust photo"
+          >
+            <Icon icon="mdi:crop" width={13} height={13} /> Adjust
+          </button>
+        )}
+
         {total > 1 && <div className={styles.previewCounter}>{idx + 1}/{total}</div>}
       </div>
 
@@ -245,6 +288,18 @@ function MediaCarouselPreview({ entries, onRemove, disabled }: {
         </div>
       )}
     </div>
+
+    {cropId && cropSrc && (
+      <PostImageCropper
+        src={cropSrc}
+        aspect={firstRatio}
+        initialCrop={cropEntry?.crop}
+        initialZoom={cropEntry?.zoom}
+        onCancel={closeCropper}
+        onApply={applyCrop}
+      />
+    )}
+    </>
   )
 }
 
@@ -397,17 +452,27 @@ export default function CreatePostModal({
     if (err) { setSubmitError(err); return }
 
     const newEntries: FileEntry[] = files.map(f => ({
-      id:       uid(),
-      file:     f,
-      preview:  URL.createObjectURL(f),
-      isVideo:  f.type.startsWith("video/"),
-      progress: 0,
-      status:   "idle",
-      error:    null,
-      result:   null,
+      id:           uid(),
+      file:         f,
+      originalFile: f,
+      preview:      URL.createObjectURL(f),
+      isVideo:      f.type.startsWith("video/"),
+      progress:     0,
+      status:       "idle",
+      error:        null,
+      result:       null,
     }))
     setEntries(prev => [...prev, ...newEntries])
   }, [entries])
+
+  // ── Apply a crop — replace the entry's file, keep the original ─
+  const handleCropEntry = useCallback((id: string, file: File, crop: CropState, zoom: number) => {
+    setEntries(prev => prev.map(e => {
+      if (e.id !== id) return e
+      URL.revokeObjectURL(e.preview)
+      return { ...e, file, preview: URL.createObjectURL(file), crop, zoom }
+    }))
+  }, [])
 
   const removeEntry = useCallback((id: string) => {
     setEntries(prev => {
@@ -614,7 +679,12 @@ export default function CreatePostModal({
 
           {/* Media carousel */}
           {entries.length > 0 && (
-            <MediaCarouselPreview entries={entries} onRemove={removeEntry} disabled={isSubmitting} />
+            <MediaCarouselPreview
+              entries={entries}
+              onRemove={removeEntry}
+              onCropEntry={handleCropEntry}
+              disabled={isSubmitting}
+            />
           )}
 
           {/* Global error */}
