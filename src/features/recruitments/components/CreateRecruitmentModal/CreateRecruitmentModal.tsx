@@ -1,9 +1,12 @@
 "use client"
 
 import { useCallback, useRef, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
+import imageCompression from "browser-image-compression"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
+import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
 import {
     getUploadSignatureApi,
     uploadToCloudinaryApi,
@@ -77,20 +80,51 @@ type UploadedMedia = {
 
 type MediaEntry = {
     id: string
-    file: File | null            // null for already-uploaded (existing) media
+    file: File | null            // current (possibly cropped) file that gets uploaded
+    originalFile: File | null    // untouched source — re-cropping always starts here
     preview: string
     progress: number
     status: "idle" | "uploading" | "done" | "error"
     error: string | null
     result: UploadedMedia | null
     existing?: boolean           // true → already on the server, skip the upload pipeline
+    crop?: CropState             // saved reposition so re-opening the cropper resumes
+    zoom?: number
 }
 
-type PositionItem = { position_id: string; is_primary: boolean; name: string }
+type PositionItem = { position_id: string; name: string }
 type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 
 const TOTAL_STEPS = 5
 const STEP_LABELS = ["Basics", "Age & Venue", "Positions", "Media", "Review"]
+
+// Banner photos are cropped to a fixed landscape ratio so every recruitment
+// header reads as a clean banner (the detail carousel renders them cover-fit).
+const BANNER_ASPECT = 16 / 9
+
+// Mirror the posts image pipeline: compress to WebP before upload so recruitment
+// photos use the same sizes/formats as feed photos.
+const IMAGE_COMPRESSION_OPTIONS = {
+    maxSizeMB: 2.5,
+    maxWidthOrHeight: 2560,
+    initialQuality: 0.9,
+    useWebWorker: true,
+    fileType: "image/webp" as const,
+}
+
+// Time picker options at clean 15-minute steps (00 / 15 / 30 / 45).
+const TIME_OPTIONS: { value: string; label: string }[] = (() => {
+    const out: { value: string; label: string }[] = []
+    for (let h = 0; h < 24; h++) {
+        for (const m of [0, 15, 30, 45]) {
+            const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+            const ampm = h < 12 ? "AM" : "PM"
+            const h12 = h % 12 === 0 ? 12 : h % 12
+            out.push({ value, label: `${h12}:${String(m).padStart(2, "0")} ${ampm}` })
+        }
+    }
+    return out
+})()
 
 // Maps a backend field-error key → the wizard step that owns it, so a 400 can
 // jump the user straight to the offending input and show the message inline.
@@ -159,16 +193,65 @@ const APPLY_METHODS: { value: ApplyMethod; label: string; icon: string }[] = [
     { value: "contact", label: "Contact directly", icon: "mdi:phone-outline" },
 ]
 
+// A fuller description of what each apply method actually does for the player,
+// shown under the picker so the org knows exactly what they're choosing.
+const APPLY_METHOD_DESC: Record<ApplyMethod, string> = {
+    goatza:
+        "Players apply right here on Goatza with a quick, pre-filled form. Every application lands in your dashboard, where you review, shortlist, and message applicants — no spreadsheets, no back-and-forth.",
+    external:
+        "Players tap Apply and are sent to your own website or form to finish applying. Goatza won't receive or track these applications — you'll manage them wherever the link points.",
+    contact:
+        "There's no in-app form. Players see the contact details you add below and reach out to you directly by phone or email to apply.",
+}
+
 function uid() { return Math.random().toString(36).slice(2, 10) }
 
 // ── Edit mode: map server detail shapes → wizard draft shapes ──
 
+// Wizard date value format: "YYYY-MM-DD" (date only, no time chosen) OR
+// "YYYY-MM-DDTHH:MM" (date + time). A "no time" pick is stored at end-of-day
+// (23:59); legacy rows stored it at midnight (00:00). Both sentinels round-trip
+// back to date-only here, so the time is only shown when one was really set.
 function isoToLocalInput(iso: string | null): string {
     if (!iso) return ""
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return ""
     const pad = (n: number) => String(n).padStart(2, "0")
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const h = d.getHours(), m = d.getMinutes()
+    if ((h === 0 && m === 0) || (h === 23 && m === 59)) return date
+    return `${date}T${pad(h)}:${pad(m)}`
+}
+
+// Parse a wizard date value as a LOCAL Date. A date-only value means "that
+// whole day", so it resolves to END of day (23:59) — this keeps a same-day
+// timed deadline ≤ the event and stops a date-only "today" deadline from
+// reading as already-past, matching the backend's datetime comparisons.
+function parseLocalInput(v: string): Date | null {
+    if (!v) return null
+    if (v.includes("T")) {
+        const d = new Date(v)
+        return Number.isNaN(d.getTime()) ? null : d
+    }
+    const [y, m, d] = v.split("-").map(Number)
+    if (!y || !m || !d) return null
+    const date = new Date(y, m - 1, d, 23, 59, 0, 0)
+    return Number.isNaN(date.getTime()) ? null : date
+}
+
+// Wizard value → ISO 8601 for the API (undefined when empty/invalid).
+function localInputToISO(v: string): string | undefined {
+    const d = parseLocalInput(v)
+    return d ? d.toISOString() : undefined
+}
+
+// Human display of a wizard date value — time shown only when one was set.
+function fmtWizardDate(v: string): string | null {
+    const d = parseLocalInput(v)
+    if (!d) return null
+    return v.includes("T")
+        ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+        : d.toLocaleDateString(undefined, { dateStyle: "medium" } as Intl.DateTimeFormatOptions)
 }
 
 function reportingTimeToDraft(t: string | null): { value: string; show: boolean } {
@@ -197,7 +280,9 @@ function mapInitialQuestions(r: RecruitmentDetail): QuestionDraft[] {
     return (r.questions ?? []).map((q) => ({
         id: uid(),
         question: q.question,
-        field_type: q.field_type,
+        // Legacy single-choice "select" is presented as the "Select" (radio)
+        // type now — same single-answer behaviour, one option in the picker.
+        field_type: q.field_type === "select" ? "radio" : q.field_type,
         is_required: q.is_required,
         options: (q.options ?? []).map((o) => ({ value: o.value })),
     }))
@@ -236,7 +321,6 @@ function mapInitialPositions(r: RecruitmentDetail): { any: boolean; list: Positi
         any: false,
         list: r.positions.map((p) => ({
             position_id: p.position.id,
-            is_primary: p.is_primary,
             name: p.position.name,
         })),
     }
@@ -261,6 +345,7 @@ function mapInitialMedia(r: RecruitmentDetail): MediaEntry[] {
     return (r.media ?? []).map((m) => ({
         id: uid(),
         file: null,
+        originalFile: null,
         preview: m.media_type === "video" ? (m.thumbnail_url || m.file_url) : m.file_url,
         progress: 100,
         status: "done",
@@ -739,12 +824,19 @@ function QuestionBuilder({ questions, onChange, disabled }: {
     const addOption = (id: string) => onChange(questions.map(q => q.id === id ? { ...q, options: [...q.options, { value: "" }] } : q))
     const updateOption = (qid: string, oi: number, val: string) => onChange(questions.map(q => q.id === qid ? { ...q, options: q.options.map((o, i) => i === oi ? { value: val } : o) } : q))
     const removeOption = (qid: string, oi: number) => onChange(questions.map(q => q.id === qid ? { ...q, options: q.options.filter((_, i) => i !== oi) } : q))
-    const FIELD_TYPES: { value: QuestionFieldType; label: string }[] = [
-        { value: "short_text", label: "Short Text" }, { value: "long_text", label: "Long Text" },
-        { value: "radio", label: "Radio" }, { value: "select", label: "Select" },
-        { value: "checkbox", label: "Checkbox" }, { value: "number", label: "Number" },
+    // Answer types are labelled by HOW the player answers, not by the HTML
+    // control. "Select" (single choice) maps to radio; "Multi-select" maps to
+    // checkbox. The old raw dropdown ("select") is dropped — legacy questions
+    // are normalised to radio on load (see mapInitialQuestions).
+    const FIELD_TYPES: { value: QuestionFieldType; label: string; hint: string }[] = [
+        { value: "short_text", label: "Short answer", hint: "Player types a short, single-line answer." },
+        { value: "long_text", label: "Paragraph", hint: "Player writes a longer, multi-line answer." },
+        { value: "number", label: "Number", hint: "Player enters a number." },
+        { value: "radio", label: "Select — one choice", hint: "Player picks exactly one of the options you add below." },
+        { value: "checkbox", label: "Multi-select — many choices", hint: "Player can pick one or more of the options you add below." },
     ]
     const HAS_OPTIONS: QuestionFieldType[] = ["radio", "select", "checkbox"]
+    const typeHint = (t: QuestionFieldType) => FIELD_TYPES.find(ft => ft.value === t)?.hint ?? ""
 
     return (
         <div className={styles.questionBuilder}>
@@ -752,16 +844,20 @@ function QuestionBuilder({ questions, onChange, disabled }: {
                 <div key={q.id} className={styles.questionCard}>
                     <div className={styles.questionCardHeader}>
                         <span className={styles.questionNum}>Q{i + 1}</span>
-                        <select className={styles.fieldTypeSelect} value={q.field_type} onChange={e => updateQ(q.id, { field_type: e.target.value as QuestionFieldType })} disabled={disabled}>
+                        <select className={styles.fieldTypeSelect} value={q.field_type} onChange={e => updateQ(q.id, { field_type: e.target.value as QuestionFieldType })} disabled={disabled} title="How players answer this question">
                             {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
                         </select>
-                        <label className={styles.requiredToggle}>
+                        <label className={styles.requiredToggle} title="Players can't submit their application without answering this question.">
                             <input type="checkbox" checked={q.is_required} onChange={e => updateQ(q.id, { is_required: e.target.checked })} disabled={disabled} />
-                            <span>Required</span>
+                            <span>Required to apply</span>
                         </label>
                         {!disabled && <button className={styles.removeQBtn} onClick={() => removeQ(q.id)} type="button"><Icon icon="mdi:close" width={14} height={14} /></button>}
                     </div>
                     <input className={styles.qInput} placeholder="Question text…" value={q.question} onChange={e => updateQ(q.id, { question: e.target.value })} disabled={disabled} />
+                    <p className={styles.qTypeHint}>
+                        <Icon icon="mdi:information-outline" width={12} height={12} />
+                        {typeHint(q.field_type)}
+                    </p>
                     {HAS_OPTIONS.includes(q.field_type) && (
                         <div className={styles.optionsList}>
                             {q.options.map((o, oi) => (
@@ -787,12 +883,17 @@ function QuestionBuilder({ questions, onChange, disabled }: {
 
 // ── Media preview carousel ────────────────────────────────────
 
-function MediaPreview({ entries, onRemove, disabled }: {
+function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     entries: MediaEntry[]
     onRemove: (id: string) => void
+    onCropEntry: (id: string, file: File, crop: CropState, zoom: number) => void
     disabled: boolean
 }) {
     const [idx, setIdx] = useState(0)
+    // Crop editor — cropSrc is a temp object URL of the ORIGINAL image.
+    const [cropId, setCropId] = useState<string | null>(null)
+    const [cropSrc, setCropSrc] = useState<string | null>(null)
+
     useEffect(() => {
         if (idx >= entries.length && entries.length > 0) setIdx(entries.length - 1)
     }, [entries.length, idx])
@@ -801,14 +902,45 @@ function MediaPreview({ entries, onRemove, disabled }: {
     const total = entries.length
     const cur = entries[idx]
 
+    // Only freshly-added local images can be re-cropped (existing/remote media
+    // has no source file and can't be re-fetched cross-origin).
+    const canAdjust = (e: MediaEntry) => !disabled && !e.existing && !!e.originalFile && e.status === "idle"
+
+    const cropEntry = cropId ? entries.find(e => e.id === cropId) ?? null : null
+
+    const openCropper = (entry: MediaEntry) => {
+        if (!entry.originalFile) return
+        setCropSrc(URL.createObjectURL(entry.originalFile))
+        setCropId(entry.id)
+    }
+    const closeCropper = () => {
+        if (cropSrc) URL.revokeObjectURL(cropSrc)
+        setCropSrc(null)
+        setCropId(null)
+    }
+    const applyCrop = (blob: Blob, crop: CropState, zoom: number) => {
+        if (cropEntry?.originalFile) {
+            const base = cropEntry.originalFile.name.replace(/\.[^.]+$/, "") || "photo"
+            const file = new File([blob], `${base}.jpg`, { type: "image/jpeg" })
+            onCropEntry(cropEntry.id, file, crop, zoom)
+        }
+        closeCropper()
+    }
+
     return (
+        <>
         <div className={styles.previewCarousel}>
-            <div className={styles.previewSlide}>
+            <div className={styles.previewSlide} style={{ aspectRatio: String(BANNER_ASPECT) }}>
                 <img src={cur.preview} className={styles.previewMedia} alt={`Media ${idx + 1}`} />
                 {cur.status === "uploading" && <div className={styles.previewOverlay}><span className={styles.uploadPct}>{cur.progress}%</span></div>}
                 {cur.status === "done" && <div className={styles.previewOverlay}><Icon icon="mdi:check-circle" width={28} height={28} style={{ color: "var(--color-brand)" }} /></div>}
                 {cur.status === "error" && <div className={styles.previewOverlayErr}><Icon icon="mdi:alert-circle" width={20} height={20} /><span>{cur.error}</span></div>}
                 {!disabled && <button className={styles.previewRemoveBtn} onClick={() => { onRemove(cur.id); if (idx > 0 && idx === total - 1) setIdx(idx - 1) }} type="button"><Icon icon="mdi:close" width={13} height={13} /></button>}
+                {canAdjust(cur) && (
+                    <button className={styles.previewCropBtn} onClick={() => openCropper(cur)} type="button" aria-label="Adjust photo">
+                        <Icon icon="mdi:crop" width={13} height={13} /> Adjust
+                    </button>
+                )}
                 {total > 1 && <div className={styles.previewCounter}>{idx + 1}/{total}</div>}
                 {total > 1 && idx > 0 && <button className={`${styles.previewNav} ${styles.previewNavPrev}`} onClick={() => setIdx(i => Math.max(0, i - 1))} type="button"><Icon icon="mdi:chevron-left" width={18} height={18} /></button>}
                 {total > 1 && idx < total - 1 && <button className={`${styles.previewNav} ${styles.previewNavNext}`} onClick={() => setIdx(i => Math.min(total - 1, i + 1))} type="button"><Icon icon="mdi:chevron-right" width={18} height={18} /></button>}
@@ -824,6 +956,18 @@ function MediaPreview({ entries, onRemove, disabled }: {
                 </div>
             )}
         </div>
+
+        {cropId && cropSrc && (
+            <PostImageCropper
+                src={cropSrc}
+                aspect={BANNER_ASPECT}
+                initialCrop={cropEntry?.crop}
+                initialZoom={cropEntry?.zoom}
+                onCancel={closeCropper}
+                onApply={applyCrop}
+            />
+        )}
+        </>
     )
 }
 
@@ -836,6 +980,51 @@ function ReviewRow({ icon, label, value }: { icon: string; label: string; value:
             <Icon icon={icon} width={14} height={14} className={styles.reviewRowIcon} />
             <span className={styles.reviewRowLabel}>{label}</span>
             <span className={styles.reviewRowValue}>{value}</span>
+        </div>
+    )
+}
+
+// ── Date + time field ─────────────────────────────────────────
+// Renders a separate date input and a 15-minute-step time picker, but reads /
+// writes a single wizard value: "YYYY-MM-DD" (no time) or "YYYY-MM-DDTHH:MM".
+// Time is optional — the date alone is enough.
+
+function DateTimeField({ value, onChange, disabled }: {
+    value: string
+    onChange: (v: string) => void
+    disabled?: boolean
+}) {
+    const datePart = value ? value.slice(0, 10) : ""
+    const timePart = value.includes("T") ? value.slice(11, 16) : ""
+
+    const setDate = (d: string) => {
+        if (!d) { onChange(""); return }
+        onChange(timePart ? `${d}T${timePart}` : d)
+    }
+    const setTime = (t: string) => {
+        if (!datePart) return
+        onChange(t ? `${datePart}T${t}` : datePart)
+    }
+
+    return (
+        <div className={styles.dateTimeRow}>
+            <input
+                className={`${styles.fieldInput} ${styles.dateTimeDate}`}
+                type="date"
+                value={datePart}
+                onChange={e => setDate(e.target.value)}
+                disabled={disabled}
+            />
+            <select
+                className={`${styles.fieldSelect} ${styles.dateTimeTime}`}
+                value={timePart}
+                onChange={e => setTime(e.target.value)}
+                disabled={disabled || !datePart}
+                title={datePart ? "Time (optional)" : "Pick a date first"}
+            >
+                <option value="">Time —</option>
+                {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
         </div>
     )
 }
@@ -923,6 +1112,7 @@ export default function CreateRecruitmentModal({
     const [confirmDiscard, setConfirmDiscard] = useState(false)
 
     const toast = useToast()
+    const router = useRouter()
     const { mutateAsync: createRecruitment } = useCreateRecruitment()
     const { mutateAsync: updateRecruitment } = useUpdateRecruitment()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -941,7 +1131,7 @@ export default function CreateRecruitmentModal({
         venueName, venueLink,
         location: location ? { name: location.name, lat: location.latitude, lng: location.longitude } : null,
         anyPosition,
-        selectedPositions: selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
+        selectedPositions: selectedPositions.map(p => ({ position_id: p.position_id })),
         questions: questions.map(({ id: _id, ...q }) => q),
         benefits: benefits.map(({ id: _id, ...b }) => b),
         requirements: requirements.map(({ id: _id, ...r }) => r),
@@ -1013,15 +1203,21 @@ export default function CreateRecruitmentModal({
             if (!sportId) return "Please select a sport."
             if (!eventDate) return "Please set an event / trial date."
 
-            // deadline must be on or before the event date
-            if (applicationDeadline && eventDate && new Date(applicationDeadline) > new Date(eventDate)) {
+            // deadline must be on or before the event date. parseLocalInput
+            // resolves a date-only value to end-of-day, so a same-day timed
+            // deadline (e.g. 9 AM the morning of a date-only event) is allowed.
+            const evDate = parseLocalInput(eventDate)
+            const dlDate = parseLocalInput(applicationDeadline)
+            if (dlDate && evDate && dlDate > evDate) {
                 return "Application deadline must be on or before the event date."
             }
             // deadline not in the past — but in edit mode, an unchanged past deadline is fine
-            if (applicationDeadline) {
+            if (dlDate) {
                 const initialDeadlineLocal = isoToLocalInput(init?.application_deadline ?? null)
                 const deadlineChanged = applicationDeadline !== initialDeadlineLocal
-                if ((!isEdit || deadlineChanged) && new Date(applicationDeadline).getTime() < Date.now()) {
+                // Date-only resolves to end-of-day (via parseLocalInput), so a
+                // date-only "today" is not treated as past.
+                if ((!isEdit || deadlineChanged) && dlDate.getTime() < Date.now()) {
                     return "Application deadline cannot be in the past."
                 }
             }
@@ -1069,6 +1265,17 @@ export default function CreateRecruitmentModal({
         return null
     }
 
+    // Validate every editable step (0…3). Used before submit so a required
+    // field skipped via the step bar is caught and pointed to, rather than
+    // reaching the backend as a vague "This field is required."
+    const validateAll = (): { step: number; error: string } | null => {
+        for (let s = 0; s < TOTAL_STEPS - 1; s++) {
+            const e = validateStep(s)
+            if (e) return { step: s, error: e }
+        }
+        return null
+    }
+
     const goNext = () => goToStep(step + 1)
 
     const goPrev = () => {
@@ -1104,7 +1311,7 @@ export default function CreateRecruitmentModal({
         if (!files.length) return
         const imageFiles = files.filter(f => f.type.startsWith("image/"))
         const newEntries: MediaEntry[] = imageFiles.slice(0, 5 - mediaEntries.length).map(f => ({
-            id: uid(), file: f, preview: URL.createObjectURL(f),
+            id: uid(), file: f, originalFile: f, preview: URL.createObjectURL(f),
             progress: 0, status: "idle", error: null, result: null,
         }))
         setMediaEntries(prev => [...prev, ...newEntries])
@@ -1120,16 +1327,23 @@ export default function CreateRecruitmentModal({
         })
     }, [])
 
+    // Apply a crop from the adjust editor: swap in the cropped file + fresh
+    // preview, remembering crop/zoom so re-opening the editor resumes there.
+    const cropMedia = useCallback((id: string, file: File, crop: CropState, zoom: number) => {
+        setMediaEntries(prev => prev.map(e => {
+            if (e.id !== id) return e
+            if (e.preview.startsWith("blob:")) URL.revokeObjectURL(e.preview)
+            return { ...e, file, preview: URL.createObjectURL(file), crop, zoom }
+        }))
+    }, [])
+
     // ── Position toggle ───────────────────────────────────────────
     const togglePosition = (id: string, name: string) => {
         setSelectedPositions(prev => {
             const exists = prev.find(p => p.position_id === id)
             if (exists) return prev.filter(p => p.position_id !== id)
-            return [...prev, { position_id: id, name, is_primary: prev.length === 0 }]
+            return [...prev, { position_id: id, name }]
         })
-    }
-    const setPrimary = (id: string) => {
-        setSelectedPositions(prev => prev.map(p => ({ ...p, is_primary: p.position_id === id })))
     }
 
     // ── Build the API payload from current wizard state ───────────
@@ -1147,8 +1361,8 @@ export default function CreateRecruitmentModal({
         gender,
         sport_id: sportId,
         experience_level: experienceLevel || undefined,
-        application_deadline: applicationDeadline ? new Date(applicationDeadline).toISOString() : undefined,
-        event_date: eventDate ? new Date(eventDate).toISOString() : undefined,
+        application_deadline: localInputToISO(applicationDeadline),
+        event_date: localInputToISO(eventDate),
         max_applications: maxApplications ? Number(maxApplications) : undefined,
         is_paid: isPaid,
         fee_amount: isPaid && feeAmount ? feeAmount : undefined,
@@ -1161,8 +1375,12 @@ export default function CreateRecruitmentModal({
         venue_name: venueName.trim() || undefined,
         venue_link: venueLink.trim() || undefined,
         location: location ? {
+            // Mapbox returns poi/place/region/district/locality — only "place"
+            // is a true city, but the backend just stores city as a display
+            // string, so send the place name for every type (never undefined,
+            // which would trip the nested "city is required" validation).
             name: location.name,
-            city: location.place_type === "place" ? location.name : undefined,
+            city: location.name,
             country_code: location.country_code,
             latitude: location.latitude,
             longitude: location.longitude,
@@ -1170,7 +1388,7 @@ export default function CreateRecruitmentModal({
         // send [] if "Any" is selected, otherwise the selected list
         positions: anyPosition
             ? []
-            : selectedPositions.map(p => ({ position_id: p.position_id, is_primary: p.is_primary })),
+            : selectedPositions.map(p => ({ position_id: p.position_id })),
         // "No age category" → open to all ages, save nothing.
         age_categories: noAgeCategory ? [] : ageCategories.map((c, idx) => ({
             title: c.title.trim(),
@@ -1222,8 +1440,14 @@ export default function CreateRecruitmentModal({
     // submitStatus is only meaningful on create: "draft" saves a draft,
     // "active"/undefined publishes. Edit never sends a status.
     const handleSubmit = async (submitStatus?: "draft" | "active") => {
-        const err = validateStep()
-        if (err) { showFormError(err); return }
+        // Full pre-flight: check every step, not just the current one, so nothing
+        // required slips through to the backend as a nameless error.
+        const problem = validateAll()
+        if (problem) {
+            setStep(problem.step)
+            showFormError(problem.error)
+            return
+        }
         setFieldErrors({})
 
         // 1) Upload only newly-added media. Existing media is preserved as-is.
@@ -1242,7 +1466,11 @@ export default function CreateRecruitmentModal({
                     if (!file) continue
                     const sig = uploads[i]
                     try {
-                        const result = await uploadToCloudinaryApi(file, sig)
+                        // Compress to WebP first — same sizes/formats the feed uses.
+                        const compressed = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
+                        const base = file.name.replace(/\.[^.]+$/, "") || "photo"
+                        const toUpload = new File([compressed], `${base}.webp`, { type: compressed.type })
+                        const result = await uploadToCloudinaryApi(toUpload, sig)
                         const uploaded: UploadedMedia = {
                             file_url: result.secure_url,
                             public_id: result.public_id,
@@ -1307,6 +1535,8 @@ export default function CreateRecruitmentModal({
                 setTimeout(() => {
                     onCreated?.(res.recruitment_id)
                     onClose()
+                    // Land on the org's recruitments list after posting/drafting.
+                    router.push(`/organization/admin/${orgId}/recruitments`)
                 }, 2000)
             }
         } catch (submitErr) {
@@ -1396,12 +1626,12 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldRow}>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Trial / Event Date <span className={styles.required}>*</span></label>
-                                <input className={styles.fieldInput} type="datetime-local" value={eventDate} onChange={e => { setEventDate(e.target.value); clearFieldError("event_date") }} disabled={isSubmitting} />
+                                <DateTimeField value={eventDate} onChange={v => { setEventDate(v); clearFieldError("event_date") }} disabled={isSubmitting} />
                                 {renderFieldError("event_date")}
                             </div>
                             <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Application Deadline</label>
-                                <input className={styles.fieldInput} type="datetime-local" value={applicationDeadline} onChange={e => { setApplicationDeadline(e.target.value); clearFieldError("application_deadline") }} disabled={isSubmitting} />
+                                <label className={styles.fieldLabel}>Application Deadline <span className={styles.optionalTag}>Optional</span></label>
+                                <DateTimeField value={applicationDeadline} onChange={v => { setApplicationDeadline(v); clearFieldError("application_deadline") }} disabled={isSubmitting} />
                                 {renderFieldError("application_deadline")}
                             </div>
                         </div>
@@ -1543,17 +1773,6 @@ export default function CreateRecruitmentModal({
                                                     {sel && !anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
                                                     {p.name}
                                                 </button>
-                                                {sel && !anyPosition && (
-                                                    <button
-                                                        className={`${styles.positionPrimaryBtn} ${sel.is_primary ? styles.positionPrimaryBtnActive : ""}`}
-                                                        onClick={() => setPrimary(p.id)}
-                                                        type="button"
-                                                        title="Set as primary"
-                                                        disabled={isSubmitting}
-                                                    >
-                                                        {sel.is_primary ? "PRIMARY" : "SET PRIMARY"}
-                                                    </button>
-                                                )}
                                             </div>
                                         )
                                     })}
@@ -1569,6 +1788,7 @@ export default function CreateRecruitmentModal({
                                 Application Questions
                                 <span className={styles.fieldLabelMuted}> — optional</span>
                             </label>
+                            <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
                             <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
                         </div>
 
@@ -1614,6 +1834,11 @@ export default function CreateRecruitmentModal({
                                 ))}
                             </div>
 
+                            <div className={styles.applyMethodDesc}>
+                                <Icon icon="mdi:information-outline" width={15} height={15} className={styles.applyMethodDescIcon} />
+                                <p>{APPLY_METHOD_DESC[applyMethod]}</p>
+                            </div>
+
                             {applyMethod === "external" && (
                                 <div className={styles.applyMethodDetail}>
                                     <input
@@ -1625,14 +1850,7 @@ export default function CreateRecruitmentModal({
                                         disabled={isSubmitting}
                                     />
                                     {renderFieldError("external_apply_url")}
-                                    <p className={styles.fieldSubLabel}>Players are sent here to apply.</p>
                                 </div>
-                            )}
-                            {applyMethod === "goatza" && (
-                                <p className={styles.fieldSubLabel}>Players apply in-app through Goatza.</p>
-                            )}
-                            {applyMethod === "contact" && (
-                                <p className={styles.fieldSubLabel}>Players reach out using the contacts below.</p>
                             )}
                         </div>
 
@@ -1658,7 +1876,8 @@ export default function CreateRecruitmentModal({
                     <div className={styles.stepContent}>
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Banner / Photos</label>
-                            <MediaPreview entries={mediaEntries} onRemove={removeMedia} disabled={isSubmitting} />
+                            <p className={styles.fieldSubLabel}>Up to 5 photos. Tap Adjust to reframe each one — they’re cropped to a clean banner shape.</p>
+                            <MediaPreview entries={mediaEntries} onRemove={removeMedia} onCropEntry={cropMedia} disabled={isSubmitting} />
                             {renderFieldError("media")}
                             {mediaEntries.length < 5 && (
                                 <button className={styles.mediaAddBtn} onClick={() => fileInputRef.current?.click()} type="button" disabled={isSubmitting}>
@@ -1732,8 +1951,8 @@ export default function CreateRecruitmentModal({
                             <ReviewRow icon="mdi:tag-outline" label="Type" value={recruitmentType.replace(/_/g, " ")} />
                             <ReviewRow icon="mdi:eye-outline" label="Visibility" value={visibility.replace(/_/g, " ")} />
                             <ReviewRow icon="mdi:gender-male-female" label="Gender" value={gender} />
-                            <ReviewRow icon="mdi:calendar" label="Event Date" value={eventDate ? new Date(eventDate).toLocaleString() : null} />
-                            <ReviewRow icon="mdi:calendar-clock" label="Deadline" value={applicationDeadline ? new Date(applicationDeadline).toLocaleString() : null} />
+                            <ReviewRow icon="mdi:calendar" label="Event Date" value={fmtWizardDate(eventDate)} />
+                            <ReviewRow icon="mdi:calendar-clock" label="Deadline" value={fmtWizardDate(applicationDeadline)} />
                         </div>
 
                         {ageCategories.length > 0 && (

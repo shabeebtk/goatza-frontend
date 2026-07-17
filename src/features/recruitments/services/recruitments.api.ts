@@ -195,7 +195,9 @@ export type RecruitmentDetail = {
 
 export type CreateRecruitmentPositionPayload = {
   position_id: string
-  is_primary: boolean
+  // Legacy field — no longer set from the UI (all positions are equal). Kept
+  // optional so the backend still accepts it; it defaults to false server-side.
+  is_primary?: boolean
 }
 
 export type CreateRecruitmentQuestionOptionPayload = {
