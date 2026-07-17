@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
-import { Input } from "@/shared/components/ui"
+import { Input, DateOfBirthPicker } from "@/shared/components/ui"
 import { useMyProfile, useUpdateProfileData } from "@/features/profile/hooks/useProfileQueries"
 import type { UserProfile, UpdateProfileDataPayload } from "@/features/profile/services/profile.api"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
@@ -54,6 +54,7 @@ type DetailsDraft = {
   about: string
   height: string
   weight: string
+  birthdate: string | null
 }
 
 // The sports draft only stores ids; names are resolved from the master list.
@@ -110,7 +111,11 @@ function DetailsForm({
     about: profile.about ?? "",
     height: profHeight != null ? String(profHeight) : "",
     weight: profWeight != null ? String(profWeight) : "",
+    birthdate: profile.birthdate ?? null,
   }
+
+  // Birthdate lives outside RHF (composed from 3 selects, not a text input).
+  const [birthdate, setBirthdate] = useState<string | null>(initial.birthdate)
 
   const {
     register,
@@ -168,6 +173,7 @@ function DetailsForm({
     about: watch("about") ?? "",
     height: String(watch("height_cm") ?? ""),
     weight: String(watch("weight_kg") ?? ""),
+    birthdate,
   }
   useEffect(() => {
     return () => setDraft("details", latestRef.current)
@@ -191,6 +197,8 @@ function DetailsForm({
 
     const weight = values.weight_kg?.trim() ? Number(values.weight_kg) : null
     if (weight !== profWeight) payload.weight_kg = weight
+
+    if (birthdate !== (profile.birthdate ?? null)) payload.birthdate = birthdate
 
     if (Object.keys(payload).length === 0) {
       onNext()
@@ -338,6 +346,14 @@ function DetailsForm({
               {aboutLen}/{ABOUT_SOFT_CAP}
             </span>
           </div>
+        </div>
+
+        {/* ── Date of birth ── */}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="onb-dob">
+            Date of birth
+          </label>
+          <DateOfBirthPicker id="onb-dob" value={birthdate} onChange={setBirthdate} />
         </div>
 
         {/* ── Height / Weight ── */}
