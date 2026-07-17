@@ -154,31 +154,17 @@ export default function PostOptionsSheet({
                   </button>
                 </>
               ) : (
-                <>
-                  {/* Report — non-owner */}
-                  <button
-                    className={`${styles.option} ${styles.optionDanger}`}
-                    onClick={onClose}
-                    type="button"
-                  >
-                    <span className={styles.optionIcon}>
-                      <Icon icon="mdi:flag-outline" width={20} height={20} />
-                    </span>
-                    <span className={styles.optionLabel}>Report Post</span>
-                  </button>
-
-                  {/* Unfollow — non-owner */}
-                  <button
-                    className={styles.option}
-                    onClick={onClose}
-                    type="button"
-                  >
-                    <span className={styles.optionIcon}>
-                      <Icon icon="mdi:account-minus-outline" width={20} height={20} />
-                    </span>
-                    <span className={styles.optionLabel}>Unfollow</span>
-                  </button>
-                </>
+                /* Report — non-owner */
+                <button
+                  className={`${styles.option} ${styles.optionDanger}`}
+                  onClick={onClose}
+                  type="button"
+                >
+                  <span className={styles.optionIcon}>
+                    <Icon icon="mdi:flag-outline" width={20} height={20} />
+                  </span>
+                  <span className={styles.optionLabel}>Report Post</span>
+                </button>
               )}
 
               {/* Copy link — always */}

@@ -45,7 +45,7 @@
 .authorInfo {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1.5px;
   min-width: 0;
 }
 
@@ -53,6 +53,7 @@
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
   font-size: var(--text-sm);
+  line-height: 1.2;
   letter-spacing: var(--tracking-tight);
   text-transform: uppercase;
   color: var(--color-ink);
@@ -66,6 +67,7 @@
 
 .authorHeadline {
   font-size: var(--text-xs);
+  line-height: 1.2;
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -196,6 +198,22 @@
 
 .statCount {
   line-height: 1;
+}
+
+/* Likes cluster — clickable, opens the reactions list modal */
+.likesBtn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.likesBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-text-secondary);
 }
 
 /* ── Reaction icon cluster ───────────────────────────────────── */
