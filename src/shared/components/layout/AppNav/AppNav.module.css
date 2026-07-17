@@ -60,7 +60,7 @@
 .logoLink {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-1);
     text-decoration: none;
     flex-shrink: 0;
     transition: opacity var(--duration-fast);
@@ -70,30 +70,41 @@
     opacity: 0.85;
 }
 
+/* No chip — the logo art shows as-is, larger and un-cropped
+   (matches the landing-page lockup). */
 .logoImgWrap {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-full);
-    background: var(--color-surface);
-    border: 1.5px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
     flex-shrink: 0;
-    box-shadow: var(--shadow-xs);
-    transition: transform var(--duration-base) var(--ease-spring), box-shadow var(--duration-base);
+    transition: transform var(--duration-base) var(--ease-spring);
 }
 
 .logoLink:hover .logoImgWrap {
-    transform: rotate(-5deg) scale(1.08);
-    box-shadow: var(--shadow-brand);
+    transform: scale(1.05);
 }
 
 .logoImg {
-    width: 32px;
-    height: 32px;
+    height: 46px;
+    width: auto;
     object-fit: contain;
+    display: block;
+    transition: filter var(--duration-base) var(--ease-out);
+}
+
+/* Theme safety — the LOGO_URL artwork is solid black, so it must flip to
+   white in dark mode to stay visible on the dark chrome. */
+@media (prefers-color-scheme: dark) {
+    .logoImg {
+        filter: brightness(0) invert(1);
+    }
+}
+
+/* Mobile top bar sits a touch shorter — trim the mark to match. */
+@media (max-width: 767px) {
+    .logoImg {
+        height: 38px;
+    }
 }
 
 .logoWordmark {

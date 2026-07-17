@@ -50,6 +50,8 @@ export type UserProfile = {
   height_cm: number | null
   weight_kg: number | null
   gender?: string | null
+  /** ISO date "YYYY-MM-DD" or null */
+  birthdate?: string | null
   location: UserLocation | null
   followers_count: string
   following_count: string
@@ -74,6 +76,8 @@ export type UpdateProfileDataPayload = {
   height_cm?: number | null
   weight_kg?: number | null
   gender?: string | null
+  /** ISO date "YYYY-MM-DD" or null to clear */
+  birthdate?: string | null
   location?: LocationPayload | null
 }
 

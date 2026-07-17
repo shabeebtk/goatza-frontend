@@ -17,6 +17,7 @@ import {
 } from "@/features/profile/hooks/useProfileQueries"
 import { useNavigation } from "@/shared/services/navigation.service"
 import type { UserProfile } from "@/features/profile/services/profile.api"
+import { ageGroupBadge } from "@/features/profile/utils/ageGroup"
 import styles from "./UserProfile.module.css"
 
 // ── Stat pill ─────────────────────────────────────────────────
@@ -128,6 +129,8 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
     month: "long", year: "numeric",
   })
 
+  const ageGroup = ageGroupBadge(profile.birthdate)
+
   return (
     <>
       <div className={styles.profilePage}>
@@ -220,6 +223,11 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                       </div>
                     )}
                   </>
+                )}
+                {ageGroup && (
+                  <div className={styles.roleBadge} title="Age group">
+                    {ageGroup}
+                  </div>
                 )}
                 {profile.location && (
                   <div className={styles.roleBadge}>

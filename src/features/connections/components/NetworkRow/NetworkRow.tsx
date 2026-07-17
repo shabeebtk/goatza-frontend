@@ -52,17 +52,11 @@ export default function NetworkRow({ row, activeKey }: NetworkRowProps) {
             )}
           </span>
 
-          <span className={styles.meta}>
-            <span className={styles.username}>@{row.username}</span>
-            {row.headline && (
-              <>
-                <span className={styles.dot} aria-hidden="true">
-                  ·
-                </span>
-                <span className={styles.headline}>{row.headline}</span>
-              </>
-            )}
-          </span>
+          {row.headline && (
+            <span className={styles.meta}>
+              <span className={styles.headline}>{row.headline}</span>
+            </span>
+          )}
         </span>
       </Link>
 

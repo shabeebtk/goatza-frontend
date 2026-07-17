@@ -93,7 +93,12 @@ const EXPERIENCE_LABEL: Record<string, string> = {
 
 function fmtDate(iso: string | null | undefined, fallback = "—") {
   if (!iso) return fallback
-  return dayjs(iso).format("DD MMM YYYY, h:mm A")
+  const d = dayjs(iso)
+  // Time is only shown when one was actually set. A "no time" date is stored at
+  // end-of-day (23:59); older rows used midnight (00:00). Both hide the time.
+  const noTime =
+    (d.hour() === 0 && d.minute() === 0) || (d.hour() === 23 && d.minute() === 59)
+  return noTime ? d.format("DD MMM YYYY") : d.format("DD MMM YYYY, h:mm A")
 }
 
 function fmtDateShort(iso: string | null | undefined, fallback = "—") {
@@ -550,9 +555,8 @@ export default function RecruitmentDetail({
   const orgStatus = r.status ?? "draft"
   const canChangeStatus = (STATUS_TRANSITIONS[orgStatus] ?? []).length > 0
 
-  const primaryPositions   = r.positions?.filter((p) => p.is_primary) ?? []
-  const secondaryPositions = r.positions?.filter((p) => !p.is_primary) ?? []
-  const hasPositions = (r.positions?.length ?? 0) > 0
+  const allPositions = r.positions ?? []
+  const hasPositions = allPositions.length > 0
 
   const ageCategories   = r.age_categories  ?? []
   const contacts        = r.contacts        ?? []
@@ -786,13 +790,7 @@ export default function RecruitmentDetail({
         </h2>
         {hasPositions ? (
           <div className={styles.positionsList}>
-            {primaryPositions.map((p) => (
-              <span key={p.position.id} className={`${styles.posTag} ${styles.posTagPrimary}`}>
-                {p.position.name}
-                <span className={styles.posTagBadge}>Primary</span>
-              </span>
-            ))}
-            {secondaryPositions.map((p) => (
+            {allPositions.map((p) => (
               <span key={p.position.id} className={styles.posTag}>
                 {p.position.name}
               </span>

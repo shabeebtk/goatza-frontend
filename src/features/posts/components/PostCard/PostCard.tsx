@@ -10,6 +10,7 @@ import MediaCarousel from "@/features/posts/components/MediaCarousel/MediaCarous
 import PostActions from "@/features/posts/components/PostActions/PostActions"
 import PostComments from "@/features/posts/components/PostComments/PostComments"
 import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"   // ← NEW
+import PostLikesModal from "@/features/posts/components/PostLikesModal/PostLikesModal"
 import EditPostModal from "@/features/posts/components/EditPostModal/EditPostModal"
 import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
 import type { Post } from "@/features/posts/services/posts.api"
@@ -86,6 +87,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [showLikes, setShowLikes] = useState(false)
 
   const user = useAuthStore((s) => s.user)
   const actorType = useAuthStore((s) => s.actorType)
@@ -130,12 +132,6 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
                 <span key="time" className={styles.timeAgo}>{timeAgo}</span>,
                 post.visibility === "followers" && (
                   <Icon key="vis" icon="mdi:account-group-outline" width={12} height={12} />
-                ),
-                post.sport && (
-                  <span key="sport" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <Icon icon={post.sport.icon_name} width={12} height={12} />
-                    <span>{post.sport.name}</span>
-                  </span>
                 ),
                 post.location && (
                   <span key="loc" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
@@ -182,7 +178,12 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
       {(post.likes_count > 0 || post.comments_count > 0) && (
         <div className={styles.statsRow}>
           {post.likes_count > 0 && (
-            <span className={styles.statItem}>
+            <button
+              type="button"
+              className={`${styles.statItem} ${styles.likesBtn}`}
+              onClick={() => setShowLikes(true)}
+              aria-label={`View ${post.likes_count} reactions`}
+            >
               <span className={styles.reactionIcons}>
                 {topReactions.length > 0
                   ? topReactions.map((r) => (
@@ -197,7 +198,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
                   )}
               </span>
               <span className={styles.statCount}>{fmtCount(post.likes_count)}</span>
-            </span>
+            </button>
           )}
           {post.comments_count > 0 && (
             <button
@@ -222,6 +223,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
         <PostComments
           postId={post.id}
           commentsCount={post.comments_count}
+          isPostOwner={isOwn}
           onClose={() => setShowComments(false)}
         />
       )}
@@ -240,6 +242,15 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
       {/* ── Edit modal ── */}
       {showEdit && (
         <EditPostModal post={post} onClose={() => setShowEdit(false)} />
+      )}
+
+      {/* ── Reactions list modal ── */}
+      {showLikes && (
+        <PostLikesModal
+          postId={post.id}
+          totalCount={post.likes_count}
+          onClose={() => setShowLikes(false)}
+        />
       )}
 
     </article>

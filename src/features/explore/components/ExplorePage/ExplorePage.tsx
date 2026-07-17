@@ -31,12 +31,16 @@ function resultCount(pages?: { results: unknown[] }[]): number {
  */
 export default function ExplorePage() {
   const { toExploreList } = useNavigation()
-  const players = useExplorePlayers()
+  // Players shown as TWO rails — "Players near you" and "Popular players" — so a
+  // user with a location still sees popular picks. The nearby rail self-hides
+  // when the user has no location, leaving just popular.
+  const nearbyPlayers = useExplorePlayers({ mode: "nearby" })
+  const popularPlayers = useExplorePlayers({ mode: "popular" })
   const teams = useExploreOrgs(TEAMS_TYPES)
   const academies = useExploreOrgs(ACADEMY_TYPES)
   const posts = useExplorePosts()
 
-  const sections = [players, teams, academies, posts]
+  const sections = [nearbyPlayers, popularPlayers, teams, academies, posts]
 
   // Only declare the page empty once every section has settled without error
   // and returned nothing — an errored section shows its own retry instead.
@@ -66,7 +70,9 @@ export default function ExplorePage() {
         </div>
       ) : (
         <div className={styles.sections}>
-          <PlayersRail />
+          {/* Nearby first (more relevant); self-hides with no user location. */}
+          <PlayersRail mode="nearby" />
+          <PlayersRail mode="popular" />
 
           <OrgsRail
             types={TEAMS_TYPES}

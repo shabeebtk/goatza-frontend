@@ -5,7 +5,7 @@ import { useForm, type SubmitHandler, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
-import { Input } from "@/shared/components/ui"
+import { Input, DateOfBirthPicker } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useUpdateProfileData, useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { useAuthStore } from "@/store/auth.store"
@@ -138,6 +138,10 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       ? originalLocationName !== null                  // was set, now cleared
       : selectedCity.name !== originalLocationName     // changed to different city
 
+  // ── Birthdate (managed outside react-hook-form, like location) ──
+  const [birthdate, setBirthdate] = useState<string | null>(profile.birthdate ?? null)
+  const birthdateChanged = birthdate !== (profile.birthdate ?? null)
+
   // Lock body scroll
   useEffect(() => {
     document.body.style.overflow = "hidden"
@@ -200,6 +204,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
     if (dirtyFields.gender) payload.gender = values.gender || null
     if (dirtyFields.height_cm) payload.height_cm = values.height_cm ?? null
     if (dirtyFields.weight_kg) payload.weight_kg = values.weight_kg ?? null
+    if (birthdateChanged) payload.birthdate = birthdate
 
     // ── Location: only include if changed ──────────────────────
     if (locationChanged) {
@@ -259,8 +264,8 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   const headlineLen = watch("headline")?.length ?? 0
   const aboutLen = watch("about")?.length ?? 0
 
-  // Dirty = react-hook-form fields changed OR location changed
-  const isFormDirty = isDirty || locationChanged
+  // Dirty = react-hook-form fields changed OR location/birthdate changed
+  const isFormDirty = isDirty || locationChanged || birthdateChanged
 
   return (
     <div
@@ -347,6 +352,10 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
             {/* ── Physical ── */}
             <div className={styles.section}>
               <SectionHeader icon="mdi:human-male-height" title="Physical" />
+
+              <Field label="Date of Birth" hint="Used to show your age group.">
+                <DateOfBirthPicker value={birthdate} onChange={setBirthdate} disabled={isSubmitting} />
+              </Field>
 
               <Field label="Gender" error={errors.gender?.message}>
                 <select className={styles.selectField} {...register("gender")}>

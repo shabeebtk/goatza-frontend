@@ -177,6 +177,44 @@ export const toggleLikeApi = async (payload: ToggleLikePayload): Promise<ToggleL
   return res.data.data
 }
 
+// ── Post likes / reactions list ───────────────────────────────
+
+/** Actor (user or org) who reacted — shape mirrors the mini serializers. */
+export type PostLikeActor = {
+  id: string
+  username: string
+  name: string
+  /** User actors expose `profile_photo`; org actors expose `logo`. */
+  profile_photo?: string
+  logo?: string
+  headline?: string
+  /** Org actors only. */
+  is_verified?: boolean
+}
+
+export type PostLike = {
+  actor: PostLikeActor
+  actor_type: "user" | "organization"
+  liked_at: string
+  type: ReactionType
+}
+
+export type PostLikesResponse = {
+  count: number
+  limit: number
+  offset: number
+  results: PostLike[]
+}
+
+export const fetchPostLikesApi = async (params: {
+  post_id: string
+  limit?: number
+  offset?: number
+}): Promise<PostLikesResponse> => {
+  const res = await api.get(`/posts/likes/list`, { params: { limit: 20, ...params } })
+  return res.data.data
+}
+
 export type CreateCommentPayload = {
   post_id: string
   comment: string
@@ -233,6 +271,13 @@ export const fetchCommentsApi = async (params: { post_id: string, limit?: number
 
 export const fetchRepliesApi = async (params: { parent_id: string, limit?: number, offset?: number }): Promise<{ results: PostComment[] }> => {
   const res = await api.get(`/posts/comments/list/replies`, { params: { limit: 20, ...params } })
+  return res.data.data
+}
+
+export const deleteCommentApi = async (commentId: string) => {
+  const res = await api.delete(`/posts/comments/delete`, {
+    params: { comment_id: commentId },
+  })
   return res.data.data
 }
 

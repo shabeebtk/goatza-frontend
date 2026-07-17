@@ -76,15 +76,7 @@ export default function RecruitmentCard({
     TYPE_META[recruitment.recruitment_type] ?? TYPE_META.open_trial
   const statusMeta = STATUS_META[recruitment.status] ?? STATUS_META.active
 
-  const primaryPositions = recruitment.positions
-    .filter((p) => p.is_primary)
-    .map((p) => p.position.name)
-
-  const secondaryPositions = recruitment.positions
-    .filter((p) => !p.is_primary)
-    .map((p) => p.position.name)
-
-  const allPositions = [...primaryPositions, ...secondaryPositions]
+  const allPositions = recruitment.positions.map((p) => p.position.name)
 
   const timeAgo = dayjs(recruitment.created_at).fromNow()
 
@@ -151,12 +143,7 @@ export default function RecruitmentCard({
       {/* ── Positions ── */}
       {allPositions.length > 0 && (
         <div className={styles.positions}>
-          {primaryPositions.map((pos) => (
-            <span key={pos} className={`${styles.posTag} ${styles.posTagPrimary}`}>
-              {pos}
-            </span>
-          ))}
-          {secondaryPositions.map((pos) => (
+          {allPositions.map((pos) => (
             <span key={pos} className={styles.posTag}>
               {pos}
             </span>
