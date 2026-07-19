@@ -16,6 +16,7 @@ import {
 import { useConversationsSocket } from "../../hooks/useConversationsSocket"
 import { useAuthStore } from "@/store/auth.store"
 import type { Conversation, MessageTarget, MessageTargetSource } from "../../services/conversations.api"
+import { getMessagePreviewText } from "../../utils/messagePreview"
 import styles from "./ConversationsList.module.css"
 
 dayjs.extend(relativeTime)
@@ -43,17 +44,9 @@ function getMessagePreview(
   if (!msg) return "Start a conversation"
 
   const isMe = (msg.sender?.id || msg.sender_id) === myUserId
-  const prefix = isMe ? "You: " : ""
-
-  if (msg.message_type === "image") return `${prefix}📷 Photo`
-  if (msg.message_type === "video") return `${prefix}🎥 Video`
-
-  // Text — truncate at 40 chars
-  const text = msg.content.length > 40
-    ? msg.content.slice(0, 40) + "…"
-    : msg.content
-
-  return `${prefix}${text}`
+  // Single source of truth for preview copy — shared with the live socket
+  // update so text/shared/media lines can't drift between them.
+  return getMessagePreviewText(msg, isMe)
 }
 
 function getUnreadLabel(count: number): string {

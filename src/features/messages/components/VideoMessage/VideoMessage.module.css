@@ -1,0 +1,249 @@
+/* ============================================================
+   VideoMessage — a video in a chat. Poster + play button, own aligned row.
+   ============================================================ */
+
+.row {
+  display: flex;
+  margin-bottom: 2px;
+  animation: fadeIn 0.22s ease both;
+}
+
+.rowMine {
+  justify-content: flex-end;
+}
+
+.rowTheirs {
+  justify-content: flex-start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  max-width: min(80%, 260px);
+}
+
+.rowMine .column {
+  align-items: flex-end;
+}
+
+/* ── Poster ────────────────────────────────────────────────── */
+
+.videoWrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--color-border);
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.posterUploading {
+  filter: brightness(0.75);
+}
+
+.posterFallback {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1a1a1a, #333);
+}
+
+/* ── Play button ───────────────────────────────────────────── */
+
+.playBtn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.durationBadge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: var(--weight-semi);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ── Overlays (uploading / failed) ─────────────────────────── */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.ring {
+  transform: rotate(-90deg);
+}
+
+.ringTrack {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 3;
+}
+
+.ringFill {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s ease;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.removeBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.failedLabel {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Caption ───────────────────────────────────────────────── */
+
+.caption {
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.captionMine {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-color: transparent;
+}
+
+/* ── Time ──────────────────────────────────────────────────── */
+
+.time {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.58rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  line-height: 1;
+}
+
+/* ── Fullscreen player ─────────────────────────────────────── */
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.94);
+  padding: var(--space-4);
+}
+
+.viewerVideo {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-sm);
+  background: #000;
+}
+
+.viewerClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  z-index: 1;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,11 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
+import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
+import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import styles from "./RecruitmentCard.module.css"
 import { Recruitment } from "../../services/recruitments.api"
 
@@ -71,6 +74,7 @@ export default function RecruitmentCard({
   showOrg = true,
 }: RecruitmentCardProps) {
   const { toRecruitment, toProfile } = useNavigation()
+  const [shareOpen, setShareOpen] = useState(false)
 
   const typeMeta =
     TYPE_META[recruitment.recruitment_type] ?? TYPE_META.open_trial
@@ -191,6 +195,16 @@ export default function RecruitmentCard({
             </span>
           )}
 
+          <button
+            type="button"
+            className={styles.shareBtn}
+            onClick={() => setShareOpen(true)}
+            aria-label="Share recruitment"
+            title="Share"
+          >
+            <Icon icon="mdi:share-variant-outline" width={16} height={16} />
+          </button>
+
           <Link
             href={toRecruitment(recruitment.id)}
             className={styles.applyBtn}
@@ -200,6 +214,20 @@ export default function RecruitmentCard({
           </Link>
         </div>
       </div>
+
+      <ShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        target={{ type: "recruitment", id: recruitment.id }}
+        previewNode={
+          <RecruitmentSharePreview
+            title={recruitment.title}
+            orgName={recruitment.organization.name}
+            sportName={recruitment.sport.name}
+            sportIcon={recruitment.sport.icon_name}
+          />
+        }
+      />
     </article>
   )
 }

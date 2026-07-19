@@ -27,6 +27,8 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
+import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
+import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
@@ -534,6 +536,7 @@ export default function RecruitmentDetail({
   const { toProfile } = useNavigation()
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [applyOpen, setApplyOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   if (isLoading) return <DetailSkeleton />
 
@@ -618,7 +621,18 @@ export default function RecruitmentDetail({
             )}
           </div>
 
-          <h1 className={styles.title}>{r.title}</h1>
+          <div className={styles.titleHeadRow}>
+            <h1 className={styles.title}>{r.title}</h1>
+            <button
+              className={styles.shareIconBtn}
+              type="button"
+              onClick={() => setShareOpen(true)}
+              aria-label="Share recruitment"
+              title="Share"
+            >
+              <Icon icon="mdi:share-variant-outline" width={18} height={18} />
+            </button>
+          </div>
           {r.short_description && (
             <p className={styles.shortDesc}>{r.short_description}</p>
           )}
@@ -988,6 +1002,22 @@ export default function RecruitmentDetail({
       {applyOpen && (
         <ApplyRecruitmentModal recruitment={r} onClose={() => setApplyOpen(false)} />
       )}
+
+      {/* ── Share sheet ── */}
+      <ShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        target={{ type: "recruitment", id: r.id }}
+        previewNode={
+          <RecruitmentSharePreview
+            title={r.title}
+            orgName={r.organization.name}
+            sportName={r.sport.name}
+            sportIcon={r.sport.icon_name}
+            coverUrl={r.media?.[0]?.thumbnail_url || r.media?.[0]?.file_url || undefined}
+          />
+        }
+      />
 
     </div>
   )

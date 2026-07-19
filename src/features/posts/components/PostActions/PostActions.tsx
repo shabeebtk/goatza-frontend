@@ -14,6 +14,8 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { Icon } from "@iconify/react"
 import { useToggleLike } from "@/features/posts/hooks/usePostMutations"
 import type { Post, ReactionType, FetchPostsParams } from "@/features/posts/services/posts.api"
+import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
+import PostSharePreview from "@/features/posts/components/PostSharePreview/PostSharePreview"
 import styles from "./PostActions.module.css"
 
 // ── Reaction definitions ──────────────────────────────────────
@@ -119,6 +121,7 @@ export default function PostActions({
   const isPending = mutation.isPending
 
   const [popoverVisible, setPopoverVisible] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   // Timers
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -276,12 +279,29 @@ export default function PostActions({
         type="button"
         className={styles.actionBtn}
         aria-label="Share"
+        onClick={() => setShareOpen(true)}
       >
         <span className={styles.actionIcon}>
-          <Icon icon="mdi:share-outline" width={20} height={20} />
+          <Icon icon="mdi:send-outline" width={20} height={20} />
         </span>
         <span className={styles.actionLabel}>Share</span>
       </button>
+
+      {/* ── Share sheet ── */}
+      <ShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        target={{ type: "post", id: post.id }}
+        previewNode={
+          <PostSharePreview
+            authorName={post.author.name}
+            thumbnailUrl={
+              post.media[0]?.thumbnail_url || post.media[0]?.file_url || undefined
+            }
+            textSnippet={post.content}
+          />
+        }
+      />
 
     </div>
   )
