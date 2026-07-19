@@ -7,20 +7,41 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import isToday from "dayjs/plugin/isToday"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { useAuthStore } from "@/store/auth.store"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
+import { useChatMediaUpload } from "../../hooks/useChatImageUpload"
 import {
   useConversationDetail,
   useMessages,
   useMarkRead,
   useAcceptConversation,
 } from "../../hooks/useConversationQueries"
+import SharedRecruitmentMessage from "../SharedRecruitmentMessage/SharedRecruitmentMessage"
+import SharedPostMessage from "../SharedPostMessage/SharedPostMessage"
+import ImageMessage from "../ImageMessage/ImageMessage"
+import VideoMessage from "../VideoMessage/VideoMessage"
+import { getMessagePreviewText } from "../../utils/messagePreview"
+import {
+  validateChatImages,
+  validateChatVideoFile,
+  getVideoMeta,
+  formatDuration,
+  MAX_CHAT_IMAGES,
+  MAX_CHAT_VIDEO_SECONDS,
+} from "../../services/chatUpload.service"
 import styles from "./ChatWindow.module.css"
 
 dayjs.extend(relativeTime)
 dayjs.extend(isToday)
+
+// A picked-but-unsent attachment. `url` is an object URL for the chip preview
+// (the raw file for images, the video file itself for videos).
+type StagedMedia =
+  | { kind: "image"; file: File; url: string }
+  | { kind: "video"; file: File; url: string; durationSec: number }
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -102,9 +123,69 @@ interface BubbleProps {
   msg: ChatMessage
   isMine: boolean
   showTime: boolean
+  onRetryImage?: (id: string) => void
+  onRemoveImage?: (id: string) => void
 }
 
-function MessageBubble({ msg, isMine, showTime }: BubbleProps) {
+function MessageBubble({ msg, isMine, showTime, onRetryImage, onRemoveImage }: BubbleProps) {
+  // Photo — dedicated bubble with progress/retry states.
+  if (msg.message_type === "image") {
+    return (
+      <ImageMessage
+        msg={msg}
+        isMine={isMine}
+        showTime={showTime}
+        timeLabel={formatMsgTime(msg.created_at)}
+        onRetry={() => onRetryImage?.(msg.id)}
+        onRemove={() => onRemoveImage?.(msg.id)}
+      />
+    )
+  }
+
+  // Video — poster + play button, progress/retry states.
+  if (msg.message_type === "video") {
+    return (
+      <VideoMessage
+        msg={msg}
+        isMine={isMine}
+        showTime={showTime}
+        timeLabel={formatMsgTime(msg.created_at)}
+        onRetry={() => onRetryImage?.(msg.id)}
+        onRemove={() => onRemoveImage?.(msg.id)}
+      />
+    )
+  }
+
+  // Shared content renders a dedicated card (its own aligned row), not a text
+  // bubble. Empty content is expected here (caption is optional).
+  if (msg.message_type === "shared_recruitment") {
+    return (
+      <SharedRecruitmentMessage
+        preview={msg.shared_recruitment_preview}
+        caption={msg.content}
+        isMine={isMine}
+        showTime={showTime}
+        timeLabel={formatMsgTime(msg.created_at)}
+        pending={msg.pending}
+        failed={msg.failed}
+      />
+    )
+  }
+
+  if (msg.message_type === "shared_post") {
+    return (
+      <SharedPostMessage
+        preview={msg.shared_post_preview}
+        caption={msg.content}
+        isMine={isMine}
+        showTime={showTime}
+        timeLabel={formatMsgTime(msg.created_at)}
+        pending={msg.pending}
+        failed={msg.failed}
+      />
+    )
+  }
+
   return (
     <div className={`${styles.bubbleRow} ${isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs}`}>
       <div
@@ -115,7 +196,16 @@ function MessageBubble({ msg, isMine, showTime }: BubbleProps) {
           ${msg.failed  ? styles.bubbleFailed  : ""}
         `}
       >
-        <span className={styles.bubbleText}>{msg.content}</span>
+        <span className={styles.bubbleText}>
+          {msg.content
+            ? msg.content
+            : msg.message_type && msg.message_type !== "text"
+            ? getMessagePreviewText(
+                { message_type: msg.message_type, content: msg.content },
+                false
+              )
+            : msg.content}
+        </span>
 
         {showTime && (
           <span className={styles.bubbleTime}>
@@ -153,14 +243,21 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const actorId     = useAuthStore((s) => s.actorId)
   const { toProfile } = useNavigation()
   
+  const toast = useToast()
   const bottomRef   = useRef<HTMLDivElement>(null)
   const topSentinel = useRef<HTMLDivElement>(null)
   const listRef     = useRef<HTMLDivElement>(null)
   const inputRef    = useRef<HTMLTextAreaElement>(null)
   const headerRef   = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [input, setInput]         = useState("")
   const [autoScroll, setAutoScroll] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
+  // Media picked but not yet sent — shown as chips above the input. Either up
+  // to 5 images OR a single video (never mixed).
+  const [staged, setStaged] = useState<StagedMedia[]>([])
+
+  const { sendImages, sendVideo, retry: retryImage, remove: removeImage } = useChatMediaUpload(conversationId)
 
   // ── Data ──────────────────────────────────────────────────
   const { data: detail, isLoading: detailLoading } = useConversationDetail(conversationId)
@@ -183,16 +280,43 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     if (!historyData) return []
     return historyData.pages
       .flatMap((p) => p.results)
-      .map((m) => ({ 
-        id: m.id, 
-        content: m.content, 
-        sender_id: m.sender?.id || m.sender_id, 
-        created_at: m.created_at,
-        pending: (m as any).pending,
-        failed: (m as any).failed
-      }))
+      .map((m) => {
+        // Optimistic-only fields ride on the cached Message but aren't on its
+        // type; read them through a narrow cast rather than `any`.
+        const opt = m as typeof m & {
+          localPreviewUrl?: string
+          uploadProgress?: number
+          pending?: boolean
+          failed?: boolean
+        }
+        return {
+          id: m.id,
+          content: m.content,
+          sender_id: m.sender?.id || m.sender_id,
+          created_at: m.created_at,
+          message_type: m.message_type,
+          shared_recruitment_preview: m.shared_recruitment_preview,
+          shared_post_preview: m.shared_post_preview,
+          media_url: m.media_url,
+          media_thumbnail_url: m.media_thumbnail_url,
+          media_width: m.media_width,
+          media_height: m.media_height,
+          media_duration_ms: m.media_duration_ms,
+          localPreviewUrl: opt.localPreviewUrl,
+          uploadProgress: opt.uploadProgress,
+          pending: opt.pending,
+          failed: opt.failed,
+        }
+      })
       .reverse()
   }, [historyData])
+
+  // ── Revoke any leftover staged previews on unmount ────────
+  const stagedRef = useRef(staged)
+  useEffect(() => { stagedRef.current = staged }, [staged])
+  useEffect(() => () => {
+    stagedRef.current.forEach((s) => URL.revokeObjectURL(s.url))
+  }, [])
 
   // ── Mark read on mount ────────────────────────────────────
   useEffect(() => {
@@ -255,9 +379,110 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
   }
 
+  // ── Media picking ─────────────────────────────────────────
+  const stageImages = useCallback((files: File[]) => {
+    if (staged.some((s) => s.kind === "video")) {
+      toast.show({ title: "Can't mix photos and a video.", variant: "error" })
+      return
+    }
+    const err = validateChatImages(files)
+    if (err) {
+      toast.show({ title: err, variant: "error" })
+      return
+    }
+    const room = MAX_CHAT_IMAGES - staged.length
+    if (room <= 0) {
+      toast.show({ title: `You can send up to ${MAX_CHAT_IMAGES} photos.`, variant: "error" })
+      return
+    }
+    if (files.length > room) {
+      toast.show({ title: `Only ${MAX_CHAT_IMAGES} photos at a time.`, variant: "error" })
+    }
+    const next: StagedMedia[] = files.slice(0, room).map((file) => ({
+      kind: "image" as const,
+      file,
+      url: URL.createObjectURL(file),
+    }))
+    setStaged((prev) => [...prev, ...next])
+  }, [staged, toast])
+
+  const stageVideo = useCallback(async (file: File) => {
+    if (staged.length > 0) {
+      toast.show({ title: "Send the video on its own.", variant: "error" })
+      return
+    }
+    const err = validateChatVideoFile(file)
+    if (err) {
+      toast.show({ title: err, variant: "error" })
+      return
+    }
+    // Block over-length videos BEFORE uploading anything.
+    let durationSec = 0
+    try {
+      durationSec = (await getVideoMeta(file)).durationSec
+    } catch {
+      toast.show({ title: "Couldn't read that video.", variant: "error" })
+      return
+    }
+    if (durationSec > MAX_CHAT_VIDEO_SECONDS) {
+      toast.show({ title: `Videos must be ${MAX_CHAT_VIDEO_SECONDS}s or shorter.`, variant: "error" })
+      return
+    }
+    setStaged([{ kind: "video", file, url: URL.createObjectURL(file), durationSec }])
+  }, [staged.length, toast])
+
+  const handlePickMedia = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ""   // allow re-picking the same file
+    if (files.length === 0) return
+
+    const videos = files.filter((f) => f.type.startsWith("video/"))
+    const images = files.filter((f) => f.type.startsWith("image/"))
+
+    if (videos.length > 0 && images.length > 0) {
+      toast.show({ title: "Can't mix photos and a video.", variant: "error" })
+      return
+    }
+    if (videos.length > 1) {
+      toast.show({ title: "One video at a time.", variant: "error" })
+      return
+    }
+    if (videos.length === 1) {
+      void stageVideo(videos[0])
+      return
+    }
+    stageImages(images)
+  }, [stageImages, stageVideo, toast])
+
+  const removeStaged = useCallback((url: string) => {
+    setStaged((prev) => {
+      const target = prev.find((s) => s.url === url)
+      if (target) URL.revokeObjectURL(target.url)
+      return prev.filter((s) => s.url !== url)
+    })
+  }, [])
+
   // ── Send ──────────────────────────────────────────────────
   const handleSend = useCallback(() => {
     const trimmed = input.trim()
+
+    // Media takes precedence — the caption rides on the last item.
+    if (staged.length > 0) {
+      const video = staged.find((s) => s.kind === "video")
+      if (video) {
+        sendVideo(video.file, trimmed)
+      } else {
+        sendImages(staged.map((s) => s.file), trimmed)
+      }
+      // The upload hook makes its own object URLs; free the staging previews.
+      staged.forEach((s) => URL.revokeObjectURL(s.url))
+      setStaged([])
+      setInput("")
+      setAutoScroll(true)
+      if (inputRef.current) inputRef.current.style.height = "auto"
+      return
+    }
+
     if (!trimmed) return
     send(trimmed)
     setInput("")
@@ -266,7 +491,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
     }
-  }, [input, send])
+  }, [input, send, staged, sendImages, sendVideo])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -371,6 +596,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                       msg={msg}
                       isMine={isMine}
                       showTime={showTime}
+                      onRetryImage={retryImage}
+                      onRemoveImage={removeImage}
                     />
                   )
                 })}
@@ -395,27 +622,82 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               </button>
             </div>
           ) : (
-            <div className={styles.inputRow}>
-              <textarea
-                ref={inputRef}
-                className={styles.input}
-                placeholder="Message…"
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                maxLength={2000}
-                aria-label="Message input"
-              />
-              <button
-                className={`${styles.sendBtn} ${input.trim() ? styles.sendBtnActive : ""}`}
-                onClick={handleSend}
-                disabled={!input.trim() || status !== "open"}
-                type="button"
-                aria-label="Send message"
-              >
-                <Icon icon="mdi:send" width={18} height={18} />
-              </button>
+            <div className={styles.composer}>
+              {/* Staged media chips (picked, not yet sent) */}
+              {staged.length > 0 && (
+                <div className={styles.stagedRow}>
+                  {staged.map((s) => (
+                    <div key={s.url} className={styles.stagedChip}>
+                      {s.kind === "video" ? (
+                        <>
+                          <video src={s.url} className={styles.stagedThumb} muted preload="metadata" />
+                          <span className={styles.stagedPlay}>
+                            <Icon icon="mdi:play" width={16} height={16} />
+                          </span>
+                          <span className={styles.stagedDuration}>
+                            {formatDuration(s.durationSec)}
+                          </span>
+                        </>
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.url} alt="" className={styles.stagedThumb} />
+                      )}
+                      <button
+                        type="button"
+                        className={styles.stagedRemove}
+                        onClick={() => removeStaged(s.url)}
+                        aria-label="Remove attachment"
+                      >
+                        <Icon icon="mdi:close" width={13} height={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className={styles.inputRow}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={handlePickMedia}
+                  hidden
+                />
+                <button
+                  type="button"
+                  className={styles.attachBtn}
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Add photos or a video"
+                >
+                  <Icon icon="mdi:image-outline" width={22} height={22} />
+                </button>
+
+                <textarea
+                  ref={inputRef}
+                  className={styles.input}
+                  placeholder={staged.length > 0 ? "Add a caption…" : "Message…"}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  maxLength={2000}
+                  aria-label="Message input"
+                />
+                <button
+                  className={`${styles.sendBtn} ${(input.trim() || staged.length > 0) ? styles.sendBtnActive : ""}`}
+                  onClick={handleSend}
+                  disabled={
+                    staged.length > 0
+                      ? false                       // media goes over REST — no WS needed
+                      : !input.trim() || status !== "open"
+                  }
+                  type="button"
+                  aria-label="Send message"
+                >
+                  <Icon icon="mdi:send" width={18} height={18} />
+                </button>
+              </div>
             </div>
           )}
         </div>

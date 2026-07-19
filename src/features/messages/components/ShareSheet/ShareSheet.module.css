@@ -1,0 +1,429 @@
+/* ============================================================
+   GOATZA — ShareSheet
+   Bottom sheet on mobile · centered popup on desktop
+   (mirrors PostLikesModal / PostOptionsSheet)
+   ============================================================ */
+
+@keyframes shFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes shSpin { to { transform: rotate(360deg); } }
+@keyframes shPulse { from { opacity: 1; } to { opacity: 0.45; } }
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: shFadeIn 0.2s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop { align-items: center; }
+}
+
+.sheet {
+  width: 100%;
+  /* Fixed height so the sheet never resizes as the list/composer changes —
+     only the body scrolls. */
+  height: 85vh;
+  max-height: 85vh;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: shSlideUp 0.28s var(--ease-spring) both;
+}
+
+.sheet:focus { outline: none; }
+
+@media (min-width: 640px) {
+  .sheet {
+    width: 460px;
+    max-width: calc(100vw - var(--space-8));
+    height: 640px;
+    max-height: calc(100vh - var(--space-16));
+    border-radius: var(--radius-xl);
+    animation: shPopIn 0.2s var(--ease-out) both;
+  }
+}
+
+/* Drag handle (mobile only — visual affordance, matches the other sheets) */
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  margin: var(--space-3) auto var(--space-1);
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .handle { display: none; }
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.closeBtn:hover { background: var(--color-brand-subtle); color: var(--color-brand-hover); }
+
+/* ── Preview of what's being shared ── */
+.preview {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ── Search ── */
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: var(--space-3) var(--space-4) var(--space-1);
+  padding: 0 var(--space-3);
+  background: var(--color-surface-raised);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  transition: border-color var(--duration-fast);
+}
+
+.searchWrap:focus-within { border-color: var(--color-brand-muted); }
+
+.searchIcon { color: var(--color-text-muted); flex-shrink: 0; }
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 10px var(--space-2);
+  /* 16px — anything smaller triggers iOS zoom-on-focus */
+  font-size: var(--input-font-size);
+  font-family: var(--font-ui);
+  color: var(--color-text-primary);
+}
+
+.searchInput::placeholder { color: var(--color-text-muted); }
+.searchInput::-webkit-search-cancel-button { display: none; }
+
+.searchClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── Body (scroll) ── */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: var(--space-2) var(--space-3);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.groupLabel {
+  margin: var(--space-2) var(--space-2) var(--space-1);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Row ── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  /* 44px+ tap target */
+  padding: var(--space-3) var(--space-2);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast);
+}
+
+.row:hover { background: var(--color-surface-raised); }
+.row:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.avatar { flex-shrink: 0; }
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowNameLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowName {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.orgTag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+}
+
+.rowSub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Selection circle ── */
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: transparent;
+  flex-shrink: 0;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.checkOn {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+/* ── Footer ── */
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4)
+           calc(var(--space-3) + var(--safe-bottom, 0px));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.noteInput {
+  width: 100%;
+  padding: 10px var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-size: var(--input-font-size);
+  font-family: var(--font-ui);
+  color: var(--color-text-primary);
+  outline: none;
+  animation: shFadeIn var(--duration-fast) var(--ease-out) both;
+  transition: border-color var(--duration-fast);
+}
+
+.noteInput:focus { border-color: var(--color-brand-muted); }
+.noteInput::placeholder { color: var(--color-text-muted); }
+
+.sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 46px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--duration-fast), opacity var(--duration-fast);
+}
+
+.sendBtn:hover:not(:disabled) { background: var(--color-brand-hover); }
+
+.sendBtn:disabled {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* ── States ── */
+.stateBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.stateTitle {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.stateSub {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  max-width: 30ch;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: 8px 16px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-brand-hover);
+  cursor: pointer;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: shSpin 0.7s linear infinite;
+}
+
+/* ── Skeleton ── */
+.skelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+}
+
+.skelAvatar,
+.skelLine,
+.skelLineSm,
+.skelCheck {
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+  animation: shPulse 1.2s ease-in-out infinite alternate;
+}
+
+.skelAvatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
+.skelText { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.skelLine { width: 45%; height: 12px; }
+.skelLineSm { width: 65%; height: 10px; }
+.skelCheck { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .sheet,
+  .noteInput {
+    animation: none;
+  }
+  .skelAvatar,
+  .skelLine,
+  .skelLineSm,
+  .skelCheck {
+    animation: none;
+  }
+}

@@ -8,6 +8,7 @@ import {
   markConversationReadApi,
   acceptConversationApi,
   searchMessageTargetsApi,
+  shareContentApi,
   type ConversationsParams,
   type MessagesParams,
 } from "../services/conversations.api"
@@ -55,6 +56,29 @@ export const useMessageTargetSearch = (query: string) =>
     enabled:  query.trim().length > 0,
     staleTime: 1000 * 30,
   })
+
+// ── Share content into conversations ──────────────────────────
+
+/**
+ * Forwards a post/recruitment into any number of conversations.
+ *
+ * Invalidates the whole `conversations` key on success: the share becomes each
+ * thread's last_message, so the lists re-sort (shared chats jump to the top)
+ * and the search results' conversation_id fills in for threads that were just
+ * created. Deliberately not narrowed to one list key — a share can touch
+ * several conversations across both the active and requested lists.
+ */
+export const useShareContent = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: shareContentApi,
+    onSuccess: (result) => {
+      // Nothing landed → nothing changed server-side; don't churn the caches.
+      if (result.sent.length === 0) return
+      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+    },
+  })
+}
 
 // ── Unread summary (nav badge + tab badges) ───────────────────
 

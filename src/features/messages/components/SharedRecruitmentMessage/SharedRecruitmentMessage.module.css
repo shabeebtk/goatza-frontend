@@ -1,0 +1,270 @@
+/* ============================================================
+   SharedRecruitmentMessage — a recruitment forwarded into a chat.
+   Renders its own bubble row so it aligns mine/theirs like a bubble,
+   but the card supplies its own surface instead of the bubble skin.
+   ============================================================ */
+
+.row {
+  display: flex;
+  margin-bottom: 2px;
+  animation: fadeIn 0.22s ease both;
+}
+
+.rowMine {
+  justify-content: flex-end;
+}
+
+.rowTheirs {
+  justify-content: flex-start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  max-width: min(78%, 320px);
+}
+
+.rowMine .column {
+  align-items: flex-end;
+}
+
+/* ── Card ──────────────────────────────────────────────────── */
+
+.card {
+  width: 260px;
+  max-width: 100%;
+  border: 1.5px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--color-surface);
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.cardLink {
+  transition: border-color var(--duration-fast) ease,
+    transform var(--duration-fast) ease;
+}
+
+.cardLink:hover {
+  border-color: var(--color-brand);
+}
+
+.cardLink:active {
+  transform: scale(0.99);
+}
+
+.cardMuted {
+  opacity: 0.72;
+}
+
+.cardPending {
+  opacity: 0.6;
+}
+
+/* ── Cover ─────────────────────────────────────────────────── */
+
+.cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--color-brand-subtle);
+}
+
+.coverImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cardMuted .coverImg {
+  filter: grayscale(0.5);
+}
+
+.coverPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-brand);
+  background: linear-gradient(
+    135deg,
+    var(--color-brand-subtle),
+    var(--color-surface-raised)
+  );
+}
+
+.statusTag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* ── Body ──────────────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 12px;
+}
+
+.orgRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.orgName {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+  /* 2-line clamp */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 1px;
+}
+
+.chip {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.chipType {
+  background: var(--color-brand-subtle);
+  border-color: transparent;
+  color: var(--color-brand);
+}
+
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.deadlineClosed {
+  color: var(--color-error);
+}
+
+/* ── Unavailable card ──────────────────────────────────────── */
+
+.cardUnavailable {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  cursor: default;
+  background: var(--color-surface-raised);
+  border-style: dashed;
+}
+
+.unavailableIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.unavailableText {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ── Caption ───────────────────────────────────────────────── */
+
+.caption {
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.captionMine {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  border-color: transparent;
+}
+
+/* ── Time ──────────────────────────────────────────────────── */
+
+.time {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.58rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  line-height: 1;
+}
+
+.failIcon {
+  color: var(--color-error) !important;
+  opacity: 1 !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

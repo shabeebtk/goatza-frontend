@@ -13,7 +13,13 @@ import { useWebSocket, type WsStatus } from "@/core/ws/useWebSocket"
 import { useAuthStore } from "@/store/auth.store"
 import { useQueryClient, InfiniteData } from "@tanstack/react-query"
 import { conversationKeys } from "./useConversationQueries"
-import { MessagesResponse, Message } from "../services/conversations.api"
+import {
+    MessagesResponse,
+    Message,
+    MessageType,
+    SharedRecruitmentPreview,
+    SharedPostPreview,
+} from "../services/conversations.api"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -22,6 +28,22 @@ export type ChatMessage = {
     content: string
     sender_id: string
     created_at: string
+    /** Defaults to "text" for legacy payloads that omit it. */
+    message_type?: MessageType
+    shared_recruitment_preview?: SharedRecruitmentPreview | null
+    shared_post_preview?: SharedPostPreview | null
+
+    // Photo / video messages
+    media_url?: string
+    media_thumbnail_url?: string
+    media_width?: number | null
+    media_height?: number | null
+    media_duration_ms?: number | null
+    /** Optimistic-only: local object-URL preview shown while uploading. */
+    localPreviewUrl?: string
+    /** Optimistic-only: 0–100 upload progress. */
+    uploadProgress?: number
+
     /** Optimistic messages pending server confirmation */
     pending?: boolean
     failed?: boolean
@@ -29,11 +51,17 @@ export type ChatMessage = {
 
 type WsIncomingMessage = {
     type: "message" | "error"
+    /**
+     * type === "message": the full serialized message (same shape as the REST
+     * list). type === "error": a human-readable string. The handler only ever
+     * touches this on the "message" branch, so the union is fine.
+     */
+    message?: Message | string
+    // ── Deprecated flat fields (still echoed by the backend for back-compat) ──
     message_id?: string
     content?: string
-    sender?: any
+    sender?: { id?: string } & Record<string, unknown>
     created_at?: string
-    message?: string
 }
 
 type UseChatSocketReturn = {
@@ -74,16 +102,36 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
     // ── Handle incoming WS message ────────────────────────────
     const handleMessage = useCallback((data: unknown) => {
         const payload = data as WsIncomingMessage
-        if (payload.type !== "message") return
-        if (!payload.message_id || !payload.content || !payload.sender?.id || !conversationId) return
+        if (payload.type !== "message" || !conversationId) return
 
-        const incoming: Message = {
-            id: payload.message_id,
-            content: payload.content,
-            message_type: "text",
-            sender_id: payload.sender.id,
-            sender: payload.sender,
-            created_at: payload.created_at ?? new Date().toISOString(),
+        // Prefer the full serialized message (carries message_type + shared
+        // previews). Fall back to the deprecated flat fields for old servers.
+        // NOTE: don't gate on `content` — a shared recruitment with no caption
+        // has content === "", and the old guard silently dropped it.
+        const full =
+            payload.message && typeof payload.message === "object"
+                ? (payload.message as Message)
+                : null
+
+        let incoming: Message
+        if (full && full.id && (full.sender?.id || full.sender_id)) {
+            incoming = {
+                ...full,
+                sender_id: full.sender?.id ?? full.sender_id,
+                message_type: full.message_type ?? "text",
+                created_at: full.created_at ?? new Date().toISOString(),
+            }
+        } else if (payload.message_id && payload.sender?.id) {
+            incoming = {
+                id: payload.message_id,
+                content: payload.content ?? "",
+                message_type: "text",
+                sender_id: payload.sender.id,
+                sender: payload.sender as Message["sender"],
+                created_at: payload.created_at ?? new Date().toISOString(),
+            }
+        } else {
+            return
         }
 
         queryClient.setQueryData<InfiniteData<MessagesResponse>>(
@@ -98,11 +146,20 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 const exists = old.pages.some(p => p.results.some(m => m.id === incoming.id))
                 if (exists) return old
 
-                // Find pending optimistic message
+                // Find pending optimistic message. Only text is sent
+                // optimistically (via send()); shared content comes in through
+                // the REST share endpoint, so never reconcile it against a
+                // pending text slot — always append it fresh.
                 const myId = actorType === "organization" && actorId ? actorId : (user?.id ?? "")
-                const pendingIdx = firstPage.results.findIndex(
-                    (m) => (m as any).pending && m.sender_id === myId && m.content === incoming.content
-                )
+                const pendingIdx =
+                    (incoming.message_type ?? "text") === "text"
+                        ? firstPage.results.findIndex(
+                              (m) =>
+                                  (m as Message & { pending?: boolean }).pending &&
+                                  m.sender_id === myId &&
+                                  m.content === incoming.content
+                          )
+                        : -1
 
                 const newResults = [...firstPage.results]
                 if (pendingIdx !== -1) {
