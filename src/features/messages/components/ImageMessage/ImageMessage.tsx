@@ -5,23 +5,10 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { ChatMessage } from "../../hooks/useChatSocket"
 import { cloudinaryThumb } from "../../services/chatUpload.service"
+// Space is reserved from intrinsic dimensions so the image never causes layout
+// shift while it loads. Shared with VideoMessage.
+import { displaySize } from "../../utils/mediaBox"
 import styles from "./ImageMessage.module.css"
-
-// Bubble display caps — space is reserved from intrinsic dimensions so the
-// image never causes layout shift while it loads.
-const MAX_W = 260
-const MAX_H = 320
-
-function displaySize(width?: number | null, height?: number | null) {
-    const ratio = width && height ? width / height : 1
-    let w = MAX_W
-    let h = MAX_W / ratio
-    if (h > MAX_H) {
-        h = MAX_H
-        w = MAX_H * ratio
-    }
-    return { w: Math.round(w), h: Math.round(h) }
-}
 
 // ── Fullscreen viewer (single image) ──────────────────────────
 
@@ -103,7 +90,7 @@ export default function ImageMessage({
     const isUploading = Boolean(msg.pending) && !msg.failed
     const isFailed = Boolean(msg.failed)
 
-    const { w, h } = displaySize(msg.media_width, msg.media_height)
+    const { w, h, known } = displaySize(msg.media_width, msg.media_height)
 
     // Optimistic → local object URL; server → a sized Cloudinary derivative
     // (never the full original in the bubble). Full-res only in the viewer.
@@ -123,7 +110,10 @@ export default function ImageMessage({
             <div className={styles.column}>
                 <div
                     className={styles.imageWrap}
-                    style={{ width: w, height: h }}
+                    /* aspect-ratio (not a fixed height) so the box stays
+                       correctly proportioned when `.column`'s max-width clamps
+                       it on narrow screens. */
+                    style={{ width: w, aspectRatio: `${w} / ${h}` }}
                     role={canOpen ? "button" : undefined}
                     tabIndex={canOpen ? 0 : undefined}
                     onClick={canOpen ? () => setViewerOpen(true) : undefined}
@@ -139,8 +129,8 @@ export default function ImageMessage({
                         src={bubbleSrc}
                         alt=""
                         className={`${styles.image} ${
-                            isUploading ? styles.imageUploading : ""
-                        }`}
+                            known ? "" : styles.imageContain
+                        } ${isUploading ? styles.imageUploading : ""}`}
                         loading="lazy"
                         decoding="async"
                         draggable={false}

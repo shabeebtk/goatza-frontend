@@ -12,10 +12,13 @@
  * single bubble regardless of arrival order.
  */
 
-import { useCallback, useRef } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { InfiniteData, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@/store/auth.store"
-import { conversationKeys } from "./useConversationQueries"
+import {
+    conversationKeys,
+    invalidateConversationsExceptMessages,
+} from "./useConversationQueries"
 import type { ChatMessage } from "./useChatSocket"
 import {
     MessagesResponse,
@@ -53,9 +56,13 @@ export function useChatMediaUpload(conversationId: string | null) {
     // File + caption kept per temp id so a failed upload can be retried.
     const jobsRef = useRef<Map<string, Job>>(new Map())
 
-    const cacheKey = conversationId
-        ? conversationKeys.messages(conversationId)
-        : null
+    // Memoised: conversationKeys.messages() returns a fresh array literal every
+    // render, which would make every callback below unstable and defeat the
+    // memoised message bubbles.
+    const cacheKey = useMemo(
+        () => (conversationId ? conversationKeys.messages(conversationId) : null),
+        [conversationId]
+    )
 
     // ── cache helpers ─────────────────────────────────────────
     const patchMessage = useCallback(
@@ -135,13 +142,15 @@ export function useChatMediaUpload(conversationId: string | null) {
                     )
                     return {
                         ...old,
-                        pages: old.pages.map((p, i) => {
-                            let results = p.results.filter(
-                                (m) => m.id !== tempId
-                            )
-                            if (i === 0 && !already) {
-                                results = [serverMsg, ...results]
-                            }
+                        pages: old.pages.map((p) => {
+                            const idx = p.results.findIndex((m) => m.id === tempId)
+                            if (idx === -1) return p
+                            const results = [...p.results]
+                            // Swap IN PLACE. Prepending instead would reorder a
+                            // multi-photo batch by upload-completion time, and
+                            // nothing refetches the history to heal it.
+                            if (already) results.splice(idx, 1)
+                            else results[idx] = serverMsg
                             return { ...p, results }
                         }),
                     }
@@ -198,19 +207,30 @@ export function useChatMediaUpload(conversationId: string | null) {
                     })
                 }
 
+                // If the history cache wasn't populated yet (message sent while
+                // the conversation was still loading), the optimistic insert and
+                // this reconcile both no-op — refetch so the message appears.
+                const hadCache = Boolean(
+                    cacheKey &&
+                    queryClient.getQueryData<InfiniteData<MessagesResponse>>(cacheKey)
+                        ?.pages?.[0]
+                )
                 reconcile(tempId, serverMsg)
+                if (!hadCache && cacheKey) {
+                    queryClient.invalidateQueries({ queryKey: cacheKey })
+                }
                 URL.revokeObjectURL(job.localUrl)
                 jobsRef.current.delete(tempId)
 
                 // Reorder the conversations list + refresh its preview line.
-                queryClient.invalidateQueries({
-                    queryKey: conversationKeys.all(),
-                })
+                // Deliberately NOT the message history: refetching it here would
+                // replace `data.pages` and wipe the sibling photos still uploading.
+                invalidateConversationsExceptMessages(queryClient)
             } catch {
                 patchMessage(tempId, { failed: true, pending: false })
             }
         },
-        [conversationId, patchMessage, reconcile, queryClient]
+        [conversationId, cacheKey, patchMessage, reconcile, queryClient]
     )
 
     // ── send photos ───────────────────────────────────────────

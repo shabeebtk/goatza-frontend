@@ -1,4 +1,11 @@
-import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useQuery,
+  useMutation,
+  useInfiniteQuery,
+  useQueryClient,
+  type Query,
+  type QueryClient,
+} from "@tanstack/react-query"
 import {
   getOrCreateConversationApi,
   getConversationsApi,
@@ -24,6 +31,21 @@ export const conversationKeys = {
   search:        (query: string)               => ["conversations", "search", query]         as const,
 }
 
+/**
+ * Invalidate every `conversations` query EXCEPT an open chat's message history.
+ *
+ * `conversationKeys.all()` matches by prefix, so a plain invalidate also refetches
+ * `["conversations","messages",id]` — every loaded page, serially — and the response
+ * replaces `data.pages` wholesale, wiping optimistic bubbles that are still
+ * uploading. The message list is kept live by the websocket and its own mount
+ * refetch; it never needs invalidating from a sibling mutation.
+ */
+export const invalidateConversationsExceptMessages = (qc: QueryClient) =>
+  qc.invalidateQueries({
+    predicate: (q: Query) =>
+      q.queryKey[0] === "conversations" && q.queryKey[1] !== "messages",
+  })
+
 // ── Conversations create ────────────────────────────────────────
 
 export const useGetOrCreateConversation = () => {
@@ -32,7 +54,7 @@ export const useGetOrCreateConversation = () => {
     mutationFn: getOrCreateConversationApi,
     onSuccess: () => {
       // Invalidate list so new conversation appears if it was created
-      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }
@@ -75,7 +97,7 @@ export const useShareContent = () => {
     onSuccess: (result) => {
       // Nothing landed → nothing changed server-side; don't churn the caches.
       if (result.sent.length === 0) return
-      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }
@@ -130,13 +152,20 @@ export const useMarkRead = () => {
     onSuccess:  (_, conversationId) => {
       // Zero out unread count in the list cache optimistically
       qc.setQueriesData(
-        { queryKey: conversationKeys.all() },
+        { queryKey: ["conversations", "list"] },
         (old: unknown) => {
           if (!Array.isArray(old)) return old
           return old.map((conv: { id: string; unread_count: number }) =>
             conv.id === conversationId ? { ...conv, unread_count: 0 } : conv
           )
         }
+      )
+      // …and in the open conversation's own detail, so re-rendering it doesn't
+      // fire markRead again from a stale unread_count.
+      qc.setQueryData(
+        conversationKeys.detail(conversationId),
+        (old: unknown) =>
+          old && typeof old === "object" ? { ...old, unread_count: 0 } : old
       )
       // Reading a chat changes the badge counts — refetch the summary so the
       // nav badge and the Chats/Requests tab badges update immediately.
@@ -154,7 +183,7 @@ export const useAcceptConversation = () => {
     onSuccess: (_, conversationId) => {
       // Invalidate detail and list
       qc.invalidateQueries({ queryKey: conversationKeys.detail(conversationId) })
-      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }
