@@ -171,10 +171,21 @@ export default function VideoMessage({
                         </span>
                     )}
 
-                    {/* Uploading overlay */}
+                    {/* Uploading overlay — tap X to cancel */}
                     {isUploading && (
                         <div className={styles.overlay}>
                             <ProgressRing progress={msg.uploadProgress ?? 0} />
+                            <button
+                                type="button"
+                                className={styles.cancelBtn}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onRemove?.()
+                                }}
+                                aria-label="Cancel upload"
+                            >
+                                <Icon icon="mdi:close" width={16} height={16} />
+                            </button>
                         </div>
                     )}
 

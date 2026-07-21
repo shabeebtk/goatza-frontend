@@ -18,7 +18,9 @@ import {
   useMessages,
   useMarkRead,
   useAcceptConversation,
+  useDeleteMessage,
 } from "../../hooks/useConversationQueries"
+import MessageActions from "../MessageActions/MessageActions"
 import SharedRecruitmentMessage from "../SharedRecruitmentMessage/SharedRecruitmentMessage"
 import SharedPostMessage from "../SharedPostMessage/SharedPostMessage"
 import ImageMessage from "../ImageMessage/ImageMessage"
@@ -28,6 +30,7 @@ import {
   validateChatImages,
   validateChatVideoFile,
   getVideoMeta,
+  captureVideoThumbnail,
   formatDuration,
   MAX_CHAT_IMAGES,
   MAX_CHAT_VIDEO_SECONDS,
@@ -48,7 +51,24 @@ const PIN_THRESHOLD = 80
 // (the raw file for images, the video file itself for videos).
 type StagedMedia =
   | { kind: "image"; file: File; url: string }
-  | { kind: "video"; file: File; url: string; durationSec: number }
+  | {
+      kind: "video"
+      file: File
+      url: string
+      durationSec: number
+      // Measured once at staging time and handed to the send path, so the
+      // bubble never waits on a second probe of the same file.
+      width: number
+      height: number
+      /** Captured frame, filled in asynchronously. Also an object URL. */
+      poster?: string
+    }
+
+/** Free every object URL a staged item owns (the file preview AND its poster). */
+function revokeStaged(s: StagedMedia) {
+  URL.revokeObjectURL(s.url)
+  if (s.kind === "video" && s.poster) URL.revokeObjectURL(s.poster)
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -339,6 +359,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
   const { mutate: markRead } = useMarkRead()
   const { mutate: acceptConversation, isPending: isAccepting } = useAcceptConversation()
+  const { mutate: deleteMessage } = useDeleteMessage(conversationId)
 
   // ── WebSocket ─────────────────────────────────────────────
   const { send, status } = useChatSocket(conversationId)
@@ -401,7 +422,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const stagedRef = useRef(staged)
   useEffect(() => { stagedRef.current = staged }, [staged])
   useEffect(() => () => {
-    stagedRef.current.forEach((s) => URL.revokeObjectURL(s.url))
+    stagedRef.current.forEach(revokeStaged)
   }, [])
 
   // ── Mount + mark read ─────────────────────────────────────
@@ -757,19 +778,44 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       toast.show({ title: err, variant: "error" })
       return
     }
-    // Block over-length videos BEFORE uploading anything.
-    let durationSec = 0
+    // Block over-length videos BEFORE uploading anything. This probe is timed
+    // out inside getVideoMeta, so it can't hang the composer.
+    let meta = { durationSec: 0, width: 0, height: 0 }
     try {
-      durationSec = (await getVideoMeta(file)).durationSec
+      meta = await getVideoMeta(file)
     } catch {
       toast.show({ title: "Couldn't read that video.", variant: "error" })
       return
     }
-    if (durationSec > MAX_CHAT_VIDEO_SECONDS) {
+    if (meta.durationSec > MAX_CHAT_VIDEO_SECONDS) {
       toast.show({ title: `Videos must be ${MAX_CHAT_VIDEO_SECONDS}s or shorter.`, variant: "error" })
       return
     }
-    setStaged([{ kind: "video", file, url: URL.createObjectURL(file), durationSec }])
+    const url = URL.createObjectURL(file)
+    setStaged([{
+      kind: "video",
+      file,
+      url,
+      durationSec: meta.durationSec,
+      width: meta.width,
+      height: meta.height,
+    }])
+
+    // Poster frame for the chip, best-effort and never blocking: the chip shows
+    // a neutral tile until (and unless) this lands.
+    const poster = await captureVideoThumbnail(file)
+    if (!poster) return
+    setStaged((prev) => {
+      const target = prev.find((s) => s.kind === "video" && s.url === url)
+      if (!target) {
+        // Already sent or removed — don't leak the object URL.
+        URL.revokeObjectURL(poster)
+        return prev
+      }
+      return prev.map((s) =>
+        s.kind === "video" && s.url === url ? { ...s, poster } : s
+      )
+    })
   }, [staged.length, toast])
 
   const handlePickMedia = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -798,7 +844,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const removeStaged = useCallback((url: string) => {
     setStaged((prev) => {
       const target = prev.find((s) => s.url === url)
-      if (target) URL.revokeObjectURL(target.url)
+      if (target) revokeStaged(target)
       return prev.filter((s) => s.url !== url)
     })
   }, [])
@@ -813,12 +859,16 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     if (staged.length > 0) {
       const video = staged.find((s) => s.kind === "video")
       if (video) {
-        sendVideo(video.file, trimmed)
+        sendVideo(video.file, trimmed, {
+          durationSec: video.durationSec,
+          width: video.width,
+          height: video.height,
+        })
       } else {
         sendImages(staged.map((s) => s.file), trimmed)
       }
       // The upload hook makes its own object URLs; free the staging previews.
-      staged.forEach((s) => URL.revokeObjectURL(s.url))
+      staged.forEach(revokeStaged)
       setStaged([])
       setInput("")
       // Sending always re-pins — set the ref too, state alone won't be visible
@@ -950,15 +1000,29 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                         !next ||
                         next.sender_id !== msg.sender_id ||
                         dayjs(next.created_at).diff(dayjs(msg.created_at), "minute") > 5
+                      // Optimistic rows aren't on the server yet — those are
+                      // cancelled/removed from their own bubble instead.
+                      const isSettled = !msg.pending && !msg.failed
                       return (
-                        <MessageBubble
+                        <MessageActions
                           key={msg.id}
-                          msg={msg}
                           isMine={isMine}
-                          showTime={showTime}
-                          onRetryImage={retryImage}
-                          onRemoveImage={removeImage}
-                        />
+                          canDelete={isMine && isSettled}
+                          onDelete={() => deleteMessage(msg.id)}
+                          copyText={
+                            msg.message_type === "text" || !msg.message_type
+                              ? msg.content || undefined
+                              : undefined
+                          }
+                        >
+                          <MessageBubble
+                            msg={msg}
+                            isMine={isMine}
+                            showTime={showTime}
+                            onRetryImage={retryImage}
+                            onRemoveImage={removeImage}
+                          />
+                        </MessageActions>
                       )
                     })}
                   </div>
@@ -1011,13 +1075,24 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                     <div key={s.url} className={styles.stagedChip}>
                       {s.kind === "video" ? (
                         <>
-                          <video src={s.url} className={styles.stagedThumb} muted preload="metadata" />
+                          {/* A <video> element paints the browser's own play
+                              button and ignores object-fit until metadata
+                              loads. Use the captured poster frame instead — an
+                              <img>, exactly like a photo chip. */}
+                          {s.poster ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.poster} alt="" className={styles.stagedThumb} />
+                          ) : (
+                            <span className={styles.stagedThumbFallback} />
+                          )}
                           <span className={styles.stagedPlay}>
                             <Icon icon="mdi:play" width={16} height={16} />
                           </span>
-                          <span className={styles.stagedDuration}>
-                            {formatDuration(s.durationSec)}
-                          </span>
+                          {s.durationSec > 0 && (
+                            <span className={styles.stagedDuration}>
+                              {formatDuration(s.durationSec)}
+                            </span>
+                          )}
                         </>
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element

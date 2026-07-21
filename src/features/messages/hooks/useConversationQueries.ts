@@ -3,6 +3,7 @@ import {
   useMutation,
   useInfiniteQuery,
   useQueryClient,
+  type InfiniteData,
   type Query,
   type QueryClient,
 } from "@tanstack/react-query"
@@ -16,8 +17,9 @@ import {
   acceptConversationApi,
   searchMessageTargetsApi,
   shareContentApi,
+  deleteMessageApi,
   type ConversationsParams,
-  type MessagesParams,
+  type MessagesResponse,
 } from "../services/conversations.api"
 
 // ── Query keys ───────────────────────────────────────────────
@@ -170,6 +172,54 @@ export const useMarkRead = () => {
       // Reading a chat changes the badge counts — refetch the summary so the
       // nav badge and the Chats/Requests tab badges update immediately.
       qc.invalidateQueries({ queryKey: conversationKeys.unreadSummary() })
+    },
+  })
+}
+
+// ── Delete (unsend) a message ─────────────────────────────────
+
+/**
+ * Removes the message from the open thread immediately and restores it if the
+ * request fails. The websocket "message_deleted" event removes it for everyone
+ * else (and for this user's other devices).
+ */
+export const useDeleteMessage = (conversationId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      deleteMessageApi(conversationId, messageId),
+
+    onMutate: async (messageId: string) => {
+      const key = conversationKeys.messages(conversationId)
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData<InfiniteData<MessagesResponse>>(key)
+      qc.setQueryData<InfiniteData<MessagesResponse>>(key, (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((p) => ({
+                ...p,
+                results: p.results.filter((m) => m.id !== messageId),
+              })),
+            }
+          : old
+      )
+      return { previous }
+    },
+
+    onError: (_err, _messageId, context) => {
+      if (context?.previous) {
+        qc.setQueryData(
+          conversationKeys.messages(conversationId),
+          context.previous
+        )
+      }
+    },
+
+    onSuccess: () => {
+      // The thread preview / ordering may have changed — but never refetch the
+      // message history from here (see invalidateConversationsExceptMessages).
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }

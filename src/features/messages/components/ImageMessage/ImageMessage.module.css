@@ -224,3 +224,23 @@
     transform: translateY(0);
   }
 }
+
+/* Cancel an in-flight upload — sits in the corner of the progress overlay. */
+.cancelBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cancelBtn:hover { background: rgba(0, 0, 0, 0.78); }

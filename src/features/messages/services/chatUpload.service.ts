@@ -14,6 +14,8 @@ export const MAX_CHAT_IMAGE_MB = 25
 // Video limits mirror the backend (_validate_chat_video).
 export const MAX_CHAT_VIDEO_MB = 100
 export const MAX_CHAT_VIDEO_SECONDS = 90
+// Mirrors CHAT_VIDEO_EXTENSIONS in messaging/services/message_service.py.
+const CHAT_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"])
 
 // Compression target — chat photos are viewed smaller than feed posts, so a
 // tighter ceiling than posts keeps uploads fast on mobile data.
@@ -63,6 +65,12 @@ export function validateChatVideoFile(file: File): string | null {
     if (!file.type.startsWith("video/")) return "That file isn't a video."
     if (file.size > MAX_CHAT_VIDEO_MB * 1024 * 1024)
         return `Video must be under ${MAX_CHAT_VIDEO_MB} MB.`
+    // Mirror the backend's CHAT_VIDEO_EXTENSIONS. Without this the file uploads
+    // to Cloudinary in full and only THEN gets a 400 from our own API — minutes
+    // of mobile data for a rejection we could have given instantly.
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
+    if (ext && !CHAT_VIDEO_EXTENSIONS.has(ext))
+        return "Videos must be MP4, MOV or WebM."
     return null
 }
 
@@ -85,6 +93,16 @@ export function getImageDimensions(
     })
 }
 
+/**
+ * How long to wait on a <video> element before giving up on it.
+ *
+ * These probes are best-effort. Mobile browsers (iOS Safari especially) can
+ * leave a blob-sourced <video> in limbo — no `loadedmetadata`, no `seeked` and
+ * no `error` — so an un-timed promise here hangs forever and takes the whole
+ * send with it.
+ */
+const VIDEO_PROBE_TIMEOUT_MS = 6000
+
 /** Duration (seconds) + intrinsic size of a video File. */
 export function getVideoMeta(
     file: File
@@ -93,19 +111,39 @@ export function getVideoMeta(
         const url = URL.createObjectURL(file)
         const video = document.createElement("video")
         video.preload = "metadata"
-        video.onloadedmetadata = () => {
+        video.muted = true
+        video.playsInline = true
+
+        let done = false
+        const finish = (fn: () => void) => {
+            if (done) return
+            done = true
+            window.clearTimeout(timer)
             URL.revokeObjectURL(url)
-            resolve({
-                durationSec: video.duration,
-                width: video.videoWidth,
-                height: video.videoHeight,
-            })
+            video.removeAttribute("src")
+            video.load()
+            fn()
         }
-        video.onerror = () => {
-            URL.revokeObjectURL(url)
-            reject(new Error("Cannot read video"))
-        }
+
+        const timer = window.setTimeout(
+            () => finish(() => reject(new Error("Timed out reading video"))),
+            VIDEO_PROBE_TIMEOUT_MS
+        )
+
+        video.onloadedmetadata = () =>
+            finish(() =>
+                resolve({
+                    // Normalised here so no caller ever sees NaN/Infinity.
+                    durationSec: Number.isFinite(video.duration)
+                        ? video.duration
+                        : 0,
+                    width: video.videoWidth || 0,
+                    height: video.videoHeight || 0,
+                })
+            )
+        video.onerror = () => finish(() => reject(new Error("Cannot read video")))
         video.src = url
+        video.load()
     })
 }
 
@@ -118,59 +156,84 @@ export function captureVideoThumbnail(file: File): Promise<string> {
     return new Promise((resolve) => {
         const url = URL.createObjectURL(file)
         const video = document.createElement("video")
-        video.preload = "metadata"
+        // `auto` (not `metadata`): a poster needs a decoded FRAME, and with
+        // preload="metadata" mobile browsers may never fire `loadeddata`.
+        video.preload = "auto"
         video.muted = true
         video.playsInline = true
 
-        const cleanup = () => URL.revokeObjectURL(url)
-
-        video.onloadeddata = () => {
-            // Seek slightly in — frame 0 is often black.
-            try {
-                video.currentTime = Math.min(0.1, video.duration || 0)
-            } catch {
-                video.currentTime = 0
-            }
+        let done = false
+        const finish = (result: string) => {
+            if (done) return
+            done = true
+            window.clearTimeout(timer)
+            URL.revokeObjectURL(url)
+            video.removeAttribute("src")
+            video.load()
+            resolve(result)
         }
-        video.onseeked = () => {
+
+        // Hard cap. This promise MUST settle: the send path waits on nothing
+        // that can hang, and a missing poster is purely cosmetic (the bubble
+        // falls back to a neutral box until the server thumbnail lands).
+        const timer = window.setTimeout(
+            () => finish(""),
+            VIDEO_PROBE_TIMEOUT_MS
+        )
+
+        const grabFrame = () => {
             try {
                 const canvas = document.createElement("canvas")
                 canvas.width = video.videoWidth || 320
                 canvas.height = video.videoHeight || 320
                 const ctx = canvas.getContext("2d")
                 if (!ctx) {
-                    cleanup()
-                    resolve("")
+                    finish("")
                     return
                 }
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
                 canvas.toBlob(
-                    (blob) => {
-                        cleanup()
-                        resolve(blob ? URL.createObjectURL(blob) : "")
-                    },
+                    (blob) => finish(blob ? URL.createObjectURL(blob) : ""),
                     "image/jpeg",
                     0.8
                 )
             } catch {
-                cleanup()
-                resolve("")
+                finish("")
             }
         }
-        video.onerror = () => {
-            cleanup()
-            resolve("")
+
+        video.onloadeddata = () => {
+            // Seek slightly in — frame 0 is often black. If the file is too
+            // short to seek, or the seek is a no-op (currentTime already 0),
+            // `seeked` never fires, so grab what we have instead.
+            const target = Math.min(0.1, (video.duration || 0) / 2)
+            if (!target) {
+                grabFrame()
+                return
+            }
+            try {
+                video.currentTime = target
+            } catch {
+                grabFrame()
+            }
         }
+        video.onseeked = grabFrame
+        video.onerror = () => finish("")
         video.src = url
+        video.load()
     })
 }
 
 // ── Direct upload to Cloudinary with XHR progress ─────────────
 
+/** Thrown when the user cancels — callers use this to stay silent. */
+export const UPLOAD_CANCELLED = "upload_cancelled"
+
 function uploadWithProgress(
     file: File,
     sig: UploadConfigItem,
-    onProgress?: ChatUploadProgress
+    onProgress?: ChatUploadProgress,
+    signal?: AbortSignal
 ): Promise<{
     secure_url: string
     public_id: string
@@ -189,32 +252,55 @@ function uploadWithProgress(
     form.append("overwrite", sig.overwrite)
 
     return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new Error(UPLOAD_CANCELLED))
+            return
+        }
+
         const xhr = new XMLHttpRequest()
+
+        const onCancel = () => xhr.abort()
+        signal?.addEventListener("abort", onCancel, { once: true })
+        const cleanupSignal = () =>
+            signal?.removeEventListener("abort", onCancel)
 
         xhr.upload.addEventListener("progress", (e) => {
             if (e.lengthComputable) onProgress?.(e.loaded, e.total)
         })
 
+        xhr.addEventListener("loadend", cleanupSignal)
+
         xhr.addEventListener("load", () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-                const data = JSON.parse(xhr.responseText)
-                resolve({
-                    secure_url: data.secure_url,
-                    public_id: data.public_id,
-                    width: data.width,
-                    height: data.height,
-                    bytes: data.bytes,
-                    duration: data.duration,
-                })
+                // A throw in here would escape the executor and leave this
+                // promise permanently unsettled — the bubble would sit at 99%
+                // forever with no error.
+                try {
+                    const data = JSON.parse(xhr.responseText)
+                    resolve({
+                        secure_url: data.secure_url,
+                        public_id: data.public_id,
+                        width: data.width,
+                        height: data.height,
+                        bytes: data.bytes,
+                        duration: data.duration,
+                    })
+                } catch {
+                    reject(new Error("Upload response was not readable"))
+                }
             } else {
                 reject(new Error("Upload failed"))
             }
         })
 
         xhr.addEventListener("error", () => reject(new Error("Network error")))
-        xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")))
+        xhr.addEventListener("abort", () => reject(new Error(UPLOAD_CANCELLED)))
+        xhr.addEventListener("timeout", () => reject(new Error("Upload timed out")))
 
         xhr.open("POST", sig.upload_url)
+        // Videos are uploaded uncompressed over mobile data; generous, but never
+        // unbounded — an unbounded request can hang the bubble indefinitely.
+        xhr.timeout = 10 * 60 * 1000
         xhr.send(form)
     })
 }
@@ -230,9 +316,11 @@ function uploadWithProgress(
  */
 export async function uploadChatImage(
     file: File,
-    onProgress?: ChatUploadProgress
+    onProgress?: ChatUploadProgress,
+    signal?: AbortSignal
 ): Promise<ChatImageUploadResult> {
     const compressed = await imageCompression(file, CHAT_IMAGE_COMPRESSION)
+    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
     const res = await getUploadSignatureApi("chat", 1)
     const sig = res.uploads?.[0]
@@ -241,7 +329,8 @@ export async function uploadChatImage(
     const uploaded = await uploadWithProgress(
         new File([compressed], file.name, { type: compressed.type }),
         sig,
-        onProgress
+        onProgress,
+        signal
     )
 
     return {
@@ -262,13 +351,14 @@ export async function uploadChatImage(
 export async function uploadChatVideo(
     file: File,
     onProgress?: ChatUploadProgress,
-    localDurationSec?: number
+    localDurationSec?: number,
+    signal?: AbortSignal
 ): Promise<ChatVideoUploadResult> {
     const res = await getUploadSignatureApi("chat", 1)
     const sig = res.uploads?.[0]
     if (!sig) throw new Error("Upload config missing")
 
-    const uploaded = await uploadWithProgress(file, sig, onProgress)
+    const uploaded = await uploadWithProgress(file, sig, onProgress, signal)
 
     const durationSec = uploaded.duration ?? localDurationSec
     return {
@@ -282,8 +372,11 @@ export async function uploadChatVideo(
     }
 }
 
-/** mm:ss from seconds, e.g. 8 → "0:08", 95 → "1:35". */
+/** mm:ss from seconds, e.g. 8 → "0:08", 95 → "1:35". "" if unknown. */
 export function formatDuration(totalSeconds: number): string {
+    // `video.duration` is NaN before metadata loads and Infinity for streams —
+    // both used to render as "NaN:NaN".
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return ""
     const s = Math.max(0, Math.round(totalSeconds))
     const m = Math.floor(s / 60)
     const sec = s % 60
