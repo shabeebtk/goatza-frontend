@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useCallback, useState } from "react"
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useCallback, useState } from "react"
 import { Icon } from "@iconify/react"
 import Link from "next/link"
 import dayjs from "dayjs"
@@ -18,7 +18,9 @@ import {
   useMessages,
   useMarkRead,
   useAcceptConversation,
+  useDeleteMessage,
 } from "../../hooks/useConversationQueries"
+import MessageActions from "../MessageActions/MessageActions"
 import SharedRecruitmentMessage from "../SharedRecruitmentMessage/SharedRecruitmentMessage"
 import SharedPostMessage from "../SharedPostMessage/SharedPostMessage"
 import ImageMessage from "../ImageMessage/ImageMessage"
@@ -28,6 +30,7 @@ import {
   validateChatImages,
   validateChatVideoFile,
   getVideoMeta,
+  captureVideoThumbnail,
   formatDuration,
   MAX_CHAT_IMAGES,
   MAX_CHAT_VIDEO_SECONDS,
@@ -37,11 +40,35 @@ import styles from "./ChatWindow.module.css"
 dayjs.extend(relativeTime)
 dayjs.extend(isToday)
 
+// useLayoutEffect warns during SSR; this component is client-only but Next still
+// renders it on the server, so pick the safe variant per environment.
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect
+
+/** Distance from the bottom (px) within which the view is considered "pinned". */
+const PIN_THRESHOLD = 80
+
 // A picked-but-unsent attachment. `url` is an object URL for the chip preview
 // (the raw file for images, the video file itself for videos).
 type StagedMedia =
   | { kind: "image"; file: File; url: string }
-  | { kind: "video"; file: File; url: string; durationSec: number }
+  | {
+      kind: "video"
+      file: File
+      url: string
+      durationSec: number
+      // Measured once at staging time and handed to the send path, so the
+      // bubble never waits on a second probe of the same file.
+      width: number
+      height: number
+      /** Captured frame, filled in asynchronously. Also an object URL. */
+      poster?: string
+    }
+
+/** Free every object URL a staged item owns (the file preview AND its poster). */
+function revokeStaged(s: StagedMedia) {
+  URL.revokeObjectURL(s.url)
+  if (s.kind === "video" && s.poster) URL.revokeObjectURL(s.poster)
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -50,12 +77,15 @@ function formatMsgTime(iso: string): string {
 }
 
 function groupByDate(messages: ChatMessage[]): { label: string; msgs: ChatMessage[] }[] {
+  // Hoisted out of the loop — these were rebuilt per message.
+  const today = dayjs()
+  const yesterday = today.subtract(1, "day")
   const groups: Map<string, ChatMessage[]> = new Map()
   for (const msg of messages) {
     const d = dayjs(msg.created_at)
     const label = d.isToday()
       ? "Today"
-      : d.isSame(dayjs().subtract(1, "day"), "day")
+      : d.isSame(yesterday, "day")
       ? "Yesterday"
       : d.format("MMMM D, YYYY")
     if (!groups.has(label)) groups.set(label, [])
@@ -68,7 +98,7 @@ function groupByDate(messages: ChatMessage[]): { label: string; msgs: ChatMessag
 
 function MessageSkeleton() {
   return (
-    <div className={styles.skeletonWrap}>
+    <div className={styles.skeletonWrap} aria-hidden="true">
       {[70, 45, 85, 55, 60].map((w, i) => (
         <div
           key={i}
@@ -81,9 +111,24 @@ function MessageSkeleton() {
 }
 
 // ── Connection pill ───────────────────────────────────────────
+// Lives inline in the fixed-height header. Deliberately NOT a sibling banner in
+// the window column: mounting/unmounting one on every reconnect flap would
+// change the message list's height and shift the scroll position.
 
 function ConnectionPill({ status }: { status: string }) {
-  if (status === "open") return null
+  const [visible, setVisible] = useState(false)
+
+  // Debounce — a brief reconnect blip shouldn't flash a pill at the user.
+  useEffect(() => {
+    if (status === "open") return
+    const t = window.setTimeout(() => setVisible(true), 1200)
+    return () => {
+      window.clearTimeout(t)
+      setVisible(false)
+    }
+  }, [status])
+
+  if (status === "open" || !visible) return null
   return (
     <div className={`${styles.connPill} ${status === "connecting" ? styles.connPillConnecting : styles.connPillClosed}`}>
       <span className={styles.connDot} />
@@ -127,7 +172,21 @@ interface BubbleProps {
   onRemoveImage?: (id: string) => void
 }
 
-function MessageBubble({ msg, isMine, showTime, onRetryImage, onRemoveImage }: BubbleProps) {
+// Memoised at module scope (declaring it inside ChatWindow would remount every
+// row on every keystroke).
+const MessageBubble = React.memo(function MessageBubble({
+  msg,
+  isMine,
+  showTime,
+  onRetryImage,
+  onRemoveImage,
+}: BubbleProps) {
+  // Plain closures: the media children aren't memoised, so a stable identity
+  // would buy nothing — and hand-memoising here makes the React Compiler bail
+  // out of optimising this component entirely.
+  const handleRetry = () => onRetryImage?.(msg.id)
+  const handleRemove = () => onRemoveImage?.(msg.id)
+
   // Photo — dedicated bubble with progress/retry states.
   if (msg.message_type === "image") {
     return (
@@ -136,8 +195,8 @@ function MessageBubble({ msg, isMine, showTime, onRetryImage, onRemoveImage }: B
         isMine={isMine}
         showTime={showTime}
         timeLabel={formatMsgTime(msg.created_at)}
-        onRetry={() => onRetryImage?.(msg.id)}
-        onRemove={() => onRemoveImage?.(msg.id)}
+        onRetry={handleRetry}
+        onRemove={handleRemove}
       />
     )
   }
@@ -150,8 +209,8 @@ function MessageBubble({ msg, isMine, showTime, onRetryImage, onRemoveImage }: B
         isMine={isMine}
         showTime={showTime}
         timeLabel={formatMsgTime(msg.created_at)}
-        onRetry={() => onRetryImage?.(msg.id)}
-        onRemove={() => onRemoveImage?.(msg.id)}
+        onRetry={handleRetry}
+        onRemove={handleRemove}
       />
     )
   }
@@ -199,12 +258,10 @@ function MessageBubble({ msg, isMine, showTime, onRetryImage, onRemoveImage }: B
         <span className={styles.bubbleText}>
           {msg.content
             ? msg.content
-            : msg.message_type && msg.message_type !== "text"
-            ? getMessagePreviewText(
-                { message_type: msg.message_type, content: msg.content },
+            : getMessagePreviewText(
+                { message_type: msg.message_type ?? "text", content: msg.content },
                 false
-              )
-            : msg.content}
+              )}
         </span>
 
         {showTime && (
@@ -229,7 +286,7 @@ function MessageBubble({ msg, isMine, showTime, onRetryImage, onRemoveImage }: B
       </div>
     </div>
   )
-}
+})
 
 // ── Main ChatWindow ───────────────────────────────────────────
 
@@ -242,20 +299,51 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const isOrgAdminView = useAuthStore((s) => s.isOrgAdminView)
   const actorId     = useAuthStore((s) => s.actorId)
   const { toProfile } = useNavigation()
-  
+
   const toast = useToast()
-  const bottomRef   = useRef<HTMLDivElement>(null)
   const topSentinel = useRef<HTMLDivElement>(null)
   const listRef     = useRef<HTMLDivElement>(null)
+  const contentRef  = useRef<HTMLDivElement>(null)
   const inputRef    = useRef<HTMLTextAreaElement>(null)
   const headerRef   = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [input, setInput]         = useState("")
-  const [autoScroll, setAutoScroll] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
   // Media picked but not yet sent — shown as chips above the input. Either up
   // to 5 images OR a single video (never mixed).
   const [staged, setStaged] = useState<StagedMedia[]>([])
+
+  // ── Scroll controller state ───────────────────────────────
+  // `autoScroll` (state) drives the jump-to-latest pill; `autoScrollRef` is the
+  // same value readable from observers without re-subscribing them.
+  const [autoScroll, setAutoScroll] = useState(true)
+  const autoScrollRef   = useRef(true)
+  // Mirrors `didAnchorRef` as STATE — the sentinel/ResizeObserver effects must
+  // re-run once the list is anchored, and a ref mutation can't do that.
+  const [anchored, setAnchored] = useState(false)
+  const didAnchorRef    = useRef(false)
+  // Suppresses handleScroll while we are the ones moving the list.
+  const programmaticRef = useRef(false)
+  const guardTimerRef   = useRef(0)
+  const settleRafRef    = useRef(0)
+  // An older page has been requested and its position restore is still owed.
+  const pendingPrependRef = useRef(false)
+  const olderInFlightRef  = useRef(false)
+  const prependTimerRef   = useRef(0)
+  // Distance from the bottom, kept fresh by every scroll AND every commit, so
+  // the prepend restore uses where the reader actually is — not where they were
+  // when the request went out.
+  const distFromBottomRef = useRef(0)
+  // Consecutive "load older" attempts that came back with no new page. Stops a
+  // failing endpoint from being hammered by the sentinel.
+  const olderFailuresRef = useRef(0)
+  const prevLastIdRef   = useRef<string | null>(null)
+  // Newest message the user has actually been shown (they were pinned for it).
+  const lastSeenIdRef   = useRef<string | null>(null)
+  // Mirror of `lastId`, readable from the stable scroll handler.
+  const lastIdRef       = useRef<string | null>(null)
+  const convRef         = useRef(conversationId)
+  const [unseen, setUnseen] = useState(0)
 
   const { sendImages, sendVideo, retry: retryImage, remove: removeImage } = useChatMediaUpload(conversationId)
 
@@ -271,16 +359,25 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
   const { mutate: markRead } = useMarkRead()
   const { mutate: acceptConversation, isPending: isAccepting } = useAcceptConversation()
+  const { mutate: deleteMessage } = useDeleteMessage(conversationId)
 
   // ── WebSocket ─────────────────────────────────────────────
   const { send, status } = useChatSocket(conversationId)
 
   // ── Merge history → WS state ──────────────────────────────
+  // Mapped objects are cached by source identity: React Query's cache updates
+  // keep untouched messages referentially stable, so re-mapping them fresh on
+  // every write (an upload ticks progress every 5%) would defeat the memoised
+  // bubbles and re-render the whole list.
+  const mapCacheRef = useRef(new WeakMap<object, ChatMessage>())
   const wsMessages = React.useMemo(() => {
     if (!historyData) return []
+    const cache = mapCacheRef.current
     return historyData.pages
       .flatMap((p) => p.results)
       .map((m) => {
+        const hit = cache.get(m)
+        if (hit) return hit
         // Optimistic-only fields ride on the cached Message but aren't on its
         // type; read them through a narrow cast rather than `any`.
         const opt = m as typeof m & {
@@ -289,7 +386,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           pending?: boolean
           failed?: boolean
         }
-        return {
+        const mapped: ChatMessage = {
           id: m.id,
           content: m.content,
           sender_id: m.sender?.id || m.sender_id,
@@ -307,69 +404,334 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           pending: opt.pending,
           failed: opt.failed,
         }
+        cache.set(m, mapped)
+        return mapped
       })
       .reverse()
   }, [historyData])
+
+  // The header may still be loading its detail while the messages are ready —
+  // the list must not be gated on it, or the anchor lands on a skeleton.
+  const headerLoading = detailLoading || historyLoading
+  const listLoading   = historyLoading
+  const myActorId     = isOrgAdminView && actorId ? actorId : user?.id
+  const lastId        = wsMessages.length ? wsMessages[wsMessages.length - 1].id : null
+  const pageCount     = historyData?.pages.length ?? 0
 
   // ── Revoke any leftover staged previews on unmount ────────
   const stagedRef = useRef(staged)
   useEffect(() => { stagedRef.current = staged }, [staged])
   useEffect(() => () => {
-    stagedRef.current.forEach((s) => URL.revokeObjectURL(s.url))
+    stagedRef.current.forEach(revokeStaged)
   }, [])
 
-  // ── Mark read on mount ────────────────────────────────────
+  // ── Mount + mark read ─────────────────────────────────────
+  useEffect(() => { setIsMounted(true) }, [])
+
   useEffect(() => {
-    setIsMounted(true)
     if (detail?.unread_count && detail.unread_count > 0) {
       markRead(conversationId)
     }
   }, [conversationId, detail?.unread_count]) // eslint-disable-line
 
-  // ── Auto-scroll to bottom on new messages ─────────────────
+  // ── Scroll primitives ─────────────────────────────────────
+
+  /** Snapshot how far the reader is from the bottom, for the prepend restore. */
+  const recordDistance = useCallback(() => {
+    const el = listRef.current
+    if (el) distFromBottomRef.current = el.scrollHeight - el.scrollTop
+  }, [])
+
+  /** Stop suppressing handleScroll — also called by any real user gesture. */
+  const releaseGuard = useCallback(() => {
+    programmaticRef.current = false
+    if (guardTimerRef.current) {
+      window.clearTimeout(guardTimerRef.current)
+      guardTimerRef.current = 0
+    }
+    if (settleRafRef.current) {
+      cancelAnimationFrame(settleRafRef.current)
+      settleRafRef.current = 0
+    }
+  }, [])
+
+  /**
+   * Hold the guard until a smooth scroll actually finishes.
+   *
+   * A fixed timer can't work: a long animation outlives it and its own scroll
+   * events then read as "the user scrolled away", switching auto-follow off
+   * mid-flight. `scrollend` isn't available on older iOS Safari, so watch the
+   * offset settle instead, with a hard timeout as the last resort.
+   */
+  const releaseWhenSettled = useCallback(() => {
+    if (settleRafRef.current) cancelAnimationFrame(settleRafRef.current)
+    let last = -1
+    let still = 0
+    let frames = 0
+    const step = () => {
+      const el = listRef.current
+      if (!el) { releaseGuard(); return }
+      const top = el.scrollTop
+      const atBottom = el.scrollHeight - top - el.clientHeight < 2
+      if (top === last) still++
+      else { still = 0; last = top }
+      frames++
+      // Settled, arrived, or ~2s of frames — whichever comes first.
+      if (atBottom || still >= 3 || frames > 120) { releaseGuard(); return }
+      settleRafRef.current = requestAnimationFrame(step)
+    }
+    settleRafRef.current = requestAnimationFrame(step)
+  }, [releaseGuard])
+
+  /**
+   * Start suppressing handleScroll for a scroll we are about to perform
+   * ourselves. Released on the next frame, with a timer backstop because rAF
+   * never fires in a backgrounded tab (a stuck guard would stop the list
+   * tracking the user entirely).
+   */
+  const beginProgrammatic = useCallback(() => {
+    programmaticRef.current = true
+    if (guardTimerRef.current) window.clearTimeout(guardTimerRef.current)
+    guardTimerRef.current = window.setTimeout(releaseGuard, 200)
+    requestAnimationFrame(releaseGuard)
+  }, [releaseGuard])
+
+  /**
+   * The single owner of scrollTop. Never `scrollIntoView` — that walks up and
+   * scrolls every ancestor, which fights the fixed mobile shell and the
+   * visualViewport header offset.
+   */
+  const pinToBottom = useCallback((smooth = false) => {
+    const el = listRef.current
+    if (!el) return
+    programmaticRef.current = true
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" })
+    if (guardTimerRef.current) window.clearTimeout(guardTimerRef.current)
+    if (smooth) {
+      // Hard backstop in case rAF is throttled (backgrounded tab).
+      guardTimerRef.current = window.setTimeout(releaseGuard, 2500)
+      releaseWhenSettled()
+    } else {
+      guardTimerRef.current = window.setTimeout(releaseGuard, 60)
+    }
+  }, [releaseGuard, releaseWhenSettled])
+
+  // ── Reset when the conversation changes ───────────────────
+  // A layout effect declared BEFORE the anchor effect: layout effects always run
+  // ahead of passive ones, so a passive reset here would undo the anchor.
+  useIsoLayoutEffect(() => {
+    if (convRef.current === conversationId) return
+    convRef.current = conversationId
+    didAnchorRef.current = false
+    pendingPrependRef.current = false
+    olderInFlightRef.current = false
+    olderFailuresRef.current = 0
+    window.clearTimeout(prependTimerRef.current)
+    prevLastIdRef.current = null
+    lastSeenIdRef.current = null
+    autoScrollRef.current = true
+    setAnchored(false)
+    setAutoScroll(true)
+    setUnseen(0)
+  }, [conversationId])
+
+  // ── Land at the bottom on open — instant, before paint ────
+  // Gated on a ref, NOT on a message-count transition: with a warm React Query
+  // cache the count is already final on the first commit and never changes,
+  // which is exactly why an already-read conversation used to open mid-history.
+  useIsoLayoutEffect(() => {
+    if (didAnchorRef.current) return
+    const el = listRef.current
+    if (!el || listLoading) return
+    didAnchorRef.current = true
+    prevLastIdRef.current = lastId
+    lastSeenIdRef.current = lastId
+    if (wsMessages.length > 0) {
+      beginProgrammatic()
+      el.scrollTop = el.scrollHeight
+    }
+    autoScrollRef.current = true
+    setAnchored(true)   // arms the sentinel + settle observers
+    // `isMounted` MUST stay in the deps: the first commit renders null, so this
+    // effect finds no list element — without it the deps would be unchanged on
+    // the commit that finally has DOM and the effect would never run again.
+  }, [conversationId, isMounted, listLoading, wsMessages.length, lastId, beginProgrammatic])
+
+  // ── Follow new messages ───────────────────────────────────
+  // Keyed on the tail id rather than the count: reconciling an optimistic
+  // message (WS echo, media upload) swaps the id and changes the bubble's
+  // height while the count stays identical.
   useEffect(() => {
-    if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [wsMessages.length, autoScroll])
+    if (!didAnchorRef.current || !lastId) return
+    if (prevLastIdRef.current === lastId) return
+    // An older page is landing — leave the tail unconsumed so it's handled on
+    // the next pass instead of being silently swallowed.
+    if (pendingPrependRef.current) return
+    const wasFirstSeen = prevLastIdRef.current === null
+    prevLastIdRef.current = lastId
+
+    if (autoScrollRef.current) {
+      lastSeenIdRef.current = lastId
+      pinToBottom(!wasFirstSeen)
+      return
+    }
+    // Scrolled up: don't move the reader. Derive the badge from the last message
+    // they actually saw, so a burst counts as a burst — not as one.
+    const seenIdx = lastSeenIdRef.current
+      ? wsMessages.findIndex((m) => m.id === lastSeenIdRef.current)
+      : -1
+    if (seenIdx === -1) return
+    setUnseen(
+      wsMessages.slice(seenIdx + 1).filter((m) => m.sender_id !== myActorId).length
+    )
+  }, [lastId, wsMessages, myActorId, pinToBottom])
+
+  // ── Track user intent ─────────────────────────────────────
+  const handleScroll = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    // Recorded even during our own scrolls — the prepend restore needs the
+    // reader's latest position, including any scrolling done while the older
+    // page was in flight.
+    distFromBottomRef.current = el.scrollHeight - el.scrollTop
+    if (programmaticRef.current) return
+    const next = el.scrollHeight - el.scrollTop - el.clientHeight < PIN_THRESHOLD
+    autoScrollRef.current = next
+    setAutoScroll((prev) => (prev === next ? prev : next))
+    if (next) {
+      lastSeenIdRef.current = lastIdRef.current
+      setUnseen(0)
+    }
+  }, [])
+
+  // ── Absorb late layout growth while pinned ────────────────
+  // One observer replaces every ad-hoc "re-scroll after X" hack: late icons,
+  // reconciled bubbles, unreserved media, composer growth, staged chips and the
+  // mobile keyboard all land here. Bounded by autoScrollRef, so a user reading
+  // history is never yanked.
+  useEffect(() => {
+    const list = listRef.current
+    const content = contentRef.current
+    if (!anchored || !list || !content) return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      if (!autoScrollRef.current) return
+      if (pendingPrependRef.current) return
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // Re-check: the user may have started scrolling in the frame between the
+        // resize and this callback.
+        if (!autoScrollRef.current || pendingPrependRef.current) return
+        pinToBottom(false)
+      })
+    })
+    ro.observe(content)   // content grew
+    ro.observe(list)      // viewport shrank
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [anchored, pinToBottom])
 
   // ── Native Mobile Visual Viewport Header Fix ──────────────
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return
+    let raf = 0
     const updateHeader = () => {
-      if (headerRef.current) {
-        // Offset the header back down by the amount the layout viewport has been pushed up
-        headerRef.current.style.transform = `translateY(${window.visualViewport?.offsetTop || 0}px)`
-      }
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        if (headerRef.current) {
+          // Offset the header back down by the amount the layout viewport has been pushed up
+          headerRef.current.style.transform = `translateY(${window.visualViewport?.offsetTop || 0}px)`
+        }
+        // iOS moves only the visual viewport when the keyboard opens, so the
+        // ResizeObserver above never fires — re-pin here instead.
+        if (autoScrollRef.current && didAnchorRef.current) pinToBottom(false)
+      })
     }
     // Update on resize and scroll of visual viewport
     window.visualViewport.addEventListener("resize", updateHeader)
     window.visualViewport.addEventListener("scroll", updateHeader)
     updateHeader() // Initial check
-    
+
     return () => {
+      cancelAnimationFrame(raf)
       window.visualViewport?.removeEventListener("resize", updateHeader)
       window.visualViewport?.removeEventListener("scroll", updateHeader)
     }
-  }, [])
-
-  // ── Track scroll — disable auto-scroll if user scrolls up ─
-  const handleScroll = useCallback(() => {
-    const el = listRef.current
-    if (!el) return
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    setAutoScroll(distFromBottom < 80)
-  }, [])
+  }, [pinToBottom])
 
   // ── Load older on top sentinel ────────────────────────────
+  const handleLoadOlder = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    recordDistance()
+    pendingPrependRef.current = true
+    // Last-resort release: whatever happens to the request, the controller must
+    // never stay in "a prepend is owed" state indefinitely.
+    window.clearTimeout(prependTimerRef.current)
+    prependTimerRef.current = window.setTimeout(() => {
+      pendingPrependRef.current = false
+    }, 15000)
+    loadOlder()
+  }, [loadOlder, recordDistance])
+
   useEffect(() => {
     const el = topSentinel.current
-    if (!el) return
+    // `anchored` must be state here — until the list has landed at the bottom
+    // the sentinel is sitting in view at scrollTop 0 and would page instantly.
+    if (!el || !anchored) return
+    // A failing endpoint would otherwise be hammered: every settle re-creates
+    // this observer, and a still-intersecting sentinel fires again immediately.
+    if (olderFailuresRef.current >= 3) return
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && hasOlderMessages && !loadingOlder) loadOlder() },
-      { threshold: 0 }
+      ([entry]) => { if (entry.isIntersecting && hasOlderMessages && !loadingOlder) handleLoadOlder() },
+      { root: listRef.current, rootMargin: "300px 0px 0px 0px", threshold: 0 }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasOlderMessages, loadingOlder, loadOlder])
+  }, [anchored, hasOlderMessages, loadingOlder, handleLoadOlder])
+
+  // Restore the reading position after an older page is prepended.
+  // Uses the distance recorded moments ago rather than at request time, so
+  // scrolling done while the page was in flight isn't discarded.
+  useIsoLayoutEffect(() => {
+    const el = listRef.current
+    if (!el || !pendingPrependRef.current) return   // guards the initial 0→1 page transition
+    pendingPrependRef.current = false
+    olderFailuresRef.current = 0
+    window.clearTimeout(prependTimerRef.current)
+    beginProgrammatic()
+    el.scrollTop = el.scrollHeight - distFromBottomRef.current
+  }, [pageCount, beginProgrammatic])
+
+  // A fetch that settles without adding a page (error, abort, empty) must not
+  // strand `pendingPrependRef` — a stuck flag silently disables auto-follow,
+  // the unseen badge and the settle observer for the rest of the session.
+  useEffect(() => {
+    // Wait for a real true→false transition: `loadingOlder` is still false on any
+    // commit between requesting the page and React Query picking it up (a scroll
+    // event alone can produce one), and clearing there would drop a live prepend.
+    if (loadingOlder) { olderInFlightRef.current = true; return }
+    if (!olderInFlightRef.current) return
+    olderInFlightRef.current = false
+    if (!pendingPrependRef.current) return
+    pendingPrependRef.current = false
+    window.clearTimeout(prependTimerRef.current)
+    olderFailuresRef.current += 1
+  }, [loadingOlder, pageCount])
+
+  // Keep the mirrors fresh after every commit. Declared AFTER the restore effect
+  // so that effect still reads the pre-commit distance.
+  useIsoLayoutEffect(() => {
+    lastIdRef.current = lastId
+    recordDistance()
+  })
+
+  const jumpToLatest = useCallback(() => {
+    autoScrollRef.current = true
+    setAutoScroll(true)
+    setUnseen(0)
+    lastSeenIdRef.current = lastIdRef.current
+    pinToBottom(true)
+  }, [pinToBottom])
 
   // ── Auto-grow textarea ────────────────────────────────────
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -416,19 +778,44 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       toast.show({ title: err, variant: "error" })
       return
     }
-    // Block over-length videos BEFORE uploading anything.
-    let durationSec = 0
+    // Block over-length videos BEFORE uploading anything. This probe is timed
+    // out inside getVideoMeta, so it can't hang the composer.
+    let meta = { durationSec: 0, width: 0, height: 0 }
     try {
-      durationSec = (await getVideoMeta(file)).durationSec
+      meta = await getVideoMeta(file)
     } catch {
       toast.show({ title: "Couldn't read that video.", variant: "error" })
       return
     }
-    if (durationSec > MAX_CHAT_VIDEO_SECONDS) {
+    if (meta.durationSec > MAX_CHAT_VIDEO_SECONDS) {
       toast.show({ title: `Videos must be ${MAX_CHAT_VIDEO_SECONDS}s or shorter.`, variant: "error" })
       return
     }
-    setStaged([{ kind: "video", file, url: URL.createObjectURL(file), durationSec }])
+    const url = URL.createObjectURL(file)
+    setStaged([{
+      kind: "video",
+      file,
+      url,
+      durationSec: meta.durationSec,
+      width: meta.width,
+      height: meta.height,
+    }])
+
+    // Poster frame for the chip, best-effort and never blocking: the chip shows
+    // a neutral tile until (and unless) this lands.
+    const poster = await captureVideoThumbnail(file)
+    if (!poster) return
+    setStaged((prev) => {
+      const target = prev.find((s) => s.kind === "video" && s.url === url)
+      if (!target) {
+        // Already sent or removed — don't leak the object URL.
+        URL.revokeObjectURL(poster)
+        return prev
+      }
+      return prev.map((s) =>
+        s.kind === "video" && s.url === url ? { ...s, poster } : s
+      )
+    })
   }, [staged.length, toast])
 
   const handlePickMedia = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,12 +844,14 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const removeStaged = useCallback((url: string) => {
     setStaged((prev) => {
       const target = prev.find((s) => s.url === url)
-      if (target) URL.revokeObjectURL(target.url)
+      if (target) revokeStaged(target)
       return prev.filter((s) => s.url !== url)
     })
   }, [])
 
   // ── Send ──────────────────────────────────────────────────
+  const canSendText = status === "open"
+
   const handleSend = useCallback(() => {
     const trimmed = input.trim()
 
@@ -470,28 +859,44 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     if (staged.length > 0) {
       const video = staged.find((s) => s.kind === "video")
       if (video) {
-        sendVideo(video.file, trimmed)
+        sendVideo(video.file, trimmed, {
+          durationSec: video.durationSec,
+          width: video.width,
+          height: video.height,
+        })
       } else {
         sendImages(staged.map((s) => s.file), trimmed)
       }
       // The upload hook makes its own object URLs; free the staging previews.
-      staged.forEach((s) => URL.revokeObjectURL(s.url))
+      staged.forEach(revokeStaged)
       setStaged([])
       setInput("")
+      // Sending always re-pins — set the ref too, state alone won't be visible
+      // to the observers until the next render.
+      autoScrollRef.current = true
       setAutoScroll(true)
+      setUnseen(0)
       if (inputRef.current) inputRef.current.style.height = "auto"
       return
     }
 
     if (!trimmed) return
+    // Don't insert a ghost bubble while the socket is down — the text would be
+    // silently dropped and the bubble would hang "pending" forever.
+    if (!canSendText) {
+      toast.show({ title: "Still connecting — try again in a moment.", variant: "error" })
+      return
+    }
     send(trimmed)
     setInput("")
+    autoScrollRef.current = true
     setAutoScroll(true)
+    setUnseen(0)
     // Reset textarea height
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
     }
-  }, [input, send, staged, sendImages, sendVideo])
+  }, [input, send, staged, sendImages, sendVideo, canSendText, toast])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -501,13 +906,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   }, [handleSend])
 
   // ── Derived ───────────────────────────────────────────────
-  const grouped      = groupByDate(wsMessages)
-  const isLoading    = detailLoading || historyLoading
+  const grouped      = useMemo(() => groupByDate(wsMessages), [wsMessages])
   const otherUser    = detail?.other_participant
   const isRequested  = detail?.status === "requested"
   const canMessage   = detail?.can_message ?? true
   const basePath     = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
-  const myActorId    = isOrgAdminView && actorId ? actorId : user?.id
 
   if (!isMounted) return null
 
@@ -522,7 +925,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             <Icon icon="mdi:arrow-left" width={20} height={20} />
           </Link>
 
-          {isLoading ? (
+          {headerLoading ? (
             <div className={styles.headerSkeletonInfo}>
               <div className={styles.headerSkeletonAvatar} />
               <div className={styles.headerSkeletonText} />
@@ -542,10 +945,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               </div>
             </Link>
           ) : null}
-{/* 
+
           <div className={styles.headerActions}>
             <ConnectionPill status={status} />
-          </div> */}
+          </div>
         </div>
 
         {/* ── Request banner (below header, above messages) ── */}
@@ -554,58 +957,100 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         )}
 
         {/* ── Scrollable message list ── */}
-        <div
-          ref={listRef}
-          className={styles.messageList}
-          onScroll={handleScroll}
-        >
-          <div ref={topSentinel} className={styles.topSentinel} />
+        <div className={styles.listWrap}>
+          <div
+            ref={listRef}
+            className={styles.messageList}
+            onScroll={handleScroll}
+            // Any real gesture releases the programmatic guard immediately, so a
+            // user flick during one of our animations is never swallowed.
+            onPointerDown={releaseGuard}
+            onWheel={releaseGuard}
+            onTouchStart={releaseGuard}
+            onKeyDown={releaseGuard}
+            // Deliberately no role="log": it would make screen readers announce
+            // the entire history on the skeleton→content swap and again on every
+            // prepended page.
+            aria-label="Messages"
+            aria-busy={listLoading}
+          >
+            <div ref={topSentinel} className={styles.topSentinel} />
 
+            <div ref={contentRef} className={styles.listContent}>
+              {listLoading ? (
+                <MessageSkeleton />
+              ) : wsMessages.length === 0 ? (
+                <div className={styles.emptyChat}>
+                  <div className={styles.emptyChatIcon}>
+                    <Icon icon="mdi:chat-outline" width={40} height={40} />
+                  </div>
+                  <p className={styles.emptyChatText}>
+                    Say hello to {otherUser?.name ?? "them"}!
+                  </p>
+                </div>
+              ) : (
+                grouped.map(({ label, msgs }) => (
+                  <div key={label}>
+                    <DateDivider label={label} />
+                    {msgs.map((msg, idx) => {
+                      const isMine   = msg.sender_id === myActorId
+                      const next     = msgs[idx + 1]
+                      // Show time if: last in group, different sender next, or >5 min gap
+                      const showTime =
+                        !next ||
+                        next.sender_id !== msg.sender_id ||
+                        dayjs(next.created_at).diff(dayjs(msg.created_at), "minute") > 5
+                      // Optimistic rows aren't on the server yet — those are
+                      // cancelled/removed from their own bubble instead.
+                      const isSettled = !msg.pending && !msg.failed
+                      return (
+                        <MessageActions
+                          key={msg.id}
+                          isMine={isMine}
+                          canDelete={isMine && isSettled}
+                          onDelete={() => deleteMessage(msg.id)}
+                          copyText={
+                            msg.message_type === "text" || !msg.message_type
+                              ? msg.content || undefined
+                              : undefined
+                          }
+                        >
+                          <MessageBubble
+                            msg={msg}
+                            isMine={isMine}
+                            showTime={showTime}
+                            onRetryImage={retryImage}
+                            onRemoveImage={removeImage}
+                          />
+                        </MessageActions>
+                      )
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Overlaid, not a list child — an in-flow spinner would push the
+              content down the moment paging starts and jerk the reader. */}
           {loadingOlder && (
             <div className={styles.loadingOlder}>
               <span className={styles.loadingSpinner} />
             </div>
           )}
 
-          {isLoading ? (
-            <MessageSkeleton />
-          ) : wsMessages.length === 0 ? (
-            <div className={styles.emptyChat}>
-              <div className={styles.emptyChatIcon}>
-                <Icon icon="mdi:chat-outline" width={40} height={40} />
-              </div>
-              <p className={styles.emptyChatText}>
-                Say hello to {otherUser?.name ?? "them"}!
-              </p>
-            </div>
-          ) : (
-            grouped.map(({ label, msgs }) => (
-              <div key={label}>
-                <DateDivider label={label} />
-                {msgs.map((msg, idx) => {
-                  const isMine   = msg.sender_id === myActorId
-                  const next     = msgs[idx + 1]
-                  // Show time if: last in group, different sender next, or >5 min gap
-                  const showTime =
-                    !next ||
-                    next.sender_id !== msg.sender_id ||
-                    dayjs(next.created_at).diff(dayjs(msg.created_at), "minute") > 5
-                  return (
-                    <MessageBubble
-                      key={msg.id}
-                      msg={msg}
-                      isMine={isMine}
-                      showTime={showTime}
-                      onRetryImage={retryImage}
-                      onRemoveImage={removeImage}
-                    />
-                  )
-                })}
-              </div>
-            ))
+          {/* ── Jump to latest ── */}
+          {!autoScroll && wsMessages.length > 0 && (
+            <button
+              type="button"
+              className={styles.jumpBtn}
+              onClick={jumpToLatest}
+              aria-label={unseen > 0 ? `${unseen} new messages — jump to latest` : "Jump to latest"}
+            >
+              <Icon icon="mdi:arrow-down" width={18} height={18} />
+              {unseen > 0 && <span className={styles.jumpCount}>{unseen > 99 ? "99+" : unseen}</span>}
+            </button>
           )}
-
-          <div ref={bottomRef} />
         </div>
 
         {/* ── Fixed input area ── */}
@@ -613,8 +1058,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           {isRequested && !canMessage ? (
             <div className={styles.acceptRow}>
               <p className={styles.cannotReply}>Accept the request to reply.</p>
-              <button 
-                className={styles.acceptBtn} 
+              <button
+                className={styles.acceptBtn}
                 onClick={() => acceptConversation(conversationId)}
                 disabled={isAccepting}
               >
@@ -630,13 +1075,24 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                     <div key={s.url} className={styles.stagedChip}>
                       {s.kind === "video" ? (
                         <>
-                          <video src={s.url} className={styles.stagedThumb} muted preload="metadata" />
+                          {/* A <video> element paints the browser's own play
+                              button and ignores object-fit until metadata
+                              loads. Use the captured poster frame instead — an
+                              <img>, exactly like a photo chip. */}
+                          {s.poster ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.poster} alt="" className={styles.stagedThumb} />
+                          ) : (
+                            <span className={styles.stagedThumbFallback} />
+                          )}
                           <span className={styles.stagedPlay}>
                             <Icon icon="mdi:play" width={16} height={16} />
                           </span>
-                          <span className={styles.stagedDuration}>
-                            {formatDuration(s.durationSec)}
-                          </span>
+                          {s.durationSec > 0 && (
+                            <span className={styles.stagedDuration}>
+                              {formatDuration(s.durationSec)}
+                            </span>
+                          )}
                         </>
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -690,7 +1146,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                   disabled={
                     staged.length > 0
                       ? false                       // media goes over REST — no WS needed
-                      : !input.trim() || status !== "open"
+                      : !input.trim() || !canSendText
                   }
                   type="button"
                   aria-label="Send message"

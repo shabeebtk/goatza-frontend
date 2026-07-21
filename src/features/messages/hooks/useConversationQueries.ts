@@ -1,4 +1,12 @@
-import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useQuery,
+  useMutation,
+  useInfiniteQuery,
+  useQueryClient,
+  type InfiniteData,
+  type Query,
+  type QueryClient,
+} from "@tanstack/react-query"
 import {
   getOrCreateConversationApi,
   getConversationsApi,
@@ -9,8 +17,9 @@ import {
   acceptConversationApi,
   searchMessageTargetsApi,
   shareContentApi,
+  deleteMessageApi,
   type ConversationsParams,
-  type MessagesParams,
+  type MessagesResponse,
 } from "../services/conversations.api"
 
 // ── Query keys ───────────────────────────────────────────────
@@ -24,6 +33,21 @@ export const conversationKeys = {
   search:        (query: string)               => ["conversations", "search", query]         as const,
 }
 
+/**
+ * Invalidate every `conversations` query EXCEPT an open chat's message history.
+ *
+ * `conversationKeys.all()` matches by prefix, so a plain invalidate also refetches
+ * `["conversations","messages",id]` — every loaded page, serially — and the response
+ * replaces `data.pages` wholesale, wiping optimistic bubbles that are still
+ * uploading. The message list is kept live by the websocket and its own mount
+ * refetch; it never needs invalidating from a sibling mutation.
+ */
+export const invalidateConversationsExceptMessages = (qc: QueryClient) =>
+  qc.invalidateQueries({
+    predicate: (q: Query) =>
+      q.queryKey[0] === "conversations" && q.queryKey[1] !== "messages",
+  })
+
 // ── Conversations create ────────────────────────────────────────
 
 export const useGetOrCreateConversation = () => {
@@ -32,7 +56,7 @@ export const useGetOrCreateConversation = () => {
     mutationFn: getOrCreateConversationApi,
     onSuccess: () => {
       // Invalidate list so new conversation appears if it was created
-      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }
@@ -75,7 +99,7 @@ export const useShareContent = () => {
     onSuccess: (result) => {
       // Nothing landed → nothing changed server-side; don't churn the caches.
       if (result.sent.length === 0) return
-      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }
@@ -130,7 +154,7 @@ export const useMarkRead = () => {
     onSuccess:  (_, conversationId) => {
       // Zero out unread count in the list cache optimistically
       qc.setQueriesData(
-        { queryKey: conversationKeys.all() },
+        { queryKey: ["conversations", "list"] },
         (old: unknown) => {
           if (!Array.isArray(old)) return old
           return old.map((conv: { id: string; unread_count: number }) =>
@@ -138,9 +162,64 @@ export const useMarkRead = () => {
           )
         }
       )
+      // …and in the open conversation's own detail, so re-rendering it doesn't
+      // fire markRead again from a stale unread_count.
+      qc.setQueryData(
+        conversationKeys.detail(conversationId),
+        (old: unknown) =>
+          old && typeof old === "object" ? { ...old, unread_count: 0 } : old
+      )
       // Reading a chat changes the badge counts — refetch the summary so the
       // nav badge and the Chats/Requests tab badges update immediately.
       qc.invalidateQueries({ queryKey: conversationKeys.unreadSummary() })
+    },
+  })
+}
+
+// ── Delete (unsend) a message ─────────────────────────────────
+
+/**
+ * Removes the message from the open thread immediately and restores it if the
+ * request fails. The websocket "message_deleted" event removes it for everyone
+ * else (and for this user's other devices).
+ */
+export const useDeleteMessage = (conversationId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      deleteMessageApi(conversationId, messageId),
+
+    onMutate: async (messageId: string) => {
+      const key = conversationKeys.messages(conversationId)
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData<InfiniteData<MessagesResponse>>(key)
+      qc.setQueryData<InfiniteData<MessagesResponse>>(key, (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((p) => ({
+                ...p,
+                results: p.results.filter((m) => m.id !== messageId),
+              })),
+            }
+          : old
+      )
+      return { previous }
+    },
+
+    onError: (_err, _messageId, context) => {
+      if (context?.previous) {
+        qc.setQueryData(
+          conversationKeys.messages(conversationId),
+          context.previous
+        )
+      }
+    },
+
+    onSuccess: () => {
+      // The thread preview / ordering may have changed — but never refetch the
+      // message history from here (see invalidateConversationsExceptMessages).
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }
@@ -154,7 +233,7 @@ export const useAcceptConversation = () => {
     onSuccess: (_, conversationId) => {
       // Invalidate detail and list
       qc.invalidateQueries({ queryKey: conversationKeys.detail(conversationId) })
-      qc.invalidateQueries({ queryKey: conversationKeys.all() })
+      invalidateConversationsExceptMessages(qc)
     },
   })
 }

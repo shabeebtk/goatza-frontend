@@ -34,8 +34,16 @@
   overflow: hidden;
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
-  /* width/height are set inline from intrinsic ratio → no layout shift */
+  /* width + aspect-ratio are set inline from intrinsic dimensions → the box is
+     reserved before the asset loads, and stays proportional when max-width
+     clamps it on narrow screens. */
   max-width: 100%;
+  height: auto;
+}
+
+/* Only the openable state is clickable (not while uploading or failed). */
+.imageWrap[role="button"] {
+  cursor: pointer;
 }
 
 .image {
@@ -43,6 +51,12 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* No intrinsic dimensions on the message → the box is a 4:3 guess, so letterbox
+   instead of cropping something we haven't measured. */
+.imageContain {
+  object-fit: contain;
 }
 
 .imageUploading {
@@ -152,6 +166,8 @@
   display: flex;
   align-items: center;
   gap: 3px;
+  /* Reserve the 11px status glyph so a late-rendering icon can't grow the row. */
+  min-height: 11px;
   margin-top: 4px;
   font-family: var(--font-ui);
   font-size: 0.58rem;
@@ -208,3 +224,23 @@
     transform: translateY(0);
   }
 }
+
+/* Cancel an in-flight upload — sits in the corner of the progress overlay. */
+.cancelBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cancelBtn:hover { background: rgba(0, 0, 0, 0.78); }

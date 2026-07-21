@@ -5,21 +5,10 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { ChatMessage } from "../../hooks/useChatSocket"
 import { formatDuration } from "../../services/chatUpload.service"
+// Space is reserved from intrinsic dimensions so the poster never causes layout
+// shift while it loads. Shared with ImageMessage.
+import { displaySize } from "../../utils/mediaBox"
 import styles from "./VideoMessage.module.css"
-
-const MAX_W = 260
-const MAX_H = 320
-
-function displaySize(width?: number | null, height?: number | null) {
-    const ratio = width && height ? width / height : 1
-    let w = MAX_W
-    let h = MAX_W / ratio
-    if (h > MAX_H) {
-        h = MAX_H
-        w = MAX_H * ratio
-    }
-    return { w: Math.round(w), h: Math.round(h) }
-}
 
 // ── Fullscreen player ─────────────────────────────────────────
 
@@ -117,7 +106,7 @@ export default function VideoMessage({
     const isUploading = Boolean(msg.pending) && !msg.failed
     const isFailed = Boolean(msg.failed)
 
-    const { w, h } = displaySize(msg.media_width, msg.media_height)
+    const { w, h, known } = displaySize(msg.media_width, msg.media_height)
 
     // Poster: optimistic → locally captured frame; server → Cloudinary poster.
     const poster = isOptimistic
@@ -138,7 +127,10 @@ export default function VideoMessage({
             <div className={styles.column}>
                 <div
                     className={styles.videoWrap}
-                    style={{ width: w, height: h }}
+                    /* aspect-ratio (not a fixed height) so the box stays
+                       correctly proportioned when `.column`'s max-width clamps
+                       it on narrow screens. */
+                    style={{ width: w, aspectRatio: `${w} / ${h}` }}
                     role={canPlay ? "button" : undefined}
                     tabIndex={canPlay ? 0 : undefined}
                     onClick={canPlay ? () => setPlayerOpen(true) : undefined}
@@ -155,8 +147,8 @@ export default function VideoMessage({
                             src={poster}
                             alt=""
                             className={`${styles.poster} ${
-                                isUploading ? styles.posterUploading : ""
-                            }`}
+                                known ? "" : styles.posterContain
+                            } ${isUploading ? styles.posterUploading : ""}`}
                             loading="lazy"
                             decoding="async"
                             draggable={false}
@@ -179,10 +171,21 @@ export default function VideoMessage({
                         </span>
                     )}
 
-                    {/* Uploading overlay */}
+                    {/* Uploading overlay — tap X to cancel */}
                     {isUploading && (
                         <div className={styles.overlay}>
                             <ProgressRing progress={msg.uploadProgress ?? 0} />
+                            <button
+                                type="button"
+                                className={styles.cancelBtn}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onRemove?.()
+                                }}
+                                aria-label="Cancel upload"
+                            >
+                                <Icon icon="mdi:close" width={16} height={16} />
+                            </button>
                         </div>
                     )}
 

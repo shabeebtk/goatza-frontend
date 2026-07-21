@@ -18,6 +18,14 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Opacity only — for elements that own their `transform` (centering offsets,
+   hover lifts). An animation's filled final keyframe outranks any declared
+   transform, so those elements must not use `fadeIn`. */
+@keyframes fadeInPlain {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @keyframes bubblePop {
   0%   { transform: scale(0.9); opacity: 0; }
   60%  { transform: scale(1.02); }
@@ -120,7 +128,7 @@
   text-decoration: none;
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2);
-  margin-left: -var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
   transition: background var(--duration-fast);
 }
 
@@ -253,6 +261,16 @@
 
 /* ── Scrollable message list ─────────────────────────────────── */
 
+/* Positioning context for the jump-to-latest pill. Must not add its own scroll
+   or height rules — the list below owns both. */
+.listWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .messageList {
   flex: 1;
   overflow-y: auto;
@@ -260,9 +278,11 @@
   padding: var(--space-4) var(--space-4) var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  /* Smooth momentum scroll on iOS */
-  -webkit-overflow-scrolling: touch;
+  /* JS owns scrollTop (initial anchor, prepend compensation, stick-to-bottom).
+     Browser scroll anchoring would fight it. Ships with the manual prepend
+     compensation in ChatWindow.tsx — never on its own. */
+  overflow-anchor: none;
+  overscroll-behavior: contain;
 }
 
 @media (max-width: 767px) {
@@ -271,18 +291,42 @@
   }
 }
 
+/* Wraps everything the ResizeObserver watches for growth. */
+.listContent {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .topSentinel {
   height: 1px;
   flex-shrink: 0;
+  overflow-anchor: none;
 }
 
 /* ── Loading older ───────────────────────────────────────────── */
 
+/* Overlaid on top of the list (a child of .listWrap, not of the scroller) so
+   showing it never changes the scroll geometry. */
 .loadingOlder {
+  position: absolute;
+  top: var(--space-2);
+  /* Centred with auto margins, not translateX — see fadeInPlain above. */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  z-index: 10;
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: var(--space-3) 0;
-  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  animation: fadeInPlain 0.18s var(--ease-out) both;
 }
 
 .loadingSpinner {
@@ -426,6 +470,8 @@
   align-items: center;
   gap: 3px;
   margin-top: 4px;
+  /* Reserve the 11px status glyph so a late-rendering icon can't grow the row. */
+  min-height: 11px;
   font-family: var(--font-ui);
   font-size: 0.58rem;
   letter-spacing: var(--tracking-wide);
@@ -438,6 +484,43 @@
 .bubbleTheirs .bubbleTime { color: var(--color-text-muted); }
 
 .failIcon { color: var(--color-error) !important; opacity: 1 !important; }
+
+/* ── Jump to latest ──────────────────────────────────────────── */
+
+.jumpBtn {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  animation: fadeInPlain 0.18s var(--ease-out) both;
+  transition: background var(--duration-fast), color var(--duration-fast), transform var(--duration-fast);
+}
+
+.jumpBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+  transform: translateY(-1px);
+}
+
+.jumpCount {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-brand);
+}
 
 /* ── Input area ──────────────────────────────────────────────── */
 
@@ -474,7 +557,7 @@
   padding: 8px 16px;
   border-radius: var(--radius-full);
   font-family: var(--font-ui);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-semi);
   font-size: var(--text-sm);
   cursor: pointer;
   transition: transform var(--duration-fast), background var(--duration-fast);
@@ -658,4 +741,11 @@
 .sendBtn:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+/* Neutral tile shown until a staged video's poster frame is captured. */
+.stagedThumbFallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-surface-raised);
 }

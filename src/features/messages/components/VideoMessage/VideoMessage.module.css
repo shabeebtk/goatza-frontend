@@ -34,7 +34,14 @@
   overflow: hidden;
   background: #000;
   border: 1px solid var(--color-border);
+  /* width + aspect-ratio are set inline from intrinsic dimensions → the box is
+     reserved before the poster loads. */
   max-width: 100%;
+  height: auto;
+}
+
+/* Only the playable state is clickable (not while uploading or failed). */
+.videoWrap[role="button"] {
   cursor: pointer;
 }
 
@@ -43,6 +50,11 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* No intrinsic dimensions → the box is a 4:3 guess, so letterbox. */
+.posterContain {
+  object-fit: contain;
 }
 
 .posterUploading {
@@ -190,6 +202,8 @@
   display: flex;
   align-items: center;
   gap: 3px;
+  /* Reserve the 11px status glyph so a late-rendering icon can't grow the row. */
+  min-height: 11px;
   margin-top: 4px;
   font-family: var(--font-ui);
   font-size: 0.58rem;

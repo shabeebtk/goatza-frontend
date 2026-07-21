@@ -336,3 +336,15 @@ export const sendVideoMessageApi = async (
     )
     return res.data.data
 }
+
+/**
+ * Unsend a message for everyone. Only the actor that sent it may delete it —
+ * the backend soft-deletes and broadcasts "message_deleted" over the chat
+ * socket, so other open windows drop it too.
+ */
+export const deleteMessageApi = async (
+    conversationId: string,
+    messageId: string
+): Promise<void> => {
+    await api.delete(`/conversations/${conversationId}/messages/${messageId}`)
+}

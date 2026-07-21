@@ -43,6 +43,12 @@ export type ChatMessage = {
     localPreviewUrl?: string
     /** Optimistic-only: 0–100 upload progress. */
     uploadProgress?: number
+    /**
+     * Optimistic-only: the Cloudinary URL, stamped on as soon as the upload
+     * finishes but before our own POST returns. Used to match the websocket
+     * echo of this very message to its optimistic row.
+     */
+    pendingMediaUrl?: string
 
     /** Optimistic messages pending server confirmation */
     pending?: boolean
@@ -50,7 +56,7 @@ export type ChatMessage = {
 }
 
 type WsIncomingMessage = {
-    type: "message" | "error"
+    type: "message" | "error" | "message_deleted"
     /**
      * type === "message": the full serialized message (same shape as the REST
      * list). type === "error": a human-readable string. The handler only ever
@@ -102,7 +108,31 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
     // ── Handle incoming WS message ────────────────────────────
     const handleMessage = useCallback((data: unknown) => {
         const payload = data as WsIncomingMessage
-        if (payload.type !== "message" || !conversationId) return
+        if (!conversationId) return
+
+        // Someone unsent a message (possibly this user, on another device).
+        if (payload.type === "message_deleted") {
+            const deletedId = payload.message_id
+            if (!deletedId) return
+            queryClient.setQueryData<InfiniteData<MessagesResponse>>(
+                conversationKeys.messages(conversationId),
+                (old) =>
+                    old
+                        ? {
+                              ...old,
+                              pages: old.pages.map((p) => ({
+                                  ...p,
+                                  results: p.results.filter(
+                                      (m) => m.id !== deletedId
+                                  ),
+                              })),
+                          }
+                        : old
+            )
+            return
+        }
+
+        if (payload.type !== "message") return
 
         // Prefer the full serialized message (carries message_type + shared
         // previews). Fall back to the deprecated flat fields for old servers.
@@ -151,8 +181,30 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 // the REST share endpoint, so never reconcile it against a
                 // pending text slot — always append it fresh.
                 const myId = actorType === "organization" && actorId ? actorId : (user?.id ?? "")
+                const incomingType = incoming.message_type ?? "text"
+
+                // Media: the echo routinely beats the upload's own HTTP response,
+                // and prepending it then showed BOTH the still-uploading bubble
+                // and the finished one until reconcile caught up. The upload hook
+                // stamps `pendingMediaUrl` on its optimistic row as soon as
+                // Cloudinary returns, so the echo can be matched to it exactly
+                // and swapped in place instead.
+                const mediaIdx =
+                    (incomingType === "image" || incomingType === "video") &&
+                    incoming.media_url
+                        ? firstPage.results.findIndex(
+                              (m) =>
+                                  (m as Message & { pending?: boolean }).pending &&
+                                  m.sender_id === myId &&
+                                  (m as Message & { pendingMediaUrl?: string })
+                                      .pendingMediaUrl === incoming.media_url
+                          )
+                        : -1
+
                 const pendingIdx =
-                    (incoming.message_type ?? "text") === "text"
+                    mediaIdx !== -1
+                        ? mediaIdx
+                        : incomingType === "text"
                         ? firstPage.results.findIndex(
                               (m) =>
                                   (m as Message & { pending?: boolean }).pending &&

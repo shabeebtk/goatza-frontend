@@ -12,10 +12,13 @@
  * single bubble regardless of arrival order.
  */
 
-import { useCallback, useRef } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { InfiniteData, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@/store/auth.store"
-import { conversationKeys } from "./useConversationQueries"
+import {
+    conversationKeys,
+    invalidateConversationsExceptMessages,
+} from "./useConversationQueries"
 import type { ChatMessage } from "./useChatSocket"
 import {
     MessagesResponse,
@@ -28,7 +31,6 @@ import {
     uploadChatVideo,
     getImageDimensions,
     captureVideoThumbnail,
-    getVideoMeta,
 } from "../services/chatUpload.service"
 
 type OptimisticMedia = Message & Partial<ChatMessage>
@@ -39,6 +41,10 @@ type Job = {
     caption: string
     localUrl: string       // object URL used as the bubble preview (revoke on done)
     durationSec?: number   // video fallback duration
+    /** The optimistic row, kept so it can be restored if a refetch wipes it. */
+    optimistic?: OptimisticMedia
+    /** Aborts the in-flight Cloudinary upload when the user cancels. */
+    controller?: AbortController
 }
 
 export function useChatMediaUpload(conversationId: string | null) {
@@ -53,25 +59,58 @@ export function useChatMediaUpload(conversationId: string | null) {
     // File + caption kept per temp id so a failed upload can be retried.
     const jobsRef = useRef<Map<string, Job>>(new Map())
 
-    const cacheKey = conversationId
-        ? conversationKeys.messages(conversationId)
-        : null
+    // Memoised: conversationKeys.messages() returns a fresh array literal every
+    // render, which would make every callback below unstable and defeat the
+    // memoised message bubbles.
+    const cacheKey = useMemo(
+        () => (conversationId ? conversationKeys.messages(conversationId) : null),
+        [conversationId]
+    )
 
     // ── cache helpers ─────────────────────────────────────────
     const patchMessage = useCallback(
         (tempId: string, patch: Partial<OptimisticMedia>) => {
             if (!cacheKey) return
+            const job = jobsRef.current.get(tempId)
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 cacheKey,
                 (old) => {
-                    if (!old) return old
+                    if (!old || !old.pages[0]) return old
+
+                    const present = old.pages.some((p) =>
+                        p.results.some((m) => m.id === tempId)
+                    )
+
+                    // Self-heal: a refetch of the history replaces `data.pages`
+                    // wholesale and takes every in-flight optimistic row with it.
+                    // While the job is still ours, put it back rather than
+                    // letting the bubble vanish mid-upload.
+                    if (!present) {
+                        if (!job?.optimistic) return old
+                        const restored = { ...job.optimistic, ...patch }
+                        job.optimistic = restored
+                        return {
+                            ...old,
+                            pages: [
+                                {
+                                    ...old.pages[0],
+                                    results: [restored, ...old.pages[0].results],
+                                },
+                                ...old.pages.slice(1),
+                            ],
+                        }
+                    }
+
                     return {
                         ...old,
                         pages: old.pages.map((p) => ({
                             ...p,
-                            results: p.results.map((m) =>
-                                m.id === tempId ? { ...m, ...patch } : m
-                            ),
+                            results: p.results.map((m) => {
+                                if (m.id !== tempId) return m
+                                const next = { ...m, ...patch }
+                                if (job) job.optimistic = next as OptimisticMedia
+                                return next
+                            }),
                         })),
                     }
                 }
@@ -129,19 +168,42 @@ export function useChatMediaUpload(conversationId: string | null) {
             queryClient.setQueryData<InfiniteData<MessagesResponse>>(
                 cacheKey,
                 (old) => {
-                    if (!old) return old
+                    if (!old || !old.pages[0]) return old
                     const already = old.pages.some((p) =>
                         p.results.some((m) => m.id === serverMsg.id)
                     )
+                    const hasTemp = old.pages.some((p) =>
+                        p.results.some((m) => m.id === tempId)
+                    )
+
+                    // The temp row is gone (a refetch replaced the pages) and the
+                    // websocket echo hasn't delivered it either — insert the
+                    // server message so a successful send can never vanish.
+                    if (!hasTemp) {
+                        if (already) return old
+                        return {
+                            ...old,
+                            pages: [
+                                {
+                                    ...old.pages[0],
+                                    results: [serverMsg, ...old.pages[0].results],
+                                },
+                                ...old.pages.slice(1),
+                            ],
+                        }
+                    }
+
                     return {
                         ...old,
-                        pages: old.pages.map((p, i) => {
-                            let results = p.results.filter(
-                                (m) => m.id !== tempId
-                            )
-                            if (i === 0 && !already) {
-                                results = [serverMsg, ...results]
-                            }
+                        pages: old.pages.map((p) => {
+                            const idx = p.results.findIndex((m) => m.id === tempId)
+                            if (idx === -1) return p
+                            const results = [...p.results]
+                            // Swap IN PLACE. Prepending instead would reorder a
+                            // multi-photo batch by upload-completion time, and
+                            // nothing refetches the history to heal it.
+                            if (already) results.splice(idx, 1)
+                            else results[idx] = serverMsg
                             return { ...p, results }
                         }),
                     }
@@ -156,6 +218,9 @@ export function useChatMediaUpload(conversationId: string | null) {
         async (tempId: string) => {
             const job = jobsRef.current.get(tempId)
             if (!job || !conversationId) return
+
+            const controller = new AbortController()
+            job.controller = controller
 
             patchMessage(tempId, {
                 failed: false,
@@ -175,8 +240,11 @@ export function useChatMediaUpload(conversationId: string | null) {
                     const uploaded = await uploadChatVideo(
                         job.file,
                         onProgress,
-                        job.durationSec
+                        job.durationSec,
+                        controller.signal
                     )
+                    // Correlation key for the websocket echo — see below.
+                    patchMessage(tempId, { pendingMediaUrl: uploaded.media_url })
                     serverMsg = await sendVideoMessageApi(conversationId, {
                         media_url: uploaded.media_url,
                         media_public_id: uploaded.media_public_id,
@@ -187,7 +255,13 @@ export function useChatMediaUpload(conversationId: string | null) {
                         caption: job.caption,
                     })
                 } else {
-                    const uploaded = await uploadChatImage(job.file, onProgress)
+                    const uploaded = await uploadChatImage(
+                        job.file,
+                        onProgress,
+                        controller.signal
+                    )
+                    // Correlation key for the websocket echo — see below.
+                    patchMessage(tempId, { pendingMediaUrl: uploaded.media_url })
                     serverMsg = await sendImageMessageApi(conversationId, {
                         media_url: uploaded.media_url,
                         media_public_id: uploaded.media_public_id,
@@ -198,19 +272,33 @@ export function useChatMediaUpload(conversationId: string | null) {
                     })
                 }
 
+                // If the history cache wasn't populated yet (message sent while
+                // the conversation was still loading), the optimistic insert and
+                // this reconcile both no-op — refetch so the message appears.
+                const hadCache = Boolean(
+                    cacheKey &&
+                    queryClient.getQueryData<InfiniteData<MessagesResponse>>(cacheKey)
+                        ?.pages?.[0]
+                )
                 reconcile(tempId, serverMsg)
+                if (!hadCache && cacheKey) {
+                    queryClient.invalidateQueries({ queryKey: cacheKey })
+                }
                 URL.revokeObjectURL(job.localUrl)
                 jobsRef.current.delete(tempId)
 
                 // Reorder the conversations list + refresh its preview line.
-                queryClient.invalidateQueries({
-                    queryKey: conversationKeys.all(),
-                })
+                // Deliberately NOT the message history: refetching it here would
+                // replace `data.pages` and wipe the sibling photos still uploading.
+                invalidateConversationsExceptMessages(queryClient)
             } catch {
+                // Cancelled uploads have already had their job and bubble
+                // removed — don't resurrect them as a failed message.
+                if (!jobsRef.current.has(tempId)) return
                 patchMessage(tempId, { failed: true, pending: false })
             }
         },
-        [conversationId, patchMessage, reconcile, queryClient]
+        [conversationId, cacheKey, patchMessage, reconcile, queryClient]
     )
 
     // ── send photos ───────────────────────────────────────────
@@ -234,14 +322,7 @@ export function useChatMediaUpload(conversationId: string | null) {
                     /* keep 0 → bubble falls back to a square box */
                 }
 
-                jobsRef.current.set(tempId, {
-                    kind: "image",
-                    file,
-                    caption: cap,
-                    localUrl,
-                })
-
-                insertOptimistic({
+                const optimistic: OptimisticMedia = {
                     id: tempId,
                     message_type: "image",
                     content: cap,
@@ -253,7 +334,17 @@ export function useChatMediaUpload(conversationId: string | null) {
                     localPreviewUrl: localUrl,
                     uploadProgress: 0,
                     pending: true,
+                }
+
+                jobsRef.current.set(tempId, {
+                    kind: "image",
+                    file,
+                    caption: cap,
+                    localUrl,
+                    optimistic,
                 })
+
+                insertOptimistic(optimistic)
 
                 void runUpload(tempId)
             }
@@ -262,56 +353,75 @@ export function useChatMediaUpload(conversationId: string | null) {
     )
 
     // ── send one video ────────────────────────────────────────
+    /**
+     * `meta` is what the composer already measured while staging the file, so
+     * the bubble can be drawn at the right size without probing again.
+     */
     const sendVideo = useCallback(
-        async (file: File, caption: string) => {
+        async (
+            file: File,
+            caption: string,
+            meta?: { durationSec?: number; width?: number; height?: number }
+        ) => {
             if (!conversationId || !myId) return
 
             const tempId = `vid_${Date.now()}_${Math.random()
                 .toString(36)
                 .slice(2)}`
 
-            // Poster frame + intrinsic size for the optimistic bubble.
-            let meta = { durationSec: 0, width: 0, height: 0 }
-            try {
-                meta = await getVideoMeta(file)
-            } catch {
-                /* fall back to a square box */
-            }
-            let poster = ""
-            try {
-                poster = await captureVideoThumbnail(file)
-            } catch {
-                /* bubble shows a neutral box until the server thumbnail lands */
-            }
+            const durationSec = meta?.durationSec ?? 0
 
-            jobsRef.current.set(tempId, {
-                kind: "video",
-                file,
-                caption,
-                localUrl: poster,
-                durationSec: meta.durationSec,
-            })
-
-            insertOptimistic({
+            const optimistic: OptimisticMedia = {
                 id: tempId,
                 message_type: "video",
                 content: caption,
                 sender_id: myId,
                 created_at: new Date().toISOString(),
                 media_url: "",
-                media_width: meta.width || null,
-                media_height: meta.height || null,
-                media_duration_ms: meta.durationSec
-                    ? Math.round(meta.durationSec * 1000)
+                media_width: meta?.width || null,
+                media_height: meta?.height || null,
+                media_duration_ms: durationSec
+                    ? Math.round(durationSec * 1000)
                     : null,
-                localPreviewUrl: poster || undefined,
                 uploadProgress: 0,
                 pending: true,
+            }
+
+            jobsRef.current.set(tempId, {
+                kind: "video",
+                file,
+                caption,
+                localUrl: "",
+                durationSec,
+                optimistic,
             })
 
+            // Show the bubble and START THE UPLOAD FIRST. Everything below is
+            // cosmetic: probing a <video> on a phone can stall for seconds, and
+            // gating the send on it used to make the message silently vanish —
+            // the composer clears the staged chip immediately, so a stalled
+            // probe left nothing on screen at all.
+            insertOptimistic(optimistic)
             void runUpload(tempId)
+
+            // Poster frame, best-effort, patched in when (if) it arrives.
+            let poster = ""
+            try {
+                poster = await captureVideoThumbnail(file)
+            } catch {
+                /* bubble keeps its neutral box until the server thumbnail lands */
+            }
+            const job = jobsRef.current.get(tempId)
+            if (!poster) return
+            if (!job) {
+                // Upload already finished/cancelled — nothing to attach it to.
+                URL.revokeObjectURL(poster)
+                return
+            }
+            job.localUrl = poster
+            patchMessage(tempId, { localPreviewUrl: poster })
         },
-        [conversationId, myId, insertOptimistic, runUpload]
+        [conversationId, myId, insertOptimistic, runUpload, patchMessage]
     )
 
     const retry = useCallback(
@@ -321,12 +431,19 @@ export function useChatMediaUpload(conversationId: string | null) {
         [runUpload]
     )
 
+    /**
+     * Remove a media message the user no longer wants — cancels the in-flight
+     * upload if it hasn't finished, so this doubles as "cancel upload".
+     */
     const remove = useCallback(
         (tempId: string) => {
             const job = jobsRef.current.get(tempId)
             if (job) {
-                if (job.localUrl) URL.revokeObjectURL(job.localUrl)
+                // Delete the job BEFORE aborting: runUpload's catch checks for
+                // it to tell a cancel apart from a real failure.
                 jobsRef.current.delete(tempId)
+                job.controller?.abort()
+                if (job.localUrl) URL.revokeObjectURL(job.localUrl)
             }
             removeMessage(tempId)
         },

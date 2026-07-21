@@ -7,5 +7,7 @@ interface Props {
 export default async function ConversationPage({ params }: Props) {
   const { id } = await params
 
-  return <ChatWindow conversationId={id} />
+  // key={id} — a different conversation is a different chat, not a re-render:
+  // remounting resets the scroll controller cleanly.
+  return <ChatWindow key={id} conversationId={id} />
 }
