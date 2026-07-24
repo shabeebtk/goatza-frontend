@@ -63,21 +63,81 @@ function VideoPlayer({
 // ── Progress ring ─────────────────────────────────────────────
 
 function ProgressRing({ progress }: { progress: number }) {
-    const r = 18
+    const r = 24
     const c = 2 * Math.PI * r
     const dash = c * (1 - Math.min(100, Math.max(0, progress)) / 100)
     return (
-        <svg className={styles.ring} viewBox="0 0 44 44" width={44} height={44}>
-            <circle className={styles.ringTrack} cx="22" cy="22" r={r} />
+        <svg className={styles.ring} viewBox="0 0 56 56" width={56} height={56}>
+            <circle className={styles.ringTrack} cx="28" cy="28" r={r} />
             <circle
                 className={styles.ringFill}
-                cx="22"
-                cy="22"
+                cx="28"
+                cy="28"
                 r={r}
                 strokeDasharray={c}
                 strokeDashoffset={dash}
             />
         </svg>
+    )
+}
+
+// ── Cancel-upload confirmation ────────────────────────────────
+
+function CancelConfirm({
+    onKeep,
+    onConfirm,
+}: {
+    onKeep: () => void
+    onConfirm: () => void
+}) {
+    useEffect(() => {
+        const prev = document.body.style.overflow
+        document.body.style.overflow = "hidden"
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onKeep()
+        }
+        document.addEventListener("keydown", onKey)
+        return () => {
+            document.body.style.overflow = prev
+            document.removeEventListener("keydown", onKey)
+        }
+    }, [onKeep])
+
+    return createPortal(
+        <div
+            className={styles.confirmBackdrop}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Cancel upload"
+            onClick={onKeep}
+        >
+            <div className={styles.confirmCard} onClick={(e) => e.stopPropagation()}>
+                <span className={styles.confirmIcon}>
+                    <Icon icon="mdi:close-circle-outline" width={26} height={26} />
+                </span>
+                <h3 className={styles.confirmTitle}>Cancel upload?</h3>
+                <p className={styles.confirmText}>
+                    This video won&rsquo;t be sent.
+                </p>
+                <div className={styles.confirmActions}>
+                    <button
+                        type="button"
+                        className={styles.confirmKeep}
+                        onClick={onKeep}
+                    >
+                        Keep uploading
+                    </button>
+                    <button
+                        type="button"
+                        className={styles.confirmCancel}
+                        onClick={onConfirm}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
     )
 }
 
@@ -101,6 +161,7 @@ export default function VideoMessage({
     onRemove,
 }: VideoMessageProps) {
     const [playerOpen, setPlayerOpen] = useState(false)
+    const [confirmCancel, setConfirmCancel] = useState(false)
 
     const isOptimistic = !msg.media_url
     const isUploading = Boolean(msg.pending) && !msg.failed
@@ -171,21 +232,27 @@ export default function VideoMessage({
                         </span>
                     )}
 
-                    {/* Uploading overlay — tap X to cancel */}
+                    {/* Uploading overlay — progress ring with a centered ✕ to
+                        cancel (opens a confirmation first). */}
                     {isUploading && (
                         <div className={styles.overlay}>
-                            <ProgressRing progress={msg.uploadProgress ?? 0} />
                             <button
                                 type="button"
-                                className={styles.cancelBtn}
+                                className={styles.cancelRing}
                                 onClick={(e) => {
                                     e.stopPropagation()
-                                    onRemove?.()
+                                    setConfirmCancel(true)
                                 }}
                                 aria-label="Cancel upload"
                             >
-                                <Icon icon="mdi:close" width={16} height={16} />
+                                <ProgressRing progress={msg.uploadProgress ?? 0} />
+                                <span className={styles.cancelIcon}>
+                                    <Icon icon="mdi:close" width={20} height={20} />
+                                </span>
                             </button>
+                            <span className={styles.uploadingLabel}>
+                                Uploading {Math.round(msg.uploadProgress ?? 0)}%
+                            </span>
                         </div>
                     )}
 
@@ -201,7 +268,8 @@ export default function VideoMessage({
                                 }}
                                 aria-label="Retry upload"
                             >
-                                <Icon icon="mdi:refresh" width={22} height={22} />
+                                <Icon icon="mdi:refresh" width={16} height={16} />
+                                Retry
                             </button>
                             <button
                                 type="button"
@@ -252,6 +320,16 @@ export default function VideoMessage({
                     src={msg.media_url || ""}
                     poster={msg.media_thumbnail_url}
                     onClose={() => setPlayerOpen(false)}
+                />
+            )}
+
+            {confirmCancel && (
+                <CancelConfirm
+                    onKeep={() => setConfirmCancel(false)}
+                    onConfirm={() => {
+                        setConfirmCancel(false)
+                        onRemove?.()
+                    }}
                 />
             )}
         </div>
