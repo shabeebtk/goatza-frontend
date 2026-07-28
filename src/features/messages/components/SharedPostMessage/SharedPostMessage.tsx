@@ -15,6 +15,8 @@ interface SharedPostMessageProps {
   timeLabel: string
   pending?: boolean
   failed?: boolean
+  /** Read by the other participant — paints the ticks blue. */
+  seen?: boolean
 }
 
 export default function SharedPostMessage({
@@ -25,6 +27,7 @@ export default function SharedPostMessage({
   timeLabel,
   pending,
   failed,
+  seen,
 }: SharedPostMessageProps) {
   const rowClass = `${styles.row} ${isMine ? styles.rowMine : styles.rowTheirs}`
 
@@ -42,7 +45,13 @@ export default function SharedPostMessage({
           }
           width={11}
           height={11}
-          className={failed ? styles.failIcon : ""}
+          className={
+            failed
+              ? styles.failIcon
+              : seen && !pending
+              ? styles.seenIcon
+              : ""
+          }
         />
       )}
     </span>

@@ -485,6 +485,29 @@
 
 .failIcon { color: var(--color-error) !important; opacity: 1 !important; }
 
+/* ── Read receipt ────────────────────────────────────────────
+   A child can never undo an ancestor's opacity, so the row itself lifts when
+   it carries a blue tick and the timestamp keeps its faded look through
+   colour instead — otherwise "seen" renders at 55% and reads as a washed-out
+   grey rather than blue. `currentColor` here resolves to the inherited bubble
+   text colour, so the timestamp is unchanged either way. */
+.bubbleTime:has(.seenIcon) {
+  opacity: 1;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.seenIcon {
+  color: var(--color-read-receipt);
+  flex-shrink: 0;
+  /* The flip happens live, mid-conversation — ease it so it reads as a state
+     change rather than a repaint glitch. */
+  transition: color 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seenIcon { transition: none; }
+}
+
 /* ── Jump to latest ──────────────────────────────────────────── */
 
 .jumpBtn {

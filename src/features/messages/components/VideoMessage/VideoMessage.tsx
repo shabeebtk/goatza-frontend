@@ -148,6 +148,8 @@ interface VideoMessageProps {
     isMine: boolean
     showTime: boolean
     timeLabel: string
+    /** Read by the other participant — paints the ticks blue. */
+    seen?: boolean
     onRetry?: () => void
     onRemove?: () => void
 }
@@ -157,6 +159,7 @@ export default function VideoMessage({
     isMine,
     showTime,
     timeLabel,
+    seen,
     onRetry,
     onRemove,
 }: VideoMessageProps) {
@@ -309,6 +312,9 @@ export default function VideoMessage({
                                 }
                                 width={11}
                                 height={11}
+                                className={
+                                    seen && !isUploading ? styles.seenIcon : ""
+                                }
                             />
                         )}
                     </span>

@@ -110,6 +110,12 @@
   --color-error: var(--primitive-red-500);
   --color-success: var(--primitive-green-600);
 
+  /* ── Chat read receipt (blue ticks)
+     Deliberately the one blue in a green palette: "seen" is a universal
+     convention users already read at a glance, and borrowing the brand green
+     would collide with the sent/delivered states around it. */
+  --color-read-receipt: #2f9fe0;
+
   /* ── Shadows */
   --shadow-xs: 0 1px 4px rgba(0, 0, 0, 0.08);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.09);
@@ -167,6 +173,10 @@
     /* ── Semantic states */
     --color-error: var(--primitive-red-400);
     --color-success: var(--primitive-green-400);
+
+    /* ── Chat read receipt — brightened so it still reads as blue against
+       the darker bubble fills */
+    --color-read-receipt: #53bdeb;
 
     /* ── Shadows deepen on dark */
     --shadow-xs: 0 1px 4px rgba(0, 0, 0, 0.45);

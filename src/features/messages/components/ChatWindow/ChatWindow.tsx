@@ -169,6 +169,8 @@ interface BubbleProps {
   msg: ChatMessage
   isMine: boolean
   showTime: boolean
+  /** Read by the other participant — paints the ticks blue. Own bubbles only. */
+  seen: boolean
   onRetryImage?: (id: string) => void
   onRemoveImage?: (id: string) => void
 }
@@ -179,6 +181,7 @@ const MessageBubble = React.memo(function MessageBubble({
   msg,
   isMine,
   showTime,
+  seen,
   onRetryImage,
   onRemoveImage,
 }: BubbleProps) {
@@ -195,6 +198,7 @@ const MessageBubble = React.memo(function MessageBubble({
         msg={msg}
         isMine={isMine}
         showTime={showTime}
+        seen={seen}
         timeLabel={formatMsgTime(msg.created_at)}
         onRetry={handleRetry}
         onRemove={handleRemove}
@@ -209,6 +213,7 @@ const MessageBubble = React.memo(function MessageBubble({
         msg={msg}
         isMine={isMine}
         showTime={showTime}
+        seen={seen}
         timeLabel={formatMsgTime(msg.created_at)}
         onRetry={handleRetry}
         onRemove={handleRemove}
@@ -225,6 +230,7 @@ const MessageBubble = React.memo(function MessageBubble({
         caption={msg.content}
         isMine={isMine}
         showTime={showTime}
+        seen={seen}
         timeLabel={formatMsgTime(msg.created_at)}
         pending={msg.pending}
         failed={msg.failed}
@@ -239,6 +245,7 @@ const MessageBubble = React.memo(function MessageBubble({
         caption={msg.content}
         isMine={isMine}
         showTime={showTime}
+        seen={seen}
         timeLabel={formatMsgTime(msg.created_at)}
         pending={msg.pending}
         failed={msg.failed}
@@ -279,7 +286,13 @@ const MessageBubble = React.memo(function MessageBubble({
                 }
                 width={11}
                 height={11}
-                className={msg.failed ? styles.failIcon : ""}
+                className={
+                  msg.failed
+                    ? styles.failIcon
+                    : seen && !msg.pending
+                    ? styles.seenIcon
+                    : ""
+                }
               />
             )}
           </span>
@@ -343,8 +356,18 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const lastSeenIdRef   = useRef<string | null>(null)
   // Mirror of `lastId`, readable from the stable scroll handler.
   const lastIdRef       = useRef<string | null>(null)
+  // Who sent it — the read acknowledgement skips threads where we spoke last.
+  const lastSenderRef   = useRef<string | null>(null)
   const convRef         = useRef(conversationId)
   const [unseen, setUnseen] = useState(0)
+
+  // ── Read acknowledgement state ────────────────────────────
+  // Newest message id already reported to the server as read, so re-renders
+  // and repeated scroll events don't each fire their own request.
+  const readAckRef       = useRef<string | null>(null)
+  const markReadTimerRef = useRef(0)
+  // Callable from the stable scroll handler without re-subscribing it.
+  const maybeMarkReadRef = useRef<() => void>(() => {})
 
   const { sendImages, sendVideo, retry: retryImage, remove: removeImage } = useChatMediaUpload(conversationId)
 
@@ -363,7 +386,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const { mutate: deleteMessage } = useDeleteMessage(conversationId)
 
   // ── WebSocket ─────────────────────────────────────────────
-  const { send, status } = useChatSocket(conversationId)
+  const { send, status, otherLastReadAt } = useChatSocket(conversationId)
 
   // ── Merge history → WS state ──────────────────────────────
   // Mapped objects are cached by source identity: React Query's cache updates
@@ -400,6 +423,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           media_width: m.media_width,
           media_height: m.media_height,
           media_duration_ms: m.media_duration_ms,
+          is_read: m.is_read,
           localPreviewUrl: opt.localPreviewUrl,
           uploadProgress: opt.uploadProgress,
           pending: opt.pending,
@@ -426,14 +450,56 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     stagedRef.current.forEach(revokeStaged)
   }, [])
 
-  // ── Mount + mark read ─────────────────────────────────────
+  // ── Mount ─────────────────────────────────────────────────
   useEffect(() => { setIsMounted(true) }, [])
 
+  // ── Mark read ─────────────────────────────────────────────
+  // The OTHER side's ticks turn blue off the back of this request (marking read
+  // broadcasts a `conversation_read` receipt over the chat socket), so it has
+  // to fire on every arrival while the window is open — not once on mount, the
+  // way it used to. Everything routes through one function so the "did we
+  // already say this?" check lives in a single place.
+
+  const markReadFnRef = useRef(markRead)
+  useEffect(() => { markReadFnRef.current = markRead }, [markRead])
+
+  const maybeMarkRead = useCallback(() => {
+    // Only claim "read" when the newest message is genuinely in front of the
+    // reader: list pinned to the bottom, tab in the foreground. Scrolled up,
+    // the unseen badge owns the state instead — the same rule it already uses.
+    if (!didAnchorRef.current || !autoScrollRef.current) return
+    if (document.visibilityState === "hidden") return
+
+    const last = lastIdRef.current
+    if (!last || readAckRef.current === last) return
+    // Nothing to acknowledge when the last word was ours.
+    if (lastSenderRef.current === myActorId) return
+
+    readAckRef.current = last
+    window.clearTimeout(markReadTimerRef.current)
+    // Coalesce a burst of arrivals into a single request.
+    markReadTimerRef.current = window.setTimeout(
+      () => markReadFnRef.current(conversationId),
+      250
+    )
+  }, [conversationId, myActorId])
+
+  useEffect(() => { maybeMarkReadRef.current = maybeMarkRead }, [maybeMarkRead])
+  useEffect(() => () => window.clearTimeout(markReadTimerRef.current), [])
+
+  // A new message landed, or the list just anchored on open.
+  useEffect(() => { maybeMarkRead() }, [lastId, anchored, maybeMarkRead])
+
+  // Returning to a backgrounded tab counts as reading whatever is on screen.
   useEffect(() => {
-    if (detail?.unread_count && detail.unread_count > 0) {
-      markRead(conversationId)
+    const onWake = () => maybeMarkReadRef.current()
+    document.addEventListener("visibilitychange", onWake)
+    window.addEventListener("focus", onWake)
+    return () => {
+      document.removeEventListener("visibilitychange", onWake)
+      window.removeEventListener("focus", onWake)
     }
-  }, [conversationId, detail?.unread_count]) // eslint-disable-line
+  }, [])
 
   // ── Scroll primitives ─────────────────────────────────────
 
@@ -530,6 +596,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     window.clearTimeout(prependTimerRef.current)
     prevLastIdRef.current = null
     lastSeenIdRef.current = null
+    readAckRef.current = null
+    window.clearTimeout(markReadTimerRef.current)
     autoScrollRef.current = true
     setAnchored(false)
     setAutoScroll(true)
@@ -602,6 +670,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     if (next) {
       lastSeenIdRef.current = lastIdRef.current
       setUnseen(0)
+      // Scrolling back down to the newest message is reading it.
+      maybeMarkReadRef.current()
     }
   }, [])
 
@@ -720,9 +790,13 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   }, [loadingOlder, pageCount])
 
   // Keep the mirrors fresh after every commit. Declared AFTER the restore effect
-  // so that effect still reads the pre-commit distance.
+  // so that effect still reads the pre-commit distance. A layout effect, so the
+  // passive effects below (mark-read) always read post-commit values.
   useIsoLayoutEffect(() => {
     lastIdRef.current = lastId
+    lastSenderRef.current = wsMessages.length
+      ? wsMessages[wsMessages.length - 1].sender_id
+      : null
     recordDistance()
   })
 
@@ -731,6 +805,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     setAutoScroll(true)
     setUnseen(0)
     lastSeenIdRef.current = lastIdRef.current
+    maybeMarkReadRef.current()
     pinToBottom(true)
   }, [pinToBottom])
 
@@ -907,6 +982,23 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   }, [handleSend])
 
   // ── Derived ───────────────────────────────────────────────
+
+  /**
+   * Epoch ms of the other participant's latest read — everything we sent at or
+   * before it has been seen.
+   *
+   * Seeded from the conversation detail so the ticks are already correct on
+   * open, then advanced by the socket. Math.max rather than "socket wins": the
+   * detail is a cached query and can land stale (a background refetch) behind a
+   * receipt that already arrived, which would flick blue ticks back to grey.
+   */
+  const seenUntil = useMemo(() => {
+    const seed = detail?.other_last_read_at
+      ? Date.parse(detail.other_last_read_at)
+      : 0
+    return Math.max(Number.isNaN(seed) ? 0 : seed, otherLastReadAt)
+  }, [detail?.other_last_read_at, otherLastReadAt])
+
   const grouped      = useMemo(() => groupByDate(wsMessages), [wsMessages])
   const otherUser    = detail?.other_participant
   const isRequested  = detail?.status === "requested"
@@ -1004,6 +1096,14 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                       // Optimistic rows aren't on the server yet — those are
                       // cancelled/removed from their own bubble instead.
                       const isSettled = !msg.pending && !msg.failed
+                      // `is_read` is the load-time snapshot; `seenUntil` covers
+                      // everything read since. OR, never replace — both only
+                      // ever mean "seen", so a stale false can't unset a true.
+                      const seen =
+                        isMine &&
+                        isSettled &&
+                        (msg.is_read === true ||
+                          Date.parse(msg.created_at) <= seenUntil)
                       return (
                         <MessageActions
                           key={msg.id}
@@ -1020,6 +1120,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                             msg={msg}
                             isMine={isMine}
                             showTime={showTime}
+                            seen={seen}
                             onRetryImage={retryImage}
                             onRemoveImage={removeImage}
                           />
