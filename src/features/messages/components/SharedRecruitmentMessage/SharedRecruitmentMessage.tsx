@@ -41,6 +41,8 @@ interface SharedRecruitmentMessageProps {
   timeLabel: string
   pending?: boolean
   failed?: boolean
+  /** Read by the other participant — paints the ticks blue. */
+  seen?: boolean
 }
 
 export default function SharedRecruitmentMessage({
@@ -51,6 +53,7 @@ export default function SharedRecruitmentMessage({
   timeLabel,
   pending,
   failed,
+  seen,
 }: SharedRecruitmentMessageProps) {
   const { toRecruitment } = useNavigation()
 
@@ -70,7 +73,13 @@ export default function SharedRecruitmentMessage({
           }
           width={11}
           height={11}
-          className={failed ? styles.failIcon : ""}
+          className={
+            failed
+              ? styles.failIcon
+              : seen && !pending
+              ? styles.seenIcon
+              : ""
+          }
         />
       )}
     </span>

@@ -82,6 +82,8 @@ export type LastMessage = {
     sender_id: string
     sender?: ConversationParticipant
     created_at: string
+    /** Seen by the other participant. Only meaningful on messages you sent. */
+    is_read?: boolean
     // Present on shared_* last messages so the list can render a preview line
     // without a second fetch. null for other message types.
     shared_recruitment_preview?: SharedRecruitmentPreview | null
@@ -103,6 +105,12 @@ export type ConversationDetail = Conversation & {
     is_accepted: boolean
     can_message: boolean
     last_read_at: string | null
+    /**
+     * When the OTHER participant last read this thread — the read-receipt
+     * watermark. Everything you sent at or before it has been seen. Kept live
+     * afterwards by the `conversation_read` websocket event.
+     */
+    other_last_read_at: string | null
     is_last_message_seen: boolean
 }
 
@@ -113,6 +121,13 @@ export type Message = {
     sender_id: string
     sender?: ConversationParticipant
     created_at: string
+
+    /**
+     * Seen by the other participant, as of the moment this payload was built.
+     * Only meaningful on messages you sent; always false on the websocket
+     * echo, which is broadcast before anyone could have read it.
+     */
+    is_read?: boolean
 
     // Shared-content previews — populated for the matching message_type,
     // null otherwise. Resolved against the viewer server-side.

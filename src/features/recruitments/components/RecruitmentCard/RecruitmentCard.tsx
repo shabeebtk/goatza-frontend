@@ -140,7 +140,11 @@ export default function RecruitmentCard({
           >
             <h3 className={styles.title}>{recruitment.title}</h3>
           </Link>
-          <p className={styles.description}>{recruitment.short_description}</p>
+          {/* Short description is optional — skip the block entirely when
+              it's blank so the card doesn't keep an empty line's gap. */}
+          {recruitment.short_description && (
+            <p className={styles.description}>{recruitment.short_description}</p>
+          )}
         </div>
       </div>
 

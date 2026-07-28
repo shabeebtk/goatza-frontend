@@ -132,6 +132,8 @@ interface ImageMessageProps {
     isMine: boolean
     showTime: boolean
     timeLabel: string
+    /** Read by the other participant — paints the ticks blue. */
+    seen?: boolean
     onRetry?: () => void
     onRemove?: () => void
 }
@@ -141,6 +143,7 @@ export default function ImageMessage({
     isMine,
     showTime,
     timeLabel,
+    seen,
     onRetry,
     onRemove,
 }: ImageMessageProps) {
@@ -276,6 +279,9 @@ export default function ImageMessage({
                                 }
                                 width={11}
                                 height={11}
+                                className={
+                                    seen && !isUploading ? styles.seenIcon : ""
+                                }
                             />
                         )}
                     </span>

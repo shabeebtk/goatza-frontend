@@ -248,6 +248,20 @@
   line-height: 1;
 }
 
+/* Read receipt. A child can never undo an ancestor's opacity, so the row
+   itself lifts when it carries a blue tick and the timestamp keeps its faded
+   look through colour instead — otherwise "seen" renders at 70% and reads as
+   a washed-out grey rather than blue. */
+.time:has(.seenIcon) {
+  opacity: 1;
+  color: color-mix(in srgb, var(--color-text-muted) 70%, transparent);
+}
+
+.seenIcon {
+  color: var(--color-read-receipt);
+  flex-shrink: 0;
+}
+
 /* ── Fullscreen viewer ─────────────────────────────────────── */
 
 .viewer {

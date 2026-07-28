@@ -112,15 +112,21 @@ const IMAGE_COMPRESSION_OPTIONS = {
     fileType: "image/webp" as const,
 }
 
-// Time picker options at clean 15-minute steps (00 / 15 / 30 / 45).
+// Time picker options at clean 30-minute steps (00 / 30).
+function fmtTimeLabel(value: string): string {
+    const [hs = "0", ms = "00"] = value.split(":")
+    const h = Number(hs)
+    const ampm = h < 12 ? "AM" : "PM"
+    const h12 = h % 12 === 0 ? 12 : h % 12
+    return `${h12}:${ms} ${ampm}`
+}
+
 const TIME_OPTIONS: { value: string; label: string }[] = (() => {
     const out: { value: string; label: string }[] = []
     for (let h = 0; h < 24; h++) {
-        for (const m of [0, 15, 30, 45]) {
+        for (const m of [0, 30]) {
             const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-            const ampm = h < 12 ? "AM" : "PM"
-            const h12 = h % 12 === 0 ? 12 : h % 12
-            out.push({ value, label: `${h12}:${String(m).padStart(2, "0")} ${ampm}` })
+            out.push({ value, label: fmtTimeLabel(value) })
         }
     }
     return out
@@ -985,7 +991,7 @@ function ReviewRow({ icon, label, value }: { icon: string; label: string; value:
 }
 
 // ── Date + time field ─────────────────────────────────────────
-// Renders a separate date input and a 15-minute-step time picker, but reads /
+// Renders a separate date input and a 30-minute-step time picker, but reads /
 // writes a single wizard value: "YYYY-MM-DD" (no time) or "YYYY-MM-DDTHH:MM".
 // Time is optional — the date alone is enough.
 
@@ -996,6 +1002,12 @@ function DateTimeField({ value, onChange, disabled }: {
 }) {
     const datePart = value ? value.slice(0, 10) : ""
     const timePart = value.includes("T") ? value.slice(11, 16) : ""
+
+    // An already-saved time that isn't on the 30-minute grid (e.g. a legacy
+    // 09:15) gets its own option so editing doesn't silently blank it.
+    const timeOptions = timePart && !TIME_OPTIONS.some(o => o.value === timePart)
+        ? [{ value: timePart, label: fmtTimeLabel(timePart) }, ...TIME_OPTIONS]
+        : TIME_OPTIONS
 
     const setDate = (d: string) => {
         if (!d) { onChange(""); return }
@@ -1023,7 +1035,7 @@ function DateTimeField({ value, onChange, disabled }: {
                 title={datePart ? "Time (optional)" : "Pick a date first"}
             >
                 <option value="">Time —</option>
-                {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {timeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
         </div>
     )
@@ -1158,6 +1170,15 @@ export default function CreateRecruitmentModal({
         return () => { document.body.style.overflow = orig }
     }, [])
 
+    // ── Scroll position per step ─────────────────────────────────
+    // Every step change (Next / Back / step bar / a server error jumping to
+    // the offending step) starts the new step at the top — otherwise the body
+    // keeps the previous step's scroll offset and lands mid-form.
+    const bodyRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        bodyRef.current?.scrollTo({ top: 0, behavior: "auto" })
+    }, [step])
+
     const { data: sports = [] } = useSportsList()
     const positions = sports.find(s => s.id === sportId)?.positions ?? []
 
@@ -1199,7 +1220,8 @@ export default function CreateRecruitmentModal({
     const validateStep = (s: number = step): string | null => {
         if (s === 0) {
             if (!title.trim() || title.trim().length < 5) return "Title must be at least 5 characters."
-            if (!shortDesc.trim() || shortDesc.trim().length < 10) return "Short description must be at least 10 characters."
+            // Short description is optional, but if written it must be meaningful.
+            if (shortDesc.trim() && shortDesc.trim().length < 10) return "Short description must be at least 10 characters."
             if (!sportId) return "Please select a sport."
             if (!eventDate) return "Please set an event / trial date."
 
@@ -1572,9 +1594,10 @@ export default function CreateRecruitmentModal({
                         </div>
 
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Short Description <span className={styles.required}>*</span></label>
-                            <input className={styles.fieldInput} placeholder="Brief tagline shown on the card" value={shortDesc} onChange={e => setShortDesc(e.target.value)} maxLength={200} disabled={isSubmitting} />
+                            <label className={styles.fieldLabel}>Short Description <span className={styles.optionalTag}>Optional</span></label>
+                            <input className={styles.fieldInput} placeholder="Brief tagline shown on the card" value={shortDesc} onChange={e => { setShortDesc(e.target.value); clearFieldError("short_description") }} maxLength={200} disabled={isSubmitting} />
                             <span className={styles.fieldHint}>{shortDesc.length}/200</span>
+                            {renderFieldError("short_description")}
                         </div>
 
                         <div className={styles.fieldGroup}>
@@ -2043,7 +2066,7 @@ export default function CreateRecruitmentModal({
                 <StepBar step={step} onStepClick={goToStep} disabled={isSubmitting} />
 
                 {/* Body */}
-                <div className={styles.body}>
+                <div className={styles.body} ref={bodyRef}>
                     {renderStep()}
 
                     {phase === "uploading" && (

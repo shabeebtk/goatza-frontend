@@ -8,7 +8,7 @@
  *   const { send, status, messages } = useChatSocket(conversationId)
  */
 
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useWebSocket, type WsStatus } from "@/core/ws/useWebSocket"
 import { useAuthStore } from "@/store/auth.store"
 import { useQueryClient, InfiniteData } from "@tanstack/react-query"
@@ -50,13 +50,19 @@ export type ChatMessage = {
      */
     pendingMediaUrl?: string
 
+    /**
+     * Seen by the other participant at load time. A snapshot — it never
+     * un-sets, and `otherLastReadAt` covers everything read since.
+     */
+    is_read?: boolean
+
     /** Optimistic messages pending server confirmation */
     pending?: boolean
     failed?: boolean
 }
 
 type WsIncomingMessage = {
-    type: "message" | "error" | "message_deleted"
+    type: "message" | "error" | "message_deleted" | "conversation_read"
     /**
      * type === "message": the full serialized message (same shape as the REST
      * list). type === "error": a human-readable string. The handler only ever
@@ -68,11 +74,23 @@ type WsIncomingMessage = {
     content?: string
     sender?: { id?: string } & Record<string, unknown>
     created_at?: string
+    // ── type === "conversation_read" ──
+    /** Actor id of whoever read the thread — may be this user, on another device. */
+    reader_id?: string
+    /** ISO timestamp: everything sent at or before it has been seen. */
+    last_read_at?: string
 }
 
 type UseChatSocketReturn = {
     send: (text: string) => void
     status: WsStatus
+    /**
+     * Epoch ms of the other participant's latest read, or 0 if they haven't
+     * read anything since this window opened. A watermark, not per-message
+     * state: one value flips every bubble at or before it, so a reader
+     * catching up on a burst costs one render, not one per message.
+     */
+    otherLastReadAt: number
 }
 
 // ── Build WS URL ──────────────────────────────────────────────
@@ -105,10 +123,54 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
     // Track optimistic message IDs so we can confirm/replace them
     const pendingRef = useRef<Map<string, string>>(new Map()) // tempId → content
 
+    // Read watermark, tagged with the conversation it came from: switching
+    // threads must not carry the previous one's receipt into the new window
+    // for the frame before it resets.
+    const [readMark, setReadMark] = useState({ conversationId: "", atMs: 0 })
+
     // ── Handle incoming WS message ────────────────────────────
     const handleMessage = useCallback((data: unknown) => {
         const payload = data as WsIncomingMessage
         if (!conversationId) return
+
+        // The other side read the thread — or we did, on another device.
+        if (payload.type === "conversation_read") {
+            const atMs = payload.last_read_at ? Date.parse(payload.last_read_at) : NaN
+            if (!payload.reader_id || Number.isNaN(atMs)) return
+
+            const myId = actorType === "organization" && actorId ? actorId : user?.id
+
+            if (payload.reader_id === myId) {
+                // Our own read echoed back. Nothing to repaint — a receipt is
+                // about what the OTHER side has seen — but this is how a read
+                // on another device clears the badges here.
+                queryClient.setQueryData(
+                    conversationKeys.detail(conversationId),
+                    (old: unknown) =>
+                        old && typeof old === "object" ? { ...old, unread_count: 0 } : old
+                )
+                queryClient.setQueriesData(
+                    { queryKey: ["conversations", "list"] },
+                    (old: unknown) => {
+                        if (!Array.isArray(old)) return old
+                        return old.map((conv: { id: string; unread_count: number }) =>
+                            conv.id === conversationId ? { ...conv, unread_count: 0 } : conv
+                        )
+                    }
+                )
+                queryClient.invalidateQueries({ queryKey: conversationKeys.unreadSummary() })
+                return
+            }
+
+            // Monotonic: a late-delivered older receipt must never walk the
+            // ticks backwards from blue to grey.
+            setReadMark((prev) =>
+                prev.conversationId === conversationId && prev.atMs >= atMs
+                    ? prev
+                    : { conversationId, atMs }
+            )
+            return
+        }
 
         // Someone unsent a message (possibly this user, on another device).
         if (payload.type === "message_deleted") {
@@ -277,5 +339,10 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
         wsSend({ message: trimmed })
     }, [wsSend, user?.id, actorType, actorId, conversationId, queryClient])
 
-    return { send, status }
+    return {
+        send,
+        status,
+        otherLastReadAt:
+            readMark.conversationId === conversationId ? readMark.atMs : 0,
+    }
 }
