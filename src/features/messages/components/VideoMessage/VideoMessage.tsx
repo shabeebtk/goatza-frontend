@@ -5,6 +5,12 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { ChatMessage } from "../../hooks/useChatSocket"
 import { formatDuration } from "../../services/chatUpload.service"
+// Chat videos are stored as the raw original — the fullscreen player must ask
+// Cloudinary for the capped H.264 derivative, never the 4K phone file.
+import {
+    videoDeliveryUrl,
+    videoPosterUrl,
+} from "@/shared/services/cloudinaryDelivery"
 // Space is reserved from intrinsic dimensions so the poster never causes layout
 // shift while it loads. Shared with ImageMessage.
 import { displaySize } from "../../utils/mediaBox"
@@ -323,8 +329,8 @@ export default function VideoMessage({
 
             {playerOpen && (
                 <VideoPlayer
-                    src={msg.media_url || ""}
-                    poster={msg.media_thumbnail_url}
+                    src={videoDeliveryUrl(msg.media_url || "")}
+                    poster={videoPosterUrl(msg.media_thumbnail_url || "")}
                     onClose={() => setPlayerOpen(false)}
                 />
             )}

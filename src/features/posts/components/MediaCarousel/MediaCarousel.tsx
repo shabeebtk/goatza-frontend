@@ -24,9 +24,22 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
 import { getPostAspectRatio } from "@/features/posts/utils/media"
+import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
+import {
+    videoDeliveryUrl,
+    videoHlsUrl,
+    videoPosterUrl,
+} from "@/shared/services/cloudinaryDelivery"
 import styles from "./MediaCarousel.module.css"
 
 // ── Helpers ───────────────────────────────────────────────────
+
+/**
+ * How far ahead a feed video may buffer. Deliberately small: a post the user
+ * scrolls straight past should not have downloaded a minute of video first.
+ * The fullscreen surfaces (highlights) leave this unset and buffer normally.
+ */
+const FEED_MAX_BUFFER_SECONDS = 10
 
 function fmtDuration(secs: number): string {
     const m = Math.floor(secs / 60)
@@ -78,16 +91,31 @@ function LazyImage({
 // ── Video item (autoplay on visible) ──────────────────────────
 function LazyVideo({
     src,
+    hlsSrc,
     thumbnail,
     duration,
 }: {
     src: string
+    hlsSrc?: string
     thumbnail?: string
     duration?: number | null
 }) {
     const videoRef = useRef<HTMLVideoElement>(null)
     const [playing, setPlaying] = useState(false)
     const [videoReady, setVideoReady] = useState(false)
+    // Flipped once by the observer, the first time this post reaches the
+    // viewport. Until then the hook stays on the plain mp4 src and, with
+    // preload="none", fetches nothing at all — the feed's lazy contract.
+    const [activated, setActivated] = useState(false)
+
+    // Owns video.src (hence no src attribute below) — hls.js attaches through
+    // MediaSource, which a React-controlled src would fight every render.
+    useAdaptiveVideo(videoRef, {
+        hlsSrc,
+        mp4Src: src,
+        enabled: activated,
+        maxBufferLength: FEED_MAX_BUFFER_SECONDS,
+    })
 
     useEffect(() => {
         const el = videoRef.current
@@ -96,6 +124,11 @@ function LazyVideo({
         const obs = new IntersectionObserver(
             ([entry]) => {
                 if (entry.intersectionRatio >= 0.5) {
+                    // First time on screen: let the hook upgrade this element to
+                    // the adaptive ladder. State updates from here are batched,
+                    // so play() below still runs first and the hook can see that
+                    // playback was wanted across the source swap.
+                    setActivated(true)
                     // Trigger load if not already loading (preload="none" means
                     // nothing is fetched until the video actually scrolls in).
                     if (el.readyState === 0) {
@@ -131,7 +164,6 @@ function LazyVideo({
             )}
             <video
                 ref={videoRef}
-                src={src}
                 className={styles.mediaImg}
                 style={{ opacity: videoReady ? 1 : 0, transition: "opacity 0.2s" }}
                 muted
@@ -142,7 +174,16 @@ function LazyVideo({
                 // so no metadata is needed until the observer calls load()/play().
                 preload="none"
                 poster={thumbnail}
-                onCanPlay={() => setVideoReady(true)}  // ← fires earlier than onLoadedData
+                // `canplay` used to drive this swap, but on iOS Safari it can
+                // fire before the first frame is actually composited — the
+                // thumbnail disappears onto a black box for a frame or two.
+                // `playing` only fires once playback is genuinely running, and
+                // the timeupdate guard covers the browsers that skip it.
+                onPlaying={() => setVideoReady(true)}
+                onTimeUpdate={(e) => {
+                    if (!videoReady && e.currentTarget.currentTime > 0)
+                        setVideoReady(true)
+                }}
             />
             {!playing && (
                 <div className={styles.videoPlayOverlay} style={{ zIndex: 2 }}>
@@ -445,12 +486,16 @@ function Lightbox({
       >
         {current.media_type === "video" ? (
           <video
-            src={current.file_url}
+            src={videoDeliveryUrl(current.file_url)}
             controls
             autoPlay
             playsInline
             className={styles.lightboxImg}
-            poster={current.thumbnail_url || undefined}
+            poster={
+              current.thumbnail_url
+                ? videoPosterUrl(current.thumbnail_url)
+                : undefined
+            }
           />
         ) : (
           <img
@@ -579,8 +624,13 @@ export default function MediaCarousel({ media, postId }: MediaCarouselProps) {
                         >
                             {item.media_type === "video" ? (
                                 <LazyVideo
-                                    src={item.file_url}
-                                    thumbnail={item.thumbnail_url || undefined}
+                                    src={videoDeliveryUrl(item.file_url)}
+                                    hlsSrc={videoHlsUrl(item.file_url)}
+                                    thumbnail={
+                                        item.thumbnail_url
+                                            ? videoPosterUrl(item.thumbnail_url)
+                                            : undefined
+                                    }
                                     duration={item.duration}
                                 />
                             ) : (

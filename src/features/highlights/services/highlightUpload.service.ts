@@ -21,6 +21,11 @@ import {
     getUploadSignatureApi,
     type UploadConfigItem,
 } from "@/features/profile/services/upload.api"
+import {
+    VIDEO_EXTENSIONS,
+    VIDEO_FORMAT_MESSAGE,
+} from "@/shared/constants/media"
+import { videoDeliveryUrl } from "@/shared/services/cloudinaryDelivery"
 
 // ── Limits (mirror the backend) ───────────────────────────────
 
@@ -33,8 +38,11 @@ export const MAX_HIGHLIGHT_SECONDS = 90
  */
 export const MAX_HIGHLIGHT_MB = 100
 
-/** What browsers + Cloudinary both handle reliably. */
-const HIGHLIGHT_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"])
+/**
+ * What browsers + Cloudinary both handle reliably. Shared with posts and the
+ * file pickers — see `@/shared/constants/media`.
+ */
+const HIGHLIGHT_VIDEO_EXTENSIONS = VIDEO_EXTENSIONS
 
 export type HighlightUploadProgress = (loaded: number, total: number) => void
 
@@ -66,8 +74,7 @@ export function validateHighlightFile(file: File): string | null {
         return `A highlight must be under ${MAX_HIGHLIGHT_MB} MB.`
 
     const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
-    if (ext && !HIGHLIGHT_VIDEO_EXTENSIONS.has(ext))
-        return "Highlights must be MP4, MOV or WebM."
+    if (ext && !HIGHLIGHT_VIDEO_EXTENSIONS.has(ext)) return VIDEO_FORMAT_MESSAGE
 
     return null
 }
@@ -127,14 +134,18 @@ export function highlightThumbnailUrl(
 }
 
 /**
- * Add `q_auto,f_auto` to a stored video URL so playback is transcoded per
- * device instead of shipping the original (§3 performance requirements).
- * Returns the input unchanged if it isn't a Cloudinary delivery URL.
+ * Playback URL for a clip (§3 performance requirements). Kept as a named export
+ * so the viewer keeps reading in highlights vocabulary, but the transformation
+ * itself is app-wide now — see `@/shared/services/cloudinaryDelivery`.
+ *
+ * This used to be `q_auto,f_auto`, which left the ORIGINAL codec in place; the
+ * shared transform caps resolution and forces H.264 so the clip decodes in
+ * hardware on a low-end phone. Clips uploaded before this change will
+ * cold-generate the new derivative on their first view — a one-time wait per
+ * clip, expected and acceptable, and closed for good by the backend backfill.
  */
 export function highlightVideoUrl(url: string): string {
-    if (!url || !url.includes("/upload/")) return url
-    if (/\/upload\/[^/]*[,_]?(q_auto|f_auto)/.test(url)) return url
-    return url.replace("/upload/", "/upload/q_auto,f_auto/")
+    return videoDeliveryUrl(url)
 }
 
 // ── Direct upload to Cloudinary (XHR, progress + abort) ───────

@@ -15,6 +15,7 @@ import {
 } from "@/features/posts/services/postUpload.service"
 import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/posts/services/posts.api"
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
+import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
@@ -747,7 +748,10 @@ export default function CreatePostModal({
           type="file"
           hidden
           multiple={!hasVideo && !entries.some(e => e.isVideo)}
-          accept="image/*,video/*"
+          // Videos are named explicitly, not `video/*`: validateMediaFiles
+          // rejects anything outside MP4/MOV/WebM, so the picker shouldn't
+          // offer files it is about to refuse.
+          accept={`image/*,${VIDEO_ACCEPT}`}
           onChange={handleFileChange}
         />
 

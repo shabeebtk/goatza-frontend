@@ -1,5 +1,6 @@
 import imageCompression from "browser-image-compression"
 import { getUploadSignatureApi, type UploadConfigItem } from "@/features/profile/services/upload.api"
+import { checkVideoExtension } from "@/shared/constants/media"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -45,6 +46,12 @@ export function validateMediaFiles(files: File[]): string | null {
         if (files.length > 1) return "Only one video is allowed per post."
         if (files[0].size > MAX_VIDEO_MB * 1024 * 1024)
             return `Video must be under ${MAX_VIDEO_MB} MB.`
+        // `video/*` alone is not enough: an AVI reports a perfectly valid video
+        // mime and no browser can play it back, so without this the file
+        // uploads in full (up to 300MB of mobile data) and the post then shows
+        // a video nobody — including the author — can watch.
+        const badFormat = checkVideoExtension(files[0].name)
+        if (badFormat) return badFormat
     }
 
     if (hasImage) {

@@ -10,6 +10,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { useAuthStore } from "@/store/auth.store"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
 import { useChatMediaUpload } from "../../hooks/useChatImageUpload"
@@ -1217,7 +1218,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,video/*"
+                  // Named formats rather than `video/*` — validateChatVideoFile
+                  // rejects everything else anyway, so don't let the picker
+                  // offer a file the composer is about to bounce.
+                  accept={`image/*,${VIDEO_ACCEPT}`}
                   multiple
                   onChange={handlePickMedia}
                   hidden

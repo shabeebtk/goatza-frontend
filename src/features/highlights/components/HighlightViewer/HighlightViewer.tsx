@@ -3,9 +3,9 @@
 /**
  * HighlightViewer — story-style full-screen player (HIGHLIGHTS_SPEC.md §3).
  *
- * Exactly ONE <video> ever plays. A second, hidden <video preload="metadata">
- * warms the next clip so a swipe starts instantly without a second stream
- * competing for bandwidth.
+ * Exactly ONE <video> ever plays. A second, hidden <video preload="auto"> warms
+ * the next clip so a swipe starts instantly without a second stream competing
+ * for bandwidth.
  *
  * Navigation state changes go through `go()`, never through an effect — the
  * progress bar has to reset in the same tick as the index or the new clip
@@ -18,6 +18,8 @@ import { Icon } from "@iconify/react"
 import { toast } from "sonner"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
+import { videoHlsUrl } from "@/shared/services/cloudinaryDelivery"
 import { highlightVideoUrl } from "../../services/highlightUpload.service"
 import { useDeleteHighlight } from "../../hooks/useHighlights"
 import { useHighlightViews } from "../../hooks/useHighlightViews"
@@ -105,6 +107,21 @@ export default function HighlightViewer({
         () => (clip ? highlightVideoUrl(clip.file_url) : ""),
         [clip]
     )
+
+    // Adaptive ladder for the active clip. Built from the RAW stored URL, not
+    // from videoSrc — a URL that already carries a transformation comes back
+    // unchanged, so chaining the two would just hand back the mp4.
+    const hlsSrc = useMemo(
+        () => (clip ? videoHlsUrl(clip.file_url) : ""),
+        [clip]
+    )
+
+    // Owns video.src (hence no src attribute below): hls.js attaches through
+    // MediaSource, which a React-controlled src would fight every render.
+    const { canFallBackRef } = useAdaptiveVideo(videoRef, {
+        hlsSrc,
+        mp4Src: videoSrc,
+    })
 
     // ── navigation ─────────────────────────────────────────────
 
@@ -252,12 +269,17 @@ export default function HighlightViewer({
 
     const onError = useCallback(() => {
         if (!clip) return
+        // On iOS, native HLS reports a missing manifest as a real element error
+        // — and during rollout that just means this clip predates the HLS
+        // backfill. The hook is about to swap in the mp4, so skipping the clip
+        // and telling the viewer it is broken would both be wrong.
+        if (canFallBackRef.current) return
         if (brokenRef.current.has(clip.id)) return
         brokenRef.current.add(clip.id)
 
         toast.error("That clip could not be played — skipping.")
         goNext()
-    }, [clip, goNext])
+    }, [clip, goNext, canFallBackRef])
 
     // ── press / swipe gestures ────────────────────────────────
 
@@ -490,7 +512,9 @@ export default function HighlightViewer({
                         ref={videoRef}
                         key={clip.id}
                         className={styles.video}
-                        src={videoSrc}
+                        // No src: useAdaptiveVideo attaches HLS or mp4 to the
+                        // element itself. key={clip.id} still remounts per clip,
+                        // so exactly one video is ever wired up.
                         poster={clip.thumbnail_url || undefined}
                         autoPlay
                         muted={muted}
@@ -501,12 +525,16 @@ export default function HighlightViewer({
                         onError={onError}
                     />
 
-                    {/* Next clip's metadata only — never a second stream playing. */}
+                    {/* Next clip buffered, never a second stream playing. */}
                     {nextClip && (
                         <video
                             className={styles.preload}
                             src={highlightVideoUrl(nextClip.file_url)}
-                            preload="metadata"
+                            // `auto`, not `metadata`: a clip is capped at 90s and
+                            // now delivered as the 720p-capped H.264 derivative,
+                            // so buffering the next one costs little and makes a
+                            // swipe start on the first frame instead of a spinner.
+                            preload="auto"
                             muted
                             playsInline
                             tabIndex={-1}

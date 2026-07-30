@@ -25,6 +25,7 @@ import {
     validateHighlightFile,
     type HighlightVideoMeta,
 } from "../../services/highlightUpload.service"
+import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { HIGHLIGHT_VISIBILITIES, type HighlightVisibility } from "../../types"
 import { VISIBILITY_META, formatClipDuration } from "../../visibilityMeta"
 import styles from "./AddHighlightModal.module.css"
@@ -370,7 +371,7 @@ export default function AddHighlightModal({
                     <input
                         ref={inputRef}
                         type="file"
-                        accept="video/mp4,video/quicktime,video/webm"
+                        accept={VIDEO_ACCEPT}
                         className={styles.fileInput}
                         onChange={(e) => {
                             const picked = e.target.files?.[0]
