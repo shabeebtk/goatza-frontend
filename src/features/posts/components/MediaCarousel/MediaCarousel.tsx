@@ -19,6 +19,7 @@ import {
     useEffect,
     useRef,
     useState,
+    type RefObject,
 } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
@@ -45,6 +46,12 @@ function fmtDuration(secs: number): string {
     const m = Math.floor(secs / 60)
     const s = secs % 60
     return `${m}:${s.toString().padStart(2, "0")}`
+}
+
+/** Playhead clock. `duration` is NaN before metadata and Infinity for streams. */
+function fmtClock(seconds: number): string {
+    if (!Number.isFinite(seconds) || seconds < 0) return "0:00"
+    return fmtDuration(Math.floor(seconds))
 }
 
 // ── Lazy media item ───────────────────────────────────────────
@@ -107,6 +114,28 @@ function LazyVideo({
     // viewport. Until then the hook stays on the plain mp4 src and, with
     // preload="none", fetches nothing at all — the feed's lazy contract.
     const [activated, setActivated] = useState(false)
+    // Muted by default — autoplay policy allows no other start. Per tile, and
+    // it has to survive the pause/resume cycle of scrolling past and back, so
+    // the observer reads it from a ref (its callback is created once).
+    const [muted, setMuted] = useState(true)
+    const mutedRef = useRef(true)
+
+    /**
+     * Push the mute state onto the ELEMENT.
+     *
+     * React does not reliably render the `muted` prop as a DOM attribute
+     * (it is a property, and SSR/hydration can leave the element unmuted),
+     * so the browser saw an unmuted video, blocked autoplay, and the
+     * rejection went into an empty catch — the reason feed videos silently
+     * refused to start. Setting the property directly is the only thing the
+     * autoplay policy actually reads.
+     */
+    const applyMuted = useCallback((next: boolean) => {
+        const el = videoRef.current
+        if (!el) return
+        el.muted = next
+        el.defaultMuted = next
+    }, [])
 
     // Owns video.src (hence no src attribute below) — hls.js attaches through
     // MediaSource, which a React-controlled src would fight every render.
@@ -116,6 +145,16 @@ function LazyVideo({
         enabled: activated,
         maxBufferLength: FEED_MAX_BUFFER_SECONDS,
     })
+
+    const toggleMute = useCallback((e: React.MouseEvent) => {
+        // The tile wrapper opens the lightbox on click — this button must not
+        // reach it, which is the whole reason the old badge was unusable.
+        e.stopPropagation()
+        const next = !mutedRef.current
+        mutedRef.current = next
+        setMuted(next)
+        applyMuted(next)
+    }, [applyMuted])
 
     useEffect(() => {
         const el = videoRef.current
@@ -129,12 +168,24 @@ function LazyVideo({
                     // so play() below still runs first and the hook can see that
                     // playback was wanted across the source swap.
                     setActivated(true)
+                    // Before ANY play(): the policy check reads the property.
+                    applyMuted(mutedRef.current)
                     // Trigger load if not already loading (preload="none" means
                     // nothing is fetched until the video actually scrolls in).
                     if (el.readyState === 0) {
                         el.load()
                     }
-                    el.play().catch(() => { })
+                    el.play().catch(() => {
+                        // Scrolled into view while unmuted and the browser
+                        // refused. Autoplay always beats sound: drop to muted,
+                        // retry once, and move the icon so the UI isn't lying
+                        // about the state.
+                        if (el.muted) return
+                        mutedRef.current = true
+                        setMuted(true)
+                        applyMuted(true)
+                        el.play().catch(() => { })
+                    })
                     setPlaying(true)
                 } else {
                     // Scrolled away → PAUSE so an off-screen video never keeps
@@ -149,7 +200,7 @@ function LazyVideo({
         )
         obs.observe(el)
         return () => obs.disconnect()
-    }, [])
+    }, [applyMuted])
 
     return (
         <div className={`${styles.mediaItem} ${styles.videoItem}`}>
@@ -196,13 +247,224 @@ function LazyVideo({
                 </div>
             )}
             {playing && (
-                <div className={styles.videoMutedBadge}>
-                    <Icon icon="mdi:volume-off" width={12} height={12} />
-                </div>
+                <button
+                    type="button"
+                    className={styles.videoMuteBtn}
+                    onClick={toggleMute}
+                    aria-label={muted ? "Unmute video" : "Mute video"}
+                    aria-pressed={!muted}
+                >
+                    <span className={styles.videoMuteBtnInner}>
+                        <Icon
+                            icon={muted ? "mdi:volume-off" : "mdi:volume-high"}
+                            width={12}
+                            height={12}
+                        />
+                    </span>
+                </button>
             )}
         </div>
     )
 }
+// ── Fullscreen video (custom controls) ────────────────────────
+
+/** What the lightbox's keyboard shortcuts drive. Null unless a video is up. */
+type LightboxVideoApi = {
+    togglePlay: () => void
+    toggleMute: () => void
+    seekBy: (seconds: number) => void
+}
+
+/** Controls fade this long after the last interaction — only while playing. */
+const CONTROLS_HIDE_MS = 2500
+
+/**
+ * The fullscreen player. Native `controls` were replaced because every browser
+ * draws them differently and none of them match the app; this also lets the
+ * element go through useAdaptiveVideo like every other surface.
+ */
+function LightboxVideo({
+    item,
+    apiRef,
+}: {
+    item: PostMedia
+    apiRef: RefObject<LightboxVideoApi | null>
+}) {
+    const videoRef = useRef<HTMLVideoElement>(null)
+    const [paused, setPaused] = useState(false)
+    // Opening the lightbox is a deliberate user gesture, so start WITH sound —
+    // unlike the feed, where autoplay policy leaves no choice.
+    const [muted, setMuted] = useState(false)
+    const [currentTime, setCurrentTime] = useState(0)
+    const [duration, setDuration] = useState(0)
+    const [controlsVisible, setControlsVisible] = useState(true)
+
+    const pausedRef = useRef(false)
+    const hideTimerRef = useRef<number | null>(null)
+    const autoPlayedRef = useRef(false)
+
+    // Fullscreen buffers normally — no maxBufferLength. The hook owns video.src.
+    useAdaptiveVideo(videoRef, {
+        hlsSrc: videoHlsUrl(item.file_url),
+        mp4Src: videoDeliveryUrl(item.file_url),
+    })
+
+    const showControls = useCallback(() => {
+        setControlsVisible(true)
+        if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current)
+        hideTimerRef.current = window.setTimeout(() => {
+            // Paused → nothing is moving, so leave them up.
+            if (!pausedRef.current) setControlsVisible(false)
+        }, CONTROLS_HIDE_MS)
+    }, [])
+
+    useEffect(() => () => {
+        if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current)
+    }, [])
+
+    const togglePlay = useCallback(() => {
+        const el = videoRef.current
+        if (!el) return
+        if (el.paused) el.play().catch(() => { })
+        else el.pause()
+        showControls()
+    }, [showControls])
+
+    const toggleMute = useCallback(() => {
+        const el = videoRef.current
+        if (!el) return
+        const next = !el.muted
+        el.muted = next
+        setMuted(next)
+        showControls()
+    }, [showControls])
+
+    const seekBy = useCallback((seconds: number) => {
+        const el = videoRef.current
+        if (!el || !Number.isFinite(el.duration)) return
+        el.currentTime = Math.max(
+            0,
+            Math.min(el.duration, el.currentTime + seconds)
+        )
+        showControls()
+    }, [showControls])
+
+    // Publish the handle for the lightbox's keydown listener.
+    useEffect(() => {
+        apiRef.current = { togglePlay, toggleMute, seekBy }
+        return () => { apiRef.current = null }
+    }, [apiRef, togglePlay, toggleMute, seekBy])
+
+    // Closing the lightbox or changing slide unmounts this — stop the audio
+    // rather than trusting the browser to pause a detached element for us.
+    useEffect(() => {
+        const el = videoRef.current
+        return () => { el?.pause() }
+    }, [])
+
+    // One-shot: try unmuted, and if the browser refuses take muted playback.
+    const onCanPlay = useCallback(() => {
+        const el = videoRef.current
+        if (!el || autoPlayedRef.current) return
+        autoPlayedRef.current = true
+        el.play().catch(() => {
+            // The opening gesture can expire while the source attaches (dynamic
+            // import + manifest fetch). Muted playback is always allowed —
+            // take it, and move the icon so the button tells the truth.
+            el.muted = true
+            setMuted(true)
+            el.play().catch(() => { })
+        })
+    }, [])
+
+    const seekMax = duration || 0
+
+    return (
+        <div
+            className={styles.lightboxVideoWrap}
+            onMouseMove={showControls}
+            onTouchStart={showControls}
+        >
+            <video
+                ref={videoRef}
+                // No src / no controls: useAdaptiveVideo attaches the source and
+                // the bar below replaces the browser's chrome.
+                className={`${styles.lightboxImg} ${styles.lightboxVideo}`}
+                poster={
+                    item.thumbnail_url
+                        ? videoPosterUrl(item.thumbnail_url)
+                        : undefined
+                }
+                autoPlay
+                playsInline
+                onClick={togglePlay}
+                onCanPlay={onCanPlay}
+                onPlay={() => { pausedRef.current = false; setPaused(false); showControls() }}
+                onPause={() => { pausedRef.current = true; setPaused(true); setControlsVisible(true) }}
+                onEnded={() => { pausedRef.current = true; setPaused(true); setControlsVisible(true) }}
+                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                onLoadedMetadata={(e) =>
+                    setDuration(
+                        Number.isFinite(e.currentTarget.duration)
+                            ? e.currentTarget.duration
+                            : 0
+                    )
+                }
+            />
+
+            <div
+                className={`${styles.videoControls} ${controlsVisible ? "" : styles.videoControlsHidden}`}
+                /* Clicks on the bar must not reach the video's play/pause. */
+                onClick={(e) => e.stopPropagation()}
+            >
+                <button
+                    type="button"
+                    className={styles.videoCtrlBtn}
+                    onClick={togglePlay}
+                    aria-label={paused ? "Play video" : "Pause video"}
+                >
+                    <Icon icon={paused ? "mdi:play" : "mdi:pause"} width={20} height={20} />
+                </button>
+
+                <span className={styles.videoTime}>
+                    {fmtClock(currentTime)} / {fmtClock(duration)}
+                </span>
+
+                <input
+                    type="range"
+                    className={styles.videoSeek}
+                    min={0}
+                    max={seekMax}
+                    step="any"
+                    value={Math.min(currentTime, seekMax)}
+                    onChange={(e) => {
+                        const next = Number(e.target.value)
+                        setCurrentTime(next)
+                        const el = videoRef.current
+                        if (el) el.currentTime = next
+                        showControls()
+                    }}
+                    aria-label="Seek"
+                />
+
+                <button
+                    type="button"
+                    className={styles.videoCtrlBtn}
+                    onClick={toggleMute}
+                    aria-label={muted ? "Unmute video" : "Mute video"}
+                    aria-pressed={!muted}
+                >
+                    <Icon
+                        icon={muted ? "mdi:volume-off" : "mdi:volume-high"}
+                        width={20}
+                        height={20}
+                    />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 // ── Fullscreen lightbox ───────────────────────────────────────
 function Lightbox({
   media,
@@ -225,6 +487,9 @@ function Lightbox({
   const lastPinchDist = useRef<number | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  // Non-null only while a video slide is mounted — which is exactly the
+  // condition the keyboard handler needs to decide what an arrow key means.
+  const videoApiRef = useRef<LightboxVideoApi | null>(null)
 
   const current = media[idx]
   const isZoomed = scale > 1
@@ -291,7 +556,24 @@ function Lightbox({
   // ── Keyboard ────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { if (isZoomed) resetZoom(); else requestClose() }
+      if (e.key === "Escape") { if (isZoomed) resetZoom(); else requestClose(); return }
+
+      // Video slide → the arrows mean "seek", not "next photo". Images keep
+      // navigating exactly as before. Skipped while the seek bar itself has
+      // focus, so its native arrow handling isn't doubled up.
+      const video = videoApiRef.current
+      const onSeekBar = (e.target as HTMLElement | null)?.tagName === "INPUT"
+      if (video && !onSeekBar) {
+        if (e.key === " " || e.key === "k" || e.key === "K") {
+          e.preventDefault()   // also stops the page scrolling on Space
+          video.togglePlay()
+          return
+        }
+        if (e.key === "m" || e.key === "M") { video.toggleMute(); return }
+        if (e.key === "ArrowRight") { e.preventDefault(); video.seekBy(5); return }
+        if (e.key === "ArrowLeft") { e.preventDefault(); video.seekBy(-5); return }
+      }
+
       if (e.key === "ArrowRight" && !isZoomed) setIdx((i) => Math.min(i + 1, media.length - 1))
       if (e.key === "ArrowLeft"  && !isZoomed) setIdx((i) => Math.max(i - 1, 0))
       if (e.key === "+" || e.key === "=") setScale((s) => Math.min(s + 0.5, 4))
@@ -485,18 +767,9 @@ function Lightbox({
         style={{ cursor: !isImage ? "default" : isZoomed ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
       >
         {current.media_type === "video" ? (
-          <video
-            src={videoDeliveryUrl(current.file_url)}
-            controls
-            autoPlay
-            playsInline
-            className={styles.lightboxImg}
-            poster={
-              current.thumbnail_url
-                ? videoPosterUrl(current.thumbnail_url)
-                : undefined
-            }
-          />
+          /* key: a slide change gets a fresh element, and unmounting the old
+             one is what stops its audio. */
+          <LightboxVideo key={current.id} item={current} apiRef={videoApiRef} />
         ) : (
           <img
             ref={imgRef}
