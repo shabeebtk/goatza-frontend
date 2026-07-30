@@ -101,6 +101,17 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
       : actorType === "user" && user?.id === post.author.id
   const { toProfile } = useNavigation()
 
+  // "Add to Highlights" is offered only for the author's OWN video posts, and
+  // only to a player acting as themselves — highlights are personal, so an org
+  // actor (even on a post it authored) never sees it. Empty ⇒ the option hides.
+  const promotableVideos =
+    post.author_type === "user" &&
+    actorType === "user" &&
+    user?.id === post.author.id &&
+    user?.role === "player"
+      ? post.media.filter((m) => m.media_type === "video")
+      : []
+
   const timeAgo = dayjs(post.created_at).fromNow()
   const topReactions = getTopReactions(post.likes_breakdown)
 
@@ -234,6 +245,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           postId={post.id}
           isOwn={isOwn}
           isPreview={isPreview}
+          promotableVideos={promotableVideos}
           onClose={() => setShowOptions(false)}
           onEdit={() => setShowEdit(true)}
         />

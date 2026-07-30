@@ -5,13 +5,21 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import { useRouter } from "next/navigation"
 import { useDeletePost } from "../../hooks/usePostMutations"
+import { usePromoteToHighlights } from "@/features/highlights/hooks/usePromoteToHighlights"
+import { formatClipDuration } from "@/features/highlights/visibilityMeta"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import type { PostMedia } from "../../services/posts.api"
 import styles from "./PostOptionsSheet.module.css"
 
 interface PostOptionsSheetProps {
   postId: string
   isOwn: boolean
   isPreview? : boolean
+  /**
+   * Video items of this post. Present only when the viewer may promote them —
+   * the post's own author, a player, acting as themselves (PostCard decides).
+   */
+  promotableVideos?: PostMedia[]
   onClose: () => void
   onEdit?: () => void
 }
@@ -20,6 +28,7 @@ export default function PostOptionsSheet({
   postId,
   isOwn,
   isPreview=false,
+  promotableVideos = [],
   onClose,
   onEdit,
 }: PostOptionsSheetProps) {
@@ -28,6 +37,16 @@ export default function PostOptionsSheet({
   const { mutate: deletePost, isPending: isDeleting } = useDeletePost(isPreview ? { mode: "preview" } : {})
   const backdropRef = useRef<HTMLDivElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Second step of "Add to Highlights" when the post carries several videos.
+  const [pickVideo, setPickVideo] = useState(false)
+
+  const { promote, isPromoting } = usePromoteToHighlights()
+  const canPromote = promotableVideos.length > 0
+
+  const addToHighlights = (mediaId: string) => {
+    // Close on completion either way — the result is a toast, not sheet state.
+    promote(mediaId, { onDone: onClose })
+  }
 
   // Lock body scroll while open
   useEffect(() => {
@@ -120,12 +139,85 @@ export default function PostOptionsSheet({
               </button>
             </div>
           </div>
+        ) : pickVideo ? (
+          /* ── Which video? (multi-video post) ── */
+          <div className={styles.picker}>
+            <h3 className={styles.pickerTitle}>Which clip?</h3>
+            <p className={styles.pickerText}>
+              This post has {promotableVideos.length} videos — pick the one to add
+              to your highlights.
+            </p>
+
+            <div className={styles.pickerGrid}>
+              {promotableVideos.map((media, i) => (
+                <button
+                  key={media.id}
+                  type="button"
+                  className={styles.pickerItem}
+                  onClick={() => addToHighlights(media.id)}
+                  disabled={isPromoting}
+                >
+                  {media.thumbnail_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={media.thumbnail_url}
+                      alt=""
+                      className={styles.pickerThumb}
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
+                  ) : (
+                    <span className={styles.pickerThumbFallback} aria-hidden="true">
+                      <Icon icon="mdi:video-outline" width={20} height={20} />
+                    </span>
+                  )}
+                  <span className={styles.pickerMeta}>
+                    Clip {i + 1}
+                    {formatClipDuration(media.duration) &&
+                      ` · ${formatClipDuration(media.duration)}`}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              className={styles.cancelBtn}
+              onClick={() => setPickVideo(false)}
+              type="button"
+            >
+              Back
+            </button>
+          </div>
         ) : (
           <>
             {/* Options */}
             <div className={styles.options}>
               {isOwn ? (
                 <>
+                  {/* Add to Highlights — own video posts, player acting as self */}
+                  {canPromote && (
+                    <button
+                      className={styles.option}
+                      onClick={() => {
+                        if (promotableVideos.length === 1) {
+                          addToHighlights(promotableVideos[0].id)
+                          return
+                        }
+                        setPickVideo(true)
+                      }}
+                      disabled={isPromoting}
+                      type="button"
+                    >
+                      <span className={styles.optionIcon}>
+                        <Icon icon="mdi:play-box-outline" width={20} height={20} />
+                      </span>
+                      <span className={styles.optionLabel}>
+                        {isPromoting ? "Adding…" : "Add to Highlights"}
+                      </span>
+                    </button>
+                  )}
+
                   {/* Delete — only owner (asks for confirmation) */}
                   <button
                     className={`${styles.option} ${styles.optionDanger}`}

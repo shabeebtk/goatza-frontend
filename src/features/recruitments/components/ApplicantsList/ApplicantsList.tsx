@@ -19,7 +19,14 @@ import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import {
   useRecruitmentApplicants,
   useBulkUpdateApplicationStatus,
+  useUpdateApplicationStatus,
 } from "../../hooks/useRecruitments"
+import HighlightsChip from "@/features/highlights/components/HighlightsChip/HighlightsChip"
+import HighlightPipelineViewer, {
+  type PipelinePlayer,
+} from "@/features/highlights/components/HighlightPipelineViewer/HighlightPipelineViewer"
+import HighlightViewerActions from "@/features/highlights/components/HighlightViewerActions/HighlightViewerActions"
+import viewerActionStyles from "@/features/highlights/components/HighlightViewerActions/HighlightViewerActions.module.css"
 import {
   APPLICATION_STATUS_META,
   APPLICATION_STATUS_ORDER,
@@ -73,22 +80,93 @@ function ApplicantRowSkeleton() {
 
 // ── Applicant row ──────────────────────────────────────────────
 
+// ── Shortlist from inside the viewer ───────────────────────────
+// Reuses the pipeline's own single-status mutation, so the list behind the modal
+// refreshes through the same invalidation the drawer relies on.
+function ShortlistAction({
+  applicationId,
+  recruitmentId,
+  status,
+}: {
+  applicationId?: string
+  recruitmentId: string
+  status?: ApplicationStatus
+}) {
+  const { mutate, isPending } = useUpdateApplicationStatus()
+  const toast = useToast()
+
+  if (!applicationId) return null
+
+  // Past shortlisting (or out of the running) → nothing useful to offer.
+  const settled =
+    status === "shortlisted" ||
+    status === "invited" ||
+    status === "selected" ||
+    status === "rejected" ||
+    status === "withdrawn"
+
+  if (settled) {
+    return (
+      <span className={`${viewerActionStyles.action} ${viewerActionStyles.actionDone}`}>
+        <Icon
+          icon={status ? APPLICATION_STATUS_META[status].icon : "mdi:check"}
+          width={15}
+          height={15}
+        />
+        {status ? APPLICATION_STATUS_META[status].label : "Done"}
+      </span>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={`${viewerActionStyles.action} ${viewerActionStyles.actionPrimary}`}
+      disabled={isPending}
+      onClick={() =>
+        mutate(
+          { applicationId, recruitmentId, status: "shortlisted" },
+          {
+            onSuccess: () =>
+              toast.show({ title: "Shortlisted", variant: "success" }),
+            onError: (err) =>
+              toast.show({
+                title: getApiErrorMessage(err, "Couldn't shortlist."),
+                variant: "error",
+              }),
+          }
+        )
+      }
+    >
+      {isPending ? (
+        <span className={viewerActionStyles.actionSpinner} aria-hidden="true" />
+      ) : (
+        <Icon icon={APPLICATION_STATUS_META.shortlisted.icon} width={15} height={15} />
+      )}
+      Shortlist
+    </button>
+  )
+}
+
 function ApplicantRow({
   item,
   selectable,
   selected,
   onToggle,
   onOpen,
+  onOpenHighlights,
 }: {
   item: ApplicantListItem
   selectable: boolean
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onOpenHighlights: () => void
 }) {
   const { applicant } = item
+  const hasHighlights = (item.highlights_count ?? 0) > 0
   return (
-    <div className={`${styles.rowCard} ${selectable ? styles.rowCardSelectable : ""} ${selected ? styles.rowCardSelected : ""}`}>
+    <div className={`${styles.rowCard} ${selectable ? styles.rowCardSelectable : ""} ${selected ? styles.rowCardSelected : ""} ${hasHighlights ? styles.rowCardWithChip : ""}`}>
       {/* Round selector overlaid at the card's top-left (photo-gallery style).
           Withdrawn rows get no circle. stopPropagation so it never opens the drawer. */}
       {selectable && (
@@ -129,6 +207,20 @@ function ApplicantRow({
           <Icon icon="mdi:chevron-right" width={18} height={18} className={styles.rowChevron} />
         </div>
       </button>
+
+      {/* Overlaid, and OUTSIDE the row button on purpose — a button inside a
+          button is invalid HTML and steals the row's keyboard semantics. The
+          count ships with the row, so this costs no request and no reflow (the
+          row reserves its space via .rowCardWithChip). */}
+      {hasHighlights && (
+        <div className={styles.rowChip}>
+          <HighlightsChip
+            username={applicant.username}
+            count={item.highlights_count}
+            onOpen={onOpenHighlights}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -141,6 +233,8 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [openApplicationId, setOpenApplicationId] = useState<string | null>(null)
+  // Which player's reel the viewer starts on; null = viewer closed.
+  const [reelStart, setReelStart] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rejectConfirm, setRejectConfirm] = useState(false)
 
@@ -193,6 +287,33 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
   }, [handleObserver])
 
   const items = useMemo(() => data?.pages.flatMap((p) => p.results) ?? [], [data])
+
+  /**
+   * The reel queue, in list order: only applicants the viewer can actually watch
+   * (count > 0), so the viewer never has to skip a player mid-review. `status`
+   * rides along so the in-viewer Shortlist button knows what it's looking at.
+   */
+  const reelPlayers = useMemo<(PipelinePlayer & { status: ApplicationStatus })[]>(
+    () =>
+      items
+        .filter((item) => (item.highlights_count ?? 0) > 0)
+        .map((item) => ({
+          username: item.applicant.username,
+          name: item.shared_name || item.applicant.name,
+          headline: item.applicant.headline,
+          avatar: item.applicant.avatar,
+          applicationId: item.id,
+          status: item.status,
+        })),
+    [items]
+  )
+
+  /** Where a given applicant sits in that queue (-1 when they have no clips). */
+  const reelIndexOf = useCallback(
+    (applicationId: string) =>
+      reelPlayers.findIndex((p) => p.applicationId === applicationId),
+    [reelPlayers]
+  )
   const statusCounts = data?.pages[0]?.status_counts
   const totalApplicants = useMemo(
     () => (statusCounts ? Object.values(statusCounts).reduce((s, n) => s + n, 0) : 0),
@@ -362,6 +483,10 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
                 selected={selected.has(item.id)}
                 onToggle={() => toggleOne(item.id)}
                 onOpen={() => setOpenApplicationId(item.id)}
+                onOpenHighlights={() => {
+                  const index = reelIndexOf(item.id)
+                  if (index >= 0) setReelStart(index)
+                }}
               />
             ))}
           </div>
@@ -448,6 +573,30 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
           applicationId={openApplicationId}
           recruitmentId={recruitmentId}
           onClose={() => setOpenApplicationId(null)}
+        />
+      )}
+
+      {/* Reel review over the pipeline — the recruiter never leaves this list.
+          Stage changes made in here invalidate the applicants query, so the list
+          underneath is already correct when the modal closes. */}
+      {reelStart !== null && reelPlayers.length > 0 && (
+        <HighlightPipelineViewer
+          players={reelPlayers}
+          startIndex={reelStart}
+          onClose={() => setReelStart(null)}
+          renderActions={(player) => (
+            <HighlightViewerActions username={player.username}>
+              <ShortlistAction
+                applicationId={player.applicationId}
+                recruitmentId={recruitmentId}
+                status={
+                  reelPlayers.find(
+                    (p) => p.applicationId === player.applicationId
+                  )?.status
+                }
+              />
+            </HighlightViewerActions>
+          )}
         />
       )}
     </div>

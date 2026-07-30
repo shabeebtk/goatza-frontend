@@ -483,6 +483,12 @@ export type ApplicantListItem = {
   shared_email: string
   shared_phone: string
   applicant: ApplicantMini
+  /**
+   * Clips this viewer may watch — drives the "▶ Highlights (n)" chip. Comes
+   * batched with the list (one grouped query), so the chip costs no request.
+   * `null` on endpoints that don't supply it (e.g. application detail).
+   */
+  highlights_count?: number | null
 }
 
 export type ApplicationAnswer = {

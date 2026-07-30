@@ -23,11 +23,17 @@ interface UserCardProps {
   action?: React.ReactNode
   /** Optional line under the headline — e.g. "city · 3.2 km" in the listing. */
   meta?: React.ReactNode
+  /**
+   * Optional interactive badge (e.g. the highlights chip). Rendered OUTSIDE the
+   * profile link: a button nested in an anchor is invalid HTML and would
+   * navigate instead of acting.
+   */
+  chip?: React.ReactNode
   /** Merged onto the root so consumers (e.g. the vertical grid) can resize it. */
   className?: string
 }
 
-export default function UserCard({ user, action, meta, className }: UserCardProps) {
+export default function UserCard({ user, action, meta, chip, className }: UserCardProps) {
   const { toProfile } = useNavigation()
 
   return (
@@ -47,6 +53,8 @@ export default function UserCard({ user, action, meta, className }: UserCardProp
 
         {meta && <span className={styles.meta}>{meta}</span>}
       </Link>
+
+      {chip && <div className={styles.chip}>{chip}</div>}
 
       {action && <div className={styles.action}>{action}</div>}
     </div>

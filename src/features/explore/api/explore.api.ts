@@ -17,6 +17,8 @@ export type ExploreUser = {
   followers_count: number
   distance_km: number | null // null in "popular" mode
   is_following: boolean
+  /** Visible-to-viewer clip count — batched with the page, drives the chip. */
+  highlights_count?: number
 }
 
 /** Lightweight organization card (ExploreOrgSerializer). */

@@ -36,6 +36,8 @@ export type CreatePostPayload = {
 }
 
 export type PostMedia = {
+  /** PostMedia id — what "Add to Highlights" sends as `source_media_id`. */
+  id: string
   file_url: string
   media_type: "image" | "video"
   thumbnail_url: string

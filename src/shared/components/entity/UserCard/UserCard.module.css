@@ -102,6 +102,20 @@
 }
 
 /* Pinned to the bottom so buttons line up across cards of unequal height. */
+/* Interactive badge above the action (e.g. the highlights chip). `margin-top:
+   auto` moves here when present so the action stays pinned to the bottom. */
+.chip {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: auto;
+    margin-bottom: var(--space-2);
+}
+
+.chip ~ .action {
+    margin-top: 0;
+}
+
 .action {
     width: 100%;
     margin-top: auto;
