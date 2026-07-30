@@ -1,10 +1,15 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Icon } from "@iconify/react"
 import UserCard from "@/shared/components/entity/UserCard/UserCard"
 import UserCardSkeleton from "@/shared/components/entity/UserCard/UserCardSkeleton"
 import FollowButton from "@/features/connections/components/FollowButton/FollowButton"
+import HighlightsChip from "@/features/highlights/components/HighlightsChip/HighlightsChip"
+import HighlightPipelineViewer, {
+  type PipelinePlayer,
+} from "@/features/highlights/components/HighlightPipelineViewer/HighlightPipelineViewer"
+import HighlightViewerActions from "@/features/highlights/components/HighlightViewerActions/HighlightViewerActions"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import { useExplorePlayers } from "../../hooks/useExploreQueries"
 import { useExploreListParams } from "../../hooks/useExploreListParams"
@@ -55,6 +60,11 @@ export default function PlayersListPage() {
     [data]
   )
 
+  // Reel opened from a card. One player at a time here: cross-player swiping is
+  // the recruitment pipeline's behaviour, where the list IS a review queue —
+  // browsing explore shouldn't silently walk you into strangers' reels.
+  const [reelPlayer, setReelPlayer] = useState<PipelinePlayer | null>(null)
+
   // NOTE: UserCard is intentionally NOT wrapped in React.memo — each row passes a
   // fresh `action` (<FollowButton/>) and `meta` element per render, so a memo
   // would always miss. Stabilizing those would mean restructuring the card,
@@ -92,6 +102,20 @@ export default function PlayersListPage() {
           key={player.id}
           user={player}
           meta={playerMeta(player)}
+          chip={
+            <HighlightsChip
+              username={player.username}
+              count={player.highlights_count}
+              onOpen={() =>
+                setReelPlayer({
+                  username: player.username,
+                  name: player.name,
+                  headline: player.headline,
+                  avatar: player.profile_photo,
+                })
+              }
+            />
+          }
           action={
             <FollowButton
               targetId={player.id}
@@ -103,6 +127,14 @@ export default function PlayersListPage() {
           }
         />
       ))}
+
+      {reelPlayer && (
+        <HighlightPipelineViewer
+          players={[reelPlayer]}
+          onClose={() => setReelPlayer(null)}
+          renderActions={(p) => <HighlightViewerActions username={p.username} />}
+        />
+      )}
     </EntityListShell>
   )
 }

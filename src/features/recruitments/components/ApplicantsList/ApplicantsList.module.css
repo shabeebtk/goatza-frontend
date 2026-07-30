@@ -366,6 +366,20 @@
   background: var(--color-brand-subtle);
 }
 
+/* ── Highlights chip — overlaid bottom-right of the row card ───
+   The row reserves the space up front so a row WITH a chip and one without
+   never shift relative to each other as pages stream in. */
+.rowCardWithChip .row {
+  padding-bottom: 42px;
+}
+
+.rowChip {
+  position: absolute;
+  right: var(--space-3);
+  bottom: 10px;
+  z-index: 2;
+}
+
 /* Round selector — compact dot, generous tap target, overlaid top-left. */
 .selectCircle {
   position: absolute;

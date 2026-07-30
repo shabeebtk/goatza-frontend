@@ -119,6 +119,12 @@ export function useNavigation() {
     return `/recruitments/${recruitmentId}`
   }
 
+  function toHighlightsManage() {
+    // Highlights are personal to a player, so this never has an admin variant —
+    // an org actor landing here is shown the "switch account" state instead.
+    return "/highlights/manage"
+  }
+
   function toRecruitmentsList(username: string) {
     // recruitments belong to organizations; keep the org's own list inside admin
     if (isOrgAdminView && currentOrg && currentOrg.username === username) {
@@ -138,5 +144,6 @@ export function useNavigation() {
     toExploreList,
     toRecruitment,
     toRecruitmentsList,
+    toHighlightsManage,
   }
 }

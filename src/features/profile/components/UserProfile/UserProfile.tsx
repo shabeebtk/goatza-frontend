@@ -9,6 +9,7 @@ import Button from "@/shared/components/ui/Button/Button"
 import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEditModal"
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
+import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import {
@@ -336,6 +337,19 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
             <div className={styles.sectionDivider} />
             <UserSportsSection username={profile.username} isOwn={isMe} />
 
+
+            {/* Highlights — above the posts tab. Renders nothing for a viewer
+                who can see no clips, so it never leaves an empty section. */}
+            <HighlightsRail
+              owner={{
+                username: profile.username,
+                name: profile.name,
+                profilePhoto: profile.profile_photo,
+                position: profile.primary_sport?.primary_position,
+                sport: profile.primary_sport?.sport,
+              }}
+              isOwn={isMe}
+            />
 
             <div className={styles.sectionDivider} />
             <PostsList
