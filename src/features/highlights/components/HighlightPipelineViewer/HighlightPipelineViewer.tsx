@@ -114,6 +114,41 @@ export default function HighlightPipelineViewer({
         player.headline ||
         ""
 
+    /**
+     * Hold the stage until this player's clips are in hand.
+     *
+     * HighlightViewer treats an empty `clips` array as "nothing left to show"
+     * and closes itself — correct when the owner deletes the last clip, fatal if
+     * we mount it before the fetch resolves. Child effects flush before the
+     * parent's, so on a cold cache the viewer would call onClose() before the
+     * request was even sent and the modal would vanish on open. The rail never
+     * hit this because it only mounts the viewer once it has clips.
+     */
+    if (isLoading && clips.length === 0) {
+        return (
+            <div className={styles.loading} role="dialog" aria-modal="true">
+                <button
+                    type="button"
+                    className={styles.loadingClose}
+                    onClick={onClose}
+                    aria-label="Close highlights"
+                >
+                    <Icon icon="mdi:close" width={22} height={22} />
+                </button>
+                <div className={styles.loadingCard}>
+                    <Avatar
+                        src={player.avatar}
+                        initials={label.slice(0, 2).toUpperCase()}
+                        size="lg"
+                    />
+                    <span className={styles.loadingName}>{label}</span>
+                    {sub && <span className={styles.loadingSub}>{sub}</span>}
+                    <span className={styles.loadingSpinner} aria-hidden="true" />
+                </div>
+            </div>
+        )
+    }
+
     // Stale count (or a reel emptied since the list loaded) — say so, don't jump.
     if (!isLoading && clips.length === 0) {
         return (
