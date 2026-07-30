@@ -59,14 +59,14 @@ export type UpdateHighlightPayload = {
 export const createHighlightApi = async (
     payload: CreateHighlightPayload
 ): Promise<Highlight> => {
-    const res = await api.post(`${BASE}/`, payload)
+    const res = await api.post(`${BASE}/create`, payload)
     return highlightSchema.parse(res.data.data)
 }
 
 export const fetchHighlightsByUsernameApi = async (
     username: string
 ): Promise<HighlightsList> => {
-    const res = await api.get(`${BASE}/user/${encodeURIComponent(username)}/`)
+    const res = await api.get(`${BASE}/user/${encodeURIComponent(username)}`)
     return highlightsListSchema.parse(res.data.data)
 }
 
@@ -74,7 +74,7 @@ export const updateHighlightApi = async (
     highlightId: string,
     payload: UpdateHighlightPayload
 ): Promise<Highlight> => {
-    const res = await api.patch(`${BASE}/${highlightId}/`, payload)
+    const res = await api.patch(`${BASE}/${highlightId}`, payload)
     return highlightSchema.parse(res.data.data)
 }
 
@@ -85,12 +85,12 @@ export const updateHighlightApi = async (
 export const reorderHighlightsApi = async (
     orderedIds: string[]
 ): Promise<Highlight[]> => {
-    const res = await api.put(`${BASE}/reorder/`, { ordered_ids: orderedIds })
+    const res = await api.put(`${BASE}/reorder`, { ordered_ids: orderedIds })
     return highlightsReorderSchema.parse(res.data.data).results
 }
 
 export const removeHighlightApi = async (highlightId: string): Promise<void> => {
-    await api.delete(`${BASE}/${highlightId}/`)
+    await api.delete(`${BASE}/${highlightId}`)
 }
 
 /**
@@ -100,7 +100,7 @@ export const removeHighlightApi = async (highlightId: string): Promise<void> => 
 export const recordHighlightViewApi = async (
     highlightId: string
 ): Promise<boolean> => {
-    const res = await api.post(`${BASE}/${highlightId}/view/`, {})
+    const res = await api.post(`${BASE}/${highlightId}/view`, {})
     return highlightViewSchema.parse(res.data.data).counted
 }
 
@@ -109,7 +109,7 @@ export const recordHighlightViewApi = async (
  * no way to ask for anyone else's numbers.
  */
 export const fetchHighlightStatsApi = async (): Promise<HighlightStats> => {
-    const res = await api.get(`${BASE}/stats/`)
+    const res = await api.get(`${BASE}/stats`)
     return highlightStatsSchema.parse(res.data.data)
 }
 

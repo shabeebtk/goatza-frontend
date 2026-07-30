@@ -139,3 +139,72 @@
 @media (prefers-reduced-motion: reduce) {
   .interstitial { animation: none; }
 }
+
+/* ── Loading the next player's reel ───────────────────────────
+   Shown INSTEAD of the viewer until clips arrive: HighlightViewer reads an
+   empty clip list as "nothing left to show" and closes itself. */
+
+.loading {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.loadingClose {
+  position: absolute;
+  top: calc(var(--safe-top) + 12px);
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+}
+
+.loadingClose:hover { background: rgba(255, 255, 255, 0.22); }
+
+.loadingCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.loadingName {
+  font-family: var(--font-ui);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: #fff;
+}
+
+.loadingSub {
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.loadingSpinner {
+  margin-top: var(--space-3);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: reelSpin 0.8s linear infinite;
+}
+
+@keyframes reelSpin { to { transform: rotate(360deg) } }
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingSpinner { animation: none; }
+}
