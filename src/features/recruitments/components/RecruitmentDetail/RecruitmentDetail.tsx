@@ -24,6 +24,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { videoDeliveryUrl, videoPosterUrl } from "@/shared/services/cloudinaryDelivery"
 import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
@@ -163,13 +164,19 @@ function DetailMediaCarousel({ media }: { media: RecruitmentMedia[] }) {
         {current.media_type === "video" ? (
           <video
             key={current.id}
-            src={current.file_url}
+            src={videoDeliveryUrl(current.file_url)}
             className={`${styles.mediaAsset} ${loaded ? styles.mediaLoaded : ""}`}
             controls
             playsInline
             muted
-            poster={current.thumbnail_url || undefined}
-            onCanPlay={() => setLoaded(true)}
+            poster={current.thumbnail_url ? videoPosterUrl(current.thumbnail_url) : undefined}
+            // Not `canplay`: it can fire before a frame is composited, which
+            // fades the element in over black. This player doesn't autoplay, so
+            // `playing` alone would keep it hidden until the user hits play —
+            // `loadeddata` (first frame decoded, fires earlier than canplay)
+            // reveals it with something real to show.
+            onLoadedData={() => setLoaded(true)}
+            onPlaying={() => setLoaded(true)}
           />
         ) : (
           <img
