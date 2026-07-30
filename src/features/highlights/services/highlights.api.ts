@@ -6,6 +6,8 @@
  * (`res.data.data`) and parsed through the feature schemas.
  */
 
+import { z } from "zod"
+
 import api from "@/core/api/axios"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import {
@@ -117,11 +119,22 @@ export const fetchHighlightStatsApi = async (): Promise<HighlightStats> => {
  * The backend already writes human error messages ("You already have 10
  * highlights…", "Only videos can be added to highlights."), so this passes them
  * through and only supplies a highlights-flavoured fallback.
+ *
+ * Two things are deliberately NEVER shown to a player:
+ *   - axios's own "Request failed with status code 404" (getApiErrorMessage
+ *     already refuses to return it — a bare 404 means our routing is wrong,
+ *     which is not something the player can act on)
+ *   - a Zod parse failure, whose message is a multi-line JSON dump. A response
+ *     that doesn't match the schema is a wiring bug; the player gets the
+ *     fallback and we keep the detail in the console.
  */
 export const getHighlightErrorMessage = (
     err: unknown,
     fallback = "Something went wrong with your highlights. Please try again."
-): string => getApiErrorMessage(err, fallback)
+): string => {
+    if (err instanceof z.ZodError) return fallback
+    return getApiErrorMessage(err, fallback)
+}
 
 /**
  * True when a create failed because the player is at the 10-clip cap. Callers
