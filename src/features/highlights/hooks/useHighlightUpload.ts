@@ -15,7 +15,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { isHighlightCapError } from "../services/highlights.api"
+import {
+    getHighlightErrorMessage,
+    isHighlightCapError,
+} from "../services/highlights.api"
 import {
     checkHighlightDuration,
     isUploadCancelled,
@@ -200,10 +203,15 @@ export function useHighlightUpload(options?: {
                     return
                 }
 
-                const message =
-                    err instanceof Error && err.message
-                        ? err.message
-                        : "Upload failed. Please try again."
+                // NEVER surface a raw thrown message here: an AxiosError is an
+                // Error whose `.message` is "Request failed with status code
+                // 404", which tells a player nothing. getHighlightErrorMessage
+                // prefers the server's own human message, keeps the friendly
+                // strings the upload leg throws, and falls back to this line.
+                const message = getHighlightErrorMessage(
+                    err,
+                    "Couldn't add your highlight. Please try again."
+                )
 
                 // `createHighlight` already toasted its own API error; only the
                 // upload leg needs a toast (and a retry) from here.
