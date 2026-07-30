@@ -194,6 +194,14 @@ export function videoDeliveryUrl(url: string): string {
  * videoHlsUrl("")                                  // ""
  */
 export function videoHlsUrl(url: string): string {
+    // Kill switch, default OFF. useAdaptiveVideo treats an empty hlsSrc as
+    // "mp4 only" and returns BEFORE it even imports hls.js, so this one guard
+    // disables adaptive streaming app-wide: no .m3u8 request, no library
+    // download. The backend half of the flag is CLOUDINARY_ENABLE_HLS, which
+    // decides whether the manifest is generated at all — the two are
+    // independent and any combination is safe.
+    if (process.env.NEXT_PUBLIC_ENABLE_HLS !== "true") return ""
+
     return applyVideoTransform(url, VIDEO_HLS_TRANSFORM, VIDEO_HLS_EXTENSION)
 }
 

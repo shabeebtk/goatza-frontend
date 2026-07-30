@@ -18,6 +18,20 @@
 
 import { useEffect, useRef, type RefObject } from "react"
 
+/**
+ * Renditions below this are never selected automatically. 360p and down look
+ * genuinely bad on a modern phone, and sport footage at 180p is unwatchable.
+ */
+const MIN_AUTO_HEIGHT = 480
+
+/**
+ * hls.js assumes ~500kbps before it has measured anything, which lands the
+ * first segment on the 180p rung. Feed videos then buffer only ~10s, which
+ * yields too few bandwidth samples to climb back out before the user has
+ * scrolled on — so it looked permanently stuck at 180p until a refresh.
+ */
+const ABR_START_ESTIMATE_BPS = 2_000_000
+
 export type AdaptiveVideoOptions = {
     /** HLS manifest (videoHlsUrl). Empty/omitted → mp4 only. */
     hlsSrc?: string
@@ -48,6 +62,44 @@ export type AdaptiveVideoStatus = {
      * hasn't run yet.
      */
     canFallBackRef: RefObject<boolean>
+}
+
+/**
+ * Stop ABR from ever choosing a sub-480p rendition.
+ *
+ * Trade-off, and it is deliberate: on a genuinely slow connection the player
+ * now rebuffers instead of dropping to a rendition that looks broken. We would
+ * rather make someone wait than show them 180p football.
+ *
+ * Left completely alone when no rendition reaches 480p — a short or oddly
+ * encoded upload must not end up with a floor that excludes its whole ladder.
+ */
+function applyQualityFloor(hls: import("hls.js").default): void {
+    const levels = hls.levels ?? []
+    if (levels.length < 2) return
+
+    // Portrait clips are encoded taller than they are wide, so "480p" means the
+    // SHORTER side — height alone would wrongly pass a 480x854 vertical clip's
+    // smaller rungs.
+    const shortSide = (level: { width?: number; height?: number }): number => {
+        if (level.width && level.height) return Math.min(level.width, level.height)
+        return level.height || level.width || 0
+    }
+
+    let floorBitrate = Infinity
+    for (const level of levels) {
+        if (shortSide(level) >= MIN_AUTO_HEIGHT && level.bitrate < floorBitrate) {
+            floorBitrate = level.bitrate
+        }
+    }
+
+    // Nothing qualifies, or nothing sits below it → no floor to apply.
+    if (floorBitrate === Infinity) return
+    if (!levels.some((level) => level.bitrate < floorBitrate)) return
+
+    // minAutoBitrate is exclusive of the rungs below it; -1 keeps the 480p
+    // level itself selectable.
+    hls.config.minAutoBitrate = floorBitrate - 1
 }
 
 /** hls.js only matters where MediaSource exists; everything else gets mp4. */
@@ -124,16 +176,24 @@ export function useAdaptiveVideo(
 
             canFallBackRef.current = true
 
-            hls = new Hls(
-                maxBufferLength === undefined
-                    ? undefined
+            hls = new Hls({
+                abrEwmaDefaultEstimate: ABR_START_ESTIMATE_BPS,
+                // Explicit: the rendition is never capped by the element's
+                // pixel size. A feed tile is small but goes fullscreen from the
+                // same element, and we would rather pay bytes than show a
+                // blurry upscale.
+                capLevelToPlayerSize: false,
+                // Auto start level — the floor below does the constraining.
+                startLevel: -1,
+                ...(maxBufferLength === undefined
+                    ? {}
                     : {
                           maxBufferLength,
                           // Without this the length cap is advisory: hls.js
                           // keeps buffering until the SIZE cap is hit too.
                           maxMaxBufferLength: maxBufferLength,
-                      }
-            )
+                      }),
+            })
 
             hls.on(Hls.Events.ERROR, (_event, data) => {
                 // Non-fatal errors are hls.js doing its job (a segment retried,
@@ -147,7 +207,10 @@ export function useAdaptiveVideo(
                 fallBackToMp4()
             })
 
-            hls.on(Hls.Events.MANIFEST_PARSED, resume)
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                if (hls) applyQualityFloor(hls)
+                resume()
+            })
 
             hls.loadSource(hlsSrc)
             hls.attachMedia(video)

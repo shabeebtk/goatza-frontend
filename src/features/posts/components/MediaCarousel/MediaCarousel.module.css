@@ -127,10 +127,23 @@
   letter-spacing: var(--tracking-wide);
 }
 
-.videoMutedBadge {
+/* Mute toggle. The padding is the tap target (>=32px); the pill inside stays
+   the same small badge it always looked like. Negative offsets keep the VISUAL
+   at the original bottom/right inset despite that padding. */
+.videoMuteBtn {
   position: absolute;
-  bottom: var(--space-3);
-  right: var(--space-3);
+  bottom: calc(var(--space-3) - 9px);
+  right: calc(var(--space-3) - 9px);
+  padding: 9px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 0;
+  z-index: 3;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.videoMuteBtnInner {
   background: rgba(0,0,0,0.55);
   color: rgba(255,255,255,0.8);
   border-radius: var(--radius-full);
@@ -143,7 +156,10 @@
   font-weight: var(--weight-semi);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
+  transition: background var(--duration-fast);
 }
+
+.videoMuteBtn:hover .videoMuteBtnInner { background: rgba(0,0,0,0.75); }
 
 /* ── Nav arrows ──────────────────────────────────────────────── */
 
@@ -323,6 +339,101 @@
   max-height: 85dvh;
   object-fit: contain;
   border-radius: var(--radius-md);
+}
+
+/* ── Lightbox video + custom controls ────────────────────────── */
+
+/* Shrink-wraps the video so the control bar lines up with the frame's bottom
+   edge rather than the viewport's. */
+.lightboxVideoWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 90vw;
+  max-height: 85dvh;
+}
+
+.lightboxVideo { cursor: pointer; }
+
+.videoControls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0));
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.videoControlsHidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.videoCtrlBtn {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.14);
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.videoCtrlBtn:hover { background: rgba(255,255,255,0.28); }
+
+.videoTime {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: var(--tracking-wide);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.videoSeek {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,0.3);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  accent-color: var(--color-brand);
+}
+
+.videoSeek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  border: none;
+  cursor: pointer;
+}
+
+.videoSeek::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  border: none;
+  cursor: pointer;
 }
 
 .lightboxNav {
