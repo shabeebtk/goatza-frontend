@@ -119,6 +119,19 @@ export function useNavigation() {
     return `/recruitments/${recruitmentId}`
   }
 
+  function toCareerVerifications() {
+    // Reviewing career claims is an org-admin action; there is no personal
+    // equivalent. Outside the admin space this returns the org's dashboard
+    // rather than a dead link — the caller shouldn't be linking here at all.
+    if (isOrgAdminView && currentOrg) {
+      return `/organization/admin/${currentOrg.id}/verifications`
+    }
+
+    return currentOrg
+      ? `/organization/admin/${currentOrg.id}/verifications`
+      : "/home"
+  }
+
   function toHighlightsManage() {
     // Highlights are personal to a player, so this never has an admin variant —
     // an org actor landing here is shown the "switch account" state instead.
@@ -144,6 +157,7 @@ export function useNavigation() {
     toExploreList,
     toRecruitment,
     toRecruitmentsList,
+    toCareerVerifications,
     toHighlightsManage,
   }
 }

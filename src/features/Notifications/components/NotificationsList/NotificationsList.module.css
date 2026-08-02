@@ -145,6 +145,19 @@
   background: var(--color-surface-raised);
 }
 
+/* Rows that trigger an action instead of navigating (career_add_prompt) render
+   as a <button>, which needs the browser's default chrome stripped to match
+   the <a> rows exactly. */
+.itemButton {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .item:active {
   transform: scale(0.99);
   background: var(--color-brand-subtle);

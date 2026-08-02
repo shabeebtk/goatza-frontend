@@ -43,6 +43,12 @@ function buildNavItems(orgId: string) {
       label: "Explore",
     },
     {
+      href: `${base}/verifications`,
+      icon: "mdi:shield-check-outline",
+      iconActive: "mdi:shield-check",
+      label: "Verify",
+    },
+    {
       href: `${base}/messages`,
       icon: "mdi:message-outline",
       iconActive: "mdi:message",
@@ -153,10 +159,13 @@ export default function OrgNav({ orgId }: { orgId: string }) {
 
   const NAV_ITEMS = buildNavItems(orgId)
   // Mobile bottom bar shows Dashboard + Feed (left), Create, Messages (right),
-  // then the profile avatar. Explore lives in the mobile top bar and Alerts in
-  // the top-bar bell, so both are excluded here.
+  // then the profile avatar. Explore, Verify and Alerts live in the mobile top
+  // bar instead — five bottom tabs is already the comfortable maximum.
   const MOBILE_NAV_ITEMS = NAV_ITEMS.filter(
-    (item) => item.label !== "Alerts" && item.label !== "Explore"
+    (item) =>
+      item.label !== "Alerts" &&
+      item.label !== "Explore" &&
+      item.label !== "Verify"
   )
   const MOBILE_LEFT_ITEMS = MOBILE_NAV_ITEMS.slice(0, 2)
   const MOBILE_RIGHT_ITEMS = MOBILE_NAV_ITEMS.slice(2)
@@ -337,6 +346,21 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           <Link href={`${orgBase(orgId)}/explore`} className={styles.mobileIconBtn} aria-label="Explore">
             <Icon
               icon={pathname.startsWith(`${orgBase(orgId)}/explore`) ? "mdi:compass" : "mdi:compass-outline"}
+              width={24}
+              height={24}
+            />
+          </Link>
+          <Link
+            href={`${orgBase(orgId)}/verifications`}
+            className={styles.mobileIconBtn}
+            aria-label="Career verifications"
+          >
+            <Icon
+              icon={
+                pathname.startsWith(`${orgBase(orgId)}/verifications`)
+                  ? "mdi:shield-check"
+                  : "mdi:shield-check-outline"
+              }
               width={24}
               height={24}
             />
