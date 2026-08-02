@@ -1,0 +1,298 @@
+/* ============================================================
+   GOATZA — CareerEntryCard
+   One entry on the career timeline. Mobile-first.
+   ============================================================ */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card + timeline rail ────────────────────────────────────── */
+
+.card {
+  display: flex;
+  gap: var(--space-3);
+  animation: fadeInUp 0.3s var(--ease-out) both;
+}
+
+.timelineRail {
+  position: relative;
+  flex-shrink: 0;
+  width: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+/* The connecting line runs past the bottom of the card into the gap before the
+   next one. The last entry has nothing to connect to, so it drops the tail
+   rather than trailing off into whatever section follows. */
+.timelineRail::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: calc(var(--space-4) * -1);
+  width: 2px;
+  background: var(--color-border);
+}
+
+.timelineRailLast::before { display: none; }
+
+.timelineDot {
+  position: relative;
+  margin-top: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+/* ── Body ────────────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-base), box-shadow var(--duration-base);
+}
+
+.body:hover {
+  border-color: var(--color-brand-muted);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+/*
+   Grid, not flex, so the text column can be told to take everything left over.
+   On a phone the avatar and the two action buttons together ate most of the
+   row, leaving the title and club name to wrap mid-word — so below 480px the
+   actions drop to their own row and the text gets the full width.
+*/
+.header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+}
+
+/* Orgs read as squarer than people — same component, softer corners. */
+.orgAvatar {
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.headerText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  color: var(--color-ink);
+  word-break: break-word;
+}
+
+.orgName {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+.orgVerifiedTick {
+  color: var(--color-brand);
+  flex-shrink: 0;
+}
+
+.dateRange {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.duration { color: var(--color-text-muted); }
+
+/* ── Owner actions ───────────────────────────────────────────── */
+
+.actions {
+  /* Own row, right-aligned, until there is width to sit beside the text. */
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.actionBtn:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+.actionBtnDanger:hover {
+  background: rgba(232, 70, 42, 0.08);
+  border-color: rgba(232, 70, 42, 0.3);
+  color: var(--color-error);
+}
+
+/* ── Chips ───────────────────────────────────────────────────── */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sportChip,
+.squadChip,
+.positionChip,
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.sportChip {
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  font-weight: var(--weight-semi);
+}
+
+.squadChip,
+.positionChip {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* Loan / national team — the two that explain an overlapping date range. */
+.typeBadge {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* ── Verification ────────────────────────────────────────────── */
+
+/* The only verification state with any UI. Everything else renders nothing —
+   an unverified entry is the normal case, not something to flag. */
+.verifiedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px 10px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-brand-hover);
+}
+
+/* ── Description ─────────────────────────────────────────────── */
+
+.description {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.descriptionText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.descriptionClamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.seeMoreBtn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  transition: color var(--duration-fast);
+}
+
+.seeMoreBtn:hover { color: var(--color-brand); }
+
+/* ── Wider screens ───────────────────────────────────────────── */
+
+@media (min-width: 480px) {
+  .body { padding: var(--space-5); }
+  .title { font-size: var(--text-lg); }
+
+  /* Enough room now for avatar | text | actions on one line. */
+  .header { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .actions { grid-column: auto; align-self: start; }
+}
+
+/* ── Very narrow phones ──────────────────────────────────────── */
+
+@media (max-width: 359px) {
+  .card { gap: var(--space-2); }
+  .body { padding: var(--space-3); }
+  .header { gap: var(--space-2); }
+}

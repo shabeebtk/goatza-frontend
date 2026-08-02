@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import CareerAddPromptSheet from "@/features/career/components/CareerAddPromptSheet/CareerAddPromptSheet"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { useAuthStore } from "@/store/auth.store"
 import NotificationBell from "../NotificationBell/NotificationBell"
 import {
   useNotifications,
@@ -29,6 +31,10 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   connection: "mdi:account-network",
   recruitment_application: "mdi:account-multiple-plus",
   recruitment_application_status: "mdi:clipboard-check-outline",
+  career_verification_request: "mdi:shield-search",
+  career_verified: "mdi:check-decagram",
+  career_rejected: "mdi:shield-off-outline",
+  career_add_prompt: "mdi:timeline-plus-outline",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -40,13 +46,24 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   connection: "var(--color-brand)",
   recruitment_application: "var(--color-brand)",
   recruitment_application_status: "#7c3aed",
+  career_verification_request: "#f59e0b",
+  career_verified: "var(--color-brand)",
+  career_rejected: "var(--color-text-muted)",
+  career_add_prompt: "#7c3aed",
 }
 
 // ── Single notification item ──────────────────────────────────
 
-function NotificationItem({ notif }: { notif: Notification }) {
+function NotificationItem({
+  notif,
+  onAddToCareer,
+}: {
+  notif: Notification
+  onAddToCareer: (notif: Notification) => void
+}) {
   const { mutate: markRead } = useMarkNotificationRead()
-  const { toRecruitment } = useNavigation()
+  const { toRecruitment, toProfile, toCareerVerifications } = useNavigation()
+  const myUsername = useAuthStore((s) => s.user?.username)
   const actor = notif.actors[0]
 
   const handleClick = () => {
@@ -61,31 +78,48 @@ function NotificationItem({ notif }: { notif: Notification }) {
   // the recruitment title context line.
   const isApply = notif.type === "recruitment_application"
   const isStatus = notif.type === "recruitment_application_status"
-  const isRecruitment = isApply || isStatus
 
-  const href =
-    isStatus && notif.recruitment
-      ? `/recruitments/${notif.recruitment.id}`
-      : isApply && notif.recruitment
-        // toRecruitment() resolves the /organization/admin/<orgId>/… base path
-        // from the active org actor (apply notifications only arrive as the org).
-        ? `${toRecruitment(notif.recruitment.id)}?tab=applicants`
-        : notif.post
-          ? `/posts/${notif.post.id}`
-          : actor
-            ? `/profile/${actor.username || actor.name.toLowerCase().replace(/\s+/g, "")}`
-            : "#"
+  // Career decisions land on the player's OWN profile, anchored at the career
+  // section — the entry that changed lives there, not on the org that decided.
+  const isCareerDecision =
+    notif.type === "career_verified" || notif.type === "career_rejected"
+  const isCareerRequest = notif.type === "career_verification_request"
+  const isCareerPrompt = notif.type === "career_add_prompt"
+
+  const isRecruitment = isApply || isStatus || isCareerPrompt
+
+  const careerOwner =
+    (notif.data?.owner_username as string | undefined) || myUsername
+
+  const href = isCareerDecision && careerOwner
+    ? `${toProfile(careerOwner)}#career`
+    : isCareerRequest
+      // Only ever arrives while acting as the org, so this resolves inside the
+      // admin route space.
+      ? toCareerVerifications()
+      : isStatus && notif.recruitment
+        ? `/recruitments/${notif.recruitment.id}`
+        : isApply && notif.recruitment
+          // toRecruitment() resolves the /organization/admin/<orgId>/… base path
+          // from the active org actor (apply notifications only arrive as the org).
+          ? `${toRecruitment(notif.recruitment.id)}?tab=applicants`
+          : notif.post
+            ? `/posts/${notif.post.id}`
+            : actor
+              ? `/profile/${actor.username || actor.name.toLowerCase().replace(/\s+/g, "")}`
+              : "#"
 
   // Only grouped applies stack avatars; status changes are single-actor (the org).
   const stackedActors = isApply ? notif.actors.slice(0, 3) : []
   const useStack = isApply && stackedActors.length > 1
 
-  return (
-    <Link
-      href={href}
-      className={`${styles.item} ${!notif.is_read ? styles.itemUnread : ""}`}
-      onClick={handleClick}
-    >
+  const contextTitle =
+    notif.recruitment?.title ??
+    (notif.data?.recruitment_title as string | undefined) ??
+    notif.career_entry?.title
+
+  const body = (
+    <>
       {/* Unread pip */}
       {!notif.is_read && <span className={styles.unreadPip} aria-label="Unread" />}
 
@@ -127,11 +161,19 @@ function NotificationItem({ notif }: { notif: Notification }) {
       <div className={styles.content}>
         <p className={styles.text}>{notif.text}</p>
 
-        {isRecruitment ? (
-          notif.recruitment && (
+        {isRecruitment || isCareerDecision || isCareerRequest ? (
+          contextTitle && (
             <p className={styles.recruitmentContext}>
-              <Icon icon="mdi:bullhorn-variant-outline" width={11} height={11} />
-              {notif.recruitment.title}
+              <Icon
+                icon={
+                  isCareerDecision || isCareerRequest
+                    ? "mdi:timeline-text-outline"
+                    : "mdi:bullhorn-variant-outline"
+                }
+                width={11}
+                height={11}
+              />
+              {contextTitle}
             </p>
           )
         ) : (
@@ -186,6 +228,34 @@ function NotificationItem({ notif }: { notif: Notification }) {
           )}
         </div>
       )}
+    </>
+  )
+
+  // The add-to-career prompt is the one type that is an ACTION rather than a
+  // destination — it opens the confirm sheet in place, so it renders as a
+  // button instead of a link.
+  if (isCareerPrompt) {
+    return (
+      <button
+        type="button"
+        className={`${styles.item} ${styles.itemButton} ${!notif.is_read ? styles.itemUnread : ""}`}
+        onClick={() => {
+          handleClick()
+          onAddToCareer(notif)
+        }}
+      >
+        {body}
+      </button>
+    )
+  }
+
+  return (
+    <Link
+      href={href}
+      className={`${styles.item} ${!notif.is_read ? styles.itemUnread : ""}`}
+      onClick={handleClick}
+    >
+      {body}
     </Link>
   )
 }
@@ -233,6 +303,10 @@ export default function NotificationsList() {
   } = useNotifications()
 
   const { mutate: markAllRead, isPending: markingAll } = useMarkAllRead()
+
+  // The `career_add_prompt` row opens this instead of navigating. Held here so
+  // the sheet outlives the row's own render.
+  const [careerPrompt, setCareerPrompt] = useState<Notification | null>(null)
 
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -314,7 +388,11 @@ export default function NotificationsList() {
         ) : (
           <>
             {allNotifications.map((notif) => (
-              <NotificationItem key={notif.id} notif={notif} />
+              <NotificationItem
+                key={notif.id}
+                notif={notif}
+                onAddToCareer={setCareerPrompt}
+              />
             ))}
             <div ref={sentinelRef} className={styles.sentinel}>
               {isFetchingNextPage && (
@@ -327,6 +405,19 @@ export default function NotificationsList() {
           </>
         )}
       </div>
+
+      {careerPrompt?.data?.application_id && (
+        <CareerAddPromptSheet
+          applicationId={careerPrompt.data.application_id}
+          recruitmentId={
+            careerPrompt.recruitment?.id ??
+            (careerPrompt.data.recruitment_id as string | undefined)
+          }
+          organizationName={careerPrompt.actors[0]?.name}
+          organizationLogo={careerPrompt.actors[0]?.avatar}
+          onClose={() => setCareerPrompt(null)}
+        />
+      )}
     </div>
   )
 }

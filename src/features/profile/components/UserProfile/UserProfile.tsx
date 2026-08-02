@@ -9,6 +9,7 @@ import Button from "@/shared/components/ui/Button/Button"
 import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEditModal"
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
+import CareerSection from "@/features/career/components/CareerSection/CareerSection"
 import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
@@ -337,7 +338,6 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
             <div className={styles.sectionDivider} />
             <UserSportsSection username={profile.username} isOwn={isMe} />
 
-
             {/* Highlights — above the posts tab. Renders nothing for a viewer
                 who can see no clips, so it never leaves an empty section. */}
             <HighlightsRail
@@ -358,6 +358,13 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               preview
               onCreatePost={() => setPostModalOpen(true)}
             />
+
+            {/* Career — last section. Keyed by user id, not username (the
+                endpoint is /careers/users/<user_id>). Renders nothing for a
+                visitor looking at an empty history, so it carries its own top
+                divider rather than taking one from here and leaving it
+                orphaned above the page end. */}
+            <CareerSection userId={profile.id} isOwn={isMe} />
 
           </div>
         </div>
