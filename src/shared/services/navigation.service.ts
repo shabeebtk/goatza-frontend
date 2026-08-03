@@ -132,6 +132,16 @@ export function useNavigation() {
       : "/home"
   }
 
+  /**
+   * The same review page as careers, on its Achievements tab — there is one
+   * verifications route with a domain tab, not two routes. The `tab` param is
+   * what OrgVerificationsPage reads to open on the right side.
+   */
+  function toAchievementVerifications() {
+    const base = toCareerVerifications()
+    return base === "/home" ? base : `${base}?tab=achievements`
+  }
+
   function toHighlightsManage() {
     // Highlights are personal to a player, so this never has an admin variant —
     // an org actor landing here is shown the "switch account" state instead.
@@ -158,6 +168,7 @@ export function useNavigation() {
     toRecruitment,
     toRecruitmentsList,
     toCareerVerifications,
+    toAchievementVerifications,
     toHighlightsManage,
   }
 }

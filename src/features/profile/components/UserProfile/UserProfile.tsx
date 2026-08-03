@@ -10,6 +10,7 @@ import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEd
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import CareerSection from "@/features/career/components/CareerSection/CareerSection"
+import AchievementsSection from "@/features/achievements/components/AchievementsSection/AchievementsSection"
 import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
@@ -359,12 +360,19 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               onCreatePost={() => setPostModalOpen(true)}
             />
 
-            {/* Career — last section. Keyed by user id, not username (the
-                endpoint is /careers/users/<user_id>). Renders nothing for a
-                visitor looking at an empty history, so it carries its own top
+            {/* Career. Keyed by user id, not username (the endpoint is
+                /careers/users/<user_id>). Renders nothing for a visitor
+                looking at an empty history, so it carries its own top
                 divider rather than taking one from here and leaving it
                 orphaned above the page end. */}
             <CareerSection userId={profile.id} isOwn={isMe} />
+
+            {/* Achievements — last section, directly under Career: the awards
+                only mean anything against the stints that produced them, and
+                an achievement can name the career entry it was won during.
+                Same id-not-username keying and the same self-carried divider,
+                for the same reasons. */}
+            <AchievementsSection userId={profile.id} isOwn={isMe} />
 
           </div>
         </div>

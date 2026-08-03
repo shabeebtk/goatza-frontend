@@ -35,6 +35,12 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   career_verified: "mdi:check-decagram",
   career_rejected: "mdi:shield-off-outline",
   career_add_prompt: "mdi:timeline-plus-outline",
+  // Deliberately the career shapes with a trophy swapped in: request = a
+  // magnifying shield, decision = the same decagram / off-shield pair, so the
+  // two domains read as one system in the list.
+  achievement_verification_request: "mdi:trophy-outline",
+  achievement_verified: "mdi:check-decagram",
+  achievement_rejected: "mdi:shield-off-outline",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -50,6 +56,11 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   career_verified: "var(--color-brand)",
   career_rejected: "var(--color-text-muted)",
   career_add_prompt: "#7c3aed",
+  // Same colours as the career equivalents — the state is what the colour
+  // means, not which section it came from.
+  achievement_verification_request: "#f59e0b",
+  achievement_verified: "var(--color-brand)",
+  achievement_rejected: "var(--color-text-muted)",
 }
 
 // ── Single notification item ──────────────────────────────────
@@ -62,7 +73,12 @@ function NotificationItem({
   onAddToCareer: (notif: Notification) => void
 }) {
   const { mutate: markRead } = useMarkNotificationRead()
-  const { toRecruitment, toProfile, toCareerVerifications } = useNavigation()
+  const {
+    toRecruitment,
+    toProfile,
+    toCareerVerifications,
+    toAchievementVerifications,
+  } = useNavigation()
   const myUsername = useAuthStore((s) => s.user?.username)
   const actor = notif.actors[0]
 
@@ -86,6 +102,15 @@ function NotificationItem({
   const isCareerRequest = notif.type === "career_verification_request"
   const isCareerPrompt = notif.type === "career_add_prompt"
 
+  // Achievement decisions land on the owner's OWN profile, anchored at the
+  // achievements section — the award that changed lives there, not on the org
+  // that decided. Exactly the career rule, one section along.
+  const isAchievementDecision =
+    notif.type === "achievement_verified" ||
+    notif.type === "achievement_rejected"
+  const isAchievementRequest =
+    notif.type === "achievement_verification_request"
+
   const isRecruitment = isApply || isStatus || isCareerPrompt
 
   const careerOwner =
@@ -93,10 +118,15 @@ function NotificationItem({
 
   const href = isCareerDecision && careerOwner
     ? `${toProfile(careerOwner)}#career`
-    : isCareerRequest
+    : isAchievementDecision && careerOwner
+      ? `${toProfile(careerOwner)}#achievements`
+      : isCareerRequest
       // Only ever arrives while acting as the org, so this resolves inside the
       // admin route space.
       ? toCareerVerifications()
+      : isAchievementRequest
+      // Same page, Achievements tab — one verifications route, two domains.
+      ? toAchievementVerifications()
       : isStatus && notif.recruitment
         ? `/recruitments/${notif.recruitment.id}`
         : isApply && notif.recruitment
@@ -116,7 +146,10 @@ function NotificationItem({
   const contextTitle =
     notif.recruitment?.title ??
     (notif.data?.recruitment_title as string | undefined) ??
-    notif.career_entry?.title
+    notif.career_entry?.title ??
+    // Achievements have no nested object on the grouped row — `data` is the
+    // only place the title appears.
+    (notif.data?.achievement_title as string | undefined)
 
   const body = (
     <>

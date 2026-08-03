@@ -1,0 +1,311 @@
+/* ============================================================
+   GOATZA — AchievementCard
+   One award on the profile shelf. Mobile-first.
+
+   Shares CareerEntryCard's tokens and chip/badge geometry so the two
+   sections read as one profile — but the layout is a media card, not a
+   timeline row: an achievement is a moment with a picture, a career
+   entry is a span without one.
+   ============================================================ */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  animation: fadeInUp 0.3s var(--ease-out) both;
+}
+
+/* A pinned award earns a brand-tinted edge rather than a different size —
+   the shelf stays a uniform grid, which is what makes the pin readable. */
+.cardPinned {
+  border-color: var(--color-brand-muted);
+  background: var(--color-brand-subtle);
+}
+
+/* ── Thumbnail ───────────────────────────────────────────────── */
+
+.thumb {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+}
+
+@media (min-width: 560px) {
+  .thumb { width: 84px; height: 84px; }
+}
+
+.thumbImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* No image is a first-class state, not a broken one — the type's own icon on
+   a dashed field reads as deliberate. */
+.thumbEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1.5px dashed var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* ── Body ────────────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.headerText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.pinIcon {
+  flex-shrink: 0;
+  color: var(--color-brand);
+}
+
+.eventName {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.date {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ── Owner actions ───────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.actionBtn:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+}
+
+.actionBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.actionBtnActive { color: var(--color-brand); }
+
+.actionBtnDanger:hover:not(:disabled) {
+  background: rgba(232, 70, 42, 0.08);
+  color: var(--color-error);
+}
+
+/* ── Chips ───────────────────────────────────────────────────── */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.typeChip,
+.sportChip,
+.levelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.sportChip {
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  color: var(--color-brand-hover);
+  font-weight: var(--weight-semi);
+}
+
+/* The type is the card's primary label, so it takes the uppercase treatment
+   CareerEntryCard gives its loan / national-team badge. */
+.typeChip {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.levelChip {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* ── Verification ────────────────────────────────────────────── */
+
+/* Byte-identical to CareerEntryCard's .verifiedBadge — the badge has to look
+   the same in both sections. The only verification state with any UI;
+   everything else renders nothing, because an unverified award is the normal
+   case, not something to flag. */
+.verifiedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px 10px;
+  background: var(--color-brand-subtle);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-brand-hover);
+}
+
+/* ── Issuer / linked stint ───────────────────────────────────── */
+
+.issuerLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.orgVerifiedTick {
+  flex-shrink: 0;
+  color: var(--color-brand);
+}
+
+/* Subtle by design — the cross-reference is context, not a headline. */
+.duringLine {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.duringOrg {
+  font-weight: var(--weight-semi);
+  color: var(--color-text-secondary);
+}
+
+/* ── Description ─────────────────────────────────────────────── */
+
+.description {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.descriptionText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.descriptionClamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.seeMoreBtn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.seeMoreBtn:hover { color: var(--color-brand-hover); }
+
+/* ── Reference link ──────────────────────────────────────────── */
+
+.referenceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.referenceLink:hover {
+  color: var(--color-brand-hover);
+  text-decoration: underline;
+}
