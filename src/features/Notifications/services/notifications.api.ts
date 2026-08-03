@@ -47,6 +47,11 @@ export type NotificationType =
   | "career_rejected"
   /** Player-side: selected for a recruitment — offer to add it to their career. */
   | "career_add_prompt"
+  /** Org-side: someone credited this org with issuing an award, and wants it verified. */
+  | "achievement_verification_request"
+  /** Owner-side: the org confirmed / declined an achievement. */
+  | "achievement_verified"
+  | "achievement_rejected"
 
 export type NotificationRecruitment = {
   id: string
@@ -74,6 +79,13 @@ export type NotificationData = {
   recruitment_title?: string
   career_entry_id?: string
   entry_title?: string
+  /**
+   * The achievement types carry their id and title HERE and nowhere else — the
+   * grouping service attaches no nested `achievement` object the way it does
+   * for `career_entry`, so this is the only handle the client gets.
+   */
+  achievement_id?: string
+  achievement_title?: string
   organization_name?: string
   owner_username?: string
   reason?: string
