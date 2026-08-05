@@ -7,11 +7,14 @@ export const viewport = {
 
 import styles from "./page.module.css";
 import LandingPage from "@/features/landing/LandingPage";
+import LandingGate from "@/features/landing/LandingGate";
 
 export default function Home() {
   return (
     <div className={styles.page}>
-      <LandingPage />
+      <LandingGate>
+        <LandingPage />
+      </LandingGate>
     </div>
   );
 }

@@ -1,11 +1,26 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import AuthCard from "@/features/auth/components/AuthCard/AuthCard"
-import styles from "./AuthPage.module.css" 
+import styles from "./AuthPage.module.css"
 import { LOGO_URL } from "@/constants"
+import { useAuthStore } from "@/store/auth.store"
 
 export default function AuthPageLayout() {
+  const { isAuthenticated, isLoading } = useAuthStore()
+  const router = useRouter()
+
+  // Already signed in (incl. a session recovered late by initAuth's retry) —
+  // never leave the user staring at a login form they don't need.
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) router.replace("/home")
+  }, [isAuthenticated, isLoading, router])
+
+  if (isLoading) return null        // brief blank beats a login-form flash
+  if (isAuthenticated) return null  // redirecting
+
   return (
     <div className={styles.authPage}>
 
