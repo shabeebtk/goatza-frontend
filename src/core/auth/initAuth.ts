@@ -1,30 +1,49 @@
-import { refreshApi, getUserApi } from "@/features/auth/services/auth.api"
+import { getUserApi } from "@/features/auth/services/auth.api"
 import { useAuthStore } from "@/store/auth.store"
+import { getFreshAccessToken, SessionExpiredError } from "@/core/auth/refreshManager"
 
-export const initAuth = async () => {
-  const {
-    setLoading,
-    setSession,
-    clearAuth,
-  } = useAuthStore.getState()
+const RETRY_DELAYS_MS = [1_000, 3_000]
+let recoveryArmed = false
 
-  setLoading(true)
+export const initAuth = async (attempt = 0): Promise<void> => {
+  const { setLoading, setSession, clearAuth } = useAuthStore.getState()
+  if (attempt === 0) setLoading(true)
 
   try {
-    // refresh token cookie -> new access token
-    const { access_token } = await refreshApi()
-
-    // get user profile
+    const token = await getFreshAccessToken()
     const user = await getUserApi()
-
-    // set full session
-    setSession({
-      token: access_token,
-      user,
-    })
-  } catch (error) {
-    clearAuth()
+    setSession({ token, user })
+  } catch (err) {
+    if (err instanceof SessionExpiredError) {
+      clearAuth() // definitive — show login
+      return
+    }
+    // Retryable (offline PWA cold start, flaky network, 5xx)
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]))
+      return initAuth(attempt + 1)
+    }
+    // Give up for now WITHOUT killing the server-side session (cookie stays).
+    // AuthGuard will show /auth; armRecovery() re-runs bootstrap on
+    // reconnect/refocus, and the /auth page (Change 6) auto-redirects to
+    // /home once it succeeds — self-healing.
+    useAuthStore.getState().setLoading(false)
+    armRecovery()
+    return
   } finally {
     useAuthStore.getState().setLoading(false)
   }
+}
+
+function armRecovery() {
+  if (recoveryArmed || typeof window === "undefined") return
+  recoveryArmed = true
+  const retry = () => {
+    if (useAuthStore.getState().isAuthenticated) return
+    initAuth()
+  }
+  window.addEventListener("online", retry)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") retry()
+  })
 }

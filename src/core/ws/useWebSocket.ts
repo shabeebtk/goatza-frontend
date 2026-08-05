@@ -24,13 +24,17 @@
 
 import { useEffect, useRef, useCallback, useState } from "react"
 import { wsManager } from "./wsManager"
+import { useAuthStore } from "@/store/auth.store"
 
 export type WsStatus = "connecting" | "open" | "closing" | "closed"
 
 export interface UseWebSocketOptions {
     /** Full WebSocket URL */
     url: string | null
-    /** access token */
+    /**
+     * access token — accepted for API compatibility, but ignored: the socket
+     * always presents the live store token so reconnects can't send a stale one.
+     */
     token?: string | null
     /** Called on every incoming message (already JSON-parsed if possible) */
     onMessage?: (data: unknown) => void
@@ -68,7 +72,6 @@ const WS_READY_STATE_MAP: Record<number, WsStatus> = {
 
 export function useWebSocket({
     url,
-    token,
     onMessage,
     onOpen,
     onClose,
@@ -104,7 +107,12 @@ export function useWebSocket({
     const connect = useCallback(() => {
         if (!url) return
 
-        const protocols = token ? ["access_token", token] : undefined
+        // Read the token at call time, not from the closure: `connect` is
+        // reused for automatic reconnects (deliberately not in the deps), so a
+        // captured `token` would be stale after a rotation. The proactive
+        // refresh in refreshManager keeps the store value fresh.
+        const liveToken = useAuthStore.getState().accessToken
+        const protocols = liveToken ? ["access_token", liveToken] : undefined
         const socket = wsManager.get(url, protocols)
         socketRef.current = socket
         setStatus(WS_READY_STATE_MAP[socket.readyState] ?? "connecting")

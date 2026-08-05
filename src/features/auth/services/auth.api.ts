@@ -96,11 +96,8 @@ export const logoutApi = async () => {
   await api.post("/user/logout")
 }
 
-export const refreshApi = async () => {
-  const res = await api.post("/user/token/refresh")
-  return res.data.data
-}
-
+// NOTE: there is no refreshApi here on purpose — src/core/auth/refreshManager.ts
+// is the only caller of /user/token/refresh (single-flight + rotation-safe).
 
 export const getUserApi = async () => {
   const res = await api.get("/user/details")

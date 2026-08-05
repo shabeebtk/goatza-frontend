@@ -1,5 +1,6 @@
 import axios from "axios"
 import { useAuthStore } from "@/store/auth.store"
+import { getFreshAccessToken, SessionExpiredError } from "@/core/auth/refreshManager"
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -32,32 +33,19 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    // prevent infinite loop
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry
-    ) {
+    const isRefreshCall = originalRequest?.url?.includes("/user/token/refresh")
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshCall) {
       originalRequest._retry = true
-
       try {
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/user/token/refresh`,
-          {},
-          { withCredentials: true }
-        )
-
-        const newToken = res.data.data.access_token
-
-        // update only token (user remains same)
-        useAuthStore.getState().updateAccessToken(newToken)
-
-        // retry original request
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
-
+        const token = await getFreshAccessToken()
+        originalRequest.headers.Authorization = `Bearer ${token}`
         return api(originalRequest)
       } catch (err) {
-        // refresh failed → logout
-        useAuthStore.getState().clearAuth()
+        // SessionExpiredError → store already cleared; AuthGuard redirects.
+        // Retryable error → user stays logged in; surface the original 401
+        // so React Query / the caller can retry the action.
+        return Promise.reject(err instanceof SessionExpiredError ? error : error)
       }
     }
 
