@@ -1,9 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import {
   forgotPasswordApi,
   googleCallbackApi,
   loginApi,
-  logoutApi,
   resetPasswordApi,
   setRoleApi,
   signupApi,
@@ -118,19 +117,4 @@ export const useSetRole = () => {
   })
 }
 
-
-export const useLogout = () => {
-  const clearAuth = useAuthStore((s) => s.clearAuth)
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: logoutApi,
-
-    onSettled: async () => {
-      clearAuth()
-      // Clear onboarding state + skip flag so the next login starts fresh.
-      useOnboardingStore.getState().resetSession()
-      await queryClient.clear()
-    },
-  })
-}
+// NOTE: logout lives in ./useLogout — one hook, used by AppNav and Settings.

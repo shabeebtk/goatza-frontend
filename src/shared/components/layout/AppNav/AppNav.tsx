@@ -9,7 +9,7 @@ import styles from "./AppNav.module.css"
 import { LOGO_URL } from "@/constants"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import { useAuthStore } from "@/store/auth.store"
-import { logoutApi } from "@/features/auth/services/auth.api"
+import { useLogout } from "@/features/auth/hooks/useLogout"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
@@ -92,7 +92,6 @@ export default function AppNav() {
   const [postModalOpen, setPostModalOpen] = useState(false)
 
   const user = useAuthStore((state) => state.user)
-  const clearAuth = useAuthStore((state) => state.clearAuth)
   const actorType = useAuthStore((state) => state.actorType)
   const actorId = useAuthStore((state) => state.actorId)
   const organizations = useAuthStore((state) => state.organizations)
@@ -165,14 +164,7 @@ export default function AppNav() {
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
-  const handleLogout = async () => {
-    try {
-      await logoutApi()
-    } catch {}
-    clearAuth()
-    queryClient.clear()
-    router.push("/auth")
-  }
+  const handleLogout = useLogout()
 
   const handleSwitchToUser = () => {
     switchToUser()
