@@ -318,27 +318,41 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                             </div>
                         </div>
 
-                        {/* Name + username + verified */}
-                        <div className={styles.nameBlock}>
-                            <div className={styles.nameRow}>
-                                <h1 className={styles.profileName}>{org.name || "Unnamed Organization"}</h1>
-                                {org.is_verified && <VerifiedBadge />}
-                            </div>
-                            <span className={styles.profileUsername}>@{org.username}</span>
-
-                            {(org.sports?.length > 0 || primaryLocation) && (
-                                <div className={styles.badgesRow}>
-                                    {org.sports?.map((sport) => (
-                                        <SportBadge key={sport.id} sport={sport} />
-                                    ))}
-                                    {primaryLocation && (
-                                        <span className={`${styles.badge} ${styles.badgeLocation}`}>
-                                            <Icon icon="mdi:map-marker-outline" width={13} height={13} />
-                                            {primaryLocation.city || primaryLocation.name || "Location"}
-                                            {primaryLocation.country_code && `, ${primaryLocation.country_code}`}
-                                        </span>
-                                    )}
+                        {/* Name + username + verified, with the settings gear
+                            opposite it — same placement as a user's own
+                            profile. Saved posts and Mentions live behind it. */}
+                        <div className={styles.nameHeaderRow}>
+                            <div className={styles.nameBlock}>
+                                <div className={styles.nameRow}>
+                                    <h1 className={styles.profileName}>{org.name || "Unnamed Organization"}</h1>
+                                    {org.is_verified && <VerifiedBadge />}
                                 </div>
+                                <span className={styles.profileUsername}>@{org.username}</span>
+
+                                {(org.sports?.length > 0 || primaryLocation) && (
+                                    <div className={styles.badgesRow}>
+                                        {org.sports?.map((sport) => (
+                                            <SportBadge key={sport.id} sport={sport} />
+                                        ))}
+                                        {primaryLocation && (
+                                            <span className={`${styles.badge} ${styles.badgeLocation}`}>
+                                                <Icon icon="mdi:map-marker-outline" width={13} height={13} />
+                                                {primaryLocation.city || primaryLocation.name || "Location"}
+                                                {primaryLocation.country_code && `, ${primaryLocation.country_code}`}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {isMe && (
+                                <Link
+                                    href={`/organization/admin/${orgId}/settings`}
+                                    className={styles.settingsBtn}
+                                    aria-label="Settings"
+                                >
+                                    <Icon icon="mdi:cog-outline" width={20} height={20} />
+                                </Link>
                             )}
                         </div>
 

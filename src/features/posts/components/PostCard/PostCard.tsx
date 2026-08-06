@@ -355,6 +355,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           postId={post.id}
           isOwn={isOwn}
           isPreview={isPreview}
+          isSaved={post.is_saved ?? false}
           promotableVideos={promotableVideos}
           onClose={() => setShowOptions(false)}
           onEdit={() => setShowEdit(true)}

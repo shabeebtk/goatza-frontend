@@ -287,6 +287,7 @@ export default function PostActions({
         <span className={styles.actionLabel}>Share</span>
       </button>
 
+
       {/* ── Share sheet ── */}
       <ShareSheet
         open={shareOpen}

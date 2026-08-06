@@ -1,8 +1,10 @@
 /* ============================================================
-   GOATZA — Mentions page
+   GOATZA — Content page frame (Saved posts · Mentions)
 
-   Same page frame as the settings menu, widened to the post
-   column so PostCard is not squeezed.
+   Shared by the personal and org-admin versions of both lists.
+   Same 680px post column the org posts page uses, so a PostCard
+   is the same width wherever it is read instead of stretching
+   across a desktop monitor.
    ============================================================ */
 
 .page {

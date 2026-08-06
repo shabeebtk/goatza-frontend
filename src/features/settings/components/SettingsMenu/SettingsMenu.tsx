@@ -1,0 +1,88 @@
+"use client"
+
+/**
+ * The settings-menu building blocks: sections of icon + label + chevron rows.
+ *
+ * Shared by the personal settings page and the org-admin one so the two menus
+ * are visually the same thing — an org admin shouldn't have to learn a second
+ * layout to find their saved posts.
+ */
+
+import { Children, type ReactNode } from "react"
+import Link from "next/link"
+import { Icon } from "@iconify/react"
+import styles from "./SettingsMenu.module.css"
+
+export function SettingsSection({
+  title,
+  children,
+}: {
+  title: string
+  children?: ReactNode
+}) {
+  // An empty section is invisible — no header floating above a gap while the
+  // rows that belong under it don't exist yet.
+  if (Children.toArray(children).length === 0) return null
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>{title}</h2>
+      <div className={styles.rows}>{children}</div>
+    </section>
+  )
+}
+
+/** A row that navigates. */
+export function SettingsRow({
+  href,
+  icon,
+  label,
+}: {
+  href: string
+  icon: string
+  label: string
+}) {
+  return (
+    <Link href={href} className={styles.row}>
+      <span className={styles.rowIcon} aria-hidden="true">
+        <Icon icon={icon} width={20} height={20} />
+      </span>
+      <span className={styles.rowLabel}>{label}</span>
+      <span className={styles.rowChevron} aria-hidden="true">
+        <Icon icon="mdi:chevron-right" width={20} height={20} />
+      </span>
+    </Link>
+  )
+}
+
+/**
+ * A row that DOES something rather than navigating, so it carries no chevron.
+ * `destructive` is for the one-way actions (log out) — same treatment the post
+ * options sheet gives delete.
+ */
+export function SettingsActionRow({
+  icon,
+  label,
+  onClick,
+  destructive = false,
+}: {
+  icon: string
+  label: string
+  onClick: () => void
+  destructive?: boolean
+}) {
+  return (
+    <div className={styles.rows}>
+      <button
+        type="button"
+        className={`${styles.row} ${destructive ? styles.rowDestructive : ""}`}
+        onClick={onClick}
+      >
+        <span className={styles.rowIcon} aria-hidden="true">
+          <Icon icon={icon} width={20} height={20} />
+        </span>
+        <span className={styles.rowLabel}>{label}</span>
+      </button>
+    </div>
+  )
+}

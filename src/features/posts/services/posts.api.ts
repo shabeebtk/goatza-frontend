@@ -83,6 +83,11 @@ export type Post = {
    * cached payloads predate the field.
    */
   mentions?: PostMention[]
+  /**
+   * Whether the ACTIVE ACTOR saved this post — a person and an org they run
+   * have separate saves. Optional because older cached payloads predate it.
+   */
+  is_saved?: boolean
 }
 
 export type PostMention = {
@@ -187,6 +192,21 @@ export type ToggleLikeResponse = {
 
 export const toggleLikeApi = async (payload: ToggleLikePayload): Promise<ToggleLikeResponse> => {
   const res = await api.post(`/posts/like`, payload)
+  return res.data.data
+}
+
+// ── Save / unsave ─────────────────────────────────────────────
+
+export type ToggleSaveResponse = {
+  post_id: string
+  is_saved: boolean
+}
+
+/** Toggles for the ACTIVE ACTOR — the actor headers decide whose save it is. */
+export const savePostApi = async (
+  payload: { post_id: string }
+): Promise<ToggleSaveResponse> => {
+  const res = await api.post(`/posts/save`, payload)
   return res.data.data
 }
 
