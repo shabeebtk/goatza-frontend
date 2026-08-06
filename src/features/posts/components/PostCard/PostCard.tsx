@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useState } from "react"
+import { Fragment, memo, useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -52,15 +52,65 @@ function getTopReactions(
 
 const CONTENT_LIMIT = 220
 
-function PostContent({ text }: { text: string }) {
+// POST_CONTENT_LINKIFY — Task 3 (mentions) extends this with @mention links
+//
+// Mirrors posts/services/post_content_service.py::HASHTAG_RE, so what renders
+// as a link is exactly what the backend stored as a searchable tag — change
+// one and change the other. The capture wraps the WHOLE match so String.split
+// hands the tags back as the odd-indexed items.
+const HASHTAG_SPLIT_RE = /(#[A-Za-z0-9_]{1,50})/
+
+type ContentSegment =
+  | { kind: "text"; key: string; value: string }
+  | { kind: "hashtag"; key: string; value: string }
+
+function splitContent(text: string): ContentSegment[] {
+  const segments: ContentSegment[] = []
+
+  text.split(HASHTAG_SPLIT_RE).forEach((part, index) => {
+    if (!part) return // split() emits "" between adjacent tags
+    // One capture group ⇒ the parts alternate text, capture, text, ...
+    // The index is a stable key: it only moves when the text itself changes.
+    segments.push(
+      index % 2 === 1
+        ? { kind: "hashtag", key: `h${index}`, value: part }
+        : { kind: "text", key: `t${index}`, value: part }
+    )
+  })
+
+  return segments
+}
+
+export function PostContent({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false)
+  // Routed, not hardcoded: from the org-admin feed this has to stay inside the
+  // admin route space or tapping a tag silently flips back to the personal
+  // account. In the user app it resolves to /search?q=%23tag either way.
+  const { toSearch } = useNavigation()
+
   const isLong = text.length > CONTENT_LIMIT
   const trimmed = isLong ? text.slice(0, CONTENT_LIMIT).replace(/\s+\S*$/, "") : text
   const display = isLong && !expanded ? trimmed + "…" : text
 
   return (
     <div className={styles.content}>
-      <p className={styles.contentText}>{display}</p>
+      {/* Segments are inline children of the SAME <p>, so the module's
+          white-space: pre-wrap still owns line breaks and spacing. */}
+      <p className={styles.contentText}>
+        {splitContent(display).map((segment) =>
+          segment.kind === "hashtag" ? (
+            <Link
+              key={segment.key}
+              href={toSearch(segment.value)}
+              className={styles.hashtag}
+            >
+              {segment.value}
+            </Link>
+          ) : (
+            <Fragment key={segment.key}>{segment.value}</Fragment>
+          )
+        )}
+      </p>
       {isLong && (
         <button
           className={styles.seeMoreBtn}

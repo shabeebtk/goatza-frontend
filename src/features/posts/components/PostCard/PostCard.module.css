@@ -136,6 +136,20 @@
   word-break: break-word;
 }
 
+/* Hashtag link inside the body. Inline so it wraps with the surrounding
+   prose, and break-word is inherited from .contentText — a long run of
+   "#aaaa…" breaks inside the tag instead of stretching the card. */
+.hashtag {
+  color: var(--color-brand-hover);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition: color var(--duration-fast);
+}
+
+.hashtag:hover { color: var(--color-brand); }
+
+.hashtag:active { color: var(--color-brand-active); }
+
 .seeMoreBtn {
   background: none;
   border: none;
