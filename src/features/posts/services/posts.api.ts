@@ -77,6 +77,17 @@ export type Post = {
   sport: PostSport | null
   reaction: PostReaction
   location?: PostLocation | null
+  /**
+   * Handles the backend RESOLVED out of `content`. The client linkifies only
+   * these, so an unresolved "@nobody" stays plain text. Optional because older
+   * cached payloads predate the field.
+   */
+  mentions?: PostMention[]
+}
+
+export type PostMention = {
+  username: string
+  type: "user" | "organization"
 }
 
 

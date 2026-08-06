@@ -20,6 +20,8 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
 import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageCropper"
+import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
+import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import styles from "./CreatePostModal.module.css"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -434,11 +436,28 @@ export default function CreatePostModal({
   }, [])
 
   // ── Auto-resize textarea ──────────────────────────────────────
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value)
-    const ta = e.target
+  const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto"
     ta.style.height = `${Math.min(ta.scrollHeight, 260)}px`
+  }
+
+  // ── @mention autocomplete ─────────────────────────────────────
+  const mention = useMentionAutocomplete({
+    value: content,
+    textareaRef,
+    disabled: isSubmitting,
+    onChange: (next: string) => {
+      setContent(next)
+      const ta = textareaRef.current
+      // Inserting a handle can push the text onto another line.
+      if (ta) resizeTextarea(ta)
+    },
+  })
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setContent(e.target.value)
+    resizeTextarea(e.target)
+    mention.syncCaret()
   }
 
   // ── File selection ────────────────────────────────────────────
@@ -647,6 +666,17 @@ export default function CreatePostModal({
             </div>
           </div>
 
+          {/* Mention suggestions sit ABOVE the textarea — below it they end up
+              under the media preview and off the bottom of the scrolled body
+              the moment a photo or video is attached. */}
+          <MentionAutocomplete
+            open={mention.isOpen}
+            options={mention.options}
+            activeIndex={mention.activeIndex}
+            onSelect={mention.select}
+            onHover={mention.setActiveIndex}
+          />
+
           {/* Content textarea */}
           <textarea
             ref={textareaRef}
@@ -654,6 +684,10 @@ export default function CreatePostModal({
             placeholder="What's on your mind? Share highlights, achievements, or updates…"
             value={content}
             onChange={handleTextChange}
+            onKeyDown={(e) => mention.handleKeyDown(e)}
+            onKeyUp={mention.syncCaret}
+            onClick={mention.syncCaret}
+            onBlur={mention.close}
             rows={3}
             maxLength={3000}
             disabled={isSubmitting}

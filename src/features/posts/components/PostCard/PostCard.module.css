@@ -146,9 +146,20 @@
   transition: color var(--duration-fast);
 }
 
-.hashtag:hover { color: var(--color-brand); }
+.hashtag:hover,
+.mention:hover { color: var(--color-brand); }
 
-.hashtag:active { color: var(--color-brand-active); }
+.hashtag:active,
+.mention:active { color: var(--color-brand-active); }
+
+/* Mentions read as the same class of "tappable token" as hashtags — one
+   visual language for everything the body links out to. */
+.mention {
+  color: var(--color-brand-hover);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition: color var(--duration-fast);
+}
 
 .seeMoreBtn {
   background: none;

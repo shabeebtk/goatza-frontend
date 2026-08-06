@@ -49,6 +49,12 @@ function buildNavItems(orgId: string) {
       label: "Verify",
     },
     {
+      href: `${base}/mentions`,
+      icon: "mdi:at",
+      iconActive: "mdi:at",
+      label: "Mentions",
+    },
+    {
       href: `${base}/messages`,
       icon: "mdi:message-outline",
       iconActive: "mdi:message",
@@ -159,13 +165,15 @@ export default function OrgNav({ orgId }: { orgId: string }) {
 
   const NAV_ITEMS = buildNavItems(orgId)
   // Mobile bottom bar shows Dashboard + Feed (left), Create, Messages (right),
-  // then the profile avatar. Explore, Verify and Alerts live in the mobile top
-  // bar instead — five bottom tabs is already the comfortable maximum.
+  // then the profile avatar. Explore, Verify, Mentions and Alerts live in the
+  // mobile top bar instead — five bottom tabs is already the comfortable
+  // maximum, so a new nav item joins the top bar rather than the bottom one.
   const MOBILE_NAV_ITEMS = NAV_ITEMS.filter(
     (item) =>
       item.label !== "Alerts" &&
       item.label !== "Explore" &&
-      item.label !== "Verify"
+      item.label !== "Verify" &&
+      item.label !== "Mentions"
   )
   const MOBILE_LEFT_ITEMS = MOBILE_NAV_ITEMS.slice(0, 2)
   const MOBILE_RIGHT_ITEMS = MOBILE_NAV_ITEMS.slice(2)
@@ -349,6 +357,13 @@ export default function OrgNav({ orgId }: { orgId: string }) {
               width={24}
               height={24}
             />
+          </Link>
+          <Link
+            href={`${orgBase(orgId)}/mentions`}
+            className={styles.mobileIconBtn}
+            aria-label="Mentions"
+          >
+            <Icon icon="mdi:at" width={24} height={24} />
           </Link>
           <Link
             href={`${orgBase(orgId)}/verifications`}

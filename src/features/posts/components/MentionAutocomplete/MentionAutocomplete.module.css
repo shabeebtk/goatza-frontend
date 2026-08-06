@@ -1,0 +1,84 @@
+/* ============================================================
+   GOATZA — Mention autocomplete
+
+   Sits in normal flow under the composer textarea (see the component
+   comment). Rows are 44px so they stay comfortable thumb targets.
+   ============================================================ */
+
+.list {
+  list-style: none;
+  margin: 0;              /* the composer body's flex gap owns the spacing */
+  padding: var(--space-1);
+  /* Never eat the composer: on a phone with the keyboard up the whole body is
+     only a few hundred px tall, so cap against the viewport as well. */
+  max-height: min(220px, 40dvh);
+  overflow-y: auto;
+  /* The body is a flex column — without this the list gets squashed instead of
+     scrolling once the composer runs short of room. */
+  flex-shrink: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  -webkit-overflow-scrolling: touch;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+
+.rowActive {
+  background: var(--color-brand-subtle);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.handle {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  background: var(--color-brand-subtle);
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+}

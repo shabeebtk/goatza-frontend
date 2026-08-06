@@ -76,7 +76,12 @@ export default function SettingsPage() {
       </SettingsSection>
 
       <SettingsSection title="Content">
-        {/* SETTINGS_CONTENT_ROWS — Saved posts and Mentions rows are added by later tasks */}
+        {/* SETTINGS_CONTENT_ROWS — Saved posts row is added by a later task */}
+        <SettingsRow
+          href="/settings/mentions"
+          icon="mdi:at"
+          label="Mentions"
+        />
       </SettingsSection>
 
       <div className={styles.rows}>

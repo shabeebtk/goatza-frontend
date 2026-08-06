@@ -13,7 +13,7 @@ import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostO
 import PostLikesModal from "@/features/posts/components/PostLikesModal/PostLikesModal"
 import EditPostModal from "@/features/posts/components/EditPostModal/EditPostModal"
 import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
-import type { Post } from "@/features/posts/services/posts.api"
+import type { Post, PostMention } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import styles from "./PostCard.module.css"
 import { useNavigation } from "@/shared/services/navigation.service"
@@ -52,64 +52,124 @@ function getTopReactions(
 
 const CONTENT_LIMIT = 220
 
-// POST_CONTENT_LINKIFY — Task 3 (mentions) extends this with @mention links
+// POST_CONTENT_LINKIFY — one pass tokenizes both entity kinds
 //
-// Mirrors posts/services/post_content_service.py::HASHTAG_RE, so what renders
-// as a link is exactly what the backend stored as a searchable tag — change
-// one and change the other. The capture wraps the WHOLE match so String.split
-// hands the tags back as the odd-indexed items.
-const HASHTAG_SPLIT_RE = /(#[A-Za-z0-9_]{1,50})/
+// Mirrors posts/services/post_content_service.py (HASHTAG_RE and MENTION_RE),
+// so what renders as a link is exactly what the backend parsed out of the same
+// body — change one and change the other. Each alternative wraps its WHOLE
+// match in a capture group so String.split hands the tokens back interleaved
+// with the plain text between them.
+//
+// The mention branch allows dots only BETWEEN segments (org handles permit
+// them, user handles don't), so "@kochifc." at the end of a sentence tokenizes
+// as "@kochifc" and the full stop stays prose.
+const CONTENT_SPLIT_RE =
+  /(#[A-Za-z0-9_]{1,50}|@[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)/
 
 type ContentSegment =
   | { kind: "text"; key: string; value: string }
   | { kind: "hashtag"; key: string; value: string }
+  | { kind: "mention"; key: string; value: string; mention: PostMention }
 
-function splitContent(text: string): ContentSegment[] {
+function splitContent(
+  text: string,
+  mentions: PostMention[]
+): ContentSegment[] {
+  // Resolution is the backend's call, not a guess from the text: only handles
+  // it actually matched to an account become links. Folded to lowercase
+  // because the body can spell the handle in any case.
+  const byHandle = new Map(
+    mentions.map((mention) => [mention.username.toLowerCase(), mention])
+  )
+
   const segments: ContentSegment[] = []
 
-  text.split(HASHTAG_SPLIT_RE).forEach((part, index) => {
-    if (!part) return // split() emits "" between adjacent tags
-    // One capture group ⇒ the parts alternate text, capture, text, ...
+  text.split(CONTENT_SPLIT_RE).forEach((part, index) => {
+    if (!part) return // split() emits "" between adjacent tokens
+
+    // One alternation with one capture ⇒ parts alternate text, token, text, ...
     // The index is a stable key: it only moves when the text itself changes.
+    if (index % 2 === 0) {
+      segments.push({ kind: "text", key: `t${index}`, value: part })
+      return
+    }
+
+    if (part.startsWith("#")) {
+      segments.push({ kind: "hashtag", key: `h${index}`, value: part })
+      return
+    }
+
+    const mention = byHandle.get(part.slice(1).toLowerCase())
     segments.push(
-      index % 2 === 1
-        ? { kind: "hashtag", key: `h${index}`, value: part }
-        : { kind: "text", key: `t${index}`, value: part }
+      mention
+        ? { kind: "mention", key: `m${index}`, value: part, mention }
+        : // Unresolved "@nobody" is ordinary prose, not a dead link.
+          { kind: "text", key: `t${index}`, value: part }
     )
   })
 
   return segments
 }
 
-export function PostContent({ text }: { text: string }) {
+export function PostContent({
+  text,
+  mentions = [],
+}: {
+  text: string
+  mentions?: PostMention[]
+}) {
   const [expanded, setExpanded] = useState(false)
-  // Routed, not hardcoded: from the org-admin feed this has to stay inside the
-  // admin route space or tapping a tag silently flips back to the personal
-  // account. In the user app it resolves to /search?q=%23tag either way.
-  const { toSearch } = useNavigation()
+  // Routed, not hardcoded: from the org-admin feed these have to stay inside
+  // the admin route space or tapping one silently flips back to the personal
+  // account. In the user app they resolve to the plain paths either way.
+  const { toSearch, toProfile } = useNavigation()
 
   const isLong = text.length > CONTENT_LIMIT
   const trimmed = isLong ? text.slice(0, CONTENT_LIMIT).replace(/\s+\S*$/, "") : text
   const display = isLong && !expanded ? trimmed + "…" : text
+
+  // The card itself has no click handler today, but these links sit inside
+  // PostCard's header/body region — stopping propagation keeps them working if
+  // one is ever added above them.
+  const stopBubble = (event: React.MouseEvent) => event.stopPropagation()
 
   return (
     <div className={styles.content}>
       {/* Segments are inline children of the SAME <p>, so the module's
           white-space: pre-wrap still owns line breaks and spacing. */}
       <p className={styles.contentText}>
-        {splitContent(display).map((segment) =>
-          segment.kind === "hashtag" ? (
-            <Link
-              key={segment.key}
-              href={toSearch(segment.value)}
-              className={styles.hashtag}
-            >
-              {segment.value}
-            </Link>
-          ) : (
-            <Fragment key={segment.key}>{segment.value}</Fragment>
-          )
-        )}
+        {splitContent(display, mentions).map((segment) => {
+          if (segment.kind === "hashtag") {
+            return (
+              <Link
+                key={segment.key}
+                href={toSearch(segment.value)}
+                className={styles.hashtag}
+                onClick={stopBubble}
+              >
+                {segment.value}
+              </Link>
+            )
+          }
+
+          if (segment.kind === "mention") {
+            return (
+              <Link
+                key={segment.key}
+                href={toProfile(
+                  segment.mention.username,
+                  segment.mention.type === "organization" ? "organization" : "user"
+                )}
+                className={styles.mention}
+                onClick={stopBubble}
+              >
+                {segment.value}
+              </Link>
+            )
+          }
+
+          return <Fragment key={segment.key}>{segment.value}</Fragment>
+        })}
       </p>
       {isLong && (
         <button
@@ -226,7 +286,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
       </div>
 
       {/* ── Content ── */}
-      <PostContent text={post.content} />
+      <PostContent text={post.content} mentions={post.mentions ?? []} />
 
       {/* ── Media ── */}
       {post.media.length > 0 && (
