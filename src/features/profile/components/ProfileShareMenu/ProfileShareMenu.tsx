@@ -3,16 +3,20 @@
 /**
  * The share button in a profile header, and the little action sheet behind it.
  *
- * Three ways out, in the order people reach for them:
- *   1. Send in a message → the existing ShareSheet, targeting this profile.
- *   2. Copy link        → the canonical absolute URL. Works logged out.
- *   3. Share via…       → navigator.share, hidden entirely when unavailable.
+ * Four ways out, in the order people reach for them:
+ *   1. Share card       → the generated image of this profile. First, because
+ *      it is the one that ends up on an Instagram Story, which is the reason
+ *      anyone opens this menu on a player. Individual profiles only —
+ *      organizations have no card.
+ *   2. Send in a message → the existing ShareSheet, targeting this profile.
+ *   3. Copy link        → the canonical absolute URL. Works logged out.
+ *   4. Share via…       → navigator.share, hidden entirely when unavailable.
  *      Feature-detected rather than try/caught: an option that does nothing on
  *      desktop Chrome is worse than an option that isn't there.
  *
- * For an anonymous visitor, 2 and 3 work as-is — a link is a link — and only
- * "Send in a message" hits the login wall, because that one genuinely needs an
- * account.
+ * For an anonymous visitor, 1, 3 and 4 work as-is — a card and a link are both
+ * public artifacts — and only "Send in a message" hits the login wall, because
+ * that one genuinely needs an account.
  */
 
 import { useEffect, useState, useSyncExternalStore } from "react"
@@ -23,6 +27,7 @@ import { useToast } from "@/shared/components/ui/Toast/Toast"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import type { ShareTarget } from "@/features/messages/services/conversations.api"
 import ProfileSharePreview from "@/features/profile/components/ProfileSharePreview/ProfileSharePreview"
+import ShareCardSheet from "@/features/profile/components/ShareCardSheet/ShareCardSheet"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { profileUrl } from "@/shared/services/profileUrl"
 import styles from "./ProfileShareMenu.module.css"
@@ -37,6 +42,12 @@ interface ProfileShareMenuProps {
   avatarUrl?: string
   subtitle?: string
   isVerified?: boolean
+  /**
+   * Whether the viewer owns this profile. Only the owner gets the slot picker
+   * (§5.3): a scout can forward a player's card, but nobody else gets to decide
+   * which of that player's measurables it emphasises.
+   */
+  isOwnProfile?: boolean
 }
 
 export default function ProfileShareMenu({
@@ -46,12 +57,18 @@ export default function ProfileShareMenu({
   avatarUrl,
   subtitle,
   isVerified,
+  isOwnProfile = false,
 }: ProfileShareMenuProps) {
   const toast = useToast()
   const publicView = usePublicProfile()
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
+  const [cardSheetOpen, setCardSheetOpen] = useState(false)
+
+  // Organizations have no generated card — a different composition and a
+  // deliberately later build — so the entry simply is not offered for one.
+  const hasCard = target.type === "user"
 
   // navigator.share exists on mobile Safari/Chrome and almost nowhere else.
   // Read through useSyncExternalStore so SSR and the first client render agree
@@ -148,6 +165,21 @@ export default function ProfileShareMenu({
             />
 
             <div className={styles.menu} role="menu">
+              {hasCard && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.item}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setCardSheetOpen(true)
+                  }}
+                >
+                  <Icon icon="mdi:card-account-details-outline" width={17} height={17} />
+                  Share card
+                </button>
+              )}
+
               <button
                 type="button"
                 role="menuitem"
@@ -183,6 +215,16 @@ export default function ProfileShareMenu({
           </>
         )}
       </span>
+
+      {hasCard && (
+        <ShareCardSheet
+          open={cardSheetOpen}
+          onClose={() => setCardSheetOpen(false)}
+          username={username}
+          name={name}
+          canCustomise={isOwnProfile}
+        />
+      )}
 
       <ShareSheet
         open={shareSheetOpen}

@@ -1,0 +1,345 @@
+/* ============================================================
+   GOATZA — ShareCardSheet
+   Bottom sheet on mobile · centered popup on desktop
+   (mirrors ShareSheet / PostOptionsSheet)
+
+   The picker's structure and rhythm are ported from
+   goatza-share-card-v2.html; its colours are re-expressed in
+   the app's tokens rather than the card's own palette, because
+   this is app chrome and has to work in light mode too. The one
+   place the card's palette is kept literally is the preview,
+   which sits on ink because the card does.
+   ============================================================ */
+
+@keyframes scFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes scSpin { to { transform: rotate(360deg); } }
+@keyframes scPulse { from { opacity: 1; } to { opacity: 0.4; } }
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: scFadeIn 0.2s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop { align-items: center; }
+}
+
+.sheet {
+  width: 100%;
+  height: 88vh;
+  max-height: 88vh;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: scSlideUp 0.28s var(--ease-spring) both;
+}
+
+.sheet:focus { outline: none; }
+
+@media (min-width: 640px) {
+  .sheet {
+    width: 420px;
+    max-width: calc(100vw - var(--space-8));
+    height: auto;
+    max-height: calc(100vh - var(--space-16));
+    border-radius: var(--radius-xl);
+    animation: scPopIn 0.2s var(--ease-out) both;
+  }
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  margin: var(--space-3) auto var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .handle { display: none; }
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5) var(--space-2);
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text-primary);
+}
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out);
+}
+
+.closeBtn:hover { background: var(--color-surface-raised); }
+
+/* ── Scrolling body ─────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-5) var(--space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Live preview ───────────────────────────────────────── */
+
+.previewWrap {
+  position: relative;
+  /* The card is 1080×1920. Reserving the ratio up front means the sheet does
+     not jump when the first render arrives, and the skeleton is exactly the
+     shape of what replaces it. */
+  aspect-ratio: 1080 / 1920;
+  max-height: 42vh;
+  margin: 0 auto var(--space-5);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #0a0a0a;
+}
+
+.preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.25s var(--ease-out);
+}
+
+.previewSkeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    118deg,
+    #101a13 0%,
+    #17281c 42%,
+    #0d130f 100%
+  );
+  animation: scPulse 1.1s ease-in-out infinite alternate;
+}
+
+/* ── Picker ─────────────────────────────────────────────── */
+
+.picker { display: block; }
+
+.pickerSub {
+  margin: 0 0 var(--space-4);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.pickerLabel {
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.locked {
+  margin: var(--space-2) 0 var(--space-5);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.pickerHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.pickerCount {
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--color-brand);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+
+.row:hover:not(:disabled) { border-color: var(--color-border); }
+
+.rowOn {
+  border-color: var(--color-brand-muted);
+  background: var(--color-brand-subtle);
+}
+
+/* Not-chosen rows once three are picked. Dimmed rather than hidden, so the
+   picker still reads as a complete list of what this player could show. */
+.row:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: 5px;
+  color: var(--color-on-brand);
+}
+
+.boxOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+}
+
+.rowKey {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--color-text-primary);
+}
+
+.rowValue {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.pickerNote {
+  margin: var(--space-3) 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* ── Actions ────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) calc(var(--space-4) + var(--safe-bottom, 0px));
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.primary,
+.secondary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: opacity 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+
+.primary {
+  border: 1px solid var(--color-brand);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.primary:hover:not(:disabled) { background: var(--color-brand-hover); }
+
+.secondary {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.secondary:hover:not(:disabled) { background: var(--color-surface-raised); }
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.spin { animation: scSpin 0.9s linear infinite; }
+
+/* ── Empty / unavailable state ──────────────────────────── */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.stateTitle {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.stateSub {
+  margin: 0;
+  max-width: 26ch;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
