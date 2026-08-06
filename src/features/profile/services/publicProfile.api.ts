@@ -166,48 +166,112 @@ export type PublicOrgBundle = {
 
 // ── Base URL ──────────────────────────────────────────────────
 
+const stripSlash = (value: string) => value.replace(/\/+$/, "")
+
 /**
- * Absolute origin for the API, usable from the server.
+ * Canonical absolute origin of the site — for og:url, canonical links, the
+ * sitemap and the share card.
  *
- * In production `NEXT_PUBLIC_API_URL` is the Vercel rewrite path `/api`, which
- * the browser resolves against the current origin but `fetch` on the server
- * cannot — a relative URL there throws. So a path-shaped value is joined onto
- * NEXT_PUBLIC_SITE_URL; an already-absolute one (local dev points straight at
- * Django) is used as-is.
+ * NEXT_PUBLIC_SITE_URL is the intended source, but it is a value somebody has
+ * to remember to set in the Vercel dashboard, and when it is missing every
+ * absolute URL this app emits silently becomes a relative one that no scraper
+ * follows. So Vercel's own injected vars are the fallback:
+ * VERCEL_PROJECT_PRODUCTION_URL first (the stable production domain — a
+ * canonical URL must NOT be a per-deployment hostname), then VERCEL_URL.
+ */
+export function siteOrigin(): string {
+  const configured = stripSlash(process.env.NEXT_PUBLIC_SITE_URL ?? "")
+  if (configured) return configured
+
+  const vercel =
+    process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    process.env.NEXT_PUBLIC_VERCEL_URL ||
+    process.env.VERCEL_URL
+
+  if (vercel) return `https://${stripSlash(vercel)}`
+
+  // Last resort in the browser. Never available on the server, which is why
+  // the vars above matter.
+  if (typeof window !== "undefined") return window.location.origin
+
+  return ""
+}
+
+/**
+ * Where to send an API request from wherever this is running.
+ *
+ * The two environments want different answers, and conflating them is what
+ * broke production:
+ *
+ *   Browser — a path-shaped NEXT_PUBLIC_API_URL ("/api") is exactly right. It
+ *     resolves against the current origin, stays same-origin (no CORS, cookies
+ *     ride along), and Vercel's rewrite does the proxying.
+ *
+ *   Server — a relative URL is not a URL. `fetch("/api/…")` throws
+ *     "Failed to parse URL", which used to be swallowed into a null bundle and
+ *     rendered as a hard 404 on every profile page. So the server needs an
+ *     absolute origin, and it must not depend on one hand-set env var.
+ *
+ * Server resolution order:
+ *   1. API_ORIGIN — an explicit, server-only origin pointing STRAIGHT at
+ *      Django. Preferred in production: going through the site origin means the
+ *      serverless function calls back into Vercel's edge and out again, which
+ *      is two extra network hops and a rewrite that can be reconfigured out
+ *      from under us.
+ *   2. An already-absolute NEXT_PUBLIC_API_URL (local dev points at Django).
+ *   3. The path-shaped value joined onto siteOrigin() — the Vercel rewrite
+ *      path, now with a reliable origin in front of it.
  *
  * Never emit a trailing slash: `/api` is a rewrite, and `/api/public/…/`
  * round-trips through a Vercel 308 into Django's APPEND_SLASH 301, which drops
  * the `/api` prefix and 404s — in production only.
  */
 function apiBase(): string {
-  const configured = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "")
+  const configured = stripSlash(process.env.NEXT_PUBLIC_API_URL ?? "")
+
+  if (typeof window !== "undefined") return configured
+
+  const explicit = stripSlash(process.env.API_ORIGIN ?? "")
+  if (explicit) return explicit
 
   if (/^https?:\/\//i.test(configured)) return configured
 
-  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "")
-  return `${site}${configured}`
-}
-
-/** Absolute canonical origin of the site, for OG tags and canonical links. */
-export function siteOrigin(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "")
+  const origin = siteOrigin()
+  return origin ? `${origin}${configured}` : ""
 }
 
 // ── Fetchers ──────────────────────────────────────────────────
 
 /**
- * One round trip for the whole page. `null` means 404 — the profile does not
- * exist, is deactivated, has no username, or its owner turned the public
- * profile off. The backend deliberately does not distinguish them, and neither
- * does the caller: all four render notFound().
+ * Why a public fetch produced no data.
  *
- * Any other failure also returns null rather than throwing. A 500 from the API
- * during a crawl should produce a plain 404 page, not an unhandled error
- * boundary on a URL somebody just shared.
+ * The distinction is load-bearing and its absence was a bug: "the profile is
+ * not publicly visible" and "we could not reach the API" both used to come back
+ * as null, and the caller turned both into a hard 404. A misconfigured
+ * environment therefore 404'd every profile on the site, for logged-in users
+ * too, with nothing in the logs.
  */
-async function fetchBundle<T>(path: string): Promise<T | null> {
+export type PublicFetchResult<T> =
+  | { status: "ok"; data: T }
+  /** The API answered, and the answer is that this is not publicly visible. */
+  | { status: "not_found" }
+  /** We never got a usable answer — misconfigured, unreachable, or a 5xx. */
+  | { status: "unavailable"; reason: string }
+
+async function fetchPublic<T>(path: string): Promise<PublicFetchResult<T>> {
   const base = apiBase()
-  if (!base) return null
+
+  if (!base) {
+    // Loud on purpose. This is the failure that is invisible from the outside:
+    // the page renders, it just renders as "not found" for everyone.
+    console.error(
+      "[publicProfile] No API base URL. On the server, set API_ORIGIN " +
+        "(preferred) or NEXT_PUBLIC_SITE_URL so the path-shaped " +
+        "NEXT_PUBLIC_API_URL can be made absolute."
+    )
+    return { status: "unavailable", reason: "no_api_base" }
+  }
 
   try {
     const res = await fetch(`${base}${path}`, {
@@ -217,15 +281,53 @@ async function fetchBundle<T>(path: string): Promise<T | null> {
       next: { revalidate: 60 },
     })
 
-    if (!res.ok) return null
+    // A 404 is the backend deliberately refusing to distinguish hidden,
+    // deactivated, usernameless and nonexistent. Anything else is our problem,
+    // not the profile's.
+    if (res.status === 404) return { status: "not_found" }
+
+    if (!res.ok) {
+      console.error(`[publicProfile] ${res.status} for ${path}`)
+      return { status: "unavailable", reason: `http_${res.status}` }
+    }
 
     const body = await res.json()
-    if (!body?.success) return null
+    if (!body?.success) return { status: "not_found" }
 
-    return body.data as T
-  } catch {
-    return null
+    return { status: "ok", data: body.data as T }
+  } catch (error) {
+    console.error(`[publicProfile] fetch failed for ${path}`, error)
+    return { status: "unavailable", reason: "fetch_failed" }
   }
+}
+
+/**
+ * `T | null` view of the above, for callers that genuinely cannot act on the
+ * difference (the share-card route: no data means no card, either way).
+ */
+async function fetchBundle<T>(path: string): Promise<T | null> {
+  const result = await fetchPublic<T>(path)
+  return result.status === "ok" ? result.data : null
+}
+
+/**
+ * The full result, for the page components — they must treat "not publicly
+ * visible" and "API unreachable" differently. See PublicProfileView.
+ */
+export function getPublicUserProfileResult(
+  username: string
+): Promise<PublicFetchResult<PublicUserBundle>> {
+  return fetchPublic<PublicUserBundle>(
+    `/public/profile/${encodeURIComponent(username)}`
+  )
+}
+
+export function getPublicOrganizationProfileResult(
+  username: string
+): Promise<PublicFetchResult<PublicOrgBundle>> {
+  return fetchPublic<PublicOrgBundle>(
+    `/public/organization/${encodeURIComponent(username)}`
+  )
 }
 
 export function getPublicUserProfile(

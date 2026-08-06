@@ -11,6 +11,7 @@
 
 import { BackHeader } from "@/shared/components/ui"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
+import ProfileUnavailable from "@/features/profile/components/ProfileUnavailable/ProfileUnavailable"
 import { PublicProfileProvider } from "@/features/profile/context/PublicProfileContext"
 import type { PublicPostsPage } from "@/features/profile/services/publicProfile.api"
 import { profilePath, type ProfileUrlKind } from "@/shared/services/profileUrl"
@@ -26,7 +27,8 @@ export default function PublicPostsView({
   kind: ProfileUrlKind
   /** Name for the login wall's copy; falls back to the handle. */
   displayName: string
-  posts: PublicPostsPage
+  /** Null when there is no public view — see the profile page's comment. */
+  posts: PublicPostsPage | null
 }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
@@ -43,7 +45,15 @@ export default function PublicPostsView({
     </div>
   )
 
+  // Signed in — the authenticated list is the source of truth, whatever the
+  // public endpoint said.
   if (isAuthenticated) return body
+
+  if (!posts) {
+    return (
+      <ProfileUnavailable nextPath={`${profilePath(username, kind)}/posts`} />
+    )
+  }
 
   return (
     <PublicProfileProvider

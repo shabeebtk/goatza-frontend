@@ -5,11 +5,10 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
 
 import PublicOrgProfileView from "@/features/organization/component/PublicOrgProfileView/PublicOrgProfileView"
 import {
-  getPublicOrganizationProfile,
+  getPublicOrganizationProfileResult,
   siteOrigin,
 } from "@/features/profile/services/publicProfile.api"
 import {
@@ -32,11 +31,11 @@ const ORG_TYPE_LABELS: Record<string, string> = {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params
-  const bundle = await getPublicOrganizationProfile(username)
+  const result = await getPublicOrganizationProfileResult(username)
 
-  // Never leak the org's name from a hidden or missing profile — same rule as
-  // the user page.
-  if (!bundle) {
+  // Never leak the org's name from a hidden, missing or unreachable profile —
+  // same rule as the user page, and `noindex` does the same job here.
+  if (result.status !== "ok") {
     return {
       title: "Organization · Goatza",
       description: "Where the Greatest Get Discovered",
@@ -44,7 +43,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     }
   }
 
-  const profile = bundle.profile
+  const profile = result.data.profile
   const origin = siteOrigin()
   const url = `${origin}/organization/profile/${profile.username}`
 
@@ -91,22 +90,29 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function PublicOrgProfilePage({ params }: Params) {
   const { username } = await params
-  const bundle = await getPublicOrganizationProfile(username)
+  const result = await getPublicOrganizationProfileResult(username)
+  const bundle = result.status === "ok" ? result.data : null
 
-  if (!bundle) notFound()
-
+  // No notFound() — see the long comment on the user twin. In short: a signed-in
+  // visitor is entitled to a profile the public payload refuses, and hard-404ing
+  // the route on the anonymous answer took that away from them.
   const origin = siteOrigin()
-  const jsonLd = sportsOrganizationJsonLd(
-    bundle.profile,
-    `${origin}/organization/profile/${bundle.profile.username}`
-  )
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {bundle && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(
+              sportsOrganizationJsonLd(
+                bundle.profile,
+                `${origin}/organization/profile/${bundle.profile.username}`
+              )
+            ),
+          }}
+        />
+      )}
       <PublicOrgProfileView username={username} bundle={bundle} />
     </>
   )

@@ -6,6 +6,7 @@
  */
 
 import OrgProfile from "@/features/organization/component/OrganizationProfile/OrganizationProfile"
+import ProfileUnavailable from "@/features/profile/components/ProfileUnavailable/ProfileUnavailable"
 import PublicCtaBar from "@/features/profile/components/PublicCtaBar/PublicCtaBar"
 import {
   PublicProfileProvider,
@@ -19,7 +20,7 @@ export default function PublicOrgProfileView({
   bundle,
 }: {
   username: string
-  bundle: PublicOrgBundle
+  bundle: PublicOrgBundle | null
 }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
@@ -30,6 +31,14 @@ export default function PublicOrgProfileView({
     // isOwn stays false here exactly as it did before the route move — an
     // org's own admins reach their profile through /organization/admin/<id>.
     return <OrgProfile username={username} isOwn={false} />
+  }
+
+  // Anonymous with no public view — see the user twin for why this is not a
+  // server-side notFound().
+  if (!bundle) {
+    return (
+      <ProfileUnavailable nextPath={`/organization/profile/${username}`} />
+    )
   }
 
   const profilePath = `/organization/profile/${bundle.profile.username}`
