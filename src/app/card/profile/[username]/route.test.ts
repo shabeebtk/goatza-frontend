@@ -32,7 +32,7 @@ const PIXEL = Buffer.from(
 )
 
 function request(query = "", ip = "203.0.113.1") {
-  return new Request(`https://goatza.com/api/card/profile/aravind10${query}`, {
+  return new Request(`https://goatza.com/card/profile/aravind10${query}`, {
     headers: { "x-forwarded-for": ip },
   }) as unknown as NextRequest
 }

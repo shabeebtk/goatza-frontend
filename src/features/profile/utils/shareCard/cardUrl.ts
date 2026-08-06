@@ -9,7 +9,19 @@ import { canonicalSlotKey } from "./slots"
 import { versionTag } from "./version"
 import type { CardFormat } from "./types"
 
-export const CARD_ROUTE = "/api/card/profile"
+/**
+ * Deliberately NOT under `/api/`.
+ *
+ * `vercel.json` rewrites every `/api/:path*` request straight to Django, so a
+ * Next route handler under that prefix is unreachable in production — the
+ * request never reaches Vercel's function, Django 404s a path it has never
+ * heard of, and the only clue is a Cloudflare header on the response. Local dev
+ * hides it completely: `next dev` does not apply `vercel.json`.
+ *
+ * `/api` belongs to the backend proxy in this architecture. Anything Next
+ * serves itself lives outside it.
+ */
+export const CARD_ROUTE = "/card/profile"
 
 interface CardUrlOptions {
   username: string
