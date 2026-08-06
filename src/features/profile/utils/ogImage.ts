@@ -6,7 +6,7 @@
  *
  * A player's profile resolves to the generated card — the designed 1200×630
  * image with their name, sport, position and three stats laid out on it, drawn
- * by /api/card/profile/<username>?format=link. Every caller still asks this one
+ * by /card/profile/<username>?format=link. Every caller still asks this one
  * function for a URL and still does not care how it was produced.
  *
  * An ORGANIZATION does not have a card. Org cards are a different job with a

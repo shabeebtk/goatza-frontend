@@ -34,7 +34,7 @@ describe("a user profile", () => {
     const url = new URL(buildProfileOgImageUrl(user(), ORIGIN))
 
     expect(url.origin).toBe(ORIGIN)
-    expect(url.pathname).toBe("/api/card/profile/aravind10")
+    expect(url.pathname).toBe("/card/profile/aravind10")
     expect(url.searchParams.get("format")).toBe("link")
   })
 
@@ -56,12 +56,12 @@ describe("a user profile", () => {
 
   it("still resolves to a card with no photo at all — the card draws its own fallbacks", () => {
     const url = buildProfileOgImageUrl(user({ profile_photo: "", cover_photo: "" }), ORIGIN)
-    expect(url).toContain("/api/card/profile/")
+    expect(url).toContain("/card/profile/")
   })
 
   it("escapes a username rather than pasting it into the path raw", () => {
     const url = buildProfileOgImageUrl(user({ username: "a b/c" }), ORIGIN)
-    expect(url).toContain("/api/card/profile/a%20b%2Fc")
+    expect(url).toContain("/card/profile/a%20b%2Fc")
   })
 })
 
@@ -69,7 +69,7 @@ describe("an organization", () => {
   it("keeps the Cloudinary transform — orgs have no generated card", () => {
     const url = buildProfileOgImageUrl(org(), ORIGIN)
 
-    expect(url).not.toContain("/api/card/")
+    expect(url).not.toContain("/card/")
     expect(url).toContain("res.cloudinary.com")
     expect(url).toContain("c_fill,w_1200,h_630")
   })
@@ -78,7 +78,7 @@ describe("an organization", () => {
     // An org that has not uploaded a logo still carries the key, and must not
     // fall through to the user branch just because the value is empty.
     const url = buildProfileOgImageUrl(org({ logo: "" }), ORIGIN)
-    expect(url).not.toContain("/api/card/")
+    expect(url).not.toContain("/card/")
   })
 
   it("falls back to the branded asset with no image at all", () => {

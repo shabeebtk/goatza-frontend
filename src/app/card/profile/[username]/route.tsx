@@ -1,9 +1,13 @@
 /**
- * GET /api/card/profile/<username>?format=story|link&slots=height,attr:foot,city
+ * GET /card/profile/<username>?format=story|link&slots=height,attr:foot,city
  *
  * The generated share card. One renderer produces both the 1080×1920 image a
  * player drops into an Instagram Story and the 1200×630 image a crawler picks
  * up from the profile page's OG tag.
+ *
+ * NOT under `/api/` — that prefix is rewritten wholesale to Django by
+ * `vercel.json`, so a route handler there is dead in production while working
+ * perfectly in `next dev`. See CARD_ROUTE in shareCard/cardUrl.ts.
  *
  * `nodejs`, not `edge`: three font files plus the layout sit uncomfortably
  * close to the edge bundle limit, and this route is cached hard enough that
