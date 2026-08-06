@@ -72,11 +72,20 @@ export const postKeys = {
 
 // ── Infinite posts list ───────────────────────────────────────
 
-export const usePostsList = (params: FetchPostsParams = {}, limit = LIMIT) =>
+/**
+ * `enabled` is opt-out: the public profile already has its first page from the
+ * server render and must not fire this — /posts/list is IsAuthenticated.
+ */
+export const usePostsList = (
+    params: FetchPostsParams = {},
+    limit = LIMIT,
+    enabled = true
+) =>
     useInfiniteQuery<PostsListResponse, Error>({
         queryKey: postKeys.list({ ...params, limit }),
         queryFn: ({ pageParam = 0 }) =>
             fetchPostsApi({ ...params, limit, offset: pageParam as number }),
+        enabled,
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) => {
             const fetched = allPages.reduce((sum, p) => sum + p.results.length, 0)

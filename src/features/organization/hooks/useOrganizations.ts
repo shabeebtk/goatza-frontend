@@ -58,12 +58,21 @@ export const useOrganizations = () => {
 
 // ── Detail ────────────────────────────────────────────────────────
 
-export const useOrgDetail = (identifier: string, by: "id" | "username" = "id") => {
+/**
+ * `enabled` is opt-out: the public org profile already has the payload from its
+ * server render and must not fire this — /organizations/details is
+ * IsAuthenticated.
+ */
+export const useOrgDetail = (
+  identifier: string,
+  by: "id" | "username" = "id",
+  enabled = true
+) => {
   return useQuery({
     queryKey: orgKeys.detail(identifier),
     queryFn: () => getOrganizationDetailApi(identifier, by),
     staleTime: 1000 * 60 * 3,
-    enabled: !!identifier,
+    enabled: !!identifier && enabled,
   })
 }
 

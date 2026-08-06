@@ -51,13 +51,20 @@ type IdentityDraft = {
 // Rebuild a MapboxCity from the stored profile location (mirrors EditProfileModal).
 function cityFromProfile(profile: UserProfile): MapboxCity | null {
   if (!profile.location) return null
+  // Coordinates are optional on UserLocation because the PUBLIC profile payload
+  // omits them. Onboarding always runs against the authenticated payload, which
+  // has them — but without a pin there is nothing for the picker to seed, so
+  // treat it as "no city chosen yet" rather than fabricating a 0,0.
+  const { latitude, longitude } = profile.location
+  if (latitude == null || longitude == null) return null
+
   return {
     label: [profile.location.city, profile.location.country_code].filter(Boolean).join(", "),
     name: profile.location.city,
     state: "",
     country_code: profile.location.country_code,
-    latitude: profile.location.latitude,
-    longitude: profile.location.longitude,
+    latitude,
+    longitude,
     external_id: "",
   }
 }

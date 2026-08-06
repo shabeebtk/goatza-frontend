@@ -2,21 +2,27 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import AuthCard from "@/features/auth/components/AuthCard/AuthCard"
 import styles from "./AuthPage.module.css"
 import { LOGO_URL } from "@/constants"
+import { postAuthPath } from "@/shared/services/authRedirect"
 import { useAuthStore } from "@/store/auth.store"
 
 export default function AuthPageLayout() {
   const { isAuthenticated, isLoading } = useAuthStore()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Already signed in (incl. a session recovered late by initAuth's retry) —
-  // never leave the user staring at a login form they don't need.
+  // never leave the user staring at a login form they don't need. Honours
+  // ?next= so someone who arrived from a login wall on a public profile and
+  // turns out to already have a session lands back on that profile.
   useEffect(() => {
-    if (!isLoading && isAuthenticated) router.replace("/home")
-  }, [isAuthenticated, isLoading, router])
+    if (!isLoading && isAuthenticated) {
+      router.replace(postAuthPath(searchParams))
+    }
+  }, [isAuthenticated, isLoading, router, searchParams])
 
   if (isLoading) return null        // brief blank beats a login-form flash
   if (isAuthenticated) return null  // redirecting

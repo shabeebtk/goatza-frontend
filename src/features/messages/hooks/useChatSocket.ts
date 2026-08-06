@@ -19,6 +19,8 @@ import {
     MessageType,
     SharedRecruitmentPreview,
     SharedPostPreview,
+    SharedOrgProfilePreview,
+    SharedUserProfilePreview,
 } from "../services/conversations.api"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -32,6 +34,8 @@ export type ChatMessage = {
     message_type?: MessageType
     shared_recruitment_preview?: SharedRecruitmentPreview | null
     shared_post_preview?: SharedPostPreview | null
+    shared_user_profile_preview?: SharedUserProfilePreview | null
+    shared_org_profile_preview?: SharedOrgProfilePreview | null
 
     // Photo / video messages
     media_url?: string
@@ -241,7 +245,9 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 // Find pending optimistic message. Only text is sent
                 // optimistically (via send()); shared content comes in through
                 // the REST share endpoint, so never reconcile it against a
-                // pending text slot — always append it fresh.
+                // pending text slot — always append it fresh. That covers the
+                // two shared-profile types with no change: neither is "text"
+                // nor media, so both fall through to pendingIdx === -1.
                 const myId = actorType === "organization" && actorId ? actorId : (user?.id ?? "")
                 const incomingType = incoming.message_type ?? "text"
 

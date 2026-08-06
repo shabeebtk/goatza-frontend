@@ -21,8 +21,12 @@ import Link from "next/link"
 import { Icon } from "@iconify/react"
 import RecruitmentCard from "../RecruitmentCard/RecruitmentCard"
 import RecruitmentCardSkeleton from "../RecruitmentCard/RecruitmentCardSkeleton"
+import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
 import { useRecruitmentsList } from "../../hooks/useRecruitments"
-import type { FetchRecruitmentsParams } from "../../services/recruitments.api"
+import type {
+    FetchRecruitmentsParams,
+    Recruitment,
+} from "../../services/recruitments.api"
 import { useNavigation } from "@/shared/services/navigation.service"
 import styles from "./RecruitmentsList.module.css"
 import CreateRecruitmentTrigger from "../CreateRecruitmentModal/CreateRecruitmentTrigger"
@@ -110,14 +114,23 @@ export default function RecruitmentsList({
 
     const [showModal, setShowModal] = useState(false)
 
+    // On a public org profile the listings arrived with the server-rendered
+    // bundle, already narrowed to ACTIVE + PUBLIC. Passing enabled=false stops
+    // the query, which is IsAuthenticated.
+    const publicRecruitments = usePublicSection<Recruitment>("recruitments")
+
     const {
         data,
-        isLoading,
-        isError,
+        isLoading: isFetching,
+        isError: isFetchError,
         isFetchingNextPage,
         hasNextPage,
         fetchNextPage,
-    } = useRecruitmentsList(queryParams, preview ? 1 : undefined)
+    } = useRecruitmentsList(
+        queryParams,
+        preview ? 1 : undefined,
+        !publicRecruitments
+    )
 
     // ── Infinite scroll ───────────────────────────────────────────
     const sentinelRef = useRef<HTMLDivElement>(null)
@@ -146,11 +159,16 @@ export default function RecruitmentsList({
 
     // ── Flatten pages ─────────────────────────────────────────────
     const allItems = useMemo(
-        () => data?.pages.flatMap((p) => p.results) ?? [],
-        [data]
+        () => publicRecruitments ?? data?.pages.flatMap((p) => p.results) ?? [],
+        [publicRecruitments, data]
     )
-    const totalCount = data?.pages[0]?.count ?? 0
+    const totalCount = publicRecruitments
+        ? publicRecruitments.length
+        : data?.pages[0]?.count ?? 0
     const displayItems = preview ? allItems.slice(0, 1) : allItems
+
+    const isLoading = publicRecruitments ? false : isFetching
+    const isError = publicRecruitments ? false : isFetchError
 
     // ── Loading ───────────────────────────────────────────────────
     if (isLoading) {

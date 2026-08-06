@@ -53,14 +53,21 @@ export const myApplicationKeys = {
 
 const LIMIT = 10
 
+/**
+ * `enabled` is opt-out: the public org profile already has its listings from
+ * the server render and must not fire this — /recruitments/list is
+ * IsAuthenticated.
+ */
 export const useRecruitmentsList = (
   params: FetchRecruitmentsParams = {},
-  limit = LIMIT
+  limit = LIMIT,
+  enabled = true
 ) =>
   useInfiniteQuery<RecruitmentsListResponse, Error>({
     queryKey: recruitmentKeys.list({ ...params, limit }),
     queryFn: ({ pageParam = 0 }) =>
       fetchRecruitmentsApi({ ...params, limit, offset: pageParam as number }),
+    enabled,
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const fetched = allPages.reduce((sum, p) => sum + p.results.length, 0)

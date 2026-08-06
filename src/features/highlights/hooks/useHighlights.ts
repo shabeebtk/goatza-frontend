@@ -45,6 +45,10 @@ export const highlightKeys = {
  * username only, so `useHighlights` is scoped per profile and the whole
  * `highlights` tree is invalidated on actor switch by the caller's page.
  */
+/**
+ * Pass null to disable — the public profile already has the rail from its
+ * server render, and this endpoint is IsAuthenticated.
+ */
 export const useHighlights = (username?: string | null) =>
     useQuery({
         queryKey: highlightKeys.list(username ?? ""),

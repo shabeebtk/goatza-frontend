@@ -32,11 +32,17 @@ export const useMyProfile = () =>
     staleTime: 1000 * 60 * 5,
   })
 
-export const useUserProfile = (username: string) =>
+/**
+ * `enabled` is opt-out, not opt-in: the public profile page already has the
+ * whole payload from its server render and must NOT fire this — the endpoint
+ * is IsAuthenticated, so an anonymous visitor would get a 401 and an error
+ * state under a page that is already correct.
+ */
+export const useUserProfile = (username: string, enabled = true) =>
   useQuery({
     queryKey: profileKeys.user(username),
     queryFn:  () => getUserProfileApi(username),
-    enabled:  !!username,
+    enabled:  !!username && enabled,
     staleTime: 1000 * 60 * 2,
   })
 

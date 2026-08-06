@@ -16,8 +16,9 @@
 import { useEffect, useMemo, useRef, useCallback } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
 import { usePostsList } from "../../hooks/usePostMutations"
-import type { FetchPostsParams } from "../../services/posts.api"
+import type { FetchPostsParams, Post } from "../../services/posts.api"
 import styles from "./PostsList.module.css"
 import Link from "next/link"
 import PostSkeleton from "../PostCard/PostCardSkeleton"
@@ -115,14 +116,24 @@ export default function PostsList({
         return p
     }, [username, postId])
 
+    // On a public profile the first page of posts arrived with the
+    // server-rendered bundle, already filtered by the same visibility rule the
+    // authenticated list uses (posts.selectors.post_visibility_selectors with
+    // actor=None → PUBLIC only). Passing an empty params object disables the
+    // query, which is IsAuthenticated and would 401 for a logged-out visitor.
+    //
+    // Deliberately NOT paginated in public view: the "View all" link goes to
+    // /profile/<username>/posts, which is its own public page.
+    const publicPosts = usePublicSection<Post>("posts")
+
     const {
         data,
-        isLoading,
-        isError,
+        isLoading: isFetching,
+        isError: isFetchError,
         isFetchingNextPage,
         hasNextPage,
         fetchNextPage,
-    } = usePostsList(queryParams, preview ? 1 : undefined)
+    } = usePostsList(queryParams, preview ? 1 : undefined, !publicPosts)
 
     // ── Infinite scroll via IntersectionObserver ──────────────────
     const sentinelRef = useRef<HTMLDivElement>(null)
@@ -151,11 +162,16 @@ export default function PostsList({
 
     // ── All posts flat ────────────────────────────────────────────
     const allPosts = useMemo(
-        () => data?.pages.flatMap((p) => p.results) ?? [],
-        [data]
+        () => publicPosts ?? data?.pages.flatMap((p) => p.results) ?? [],
+        [publicPosts, data]
     )
-    const totalCount = data?.pages[0]?.count ?? 0
+    const totalCount = publicPosts
+        ? publicPosts.length
+        : data?.pages[0]?.count ?? 0
     const displayPosts = preview ? allPosts.slice(0, 1) : allPosts
+
+    const isLoading = publicPosts ? false : isFetching
+    const isError = publicPosts ? false : isFetchError
 
     // ── Loading initial ───────────────────────────────────────────
     if (isLoading) {

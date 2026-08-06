@@ -8,7 +8,7 @@
  * layout to find their saved posts.
  */
 
-import { Children, type ReactNode } from "react"
+import { Children, useId, type ReactNode } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import styles from "./SettingsMenu.module.css"
@@ -82,6 +82,76 @@ export function SettingsActionRow({
           <Icon icon={icon} width={20} height={20} />
         </span>
         <span className={styles.rowLabel}>{label}</span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A row that flips a boolean. Carries a description under the label, because a
+ * switch with no explanation is a switch nobody touches.
+ *
+ * `disabled` + `hint` is the org case: coaches and staff see the setting and
+ * are told who can change it, rather than finding an option missing and
+ * wondering whether it exists. The real gate is server-side — hiding or
+ * disabling a control is never a permission.
+ */
+export function SettingsToggleRow({
+  icon,
+  label,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+  hint,
+  busy = false,
+}: {
+  icon: string
+  label: string
+  description?: string
+  checked: boolean
+  onChange: (next: boolean) => void
+  disabled?: boolean
+  hint?: string
+  /** A write is in flight — the switch stays interactive, just marked. */
+  busy?: boolean
+}) {
+  const labelId = useId()
+  const descId = useId()
+
+  return (
+    <div className={`${styles.row} ${styles.rowToggle}`}>
+      <span className={styles.rowIcon} aria-hidden="true">
+        <Icon icon={icon} width={20} height={20} />
+      </span>
+
+      <span className={styles.rowToggleText}>
+        <span className={styles.rowLabel} id={labelId}>
+          {label}
+        </span>
+        {description && (
+          <span className={styles.rowDescription} id={descId}>
+            {description}
+          </span>
+        )}
+        {disabled && hint && (
+          <span className={styles.rowHint}>{hint}</span>
+        )}
+      </span>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-labelledby={labelId}
+        aria-describedby={description ? descId : undefined}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`${styles.switch} ${checked ? styles.switchOn : ""} ${
+          busy ? styles.switchBusy : ""
+        }`}
+      >
+        <span className={styles.switchKnob} aria-hidden="true" />
       </button>
     </div>
   )

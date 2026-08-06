@@ -119,14 +119,22 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   // scalar value — it gets serialised into LocationPayload on submit.
   const [selectedCity, setSelectedCity] = useState<MapboxCity | null>(() => {
     if (!profile.location) return null
+
+    // Coordinates are optional on UserLocation because the PUBLIC profile
+    // payload omits them. This modal only ever opens on the owner's own
+    // authenticated profile, which carries them — but with no pin there is
+    // nothing to seed the picker with, so start empty rather than at 0,0.
+    const { latitude, longitude } = profile.location
+    if (latitude == null || longitude == null) return null
+
     // Reconstruct a minimal MapboxCity from existing profile location
     return {
       label: [profile.location.city, profile.location.country_code].filter(Boolean).join(", "),
       name: profile.location.city,
       state: "",                        // not stored in profile read response
       country_code: profile.location.country_code,
-      latitude: profile.location.latitude,
-      longitude: profile.location.longitude,
+      latitude,
+      longitude,
       external_id: "",                        // not stored, will be fresh from picker
     }
   })

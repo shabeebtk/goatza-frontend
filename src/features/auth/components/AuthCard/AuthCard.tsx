@@ -13,6 +13,10 @@ import { USER_ROLES } from "@/shared/constants/roles"
 import RoleDropdown from "../RoleDropdown/RoleDropdown"
 import styles from "./AuthCard.module.css"
 import { getGoogleLoginUrl } from "../../services/auth.api"
+import {
+    postAuthPath,
+    rememberOAuthNext,
+} from "@/shared/services/authRedirect"
 
 
 // ── Zod schemas ──────────────────────────────────────────────
@@ -75,6 +79,11 @@ function AuthCard() {
     const initialMode =
         searchParams.get("mode") === "signup" ? "signup" : "signin"
     const [mode, setMode] = useState<AuthMode>(initialMode)
+
+    // Where to land once they're in. Defaults to /home; a login wall on a
+    // public profile sends ?next=/profile/<username> so the click that opened
+    // the wall isn't wasted. Validated in authRedirect (no open redirects).
+    const nextPath = postAuthPath(searchParams)
 
     // OTP step state
     const [otpPending, setOtpPending] = useState(false)
@@ -144,7 +153,7 @@ function AuthCard() {
                 return
             }
             // CASE 2: Normal login
-            router.push("/home")
+            router.push(nextPath)
 
         } catch (err) {
             const msg = extractErrorMessage(err)
@@ -189,7 +198,7 @@ function AuthCard() {
         setApiError(null)
         try {
             await verifyOtp.mutateAsync({ email: pendingEmail, otp: values.otp })
-            router.push("/home")
+            router.push(nextPath)
         } catch (err) {
             setApiError(extractErrorMessage(err))
         }
@@ -200,6 +209,10 @@ function AuthCard() {
 
     const handleGoogleLogin = async () => {
         try {
+            // The OAuth `state` is minted and checked by the backend, so there
+            // is nowhere in the round trip to carry `next`. Stash it for the
+            // callback page to pick up (see rememberOAuthNext).
+            rememberOAuthNext(nextPath)
             const res = await getGoogleLoginUrl()
             window.location.href = res.auth_url // redirect to Google
         } catch (err) {

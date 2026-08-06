@@ -58,6 +58,9 @@ export type OrgRelationship = {
   is_connected: boolean
 }
 
+/** An org member's role, as `my_role` reports it. */
+export type OrgMemberRole = "owner" | "admin" | "coach" | "staff"
+
 export type OrganizationDetail = {
   id:              string
   name:            string
@@ -73,6 +76,14 @@ export type OrganizationDetail = {
   followers_count: number
   following_count?: number
   posts_count:     number
+  /** Visible to logged-out visitors. Does not affect in-app visibility. */
+  is_public_profile?: boolean
+  /**
+   * The REQUESTING user's role in this org, or null if they aren't a member.
+   * Present only on the `type=all` detail response. A UI hint — every
+   * role-gated action is re-checked server-side.
+   */
+  my_role?:        OrgMemberRole | null
   locations:       OrgLocation[]
   sports:          OrgSport[]
   created_at:      string

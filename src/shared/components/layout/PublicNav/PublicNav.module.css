@@ -1,0 +1,116 @@
+/* ============================================================
+   GOATZA — PublicNav
+   Fixed top bar shown to logged-out visitors on public routes.
+   Same band height + safe-area handling as AppNav's top bar, so
+   PublicShell's content offset works for either.
+   ============================================================ */
+
+.nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+
+    padding-top: var(--safe-top);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+}
+
+.inner {
+    height: var(--top-nav-h);
+    max-width: 1100px;
+    margin: 0 auto;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 0 var(--space-4);
+}
+
+@media (min-width: 768px) {
+    .inner {
+        height: 60px;
+    }
+}
+
+/* ── Logo ─────────────────────────────────────────────────── */
+
+.logoLink {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: opacity var(--duration-fast);
+}
+
+.logoLink:hover {
+    opacity: 0.85;
+}
+
+.logoImg {
+    height: 28px;
+    width: auto;
+    display: block;
+}
+
+.wordmark {
+    font-family: var(--font-display, inherit);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-text);
+}
+
+/* ── Actions ──────────────────────────────────────────────── */
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.loginBtn,
+.signupBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    height: 34px;
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-full);
+
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+
+    transition: background var(--duration-fast), color var(--duration-fast),
+        border-color var(--duration-fast);
+}
+
+.loginBtn {
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    background: transparent;
+}
+
+.loginBtn:hover {
+    background: var(--color-surface-raised);
+}
+
+.signupBtn {
+    color: var(--color-on-brand, #06120a);
+    background: var(--color-brand);
+    border: 1px solid var(--color-brand);
+}
+
+.signupBtn:hover {
+    background: var(--color-brand-hover);
+    border-color: var(--color-brand-hover);
+}

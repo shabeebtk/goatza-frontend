@@ -17,6 +17,9 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
 import { useOrgDetail, useFollowOrg } from "@/features/organization/hooks/useOrganizations"
 import type { OrgLocation, OrgSport, OrganizationDetail } from "@/features/organization/types"
+import ProfileShareMenu from "@/features/profile/components/ProfileShareMenu/ProfileShareMenu"
+import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
+import type { PublicOrganizationProfile } from "@/features/profile/services/publicProfile.api"
 import styles from "./OrganizationProfile.module.css"
 import { useNavigation } from "@/shared/services/navigation.service"
 import OrgPhotoEditModal from "../OrgPhotoEditModal/OrgPhotoEditModal"
@@ -64,9 +67,13 @@ function getPrimaryLocation(locations: OrgLocation[]): OrgLocation | null {
 // ── Sub-components ─────────────────────────────────────────────────
 
 function StatPill({
-    value, label, href,
+    value, label, href, onWalled,
 }: {
-    value: number; label: string; href?: string
+    value: number
+    label: string
+    href?: string
+    /** Public view: tapping walls instead of opening the follower list. */
+    onWalled?: () => void
 }) {
     const content = (
         <>
@@ -74,6 +81,20 @@ function StatPill({
             <span className={styles.statLabel}>{label}</span>
         </>
     )
+
+    // The count is public; the LIST behind it is not — follower graphs are the
+    // highest-value thing to scrape off a profile. Same rule as UserProfile.
+    if (onWalled) {
+        return (
+            <button
+                type="button"
+                onClick={onWalled}
+                className={`${styles.statPill} ${styles.statPillLink}`}
+            >
+                {content}
+            </button>
+        )
+    }
 
     if (href) {
         return (
@@ -210,21 +231,27 @@ interface OrgProfileInnerProps {
     org: OrganizationDetail
     isOwn: boolean
     orgId: string
+    /** Logged-out viewer — every interaction routes to the login wall. */
+    isPublicView?: boolean
 }
 
-function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
+function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfileInnerProps) {
     const [photoModal, setPhotoModal] = useState<"logo" | "cover" | null>(null)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [postModalOpen, setPostModalOpen] = useState(false)
     const { toMessage, toNetwork } = useNavigation()
+    const publicView = usePublicProfile()
 
     const [showAllLocations, setShowAllLocations] = useState(false)
 
     const { follow, unfollow } = useFollowOrg(orgId, org.username)
     const followLoading = follow.isPending || unfollow.isPending
 
+    const wall = (action: string) => () => publicView?.openLoginWall(action)
+
     const rel = org.relationship
-    const isMe = isOwn || (rel?.is_me ?? false)
+    // A logged-out visitor is never "me", whatever else is passed in.
+    const isMe = !isPublicView && (isOwn || (rel?.is_me ?? false))
     const isFollowing = rel?.is_following ?? false
     const isFollowedBy = rel?.is_followed_by ?? false
 
@@ -370,7 +397,8 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                             <StatPill
                                 value={org.followers_count}
                                 label="Followers"
-                                href={toNetwork(org.username, "organization", "followers")}
+                                href={isPublicView ? undefined : toNetwork(org.username, "organization", "followers")}
+                                onWalled={isPublicView ? wall("see the followers of") : undefined}
                             />
                             <div className={styles.statDivider} />
                             {isMe && (
@@ -400,44 +428,84 @@ function OrgProfileInner({ org, isOwn, orgId }: OrgProfileInnerProps) {
                                     >
                                         Edit Organization
                                     </Button>
-                                    <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
-                                        <Icon icon="mdi:share-variant-outline" width={18} height={18} />
-                                    </Button>
+                                    <ProfileShareMenu
+                                        target={{ type: "organization", id: org.id }}
+                                        username={org.username}
+                                        name={org.name}
+                                        avatarUrl={org.logo}
+                                        subtitle={org.headline || TYPE_LABELS[org.type]}
+                                        isVerified={org.is_verified}
+                                    />
                                 </>
                             ) : (
                                 <>
+                                    {/* Public view keeps the same affordances and
+                                        walls them — an absent Follow button
+                                        converts nobody. */}
                                     <span className={styles.actionBtnFull}>
                                         <Button
-                                            variant={isFollowing ? "outline" : "brand"}
+                                            variant={!isPublicView && isFollowing ? "outline" : "brand"}
                                             size="sm"
                                             fullWidth
-                                            loading={followLoading}
-                                            onClick={isFollowing ? handleUnfollow : handleFollow}
+                                            loading={!isPublicView && followLoading}
+                                            onClick={
+                                                isPublicView
+                                                    ? wall("follow")
+                                                    : isFollowing
+                                                        ? handleUnfollow
+                                                        : handleFollow
+                                            }
                                             leftIcon={
                                                 <Icon
-                                                    icon={isFollowing ? "mdi:check" : "mdi:plus"}
+                                                    icon={!isPublicView && isFollowing ? "mdi:check" : "mdi:plus"}
                                                     width={15}
                                                     height={15}
                                                 />
                                             }
-                                            className={isFollowing ? styles.followingBtn : undefined}
+                                            className={!isPublicView && isFollowing ? styles.followingBtn : undefined}
                                         >
-                                            {isFollowing ? "Following" : isFollowedBy ? "Follow Back" : "Follow"}
+                                            {isPublicView
+                                                ? "Follow"
+                                                : isFollowing
+                                                    ? "Following"
+                                                    : isFollowedBy
+                                                        ? "Follow Back"
+                                                        : "Follow"}
                                         </Button>
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        fullWidth
-                                        className={styles.actionBtnFull}
-                                        href={toMessage(org.username)}
-                                        leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
-                                    >
-                                        Message
-                                    </Button>
-                                    <Button variant="ghost" size="sm" iconOnly aria-label="More options">
-                                        <Icon icon="mdi:dots-horizontal" width={18} height={18} />
-                                    </Button>
+
+                                    {isPublicView ? (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            fullWidth
+                                            className={styles.actionBtnFull}
+                                            onClick={wall("message")}
+                                            leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                                        >
+                                            Message
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            fullWidth
+                                            className={styles.actionBtnFull}
+                                            href={toMessage(org.username)}
+                                            leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                                        >
+                                            Message
+                                        </Button>
+                                    )}
+
+                                    <ProfileShareMenu
+                                        target={{ type: "organization", id: org.id }}
+                                        username={org.username}
+                                        name={org.name}
+                                        avatarUrl={org.logo}
+                                        subtitle={org.headline || TYPE_LABELS[org.type]}
+                                        isVerified={org.is_verified}
+                                    />
                                 </>
                             )}
                         </div>
@@ -602,15 +670,44 @@ interface OrgProfileProps {
     orgId?: string
     username?: string
     isOwn?: boolean
+    /**
+     * Server-fetched public payload. Its PRESENCE puts this component in public
+     * (logged-out) mode — one component, one render path, two payloads. When
+     * set, the authenticated org query is disabled: /organizations/details is
+     * IsAuthenticated and would 401 for the visitor this prop exists for.
+     */
+    publicOrg?: PublicOrganizationProfile
 }
 
-export default function OrgProfile({ orgId, username, isOwn = false }: OrgProfileProps) {
+export default function OrgProfile({
+    orgId,
+    username,
+    isOwn = false,
+    publicOrg,
+}: OrgProfileProps) {
     const identifier = orgId ?? username!
     const by = orgId ? "id" : "username"
-    const { data: org, isLoading, isError } = useOrgDetail(identifier, by)
+    const isPublicView = Boolean(publicOrg)
 
-    if (isLoading) return <OrgProfileSkeleton />
-    if (isError || !org) return <OrgProfileError />
+    const {
+        data: fetchedOrg,
+        isLoading: isFetching,
+        isError,
+    } = useOrgDetail(identifier, by, !isPublicView)
 
-    return <OrgProfileInner org={org} isOwn={isOwn} orgId={org.id} />
+    // The public payload is the same shape minus the fields it omits by
+    // design; `type` and `level` are open strings there and narrow enums here.
+    const org = (publicOrg as unknown as OrganizationDetail | undefined) ?? fetchedOrg
+
+    if (!isPublicView && isFetching) return <OrgProfileSkeleton />
+    if (!org || (!isPublicView && isError)) return <OrgProfileError />
+
+    return (
+        <OrgProfileInner
+            org={org}
+            isOwn={isOwn}
+            orgId={org.id}
+            isPublicView={isPublicView}
+        />
+    )
 }

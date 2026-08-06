@@ -17,10 +17,11 @@ import { useState } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 
+import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { useHighlights } from "../../hooks/useHighlights"
-import { MAX_HIGHLIGHTS } from "../../types"
+import { MAX_HIGHLIGHTS, type Highlight } from "../../types"
 import { formatClipDuration } from "../../visibilityMeta"
 import AddHighlightModal from "../AddHighlightModal/AddHighlightModal"
 import HighlightViewer, {
@@ -46,9 +47,22 @@ export default function HighlightsRail({
     const [viewerIndex, setViewerIndex] = useState<number | null>(null)
     const [addOpen, setAddOpen] = useState(false)
 
-    const { data, isLoading } = useHighlights(owner.username)
+    // On a public profile the rail arrived with the server-rendered bundle,
+    // already filtered to the clips a logged-out viewer may see — the backend
+    // runs the same visibility matrix with actor=None. Passing null disables
+    // the query (IsAuthenticated) rather than 401-ing under a correct section.
+    //
+    // Restricted clips are simply ABSENT from that list. No client-side filter
+    // and no "locked" placeholder: a placeholder advertises that hidden footage
+    // exists, which is the one thing recruiters_only is meant to avoid.
+    const publicClips = usePublicSection<Highlight>("highlights")
 
-    const clips = data?.results ?? []
+    const { data, isLoading: isFetching } = useHighlights(
+        publicClips ? null : owner.username
+    )
+
+    const clips = publicClips ?? data?.results ?? []
+    const isLoading = publicClips ? false : isFetching
 
     // Writes are players-only, acting as themselves — an org actor on their own
     // profile gets the read-only rail (the API would reject the write anyway).
