@@ -11,11 +11,10 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
 
 import PublicProfileView from "@/features/profile/components/PublicProfileView/PublicProfileView"
 import {
-  getPublicUserProfile,
+  getPublicUserProfileResult,
   siteOrigin,
 } from "@/features/profile/services/publicProfile.api"
 import {
@@ -35,13 +34,15 @@ type Params = { params: Promise<{ username: string }> }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params
-  const bundle = await getPublicUserProfile(username)
+  const result = await getPublicUserProfileResult(username)
 
-  // A hidden or missing profile gets generic metadata. Critically it must NOT
-  // carry the person's name: the whole point of the toggle is that a
-  // logged-out visitor learns nothing, and metadata is rendered before the
-  // 404 body is.
-  if (!bundle) {
+  // A hidden, missing or unreachable profile gets generic metadata. Critically
+  // it must NOT carry the person's name: the whole point of the toggle is that
+  // a logged-out visitor learns nothing.
+  //
+  // `noindex` is what actually keeps an unavailable profile out of search —
+  // and it is why the page below no longer needs notFound() to do that job.
+  if (result.status !== "ok") {
     return {
       title: "Profile · Goatza",
       description: "Where the Greatest Get Discovered",
@@ -49,7 +50,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     }
   }
 
-  const profile = bundle.profile
+  const profile = result.data.profile
   const origin = siteOrigin()
   const url = `${origin}/profile/${profile.username}`
 
@@ -91,27 +92,46 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function PublicUserProfilePage({ params }: Params) {
   const { username } = await params
-  const bundle = await getPublicUserProfile(username)
+  const result = await getPublicUserProfileResult(username)
+  const bundle = result.status === "ok" ? result.data : null
 
-  // Hidden, deactivated, usernameless or nonexistent — all four render the
-  // same 404, because the backend deliberately does not distinguish them.
-  if (!bundle) notFound()
-
+  // Deliberately NOT notFound() when the bundle is missing.
+  //
+  // This response is shared by two very different visitors, and only one of
+  // them is bound by the public payload. A profile with "Public profile" off
+  // 404s here by design — but a signed-in Goatza user is still entitled to see
+  // it, and hard-404ing the route took that away from them. The same line also
+  // meant one unreachable API turned every profile on the site into a 404 page.
+  //
+  // Telling the two visitors apart on the server means reading cookies, which
+  // opts the route out of ISR — and cheap viral traffic is the reason this page
+  // is server-rendered at all. So the route always renders and the client
+  // decides: PublicProfileView falls back to the authenticated fetch for a
+  // signed-in visitor, and shows an unavailable panel for a stranger.
+  //
+  // The cost is that a bogus username answers 200 instead of 404 for anonymous
+  // visitors. `robots: noindex` above is what keeps it out of search, which is
+  // the part that actually mattered.
   const origin = siteOrigin()
-  const jsonLd = personJsonLd(
-    bundle.profile,
-    `${origin}/profile/${bundle.profile.username}`
-  )
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        // Serialised from our own typed payload, never from user input as
-        // markup — the values are strings from our API and JSON.stringify
-        // escapes them.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {bundle && (
+        <script
+          type="application/ld+json"
+          // Serialised from our own typed payload, never from user input as
+          // markup — the values are strings from our API and JSON.stringify
+          // escapes them.
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(
+              personJsonLd(
+                bundle.profile,
+                `${origin}/profile/${bundle.profile.username}`
+              )
+            ),
+          }}
+        />
+      )}
       <PublicProfileView username={username} bundle={bundle} />
     </>
   )

@@ -2,7 +2,6 @@
 // as the user twin.
 
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
 
 import PublicPostsView from "@/features/profile/components/PublicPostsView/PublicPostsView"
 import {
@@ -31,18 +30,17 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function PublicOrgPostsPage({ params }: Params) {
   const { username } = await params
 
+  // Either may be null — no notFound(), same reasoning as the user twin.
   const [bundle, posts] = await Promise.all([
     getPublicOrganizationProfile(username),
     getPublicOrganizationPosts(username),
   ])
 
-  if (!bundle || !posts) notFound()
-
   return (
     <PublicPostsView
       username={username}
       kind="organization"
-      displayName={bundle.profile.name}
+      displayName={bundle?.profile.name ?? username}
       posts={posts}
     />
   )

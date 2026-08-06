@@ -3,7 +3,6 @@
 // because /posts/list is IsAuthenticated and PostsList must not fire it.
 
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
 
 import PublicPostsView from "@/features/profile/components/PublicPostsView/PublicPostsView"
 import {
@@ -32,21 +31,21 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function PublicUserPostsPage({ params }: Params) {
   const { username } = await params
 
-  // The profile resolves the 404 rules (hidden / inactive / usernameless); the
-  // posts call is what the page actually renders. Both, because the posts
-  // endpoint alone would say nothing about the profile's display name.
+  // The profile carries the display name for the wall's copy; the posts call is
+  // what the page renders. Either may be null — no notFound(), for the same
+  // reason as the profile page: a signed-in visitor is entitled to posts the
+  // public payload refuses, and PublicPostsView falls back to the authenticated
+  // list for them.
   const [bundle, posts] = await Promise.all([
     getPublicUserProfile(username),
     getPublicUserPosts(username),
   ])
 
-  if (!bundle || !posts) notFound()
-
   return (
     <PublicPostsView
       username={username}
       kind="user"
-      displayName={bundle.profile.name}
+      displayName={bundle?.profile.name ?? username}
       posts={posts}
     />
   )

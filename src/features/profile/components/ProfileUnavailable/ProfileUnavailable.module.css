@@ -1,0 +1,86 @@
+/* ProfileUnavailable — the anonymous "no public view" state.
+   Same shape as PublicRouteWall so the two read as one family. */
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-3);
+
+    max-width: 420px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-5);
+}
+
+.mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-full);
+
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
+}
+
+.title {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.message {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-3);
+}
+
+.primaryBtn,
+.secondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    height: 44px;
+    border-radius: var(--radius-full);
+
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-decoration: none;
+
+    transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.primaryBtn {
+    background: var(--color-brand);
+    color: var(--color-on-brand, #06120a);
+    border: 1px solid var(--color-brand);
+}
+
+.primaryBtn:hover {
+    background: var(--color-brand-hover);
+}
+
+.secondaryBtn {
+    background: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+
+.secondaryBtn:hover {
+    background: var(--color-surface-raised);
+}
