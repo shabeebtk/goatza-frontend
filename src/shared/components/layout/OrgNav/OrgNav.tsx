@@ -48,6 +48,9 @@ function buildNavItems(orgId: string) {
       iconActive: "mdi:shield-check",
       label: "Verify",
     },
+    // Saved posts and Mentions are deliberately NOT here — they live behind
+    // the gear on the org's own profile (OrgSettingsPage), the same place a
+    // person finds theirs. The nav is for where an admin works daily.
     {
       href: `${base}/messages`,
       icon: "mdi:message-outline",
@@ -160,12 +163,11 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const NAV_ITEMS = buildNavItems(orgId)
   // Mobile bottom bar shows Dashboard + Feed (left), Create, Messages (right),
   // then the profile avatar. Explore, Verify and Alerts live in the mobile top
-  // bar instead — five bottom tabs is already the comfortable maximum.
+  // bar instead — five bottom tabs is already the comfortable maximum, so a
+  // new nav item joins the top bar rather than the bottom one.
+  const MOBILE_TOP_BAR_LABELS = ["Alerts", "Explore", "Verify"]
   const MOBILE_NAV_ITEMS = NAV_ITEMS.filter(
-    (item) =>
-      item.label !== "Alerts" &&
-      item.label !== "Explore" &&
-      item.label !== "Verify"
+    (item) => !MOBILE_TOP_BAR_LABELS.includes(item.label)
   )
   const MOBILE_LEFT_ITEMS = MOBILE_NAV_ITEMS.slice(0, 2)
   const MOBILE_RIGHT_ITEMS = MOBILE_NAV_ITEMS.slice(2)

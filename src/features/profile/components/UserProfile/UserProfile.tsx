@@ -208,37 +208,51 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </div>
             </div>
 
-            {/* Name + username + sport badge — read-only now */}
-            <div className={styles.nameBlock}>
-              <h1 className={styles.profileName}>{profile.name}</h1>
-              <span className={styles.profileUsername}>@{profile.username}</span>
+            {/* Name + username + sport badge — read-only now.
+                The settings gear sits opposite the name on the same row: the
+                cover, the avatar and the action buttons all own their own
+                rows, so nothing here collides at phone widths. */}
+            <div className={styles.nameRow}>
+              <div className={styles.nameBlock}>
+                <h1 className={styles.profileName}>{profile.name}</h1>
+                <span className={styles.profileUsername}>@{profile.username}</span>
 
-              <div className={styles.badgesRow}>
-                {profile.primary_sport && (
-                  <>
-                    <div className={styles.roleBadge}>
-                      <Icon icon={profile.primary_sport.icon_name} width={13} height={13} />
-                      {profile.primary_sport.sport}
-                    </div>
-                    {profile.primary_sport.primary_position && (
+                <div className={styles.badgesRow}>
+                  {profile.primary_sport && (
+                    <>
                       <div className={styles.roleBadge}>
-                        {profile.primary_sport.primary_position}
+                        <Icon icon={profile.primary_sport.icon_name} width={13} height={13} />
+                        {profile.primary_sport.sport}
                       </div>
-                    )}
-                  </>
-                )}
-                {ageGroup && (
-                  <div className={styles.roleBadge} title="Age group">
-                    {ageGroup}
-                  </div>
-                )}
-                {profile.location && (
-                  <div className={styles.roleBadge}>
-                    <Icon icon="mdi:map-marker-outline" width={13} height={13} />
-                    {profile.location.name}, {profile.location.country_code}
-                  </div>
-                )}
+                      {profile.primary_sport.primary_position && (
+                        <div className={styles.roleBadge}>
+                          {profile.primary_sport.primary_position}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {ageGroup && (
+                    <div className={styles.roleBadge} title="Age group">
+                      {ageGroup}
+                    </div>
+                  )}
+                  {profile.location && (
+                    <div className={styles.roleBadge}>
+                      <Icon icon="mdi:map-marker-outline" width={13} height={13} />
+                      {profile.location.name}, {profile.location.country_code}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Settings is personal to the signed-in account — there is no
+                  org-admin variant, so this is a plain path, not a
+                  useNavigation() link. */}
+              {isMe && (
+                <Link href="/settings" className={styles.settingsBtn} aria-label="Settings">
+                  <Icon icon="mdi:cog-outline" width={20} height={20} />
+                </Link>
+              )}
             </div>
 
             {/* Headline — read-only */}

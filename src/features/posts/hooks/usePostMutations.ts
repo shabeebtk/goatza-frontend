@@ -11,9 +11,11 @@ import {
     fetchPostsApi, FetchPostsParams, getMyPostSportsApi,
     toggleLikeApi, createCommentApi, fetchCommentsApi,
     fetchRepliesApi, Post, PostsListResponse, deletePostApi,
-    PostComment, CommentsListResponse, updatePostApi, deleteCommentApi
+    PostComment, CommentsListResponse, updatePostApi, deleteCommentApi,
+    savePostApi
 } from "../services/posts.api"
 import { useAuthStore } from "@/store/auth.store"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 
 export const useCreatePost = () => {
@@ -170,6 +172,126 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
         // We REMOVED onSettled invalidateQueries.
         // The optimistic update handles the UI instantly, and we trust it. 
         // Refetching the entire feed on every interaction is extremely unoptimized.
+    })
+}
+
+// ── Save / unsave with optimistic update ─────────────────────
+
+// Every cache that holds `Post[]` under `pages[].results`. The bookmark shows
+// the same post in several of them at once, so a flip has to reach all of them
+// or the user sees two different truths on two screens.
+// `["posts","saved"]` is deliberately NOT here — see the remover below.
+const POST_LIST_CACHE_KEYS = [
+    ["posts", "list"],
+    ["posts", "feed"],
+    ["posts", "mentions"],
+    ["feed", "list"],
+    ["explore", "posts"],
+    ["search", "posts"],
+] as const
+
+/** The saved list is per-actor, exactly like the mentions list. */
+export const savedPostKeys = {
+    list: (actorType: string, actorId: string | null) =>
+        ["posts", "saved", actorType, actorId] as const,
+    all: ["posts", "saved"] as const,
+}
+
+export const useToggleSave = () => {
+    const qc = useQueryClient()
+    // The app's own Toast (ToastProvider wraps the root layout) — same one the
+    // options sheet already uses for "Link copied" and "Post deleted", so all
+    // three read as one system.
+    const toast = useToast()
+
+    return useMutation({
+        mutationFn: savePostApi,
+
+        onMutate: async (payload) => {
+            type PostInfinite = InfiniteData<{ results: Post[] }>
+
+            await Promise.all(
+                [...POST_LIST_CACHE_KEYS, savedPostKeys.all].map((queryKey) =>
+                    qc.cancelQueries({ queryKey: [...queryKey] })
+                )
+            )
+
+            // Flip the flag wherever the post is on screen. Read the current
+            // value off the cache rather than trusting a caller-supplied one,
+            // so a double-tap can't desync from what is rendered.
+            const flip = (old: PostInfinite | undefined): PostInfinite | undefined => {
+                if (!old?.pages) return old
+                return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                        ...page,
+                        results: page.results.map((p) =>
+                            p.id === payload.post_id ? { ...p, is_saved: !p.is_saved } : p
+                        ),
+                    })),
+                }
+            }
+
+            for (const queryKey of POST_LIST_CACHE_KEYS) {
+                qc.setQueriesData<PostInfinite>({ queryKey: [...queryKey] }, flip)
+            }
+
+            // On the saved list an unsave means the card no longer belongs
+            // there at all — flipping a bookmark on a row that is about to
+            // vanish would just flash. Saving somewhere else is picked up by
+            // the invalidate in onSuccess rather than guessed into position.
+            qc.setQueriesData<PostInfinite>(
+                { queryKey: [...savedPostKeys.all] },
+                (old) => {
+                    if (!old?.pages) return old
+                    return {
+                        ...old,
+                        pages: old.pages.map((page) => ({
+                            ...page,
+                            results: page.results.filter((p) => p.id !== payload.post_id),
+                        })),
+                    }
+                }
+            )
+
+            // Same contract as useToggleLike: no snapshot, onError refetches
+            // the truth for every affected cache.
+            return {}
+        },
+
+        onSuccess: (data) => {
+            // The save lives behind the post's ⋯ menu, so nothing on the card
+            // changes when it lands — this toast is the ONLY confirmation the
+            // user gets. Driven by the server's answer, not the optimistic
+            // guess, so it can never claim the opposite of what was stored.
+            // Default position (top-right on desktop, a full-width strip under
+            // the top bar on mobile — see Toast.module.css).
+            toast.show({
+                title: data.is_saved ? "Saved" : "Removed from saved",
+                message: data.is_saved
+                    ? "Find it in Saved posts. Only you can see this."
+                    : undefined,
+                icon: data.is_saved ? "mdi:bookmark" : "mdi:bookmark-remove-outline",
+                duration: 2500,
+            })
+
+            // The saved list's membership and ordering are the server's to
+            // decide (newest-saved first), so it is refetched rather than
+            // reconstructed. Every other cache already flipped optimistically.
+            qc.invalidateQueries({ queryKey: [...savedPostKeys.all] })
+        },
+
+        onError: () => {
+            toast.show({
+                title: "Couldn't update your saved posts",
+                message: "Check your connection and try again.",
+                variant: "error",
+                duration: 4000,
+            })
+            for (const queryKey of [...POST_LIST_CACHE_KEYS, savedPostKeys.all]) {
+                qc.invalidateQueries({ queryKey: [...queryKey] })
+            }
+        },
     })
 }
 

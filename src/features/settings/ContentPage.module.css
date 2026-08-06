@@ -1,0 +1,22 @@
+/* ============================================================
+   GOATZA — Content page frame (Saved posts · Mentions)
+
+   Shared by the personal and org-admin versions of both lists.
+   Same 680px post column the org posts page uses, so a PostCard
+   is the same width wherever it is read instead of stretching
+   across a desktop monitor.
+   ============================================================ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3) var(--space-8);
+}
+
+@media (min-width: 640px) {
+  .page { padding: var(--space-6) var(--space-4) var(--space-12); }
+}

@@ -10,6 +10,8 @@ import { getPostAspectRatio } from "@/features/posts/utils/media"
 import { videoDeliveryUrl, videoPosterUrl } from "@/shared/services/cloudinaryDelivery"
 import type { Post, PostMedia, PostVisibility, PostLocation, UpdatePostPayload } from "@/features/posts/services/posts.api"
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
+import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
+import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import shared from "../CreatePostModal/CreatePostModal.module.css"
 import styles from "./EditPostModal.module.css"
 
@@ -170,11 +172,28 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
     return () => { document.body.style.overflow = original }
   }, [])
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value)
-    const ta = e.target
+  const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto"
     ta.style.height = `${Math.min(ta.scrollHeight, 260)}px`
+  }
+
+  // ── @mention autocomplete ─────────────────────────────────────
+  // Same hook and dropdown as the create composer — one behaviour, one place.
+  const mention = useMentionAutocomplete({
+    value: content,
+    textareaRef,
+    disabled: saving,
+    onChange: (next: string) => {
+      setContent(next)
+      const ta = textareaRef.current
+      if (ta) resizeTextarea(ta)
+    },
+  })
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setContent(e.target.value)
+    resizeTextarea(e.target)
+    mention.syncCaret()
   }
 
   const handleLocationChange = (place: MapboxPlace | null) => {
@@ -298,6 +317,16 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
             </div>
           </div>
 
+          {/* Above the textarea, same as the create composer — see the note
+              there: below it, the media preview buries the list. */}
+          <MentionAutocomplete
+            open={mention.isOpen}
+            options={mention.options}
+            activeIndex={mention.activeIndex}
+            onSelect={mention.select}
+            onHover={mention.setActiveIndex}
+          />
+
           {/* Content textarea */}
           <textarea
             ref={textareaRef}
@@ -305,6 +334,10 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
             placeholder="What's on your mind?"
             value={content}
             onChange={handleTextChange}
+            onKeyDown={(e) => mention.handleKeyDown(e)}
+            onKeyUp={mention.syncCaret}
+            onClick={mention.syncCaret}
+            onBlur={mention.close}
             rows={3}
             maxLength={3000}
             disabled={saving}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import { useRouter } from "next/navigation"
-import { useDeletePost } from "../../hooks/usePostMutations"
+import { useDeletePost, useToggleSave } from "../../hooks/usePostMutations"
 import { usePromoteToHighlights } from "@/features/highlights/hooks/usePromoteToHighlights"
 import { formatClipDuration } from "@/features/highlights/visibilityMeta"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
@@ -15,6 +15,8 @@ interface PostOptionsSheetProps {
   postId: string
   isOwn: boolean
   isPreview? : boolean
+  /** Whether the ACTIVE ACTOR has saved this post (drives the save row's copy). */
+  isSaved?: boolean
   /**
    * Video items of this post. Present only when the viewer may promote them —
    * the post's own author, a player, acting as themselves (PostCard decides).
@@ -28,6 +30,7 @@ export default function PostOptionsSheet({
   postId,
   isOwn,
   isPreview=false,
+  isSaved = false,
   promotableVideos = [],
   onClose,
   onEdit,
@@ -35,6 +38,9 @@ export default function PostOptionsSheet({
   const router = useRouter()
   const toast = useToast()
   const { mutate: deletePost, isPending: isDeleting } = useDeletePost(isPreview ? { mode: "preview" } : {})
+  // Saves are per-ACTOR: acting as an org, this saves for the org. The actor
+  // headers do that, so there is nothing to branch on here.
+  const { mutate: toggleSave } = useToggleSave()
   const backdropRef = useRef<HTMLDivElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   // Second step of "Add to Highlights" when the post carries several videos.
@@ -193,7 +199,32 @@ export default function PostOptionsSheet({
           <>
             {/* Options */}
             <div className={styles.options}>
-              {isOwn ? (
+              {/* Save — first, and offered on every post regardless of who
+                  wrote it. Saves are private to the saver, so nothing about
+                  this is visible to the author. */}
+              <button
+                className={styles.option}
+                onClick={() => {
+                  toggleSave({ post_id: postId })
+                  onClose()
+                }}
+                type="button"
+              >
+                <span className={styles.optionIcon}>
+                  <Icon
+                    icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"}
+                    width={20}
+                    height={20}
+                  />
+                </span>
+                <span className={styles.optionLabel}>
+                  {isSaved ? "Remove from Saved" : "Save Post"}
+                </span>
+              </button>
+
+              {/* Own-post edits — safe, reversible, so they sit up here with
+                  the rest of the everyday actions. */}
+              {isOwn && (
                 <>
                   {/* Add to Highlights — own video posts, player acting as self */}
                   {canPromote && (
@@ -218,18 +249,6 @@ export default function PostOptionsSheet({
                     </button>
                   )}
 
-                  {/* Delete — only owner (asks for confirmation) */}
-                  <button
-                    className={`${styles.option} ${styles.optionDanger}`}
-                    onClick={() => setConfirmDelete(true)}
-                    type="button"
-                  >
-                    <span className={styles.optionIcon}>
-                      <Icon icon="mdi:trash-can-outline" width={20} height={20} />
-                    </span>
-                    <span className={styles.optionLabel}>Delete Post</span>
-                  </button>
-
                   {/* Edit — opens the edit modal */}
                   <button
                     className={styles.option}
@@ -245,18 +264,6 @@ export default function PostOptionsSheet({
                     <span className={styles.optionLabel}>Edit Post</span>
                   </button>
                 </>
-              ) : (
-                /* Report — non-owner */
-                <button
-                  className={`${styles.option} ${styles.optionDanger}`}
-                  onClick={onClose}
-                  type="button"
-                >
-                  <span className={styles.optionIcon}>
-                    <Icon icon="mdi:flag-outline" width={20} height={20} />
-                  </span>
-                  <span className={styles.optionLabel}>Report Post</span>
-                </button>
               )}
 
               {/* Copy link — always */}
@@ -282,6 +289,34 @@ export default function PostOptionsSheet({
                 </span>
                 <span className={styles.optionLabel}>Copy Link</span>
               </button>
+
+              {/* ── Destructive, always LAST ──
+                  Delete and Report are the two rows you can't casually undo,
+                  so they sit furthest from the thumb's resting position and
+                  below every safe action. Exactly one of them shows. */}
+              {isOwn ? (
+                <button
+                  className={`${styles.option} ${styles.optionDanger}`}
+                  onClick={() => setConfirmDelete(true)}
+                  type="button"
+                >
+                  <span className={styles.optionIcon}>
+                    <Icon icon="mdi:trash-can-outline" width={20} height={20} />
+                  </span>
+                  <span className={styles.optionLabel}>Delete Post</span>
+                </button>
+              ) : (
+                <button
+                  className={`${styles.option} ${styles.optionDanger}`}
+                  onClick={onClose}
+                  type="button"
+                >
+                  <span className={styles.optionIcon}>
+                    <Icon icon="mdi:flag-outline" width={20} height={20} />
+                  </span>
+                  <span className={styles.optionLabel}>Report Post</span>
+                </button>
+              )}
             </div>
 
             {/* Cancel */}
