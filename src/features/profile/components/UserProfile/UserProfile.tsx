@@ -358,6 +358,7 @@ export default function UserProfile({
                     name={profile.name}
                     avatarUrl={profile.profile_photo}
                     subtitle={profile.headline || profile.primary_sport?.sport}
+                    isOwnProfile={isMe}
                   />
                 </>
               ) : (
@@ -420,6 +421,7 @@ export default function UserProfile({
                     name={profile.name}
                     avatarUrl={profile.profile_photo}
                     subtitle={profile.headline || profile.primary_sport?.sport}
+                    isOwnProfile={isMe}
                   />
                 </>
               )}

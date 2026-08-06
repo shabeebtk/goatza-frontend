@@ -37,12 +37,28 @@ export type PublicPosition = {
   is_primary: boolean
 }
 
+/**
+ * One of the primary sport's configurable attributes, with this player's value
+ * for it. Sport-agnostic by construction — "Preferred foot" for a footballer,
+ * "Batting style" for a cricketer, no code here knowing either exists.
+ *
+ * The backend narrows `data_type` to select | boolean | number: `text` is
+ * arbitrarily long and `multi_select` is comma soup, and both are unrenderable
+ * in a share-card slot sized for two words.
+ */
+export type PublicSportAttribute = {
+  name: string
+  data_type: "select" | "boolean" | "number"
+  value: string
+}
+
 export type PublicPrimarySport = {
   sport: string
   icon_name: string
   icon_url: string
   experience_level: string
   primary_position: string | null
+  attributes: PublicSportAttribute[]
 }
 
 /**
@@ -55,6 +71,12 @@ export type PublicUserProfile = {
   username: string
   role: string
   created_at: string
+  /**
+   * Later of the user's and the profile's own timestamps. Only used as the
+   * share card's cache-buster — the card is cached hard, so an edited profile
+   * has to change this to produce a fresh one.
+   */
+  updated_at: string
   name: string
   headline: string
   about: string

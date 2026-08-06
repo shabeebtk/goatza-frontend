@@ -2,22 +2,24 @@
  * The Open Graph image for a shared profile link.
  *
  * ─────────────────────────────────────────────────────────────
- * THIS IS THE SHARE-CARD SEAM.
+ * THIS IS THE SHARE-CARD SEAM, AND IT HAS NOW BEEN SWAPPED.
  *
- * The generated share card — the designed 1200×630 image with the player's
- * name, sport, position and stats laid out on it — will replace the body of
- * `buildProfileOgImageUrl` and NOTHING ELSE. Every caller asks this one
- * function for a URL and does not care how it was produced, so swapping a
- * Cloudinary transform for a rendered card (an OG route, a pre-generated
- * asset, whatever wins) is a change to this file alone.
+ * A player's profile resolves to the generated card — the designed 1200×630
+ * image with their name, sport, position and three stats laid out on it, drawn
+ * by /api/card/profile/<username>?format=link. Every caller still asks this one
+ * function for a URL and still does not care how it was produced.
  *
- * Until then: a Cloudinary transform of the existing profile photo. It is not
- * a designed card, but it is a real face at the right aspect ratio, and a
- * WhatsApp link with a face in it gets opened where a bare link does not.
+ * An ORGANIZATION does not have a card. Org cards are a different job with a
+ * different composition and are deliberately not built, so that path keeps the
+ * Cloudinary transform of the logo it has always used: not a designed card, but
+ * a real mark at the right aspect ratio, and a WhatsApp link with an image in
+ * it gets opened where a bare link does not.
  * ─────────────────────────────────────────────────────────────
  */
 
-/** What every platform expects. Also what the eventual card will be drawn at. */
+import { buildCardUrl } from "./shareCard/cardUrl"
+
+/** What every platform expects. Also what the card is drawn at. */
 export const OG_IMAGE_WIDTH = 1200
 export const OG_IMAGE_HEIGHT = 630
 
@@ -65,6 +67,24 @@ function withTransform(url: string): string | null {
   return `${head}${TRANSFORM}/${tail}`
 }
 
+/** A user profile gets the generated card. */
+interface CardProfile {
+  username: string
+  updated_at?: string
+  profile_photo?: string
+  cover_photo?: string
+}
+
+/** An organization keeps the Cloudinary transform — `logo` is the discriminant
+ *  as well as the source, and only org payloads carry it. */
+interface OrgProfile {
+  logo?: string
+  cover_image?: string
+  username?: string
+  profile_photo?: string
+  cover_photo?: string
+}
+
 /**
  * Absolute URL of the preview image for a profile.
  *
@@ -72,17 +92,32 @@ function withTransform(url: string): string | null {
  * is silently ignored by every scraper.
  */
 export function buildProfileOgImageUrl(
-  profile: { profile_photo?: string; cover_photo?: string; logo?: string; cover_image?: string },
+  profile: CardProfile | OrgProfile,
   siteOrigin: string
 ): string {
-  // Prefer the portrait over the cover: a face reads at thumbnail size in a
-  // chat list, a wide stadium shot does not.
+  // `logo` is only ever a key on an organization payload, so its presence — not
+  // its value, which is "" for an org that has not uploaded one — is what tells
+  // the two apart.
+  const isOrganization = "logo" in profile || "cover_image" in profile
+
+  // A user profile: the generated card. It draws its own fallbacks (branded
+  // pattern for no cover, initials medallion for no avatar), so unlike the
+  // transform below there is no photo to check for — the card is always a
+  // complete image.
+  if (!isOrganization && profile.username) {
+    return buildCardUrl({
+      username: profile.username,
+      format: "link",
+      updatedAt: (profile as CardProfile).updated_at,
+      origin: siteOrigin,
+    })
+  }
+
+  // An organization. Prefer the mark over the cover: a logo reads at thumbnail
+  // size in a chat list, a wide stadium shot does not.
+  const org = profile as OrgProfile
   const source =
-    profile.profile_photo ||
-    profile.logo ||
-    profile.cover_photo ||
-    profile.cover_image ||
-    ""
+    org.logo || org.profile_photo || org.cover_image || org.cover_photo || ""
 
   if (source && source.includes("res.cloudinary.com")) {
     const transformed = withTransform(source)
