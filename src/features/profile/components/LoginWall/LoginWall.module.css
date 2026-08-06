@@ -1,0 +1,185 @@
+/* ============================================================
+   LoginWall — the "join to do that" prompt on public profiles.
+   Bottom sheet on mobile, centred card on desktop, matching
+   ShareSheet's behaviour so the app has one modal idiom.
+   ============================================================ */
+
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+
+    padding-bottom: var(--safe-bottom);
+    animation: loginWallFade var(--duration-fast) var(--ease-out);
+}
+
+@media (min-width: 640px) {
+    .backdrop {
+        align-items: center;
+        padding: var(--space-4);
+    }
+}
+
+.dialog {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-3);
+
+    padding: var(--space-6) var(--space-5) var(--space-5);
+
+    background: var(--color-surface);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: var(--shadow-lg, 0 -8px 40px rgba(0, 0, 0, 0.35));
+
+    animation: loginWallUp var(--duration-base) var(--ease-out);
+}
+
+.dialog:focus {
+    outline: none;
+}
+
+@media (min-width: 640px) {
+    .dialog {
+        border-radius: var(--radius-xl);
+    }
+}
+
+.closeBtn {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--radius-full);
+
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background var(--duration-fast);
+}
+
+.closeBtn:hover {
+    background: var(--color-surface-raised);
+}
+
+.mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-full);
+
+    background: var(--color-brand-muted);
+    color: var(--color-brand);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--color-text);
+}
+
+.subtitle {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-2);
+}
+
+.primaryBtn,
+.secondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    height: 44px;
+    border-radius: var(--radius-full);
+
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-decoration: none;
+
+    transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.primaryBtn {
+    background: var(--color-brand);
+    color: var(--color-on-brand, #06120a);
+    border: 1px solid var(--color-brand);
+}
+
+.primaryBtn:hover {
+    background: var(--color-brand-hover);
+    border-color: var(--color-brand-hover);
+}
+
+.secondaryBtn {
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.secondaryBtn:hover {
+    background: var(--color-surface-raised);
+}
+
+@keyframes loginWallFade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes loginWallUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .backdrop,
+    .dialog {
+        animation: none;
+    }
+}

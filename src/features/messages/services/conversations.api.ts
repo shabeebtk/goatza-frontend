@@ -11,6 +11,10 @@ export type MessageType =
   | "system"
   | "shared_post"
   | "shared_recruitment"
+  // Two types rather than one generic "shared_profile", mirroring the backend:
+  // each carries its own FK and its own preview shape.
+  | "shared_user_profile"
+  | "shared_org_profile"
 
 // ── Shared-content previews (embedded on shared_* messages) ────
 
@@ -59,6 +63,50 @@ export type SharedPostPreview =
       media_count: number
     }
 
+/**
+ * Preview of a person's profile forwarded into a chat.
+ *
+ * `{ unavailable: true }` when the account was deleted, deactivated, or has no
+ * username (and therefore no profile URL to open). Note that a profile whose
+ * owner turned OFF the public web view is still available here: that flag
+ * governs logged-out visitors only, and everyone in a Goatza chat is signed in.
+ */
+export type SharedUserProfilePreview =
+  | { unavailable: true }
+  | {
+      unavailable: false
+      id: string
+      username: string
+      name: string
+      avatar: string
+      headline: string
+      /** User.Role value, e.g. "player" | "coach" | "scout" | "org_user". */
+      role: string
+      primary_sport: string
+      primary_position: string
+      city: string
+      country_code: string
+      followers_count: number
+    }
+
+/** Preview of an organization's profile forwarded into a chat. */
+export type SharedOrgProfilePreview =
+  | { unavailable: true }
+  | {
+      unavailable: false
+      id: string
+      username: string
+      name: string
+      logo: string
+      /** Organization.Type value, e.g. "club" | "academy". */
+      type: string
+      /** OrganizationProfile.Level value, e.g. "professional". May be "". */
+      level: string
+      city: string
+      is_verified: boolean
+      followers_count: number
+    }
+
 export type GetOrCreateConversationResult = {
   conversation_id: string
   status:          ConversationStatus
@@ -88,6 +136,8 @@ export type LastMessage = {
     // without a second fetch. null for other message types.
     shared_recruitment_preview?: SharedRecruitmentPreview | null
     shared_post_preview?: SharedPostPreview | null
+    shared_user_profile_preview?: SharedUserProfilePreview | null
+    shared_org_profile_preview?: SharedOrgProfilePreview | null
 }
 
 export type Conversation = {
@@ -133,6 +183,8 @@ export type Message = {
     // null otherwise. Resolved against the viewer server-side.
     shared_recruitment_preview?: SharedRecruitmentPreview | null
     shared_post_preview?: SharedPostPreview | null
+    shared_user_profile_preview?: SharedUserProfilePreview | null
+    shared_org_profile_preview?: SharedOrgProfilePreview | null
 
     // Media metadata (photo/video messages — schema only for now).
     media_url?: string
@@ -188,8 +240,14 @@ export type MessagesParams = {
 
 // ── Sharing content into conversations ────────────────────────
 
-/** What can be forwarded into a chat. */
-export type ShareTargetType = "post" | "recruitment"
+/**
+ * What can be forwarded into a chat.
+ *
+ * "user" / "organization" collide by value with ShareRecipient.actor_type, but
+ * they answer a different question — WHAT is being shared, not WHO it goes to.
+ * The backend keeps the two choice lists separate for the same reason.
+ */
+export type ShareTargetType = "post" | "recruitment" | "user" | "organization"
 
 export type ShareTarget = {
     type: ShareTargetType

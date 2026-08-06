@@ -12,6 +12,7 @@ import PostComments from "@/features/posts/components/PostComments/PostComments"
 import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"   // ← NEW
 import PostLikesModal from "@/features/posts/components/PostLikesModal/PostLikesModal"
 import EditPostModal from "@/features/posts/components/EditPostModal/EditPostModal"
+import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
 import type { Post, PostMention } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
@@ -202,13 +203,19 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const user = useAuthStore((s) => s.user)
   const actorType = useAuthStore((s) => s.actorType)
   const currentOrganization = useAuthStore((s) => s.currentOrganization)
+
+  // Non-null only on a public profile viewed logged out.
+  const publicView = usePublicProfile()
+
   // A post is "own" (deletable/editable) when the ACTIVE actor authored it —
   // the user for their posts, or the active org for its posts. This mirrors the
-  // backend, which deletes as the active actor.
+  // backend, which deletes as the active actor. Never true for a visitor with
+  // no session, whatever a stale store happens to hold.
   const isOwn =
-    post.author_type === "organization"
+    !publicView &&
+    (post.author_type === "organization"
       ? actorType === "organization" && currentOrganization?.id === post.author.id
-      : actorType === "user" && user?.id === post.author.id
+      : actorType === "user" && user?.id === post.author.id)
   const { toProfile } = useNavigation()
 
   // "Add to Highlights" is offered only for the author's OWN video posts, and
@@ -274,12 +281,19 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           </div>
         </Link>
 
-        {/* ── More button — opens options sheet ── */}
+        {/* ── More button — opens options sheet ──
+            Every action inside that sheet (save, promote to highlight, edit,
+            delete, report) needs an account, so on a public profile the button
+            opens the login wall rather than a sheet of dead options. */}
         <button
           className={styles.moreBtn}
           type="button"
           aria-label="More options"
-          onClick={() => setShowOptions(true)}   // ← CHANGED (was no onClick)
+          onClick={() =>
+            publicView
+              ? publicView.openLoginWall("save posts from")
+              : setShowOptions(true)
+          }
         >
           <Icon icon="mdi:dots-horizontal" width={20} height={20} />
         </button>

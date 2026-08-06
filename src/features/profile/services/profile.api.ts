@@ -16,13 +16,20 @@ export type PrimarySport = {
   primary_position: string | null
 }
 
-/** Location shape returned by the API */
+/**
+ * Location shape returned by the API.
+ *
+ * Coordinates are optional because the PUBLIC profile payload deliberately
+ * omits them — an exact point for a named individual, on a page anyone can
+ * scrape, is a safety problem (see the backend's public serializer). Nothing
+ * on the profile renders them; only `name`, `city` and `country_code` are read.
+ */
 export type UserLocation = {
   name: string
   city: string
   country_code: string
-  latitude: number
-  longitude: number
+  latitude?: number
+  longitude?: number
 }
 
 /** Location shape sent to the API (superset of UserLocation) */
@@ -37,10 +44,20 @@ export type LocationPayload = {
   external_id: string
 }
 
+/**
+ * A profile as the profile page renders it.
+ *
+ * Several fields are optional because the same component renders two payloads:
+ * the authenticated `/user/<username>/details` response, and the anonymous
+ * `/public/profile/<username>` one. The public payload is a strict subset —
+ * no email, no verification flags, no raw birthdate — so anything it omits is
+ * optional here and every read site must tolerate its absence.
+ */
 export type UserProfile = {
   id: string
   username: string
-  email: string
+  /** Absent on the public payload — never sent to a logged-out visitor. */
+  email?: string
   role: string
   name: string
   profile_photo: string
@@ -50,13 +67,27 @@ export type UserProfile = {
   height_cm: number | null
   weight_kg: number | null
   gender?: string | null
-  /** ISO date "YYYY-MM-DD" or null */
+  /** ISO date "YYYY-MM-DD" or null. Absent on the public payload. */
   birthdate?: string | null
+  /**
+   * Server-derived age band ("U17" / "Senior"). Present on the public payload
+   * INSTEAD of `birthdate`; the authenticated payload sends the date and the
+   * client derives the same badge with ageGroupBadge().
+   */
+  age_group?: string | null
   location: UserLocation | null
-  followers_count: string
-  following_count: string
-  connections_count: string
-  is_email_verified: boolean
+  // Numbers on the public payload, strings on the authenticated one (which
+  // serializes them through CharField). Every read site goes through Number().
+  followers_count: string | number
+  following_count: string | number
+  connections_count: string | number
+  /** Absent on the public payload. */
+  is_email_verified?: boolean
+  /**
+   * The owner's own privacy setting, sent only on the authenticated payload.
+   * Drives the Settings toggle; it governs the logged-out web view only.
+   */
+  is_public_profile?: boolean
   created_at: string
   primary_sport: PrimarySport | null
   relationship?: Relationship

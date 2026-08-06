@@ -31,3 +31,40 @@ export const changePasswordApi = async (
   const res = await api.post("/user/change/password", data)
   return res.data.data
 }
+
+// ── Privacy ──────────────────────────────────────────────────
+
+export type PublicProfileToggleResponse = {
+  is_public_profile: boolean
+}
+
+/**
+ * Show or hide the signed-in user's profile from logged-out visitors.
+ *
+ * Does NOT affect in-app visibility — every Goatza user still sees the profile
+ * exactly as before, and a hidden profile stays shareable in DMs. See
+ * UserProfile.is_public_profile on the backend.
+ */
+export const updatePublicProfileApi = async (
+  isPublic: boolean
+): Promise<PublicProfileToggleResponse> => {
+  const res = await api.patch("/user/privacy/public-profile", {
+    is_public_profile: isPublic,
+  })
+  return res.data.data
+}
+
+/**
+ * Same for the organization the caller is currently acting as.
+ *
+ * Owner/admin only, enforced server-side — the disabled state on the settings
+ * row is a courtesy, not the gate.
+ */
+export const updateOrgPublicProfileApi = async (
+  isPublic: boolean
+): Promise<PublicProfileToggleResponse> => {
+  const res = await api.patch("/organizations/privacy/public-profile", {
+    is_public_profile: isPublic,
+  })
+  return res.data.data
+}

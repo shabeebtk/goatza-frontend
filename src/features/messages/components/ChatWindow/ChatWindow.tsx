@@ -25,6 +25,7 @@ import {
 import MessageActions from "../MessageActions/MessageActions"
 import SharedRecruitmentMessage from "../SharedRecruitmentMessage/SharedRecruitmentMessage"
 import SharedPostMessage from "../SharedPostMessage/SharedPostMessage"
+import SharedProfileMessage from "../SharedProfileMessage/SharedProfileMessage"
 import ImageMessage from "../ImageMessage/ImageMessage"
 import VideoMessage from "../VideoMessage/VideoMessage"
 import { getMessagePreviewText } from "../../utils/messagePreview"
@@ -254,6 +255,31 @@ const MessageBubble = React.memo(function MessageBubble({
     )
   }
 
+  // Both profile kinds render through one component — see its docstring.
+  if (
+    msg.message_type === "shared_user_profile" ||
+    msg.message_type === "shared_org_profile"
+  ) {
+    const isOrg = msg.message_type === "shared_org_profile"
+    return (
+      <SharedProfileMessage
+        kind={isOrg ? "organization" : "user"}
+        preview={
+          isOrg
+            ? msg.shared_org_profile_preview
+            : msg.shared_user_profile_preview
+        }
+        caption={msg.content}
+        isMine={isMine}
+        showTime={showTime}
+        seen={seen}
+        timeLabel={formatMsgTime(msg.created_at)}
+        pending={msg.pending}
+        failed={msg.failed}
+      />
+    )
+  }
+
   return (
     <div className={`${styles.bubbleRow} ${isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs}`}>
       <div
@@ -419,6 +445,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           message_type: m.message_type,
           shared_recruitment_preview: m.shared_recruitment_preview,
           shared_post_preview: m.shared_post_preview,
+          shared_user_profile_preview: m.shared_user_profile_preview,
+          shared_org_profile_preview: m.shared_org_profile_preview,
           media_url: m.media_url,
           media_thumbnail_url: m.media_thumbnail_url,
           media_width: m.media_width,

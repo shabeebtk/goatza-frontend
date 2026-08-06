@@ -16,6 +16,7 @@ import { useToggleLike } from "@/features/posts/hooks/usePostMutations"
 import type { Post, ReactionType, FetchPostsParams } from "@/features/posts/services/posts.api"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import PostSharePreview from "@/features/posts/components/PostSharePreview/PostSharePreview"
+import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import styles from "./PostActions.module.css"
 
 // ── Reaction definitions ──────────────────────────────────────
@@ -120,6 +121,12 @@ export default function PostActions({
   const mutation  = useToggleLike(queryParams)
   const isPending = mutation.isPending
 
+  // Non-null only on a public profile viewed logged out. Every action below
+  // routes through the wall instead of firing an authenticated mutation — the
+  // buttons stay visible on purpose, because a post with no affordances reads
+  // as broken and converts nobody.
+  const publicView = usePublicProfile()
+
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
 
@@ -154,10 +161,15 @@ export default function PostActions({
 
   // ── Core action ───────────────────────────────────────────────
   const triggerReact = useCallback((type: ReactionType) => {
+    if (publicView) {
+      publicView.openLoginWall("react to posts from")
+      setPopoverVisible(false)
+      return
+    }
     if (isPending) return
     mutation.mutate({ post_id: post.id, type })
     setPopoverVisible(false)
-  }, [isPending, mutation, post.id])
+  }, [publicView, isPending, mutation, post.id])
 
   // ── Desktop hover handlers ────────────────────────────────────
   const onMouseEnterBtn = () => {
@@ -265,7 +277,11 @@ export default function PostActions({
       <button
         type="button"
         className={styles.actionBtn}
-        onClick={onCommentClick}
+        onClick={
+          publicView
+            ? () => publicView.openLoginWall("comment on posts from")
+            : onCommentClick
+        }
         aria-label="Comment"
       >
         <span className={styles.actionIcon}>
@@ -274,12 +290,19 @@ export default function PostActions({
         <span className={styles.actionLabel}>Comment</span>
       </button>
 
-      {/* ── Share ── */}
+      {/* ── Share ──
+          Walled rather than dropped: sharing INTO a chat needs an account.
+          The profile header's own share menu is the anonymous route out —
+          Copy link and native share work there with no session. */}
       <button
         type="button"
         className={styles.actionBtn}
         aria-label="Share"
-        onClick={() => setShareOpen(true)}
+        onClick={() =>
+          publicView
+            ? publicView.openLoginWall("share posts from")
+            : setShareOpen(true)
+        }
       >
         <span className={styles.actionIcon}>
           <Icon icon="mdi:send-outline" width={20} height={20} />

@@ -13,6 +13,7 @@
 
 import { useState } from "react"
 import { Icon } from "@iconify/react"
+import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
 import {
   useMyUserSports,
   useUserSportsByUsername,
@@ -152,10 +153,16 @@ type ModalState =
   | null
 
 export default function UserSportsSection({ username, isOwn }: UserSportsSectionProps) {
+  // On a public profile the rows arrived with the server-rendered bundle
+  // (reshaped in PublicProfileContext). Both queries below are disabled in that
+  // case — /sports/user/... is IsAuthenticated.
+  const publicSports = usePublicSection<UserSport>("sports")
+  const isPublicView = Boolean(publicSports)
+
   // Fetch user sports — use own endpoint for isOwn, username endpoint for others
-  const mySports       = useMyUserSports()
-  const theirSports    = useUserSportsByUsername(username, !isOwn)
-  const { data: masterSportsList } = useSportsList()
+  const mySports       = useMyUserSports(!isPublicView)
+  const theirSports    = useUserSportsByUsername(username, !isOwn && !isPublicView)
+  const { data: masterSportsList } = useSportsList(!isPublicView)
   const deleteSport    = useDeleteUserSport()
 
   const [modal, setModal]               = useState<ModalState>(null)
@@ -163,7 +170,9 @@ export default function UserSportsSection({ username, isOwn }: UserSportsSection
   const [showSportPicker, setShowSportPicker] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
-  const { data: userSports, isLoading } = isOwn ? mySports : theirSports
+  const query = isOwn ? mySports : theirSports
+  const userSports = publicSports ?? query.data
+  const isLoading = isPublicView ? false : query.isLoading
 
   if (isLoading) {
     return (

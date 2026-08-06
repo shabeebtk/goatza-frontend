@@ -23,10 +23,16 @@ export const sportsKeys = {
 
 // ── Master sports list (for the add/edit modal) ───────────────
 
-export const useSportsList = () =>
+/**
+ * `enabled` is opt-out. The catalog only feeds the owner-only add/edit path, so
+ * the public profile turns it off rather than firing an authenticated request
+ * for something it will never show.
+ */
+export const useSportsList = (enabled = true) =>
   useQuery({
     queryKey: sportsKeys.masterList(),
     queryFn:  getSportsListApi,
+    enabled,
     staleTime: 1000 * 60 * 30,   // sports rarely change
   })
 
@@ -42,10 +48,11 @@ export const useSportPositions = (sportId: string) =>
 
 // ── Own user sports ───────────────────────────────────────────
 
-export const useMyUserSports = () =>
+export const useMyUserSports = (enabled = true) =>
   useQuery({
     queryKey: sportsKeys.userSports(),
     queryFn:  getUserSportsApi,
+    enabled,
     staleTime: 1000 * 60 * 5,
   })
 

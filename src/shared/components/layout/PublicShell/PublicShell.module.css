@@ -1,0 +1,107 @@
+/* ============================================================
+   PublicShell — chrome for the anonymous view of a public route.
+   Mirrors AppShell's offsets so the same page component lays out
+   identically whichever shell wraps it.
+   ============================================================ */
+
+.publicShell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    background: var(--color-bg);
+}
+
+.content {
+    flex: 1;
+    width: 100%;
+    padding-top: calc(var(--top-nav-h) + var(--safe-top));
+    /* Room for the sticky CTA bar the profile renders at the bottom, so the
+       last section is never covered by it. */
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
+}
+
+@media (min-width: 768px) {
+    .content {
+        padding-top: 60px;
+    }
+}
+
+/* ── Loading skeleton ─────────────────────────────────────────
+   Shown while the auth store resolves. Shaped like a profile
+   (nav → cover → avatar → lines) so the real page swaps in
+   without the layout jumping. */
+
+.skeleton {
+    min-height: 100dvh;
+    background: var(--color-bg);
+}
+
+.skeletonNav,
+.skeletonCover,
+.skeletonAvatar,
+.skeletonLine,
+.skeletonLineSm {
+    background: var(--color-surface-raised);
+    animation: publicShellPulse 1.4s ease-in-out infinite;
+}
+
+.skeletonNav {
+    height: calc(var(--top-nav-h) + var(--safe-top));
+}
+
+.skeletonCover {
+    aspect-ratio: 3 / 1;
+    width: 100%;
+    margin-top: var(--space-1);
+}
+
+.skeletonBody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-width: 680px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+
+.skeletonAvatar {
+    width: 88px;
+    height: 88px;
+    border-radius: var(--radius-full);
+    margin-top: -44px;
+}
+
+.skeletonLine {
+    height: 20px;
+    width: 60%;
+    border-radius: var(--radius-sm);
+}
+
+.skeletonLineSm {
+    height: 14px;
+    width: 35%;
+    border-radius: var(--radius-sm);
+}
+
+@keyframes publicShellPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .skeletonNav,
+    .skeletonCover,
+    .skeletonAvatar,
+    .skeletonLine,
+    .skeletonLineSm {
+        animation: none;
+    }
+}

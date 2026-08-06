@@ -19,6 +19,8 @@
 import { useState } from "react"
 import { Icon } from "@iconify/react"
 
+import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
+
 import {
     useDeleteCareerEntry,
     useUserCareer,
@@ -91,8 +93,14 @@ interface CareerSectionProps {
 type FormState = { mode: "add" } | { mode: "edit"; entry: CareerEntry } | null
 
 export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
+    // On a public profile the entries arrived with the server-rendered bundle.
+    // Passing null disables the query outright — /careers/users/<id> is
+    // IsAuthenticated, so firing it for a logged-out visitor would 401 and
+    // render an error under a section that already has its data.
+    const publicEntries = usePublicSection<CareerEntry>("career")
+
     const { data, isLoading, isError, refetch, isRefetching } =
-        useUserCareer(userId)
+        useUserCareer(publicEntries ? null : userId)
     const deleteEntry = useDeleteCareerEntry()
 
     const [form, setForm] = useState<FormState>(null)
@@ -104,8 +112,9 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
 
     // The API's word on ownership beats comparing ids here: acting as an
     // organization never counts as owning your own history. Fall back to the
-    // prop while the request is still in flight.
-    const canManage = data?.is_owner ?? isOwn
+    // prop while the request is still in flight. A logged-out visitor is never
+    // the owner, whatever the prop says.
+    const canManage = publicEntries ? false : (data?.is_owner ?? isOwn)
 
     const handleDelete = async (entryId: string) => {
         try {
@@ -161,7 +170,7 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
         )
     }
 
-    const entries = data?.results ?? []
+    const entries = publicEntries ?? data?.results ?? []
 
     // A visitor gets no heading at all when there is nothing under it.
     if (entries.length === 0 && !canManage) return null

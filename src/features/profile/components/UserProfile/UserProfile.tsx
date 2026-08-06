@@ -14,20 +14,27 @@ import AchievementsSection from "@/features/achievements/components/Achievements
 import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import ProfileShareMenu from "@/features/profile/components/ProfileShareMenu/ProfileShareMenu"
+import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import {
   useUserProfile,
   useFollowUser,
 } from "@/features/profile/hooks/useProfileQueries"
 import { useNavigation } from "@/shared/services/navigation.service"
 import type { UserProfile } from "@/features/profile/services/profile.api"
+import type { PublicUserProfile } from "@/features/profile/services/publicProfile.api"
 import { ageGroupBadge } from "@/features/profile/utils/ageGroup"
 import styles from "./UserProfile.module.css"
 
 // ── Stat pill ─────────────────────────────────────────────────
 function StatPill({
-  value, label, href,
+  value, label, href, onWalled,
 }: {
-  value: string; label: string; href?: string
+  value: string | number
+  label: string
+  href?: string
+  /** Public view: tapping walls instead of opening the follower list. */
+  onWalled?: () => void
 }) {
   const content = (
     <>
@@ -35,6 +42,22 @@ function StatPill({
       <span className={styles.statLabel}>{label}</span>
     </>
   )
+
+  // The count itself is public — it is on the card in every listing already —
+  // but the LIST behind it is not. Follower graphs are the highest-value thing
+  // to scrape off a profile, so an anonymous tap hits the wall rather than
+  // opening /network.
+  if (onWalled) {
+    return (
+      <button
+        type="button"
+        onClick={onWalled}
+        className={`${styles.statPill} ${styles.statPillLink}`}
+      >
+        {content}
+      </button>
+    )
+  }
 
   if (href) {
     return (
@@ -81,18 +104,43 @@ function FollowButton({
 interface UserProfileProps {
   username: string
   isOwn?: boolean
+  /**
+   * Server-fetched public payload. Its PRESENCE is what puts this component in
+   * public (logged-out) mode — one component, one render path, two payloads.
+   * When set, the authenticated profile query is disabled: that endpoint is
+   * IsAuthenticated and would 401 for the visitor this prop exists for.
+   */
+  publicProfile?: PublicUserProfile
 }
 
 type PhotoModalType = "profile" | "cover" | null
 
-export default function UserProfile({ username, isOwn = false }: UserProfileProps) {
+export default function UserProfile({
+  username,
+  isOwn = false,
+  publicProfile,
+}: UserProfileProps) {
   const router = useRouter()
   const { toMessage, toNetwork } = useNavigation()
-  const { data: profile, isLoading, isError } = useUserProfile(username)
+  const publicView = usePublicProfile()
+  const isPublicView = Boolean(publicProfile)
+
+  const {
+    data: fetchedProfile,
+    isLoading: isFetching,
+    isError,
+  } = useUserProfile(username, !isPublicView)
+
+  // The public payload is already the shape this component renders, minus the
+  // fields it omits by design (see UserProfile in profile.api.ts).
+  const profile = (publicProfile as UserProfile | undefined) ?? fetchedProfile
+  const isLoading = isPublicView ? false : isFetching
 
   const [photoModal, setPhotoModal] = useState<PhotoModalType>(null)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
+
+  const wall = (action: string) => () => publicView?.openLoginWall(action)
 
   // After save: redirect if username changed, otherwise just close
   const handleProfileSaved = (updated: UserProfile) => {
@@ -126,13 +174,12 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
   }
 
   const rel = profile.relationship
-  const isMe = isOwn || (rel?.is_me ?? false)
+  // A logged-out visitor is never "me", whatever else is passed in.
+  const isMe = !isPublicView && (isOwn || (rel?.is_me ?? false))
 
-  const joined = new Date(profile.created_at).toLocaleDateString("en-IN", {
-    month: "long", year: "numeric",
-  })
-
-  const ageGroup = ageGroupBadge(profile.birthdate)
+  // The public payload carries a server-derived band instead of a raw
+  // birthdate — the date itself never leaves the server on that path.
+  const ageGroup = profile.age_group ?? ageGroupBadge(profile.birthdate)
 
   return (
     <>
@@ -162,6 +209,8 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </button>
             )}
 
+            {/* Viewing a photo full-screen is free — it's already on the page.
+                Only the EDIT affordances above are owner-gated. */}
             {!isMe && profile.cover_photo && (
               <button
                 className={styles.coverViewBtn}
@@ -264,24 +313,28 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               </p>
             ) : null}
 
-            {/* Stats */}
+            {/* Stats. Counts always render; in public view the LIST behind
+                each one is walled (see StatPill). */}
             <div className={styles.statsRow}>
               <StatPill
                 value={profile.followers_count}
                 label="Followers"
-                href={toNetwork(profile.username, "user", "followers")}
+                href={isPublicView ? undefined : toNetwork(profile.username, "user", "followers")}
+                onWalled={isPublicView ? wall("see the followers of") : undefined}
               />
               <div className={styles.statDivider} />
               <StatPill
                 value={profile.following_count}
                 label="Following"
-                href={toNetwork(profile.username, "user", "following")}
+                href={isPublicView ? undefined : toNetwork(profile.username, "user", "following")}
+                onWalled={isPublicView ? wall("see who's followed by") : undefined}
               />
               <div className={styles.statDivider} />
               <StatPill
                 value={profile.connections_count}
                 label="Connections"
-                href={toNetwork(profile.username, "user", "connections")}
+                href={isPublicView ? undefined : toNetwork(profile.username, "user", "connections")}
+                onWalled={isPublicView ? wall("see the connections of") : undefined}
               />
             </div>
 
@@ -299,35 +352,75 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
                   >
                     Edit Profile
                   </Button>
-                  <Button variant="ghost" size="sm" iconOnly aria-label="Share profile">
-                    <Icon icon="mdi:share-variant-outline" width={18} height={18} />
-                  </Button>
+                  <ProfileShareMenu
+                    target={{ type: "user", id: profile.id }}
+                    username={profile.username}
+                    name={profile.name}
+                    avatarUrl={profile.profile_photo}
+                    subtitle={profile.headline || profile.primary_sport?.sport}
+                  />
                 </>
               ) : (
                 <>
-                  {rel && (
+                  {/* Public view: a Follow button that walls, so the visitor
+                      sees the same affordance and the same call to action a
+                      member does — an absent button converts nobody. */}
+                  {isPublicView ? (
                     <span className={styles.actionBtnFull}>
-                      <FollowButton
-                        profileId={profile.id}
-                        username={profile.username}
-                        isFollowing={rel.is_following}
-                        isFollowedBy={rel.is_followed_by}
-                      />
+                      <Button
+                        variant="brand"
+                        size="sm"
+                        fullWidth
+                        onClick={wall("follow")}
+                        leftIcon={<Icon icon="mdi:plus" width={15} height={15} />}
+                      >
+                        Follow
+                      </Button>
                     </span>
+                  ) : (
+                    rel && (
+                      <span className={styles.actionBtnFull}>
+                        <FollowButton
+                          profileId={profile.id}
+                          username={profile.username}
+                          isFollowing={rel.is_following}
+                          isFollowedBy={rel.is_followed_by}
+                        />
+                      </span>
+                    )
                   )}
-                  <Button
-                    href={toMessage(profile.username)}
-                    variant="outline"
-                    size="sm"
-                    fullWidth
-                    className={styles.actionBtnFull}
-                    leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
-                  >
-                    Message
-                  </Button>
-                  <Button variant="ghost" size="sm" iconOnly aria-label="More options">
-                    <Icon icon="mdi:dots-horizontal" width={18} height={18} />
-                  </Button>
+
+                  {isPublicView ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      fullWidth
+                      className={styles.actionBtnFull}
+                      onClick={wall("message")}
+                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                    >
+                      Message
+                    </Button>
+                  ) : (
+                    <Button
+                      href={toMessage(profile.username)}
+                      variant="outline"
+                      size="sm"
+                      fullWidth
+                      className={styles.actionBtnFull}
+                      leftIcon={<Icon icon="mdi:message-outline" width={15} height={15} />}
+                    >
+                      Message
+                    </Button>
+                  )}
+
+                  <ProfileShareMenu
+                    target={{ type: "user", id: profile.id }}
+                    username={profile.username}
+                    name={profile.name}
+                    avatarUrl={profile.profile_photo}
+                    subtitle={profile.headline || profile.primary_sport?.sport}
+                  />
                 </>
               )}
             </div>
@@ -373,6 +466,10 @@ export default function UserProfile({ username, isOwn = false }: UserProfileProp
               preview
               onCreatePost={() => setPostModalOpen(true)}
             />
+            {/* PostsList reads its rows from the public context when there is
+                one (see usePublicSection), so nothing extra is threaded here.
+                Same for the sports, highlights, career and achievement
+                sections above and below. */}
 
             {/* Career. Keyed by user id, not username (the endpoint is
                 /careers/users/<user_id>). Renders nothing for a visitor

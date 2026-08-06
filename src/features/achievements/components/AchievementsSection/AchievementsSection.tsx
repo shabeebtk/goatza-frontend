@@ -23,6 +23,8 @@ import {
     ACHIEVEMENTS_EMPTY_ICON,
     ACHIEVEMENTS_SECTION_ICON,
 } from "../../achievementMeta"
+import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
+
 import {
     useDeleteAchievement,
     useUpdateAchievement,
@@ -103,8 +105,13 @@ export default function AchievementsSection({
     userId,
     isOwn,
 }: AchievementsSectionProps) {
+    // On a public profile the awards arrived with the server-rendered bundle;
+    // passing null disables the query, which is IsAuthenticated. Same pattern
+    // CareerSection uses.
+    const publicAchievements = usePublicSection<Achievement>("achievements")
+
     const { data, isLoading, isError, refetch, isRefetching } =
-        useUserAchievements(userId)
+        useUserAchievements(publicAchievements ? null : userId)
     const deleteAchievement = useDeleteAchievement()
     const updateAchievement = useUpdateAchievement()
 
@@ -141,10 +148,11 @@ export default function AchievementsSection({
 
     // The API's word on ownership beats comparing ids here: acting as an
     // organization never counts as owning your own profile. Fall back to the
-    // prop while the request is still in flight.
-    const canManage = data?.is_owner ?? isOwn
+    // prop while the request is still in flight. A logged-out visitor is never
+    // the owner, whatever the prop says.
+    const canManage = publicAchievements ? false : (data?.is_owner ?? isOwn)
 
-    const achievements = data?.results ?? []
+    const achievements = publicAchievements ?? data?.results ?? []
     const pinnedCount = achievements.filter((a) => a.is_pinned).length
 
     const handleDelete = async (achievementId: string) => {
