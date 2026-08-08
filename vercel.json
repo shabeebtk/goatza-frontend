@@ -1,13 +1,4 @@
 {
-  "$comment": [
-    "/api/* is NOT ours — every path under it is proxied to Django, so a Next",
-    "route handler placed there is unreachable in production while working fine",
-    "in `next dev` (which does not apply this file). Anything Next serves itself",
-    "must live outside /api: the share card is at /card/profile/<username>.",
-    "",
-    "No trailing slash on the source either — /api/foo/ round-trips through a",
-    "Vercel 308 into Django's APPEND_SLASH 301, which drops the /api prefix."
-  ],
   "rewrites": [
     {
       "source": "/api/:path*",
