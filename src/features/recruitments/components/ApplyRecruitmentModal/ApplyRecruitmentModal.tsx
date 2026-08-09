@@ -20,6 +20,13 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useAuthStore } from "@/store/auth.store"
 import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
 import { useApplyRecruitment } from "../../hooks/useRecruitments"
+import {
+  ageGroupApplyPayload,
+  ageGroupOptionLabel,
+  formatReportingTime,
+  isAgeGroupRequired,
+  validateAgeGroupChoice,
+} from "../../eligibility"
 import type {
   RecruitmentDetail,
   RecruitmentQuestion,
@@ -83,6 +90,12 @@ export default function ApplyRecruitmentModal({
   const questions = recruitment.questions
   const hasQuestions = questions.length > 0
 
+  // Age groups the organiser published. When there are any, the applicant has
+  // to say which one they're applying under — but nothing is pre-selected from
+  // their profile, and no choice is ever rejected for not matching their age.
+  const ageGroups = recruitment.age_categories ?? []
+  const needsAgeGroup = isAgeGroupRequired(ageGroups)
+
   const stepOrder: Step[] = useMemo(
     () => (hasQuestions ? ["details", "questions", "success"] : ["details", "success"]),
     [hasQuestions]
@@ -98,6 +111,10 @@ export default function ApplyRecruitmentModal({
   const [emailTouched, setEmailTouched] = useState(false)
   // If the profile carried no phone, prompt for it right away.
   const [phoneTouched, setPhoneTouched] = useState(() => !initialPhone)
+  // Deliberately starts empty — pre-selecting from the player's birthdate
+  // would make Goatza an eligibility judge, which it is not.
+  const [ageGroupId, setAgeGroupId] = useState("")
+  const [ageGroupTouched, setAgeGroupTouched] = useState(false)
 
   // ── Step 2: answers ────────────────────────────────────────────
   const [answers, setAnswers] = useState<AnswerState>(() => {
@@ -130,7 +147,11 @@ export default function ApplyRecruitmentModal({
   const normalizedPhone = phone.trim().replace(/[\s\-().]/g, "")
   const phoneValid = PHONE_RE.test(normalizedPhone)
   const emailValid = email.trim() === "" || EMAIL_RE.test(email.trim())
-  const detailsValid = name.trim().length > 0 && phoneValid
+  const ageGroupIssue = validateAgeGroupChoice(ageGroups, ageGroupId)
+  const detailsValid = name.trim().length > 0 && phoneValid && ageGroupIssue === null
+
+  const ageGroupError =
+    (ageGroupTouched ? ageGroupIssue : null) ?? fieldErrors.age_category ?? null
 
   const nameError = fieldErrors.shared_name ?? null
   const phoneError =
@@ -196,6 +217,8 @@ export default function ApplyRecruitmentModal({
           shared_name: name.trim(),
           shared_email: email.trim() || undefined,
           shared_phone: phone.trim(),
+          // Omitted entirely when the recruitment has no age groups.
+          ...ageGroupApplyPayload(ageGroups, ageGroupId),
           answers: buildAnswers(),
         },
       })
@@ -206,7 +229,7 @@ export default function ApplyRecruitmentModal({
       const serverErrors = getApiFieldErrors(err)
       if (serverErrors) {
         const known: Record<string, string> = {}
-        for (const key of ["shared_name", "shared_email", "shared_phone"]) {
+        for (const key of ["shared_name", "shared_email", "shared_phone", "age_category"]) {
           if (serverErrors[key]) known[key] = serverErrors[key]
         }
         if (Object.keys(known).length > 0) {
@@ -222,6 +245,7 @@ export default function ApplyRecruitmentModal({
     if (!detailsValid) {
       setPhoneTouched(true)
       setEmailTouched(true)
+      setAgeGroupTouched(true)
       return
     }
     setSubmitError(null)
@@ -253,6 +277,8 @@ export default function ApplyRecruitmentModal({
 
   // ── Success screen ─────────────────────────────────────────────
   if (step === "success") {
+    const chosenGroup = ageGroups.find((g) => g.id === ageGroupId) ?? null
+    const reportingTime = formatReportingTime(chosenGroup?.reporting_time)
     return createPortal(
       <div className={styles.backdrop} onClick={backdropClose} role="dialog" aria-modal="true">
         <div className={styles.modal}>
@@ -265,6 +291,15 @@ export default function ApplyRecruitmentModal({
               <p className={styles.successText}>
                 You applied to {recruitment.title}. The organization will review your application.
               </p>
+              {chosenGroup && (
+                <div className={styles.successGroup}>
+                  <Icon icon="mdi:account-group-outline" width={15} height={15} />
+                  <span>
+                    Applying under <strong>{chosenGroup.title}</strong>
+                    {reportingTime ? ` · report by ${reportingTime}` : ""}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <div className={styles.successFooter}>
@@ -484,6 +519,39 @@ export default function ApplyRecruitmentModal({
                   </span>
                 )}
               </div>
+
+              {/* Age group — only when the organiser published groups. */}
+              {needsAgeGroup && (
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Which age group are you applying for? <span className={styles.required}>*</span>
+                  </label>
+                  <select
+                    className={`${styles.fieldInput} ${ageGroupError ? styles.fieldInputError : ""}`}
+                    value={ageGroupId}
+                    onChange={(e) => {
+                      setAgeGroupId(e.target.value)
+                      setAgeGroupTouched(true)
+                      clearFieldError("age_category")
+                    }}
+                    onBlur={() => setAgeGroupTouched(true)}
+                    disabled={isPending}
+                  >
+                    <option value="">— Select a group —</option>
+                    {ageGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {ageGroupOptionLabel(group)}
+                      </option>
+                    ))}
+                  </select>
+                  {ageGroupError && (
+                    <span className={styles.fieldErrorText} role="alert">
+                      <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
+                      {ageGroupError}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className={styles.shareNote}>
                 <Icon icon="mdi:shield-account-outline" width={15} height={15} />

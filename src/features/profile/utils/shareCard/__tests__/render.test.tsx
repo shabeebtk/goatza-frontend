@@ -42,8 +42,16 @@ afterAll(() => {
   vi.unstubAllGlobals()
 })
 
-async function render(format: CardFormat, b = bundle(), slots?: string) {
-  const data = toCardData(b, format, slots)
+/** What the route would encode: absolute, and tagged as reached from a card. */
+const QR = "https://goatza.com/profile/aravind10?ref=card"
+
+async function render(
+  format: CardFormat,
+  b = bundle(),
+  slots?: string,
+  qrUrl: string | null = QR
+) {
+  const data = toCardData(b, format, slots, qrUrl)
   const { width, height } = CARD_SIZES[format]
 
   const response = new ImageResponse(<ProfileCard data={data} format={format} />, {
@@ -113,6 +121,45 @@ describe("fallbacks", () => {
       )
     )
     expect(pngSize(png).height).toBe(1920)
+  })
+})
+
+describe("the QR footer", () => {
+  // Satori draws inline SVG, but a `<path>` with a few hundred subpaths is the
+  // largest single node on the card and the one most likely to be refused
+  // outright. These render it for real rather than asserting on a tree.
+  it("renders the story card with a QR", async () => {
+    expect(pngSize(await render("story"))).toEqual({ width: 1080, height: 1920 })
+  })
+
+  it("renders the story card without one", async () => {
+    expect(pngSize(await render("story", bundle(), undefined, null))).toEqual({
+      width: 1080,
+      height: 1920,
+    })
+  })
+
+  it("renders a 50-character username, which is the backend's column width", async () => {
+    // The longest URL the QR can be asked to carry — a denser symbol — beside
+    // the widest thing the footer's left column can print.
+    const png = await render(
+      "story",
+      bundle({ username: "a".repeat(50) }),
+      undefined,
+      `https://goatza.com/profile/${"a".repeat(50)}?ref=card`
+    )
+    expect(pngSize(png)).toEqual({ width: 1080, height: 1920 })
+  })
+
+  it("keeps the QR off the link card even when one is passed", async () => {
+    // The layout is dumb by design, so the rule lives in the adapter. This is
+    // the second lock on it; the route holds the first.
+    expect(toCardData(bundle(), "link", undefined, QR).qrUrl).toBeNull()
+    expect(toCardData(bundle(), "story", undefined, QR).qrUrl).toBe(QR)
+  })
+
+  it("renders the link card unchanged", async () => {
+    expect(pngSize(await render("link"))).toEqual({ width: 1200, height: 630 })
   })
 })
 

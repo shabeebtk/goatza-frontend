@@ -51,4 +51,14 @@ export interface CardData {
   /** Footer meta, e.g. "Player profile". Short by necessity — it shares a row
    *  with the URL. */
   kindLabel: string
+  /**
+   * The absolute URL the footer's QR code encodes, or null for no QR.
+   *
+   * Absolute, always: a QR is scanned by a camera that has no origin to resolve
+   * a path against. Null when the viewer turned it off (`?qr=0`) and always
+   * null for the link format, which is an OG preview — already clickable, so a
+   * QR on it is noise. Built by the route, never by the layout: `ProfileCard`
+   * renders `CardData` and knows nothing about origins or query params.
+   */
+  qrUrl: string | null
 }

@@ -31,10 +31,12 @@ import {
   APPLICATION_STATUS_META,
   APPLICATION_STATUS_ORDER,
 } from "../../applicationStatus"
+import { formatBirthYears } from "../../eligibility"
 import type {
   ApplicationStatus,
   ApplicantListItem,
   BulkStatusTarget,
+  RecruitmentAgeCategory,
   StatusChangeSkip,
 } from "../../services/recruitments.api"
 import StatusBadge from "../StatusBadge/StatusBadge"
@@ -44,6 +46,8 @@ import styles from "./ApplicantsList.module.css"
 dayjs.extend(relativeTime)
 
 type StatusFilter = ApplicationStatus | "all"
+// "all" = every group; an age-group id narrows to applicants who picked it.
+type GroupFilter = string
 
 // Bulk multi-select targets (Invited is single-change only, in the drawer).
 const BULK_ACTIONS: { status: BulkStatusTarget; label: string; verb: string }[] = [
@@ -201,6 +205,12 @@ function ApplicantRow({
             <Icon icon="mdi:clock-outline" width={12} height={12} />
             Applied {dayjs(item.applied_at).fromNow()}
           </span>
+          {/* The group they applied under. "—" rather than nothing, so a row
+              with no group reads as answered, not as missing data. */}
+          <span className={styles.groupTag}>
+            <Icon icon="mdi:account-group-outline" width={12} height={12} />
+            {item.age_category?.title ?? "—"}
+          </span>
         </div>
         <div className={styles.rowRight}>
           <StatusBadge status={item.status} />
@@ -227,9 +237,17 @@ function ApplicantRow({
 
 // ── Main ───────────────────────────────────────────────────────
 
-export default function ApplicantsList({ recruitmentId }: { recruitmentId: string }) {
+export default function ApplicantsList({
+  recruitmentId,
+  ageCategories = [],
+}: {
+  recruitmentId: string
+  /** The recruitment's own age groups — empty when it is open to all ages. */
+  ageCategories?: RecruitmentAgeCategory[]
+}) {
   const toast = useToast()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("all")
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [openApplicationId, setOpenApplicationId] = useState<string | null>(null)
@@ -249,7 +267,7 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
   // A selection only makes sense within one filter/search view. Reset it the
   // moment that view changes — render-phase reset (React's recommended
   // alternative to a setState-in-effect), so it happens before paint.
-  const viewKey = `${statusFilter}|${debouncedSearch}`
+  const viewKey = `${statusFilter}|${groupFilter}|${debouncedSearch}`
   const [selectionViewKey, setSelectionViewKey] = useState(viewKey)
   if (selectionViewKey !== viewKey) {
     setSelectionViewKey(viewKey)
@@ -267,6 +285,7 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
   } = useRecruitmentApplicants(recruitmentId, {
     status: statusFilter === "all" ? undefined : statusFilter,
     search: debouncedSearch || undefined,
+    age_category: groupFilter === "all" ? undefined : groupFilter,
   })
 
   // ── Infinite scroll ──────────────────────────────────────────
@@ -334,7 +353,8 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
     return list
   }, [statusCounts, totalApplicants])
 
-  const filtersActive = statusFilter !== "all" || debouncedSearch.length > 0
+  const filtersActive =
+    statusFilter !== "all" || groupFilter !== "all" || debouncedSearch.length > 0
 
   // ── Selection ────────────────────────────────────────────────
   const selectableIds = useMemo(
@@ -424,6 +444,32 @@ export default function ApplicantsList({ recruitmentId }: { recruitmentId: strin
             >
               {chip.label}
               <span className={styles.chipCount}>{chip.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Age-group chips — only for a recruitment that published groups.
+          Same chip pattern as the status row; the backend ignores an id it
+          doesn't own, so a stale group can never empty the list wrongly. */}
+      {ageCategories.length > 0 && (
+        <div className={styles.chipRow}>
+          <button
+            className={`${styles.chip} ${groupFilter === "all" ? styles.chipActive : ""}`}
+            onClick={() => setGroupFilter("all")}
+            type="button"
+          >
+            All groups
+          </button>
+          {ageCategories.map((group) => (
+            <button
+              key={group.id}
+              className={`${styles.chip} ${groupFilter === group.id ? styles.chipActive : ""}`}
+              onClick={() => setGroupFilter(group.id)}
+              type="button"
+              title={formatBirthYears(group.min_birth_year, group.max_birth_year)}
+            >
+              {group.title}
             </button>
           ))}
         </div>

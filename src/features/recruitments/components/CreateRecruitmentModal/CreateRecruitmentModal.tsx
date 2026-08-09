@@ -23,6 +23,13 @@ import type {
     CreateRecruitmentMediaPayload,
     ApplyMethod,
 } from "../../services/recruitments.api"
+import {
+    MIN_BIRTH_YEAR,
+    buildAgeCategoriesPayload,
+    formatBirthYears,
+    validateAgeGroups,
+    type AgeGroupDraft,
+} from "../../eligibility"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -39,13 +46,9 @@ type QuestionDraft = {
     options: { value: string }[]
 }
 
-type AgeCategoryDraft = {
+type EligibilityCriteriaDraft = {
     id: string
     title: string
-    min_birth_year: number
-    max_birth_year: number
-    reporting_time: string      // "HH:MM" or ""
-    showReportingTime: boolean
     display_order: number
 }
 
@@ -96,7 +99,7 @@ type PositionItem = { position_id: string; name: string }
 type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 
 const TOTAL_STEPS = 5
-const STEP_LABELS = ["Basics", "Age & Venue", "Positions", "Media", "Review"]
+const STEP_LABELS = ["Basics", "Eligibility & Venue", "Positions", "Media", "Review"]
 
 // Banner photos are cropped to a fixed landscape ratio so every recruitment
 // header reads as a clean banner (the detail carousel renders them cover-fit).
@@ -267,11 +270,15 @@ function reportingTimeToDraft(t: string | null): { value: string; show: boolean 
     return { value: `${h}:${m}`, show: true }
 }
 
-function mapInitialAgeCategories(r: RecruitmentDetail): AgeCategoryDraft[] {
+function mapInitialAgeCategories(r: RecruitmentDetail): AgeGroupDraft[] {
     return (r.age_categories ?? []).map((c, idx) => {
         const rt = reportingTimeToDraft(c.reporting_time)
         return {
             id: uid(),
+            // Carried back on save so the backend updates this exact group
+            // instead of recreating it — which would drop the group every
+            // existing applicant chose.
+            serverId: c.id,
             title: c.title,
             min_birth_year: c.min_birth_year,
             max_birth_year: c.max_birth_year,
@@ -280,6 +287,14 @@ function mapInitialAgeCategories(r: RecruitmentDetail): AgeCategoryDraft[] {
             display_order: idx,
         }
     })
+}
+
+function mapInitialEligibilityCriteria(r: RecruitmentDetail): EligibilityCriteriaDraft[] {
+    return (r.eligibility_criteria ?? []).map((c, idx) => ({
+        id: uid(),
+        title: c.title,
+        display_order: idx,
+    }))
 }
 
 function mapInitialQuestions(r: RecruitmentDetail): QuestionDraft[] {
@@ -412,22 +427,35 @@ function StepBar({ step, onStepClick, disabled }: {
 
 // ── Age Category Builder ──────────────────────────────────────
 
-function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChange }: {
-    categories: AgeCategoryDraft[]
-    onChange: (cats: AgeCategoryDraft[]) => void
+function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAgesChange }: {
+    categories: AgeGroupDraft[]
+    onChange: (cats: AgeGroupDraft[]) => void
     disabled: boolean
-    noAge: boolean
-    onNoAgeChange: (v: boolean) => void
+    allAges: boolean
+    onAllAgesChange: (v: boolean) => void
 }) {
-    // Switching to "no age category" clears any picked categories — the trial
-    // is then open to all ages and saves with an empty age_categories list.
-    const toggleNoAge = () => {
-        if (!noAge) {
-            onChange([])
-            onNoAgeChange(true)
-        } else {
-            onNoAgeChange(false)
+    // Leaving "specific groups" throws away whatever was authored, so ask
+    // first — but only when there is actually something to lose.
+    const [confirmClear, setConfirmClear] = useState(false)
+
+    const chooseAllAges = () => {
+        if (allAges) return
+        if (categories.length > 0) {
+            setConfirmClear(true)
+            return
         }
+        onAllAgesChange(true)
+    }
+
+    const discardGroups = () => {
+        setConfirmClear(false)
+        onChange([])
+        onAllAgesChange(true)
+    }
+
+    const chooseSpecific = () => {
+        if (!allAges) return
+        onAllAgesChange(false)
     }
 
     const addPreset = (label: string, maxAge: number) => {
@@ -456,8 +484,14 @@ function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChan
         }])
     }
 
-    const update = (id: string, patch: Partial<AgeCategoryDraft>) => {
+    const update = (id: string, patch: Partial<AgeGroupDraft>) => {
         onChange(categories.map(c => c.id === id ? { ...c, ...patch } : c))
+    }
+
+    // An emptied year input is a real value here ("no bound"), not a typo —
+    // that is what makes a group open-ended.
+    const updateYear = (id: string, key: "min_birth_year" | "max_birth_year", raw: string) => {
+        update(id, { [key]: raw === "" ? null : Number(raw) } as Partial<AgeGroupDraft>)
     }
 
     const remove = (id: string) => onChange(categories.filter(c => c.id !== id))
@@ -466,20 +500,36 @@ function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChan
 
     return (
         <div className={styles.ageCategoryBuilder}>
-            {/* No age category — open to all ages */}
-            <button
-                type="button"
-                className={`${styles.noAgeToggle} ${noAge ? styles.noAgeToggleActive : ""}`}
-                onClick={toggleNoAge}
-                disabled={disabled}
-            >
-                open to all ages
-            </button>
+            {/* Age policy — all ages vs specific groups */}
+            <div className={styles.agePolicyRow} role="radiogroup" aria-label="Age policy">
+                <button
+                    type="button"
+                    role="radio"
+                    aria-checked={allAges}
+                    className={`${styles.noAgeToggle} ${allAges ? styles.noAgeToggleActive : ""}`}
+                    onClick={chooseAllAges}
+                    disabled={disabled}
+                >
+                    <Icon icon={allAges ? "mdi:radiobox-marked" : "mdi:radiobox-blank"} width={14} height={14} />
+                    Open to all ages
+                </button>
+                <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!allAges}
+                    className={`${styles.noAgeToggle} ${!allAges ? styles.noAgeToggleActive : ""}`}
+                    onClick={chooseSpecific}
+                    disabled={disabled}
+                >
+                    <Icon icon={!allAges ? "mdi:radiobox-marked" : "mdi:radiobox-blank"} width={14} height={14} />
+                    Specific age groups
+                </button>
+            </div>
 
-            {noAge ? (
+            {allAges ? (
                 <p className={styles.emptyHint}>
                     <Icon icon="mdi:information-outline" width={13} height={13} />
-                    Open to all ages — no age category will be shown on the listing.
+                    Open to all ages — the listing will show &ldquo;All ages&rdquo;.
                 </p>
             ) : (
               <>
@@ -511,7 +561,7 @@ function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChan
             {/* Category cards */}
             {categories.length > 0 && (
                 <div className={styles.ageCategoryList}>
-                    {categories.map((cat, i) => (
+                    {categories.map((cat) => (
                         <div key={cat.id} className={styles.ageCategoryCard}>
                             <div className={styles.ageCategoryCardHeader}>
                                 <input
@@ -534,30 +584,44 @@ function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChan
 
                             <div className={styles.fieldRow}>
                                 <div className={styles.fieldGroup}>
-                                    <label className={styles.fieldLabel}>Min Birth Year</label>
+                                    <label className={styles.fieldLabel}>
+                                        Min Birth Year <span className={styles.optionalTag}>Optional</span>
+                                    </label>
                                     <input
                                         className={styles.fieldInput}
                                         type="number"
-                                        min={1980}
+                                        min={MIN_BIRTH_YEAR}
                                         max={CURRENT_YEAR}
-                                        value={cat.min_birth_year}
-                                        onChange={e => update(cat.id, { min_birth_year: Number(e.target.value) })}
+                                        placeholder="Any"
+                                        value={cat.min_birth_year ?? ""}
+                                        onChange={e => updateYear(cat.id, "min_birth_year", e.target.value)}
                                         disabled={disabled}
                                     />
                                 </div>
                                 <div className={styles.fieldGroup}>
-                                    <label className={styles.fieldLabel}>Max Birth Year</label>
+                                    <label className={styles.fieldLabel}>
+                                        Max Birth Year <span className={styles.optionalTag}>Optional</span>
+                                    </label>
                                     <input
                                         className={styles.fieldInput}
                                         type="number"
-                                        min={1980}
+                                        min={MIN_BIRTH_YEAR}
                                         max={CURRENT_YEAR}
-                                        value={cat.max_birth_year}
-                                        onChange={e => update(cat.id, { max_birth_year: Number(e.target.value) })}
+                                        placeholder="Any"
+                                        value={cat.max_birth_year ?? ""}
+                                        onChange={e => updateYear(cat.id, "max_birth_year", e.target.value)}
                                         disabled={disabled}
                                     />
                                 </div>
                             </div>
+
+                            {/* Live read-back of what the two years actually say,
+                                so open-ended groups are obvious while typing. */}
+                            <p className={styles.ageRangePreview}>
+                                <Icon icon="mdi:cake-variant-outline" width={13} height={13} />
+                                {formatBirthYears(cat.min_birth_year, cat.max_birth_year)
+                                    || "Set at least one year — leave max empty for “or later”, min empty for “or earlier”."}
+                            </p>
 
                             {/* Reporting time — optional toggle */}
                             <div className={styles.reportingTimeRow}>
@@ -588,11 +652,134 @@ function AgeCategoryBuilder({ categories, onChange, disabled, noAge, onNoAgeChan
             {categories.length === 0 && (
                 <p className={styles.emptyHint}>
                     <Icon icon="mdi:information-outline" width={13} height={13} />
-                    Select preset age groups above or add a custom category.
+                    Select preset age groups above or add a custom group.
                 </p>
             )}
               </>
             )}
+
+            {confirmClear && (
+                <div className={styles.confirmOverlay} onClick={() => setConfirmClear(false)}>
+                    <div
+                        className={styles.confirmDialog}
+                        onClick={e => e.stopPropagation()}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-label="Discard age groups"
+                    >
+                        <span className={styles.confirmIcon}>
+                            <Icon icon="mdi:alert-outline" width={26} height={26} />
+                        </span>
+                        <h3 className={styles.confirmTitle}>Discard the age groups?</h3>
+                        <p className={styles.confirmText}>
+                            Switching to &ldquo;Open to all ages&rdquo; removes the{" "}
+                            {categories.length} group{categories.length > 1 ? "s" : ""} you&rsquo;ve set up.
+                        </p>
+                        <div className={styles.confirmActions}>
+                            <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmClear(false)}>
+                                Keep groups
+                            </button>
+                            <button type="button" className={styles.confirmDiscardBtn} onClick={discardGroups}>
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── Eligibility criteria builder ──────────────────────────────
+
+// Free-text lines about who may attend. Mirrors RequirementsBuilder (the org
+// is writing a list either way) minus the mandatory toggle — a criterion is
+// never "optional", and none of it is ever checked against an applicant.
+const CRITERIA_PRESETS = [
+    "Kerala residents only",
+    "District-level experience required",
+    "School / college students only",
+    "Registered with the state association",
+]
+
+function EligibilityCriteriaBuilder({ criteria, onChange, disabled }: {
+    criteria: EligibilityCriteriaDraft[]
+    onChange: (c: EligibilityCriteriaDraft[]) => void
+    disabled: boolean
+}) {
+    const add = (title = "") =>
+        onChange([...criteria, { id: uid(), title, display_order: criteria.length }])
+    const update = (id: string, patch: Partial<EligibilityCriteriaDraft>) =>
+        onChange(criteria.map(c => c.id === id ? { ...c, ...patch } : c))
+    const remove = (id: string) => onChange(criteria.filter(c => c.id !== id))
+
+    // Reorder by one slot — same list, swapped neighbours.
+    const move = (index: number, delta: number) => {
+        const target = index + delta
+        if (target < 0 || target >= criteria.length) return
+        const next = [...criteria]
+        const [row] = next.splice(index, 1)
+        next.splice(target, 0, row)
+        onChange(next.map((c, idx) => ({ ...c, display_order: idx })))
+    }
+
+    const activeSet = new Set(criteria.map(c => c.title))
+
+    return (
+        <div className={styles.requirementsBuilder}>
+            <div className={styles.reqPresetRow}>
+                {CRITERIA_PRESETS.map(p => (
+                    <button
+                        key={p}
+                        type="button"
+                        className={`${styles.reqPresetChip} ${activeSet.has(p) ? styles.reqPresetChipActive : ""}`}
+                        onClick={() => !activeSet.has(p) && add(p)}
+                        disabled={disabled || activeSet.has(p)}
+                    >
+                        {activeSet.has(p) && <Icon icon="mdi:check" width={10} height={10} />}
+                        {p}
+                    </button>
+                ))}
+            </div>
+            {criteria.map((c, i) => (
+                <div key={c.id} className={styles.listBuilderRow}>
+                    <div className={styles.criteriaReorder}>
+                        <button
+                            type="button"
+                            className={styles.criteriaReorderBtn}
+                            onClick={() => move(i, -1)}
+                            disabled={disabled || i === 0}
+                            aria-label="Move up"
+                        >
+                            <Icon icon="mdi:chevron-up" width={14} height={14} />
+                        </button>
+                        <button
+                            type="button"
+                            className={styles.criteriaReorderBtn}
+                            onClick={() => move(i, 1)}
+                            disabled={disabled || i === criteria.length - 1}
+                            aria-label="Move down"
+                        >
+                            <Icon icon="mdi:chevron-down" width={14} height={14} />
+                        </button>
+                    </div>
+                    <input
+                        className={`${styles.fieldInput} ${styles.listBuilderInput}`}
+                        placeholder="e.g. Kerala residents only"
+                        value={c.title}
+                        onChange={e => update(c.id, { title: e.target.value })}
+                        disabled={disabled}
+                        maxLength={120}
+                    />
+                    <button className={styles.removeQBtn} onClick={() => remove(c.id)} type="button" disabled={disabled}>
+                        <Icon icon="mdi:close" width={13} height={13} />
+                    </button>
+                </div>
+            ))}
+            <button className={styles.addQBtn} onClick={() => add()} type="button" disabled={disabled}>
+                <Icon icon="mdi:plus-circle-outline" width={15} height={15} />
+                Add Criteria
+            </button>
         </div>
     )
 }
@@ -1090,11 +1277,16 @@ export default function CreateRecruitmentModal({
     const [eventDate, setEventDate] = useState(() => isoToLocalInput(init?.event_date ?? null))
     const [maxApplications, setMaxApplications] = useState(() => (init?.max_applications != null ? String(init.max_applications) : ""))
 
-    // ── Step 1: Age + Venue ────────────────────────────────────────
-    const [ageCategories, setAgeCategories] = useState<AgeCategoryDraft[]>(() => (init ? mapInitialAgeCategories(init) : []))
-    // "No age category" = trial open to all ages. In edit mode an existing
-    // recruitment with no categories is treated as open.
-    const [noAgeCategory, setNoAgeCategory] = useState(() => (isEdit ? (init?.age_categories?.length ?? 0) === 0 : false))
+    // ── Step 1: Eligibility + Venue ────────────────────────────────
+    const [ageCategories, setAgeCategories] = useState<AgeGroupDraft[]>(() => (init ? mapInitialAgeCategories(init) : []))
+    // No age groups = open to all ages — there is no separate flag on the
+    // server, so this is pure UI state that decides whether we submit [].
+    // A brand-new recruitment (and any existing one without groups) starts
+    // open.
+    const [allAges, setAllAges] = useState(() => (init?.age_categories?.length ?? 0) === 0)
+    const [eligibilityCriteria, setEligibilityCriteria] = useState<EligibilityCriteriaDraft[]>(
+        () => (init ? mapInitialEligibilityCriteria(init) : [])
+    )
     const [venueName, setVenueName] = useState(() => init?.venue_name ?? "")
     const [venueLink, setVenueLink] = useState(() => init?.venue_link ?? "")
     const [location, setLocation] = useState<MapboxPlace | null>(() => (init ? mapInitialLocation(init) : null))
@@ -1138,8 +1330,9 @@ export default function CreateRecruitmentModal({
     const snapshot = JSON.stringify({
         title, shortDesc, description, recruitmentType, visibility, sportId, gender,
         experienceLevel, applicationDeadline, eventDate, maxApplications,
-        noAgeCategory,
+        allAges,
         ageCategories: ageCategories.map(({ id: _id, ...c }) => c),
+        eligibilityCriteria: eligibilityCriteria.map(({ id: _id, ...c }) => c),
         venueName, venueLink,
         location: location ? { name: location.name, lat: location.latitude, lng: location.longitude } : null,
         anyPosition,
@@ -1245,10 +1438,13 @@ export default function CreateRecruitmentModal({
             }
         }
         if (s === 1) {
-            for (const cat of ageCategories) {
-                if (!cat.title.trim()) return "All age categories need a title."
-                if (cat.min_birth_year > cat.max_birth_year) return `"${cat.title}": min birth year cannot exceed max birth year.`
-                if (cat.min_birth_year < 1980 || cat.max_birth_year > CURRENT_YEAR) return `"${cat.title}": birth years must be between 1980 and ${CURRENT_YEAR}.`
+            // "Open to all ages" submits [], so there is nothing to check.
+            if (!allAges) {
+                if (ageCategories.length === 0) {
+                    return "Add an age group, or choose “Open to all ages”."
+                }
+                const ageError = validateAgeGroups(ageCategories, CURRENT_YEAR)
+                if (ageError) return ageError
             }
             if (venueLink.trim() && !isValidHttpUrl(venueLink.trim())) {
                 return "Enter a valid venue map URL (including https://)."
@@ -1411,14 +1607,12 @@ export default function CreateRecruitmentModal({
         positions: anyPosition
             ? []
             : selectedPositions.map(p => ({ position_id: p.position_id })),
-        // "No age category" → open to all ages, save nothing.
-        age_categories: noAgeCategory ? [] : ageCategories.map((c, idx) => ({
-            title: c.title.trim(),
-            min_birth_year: c.min_birth_year,
-            max_birth_year: c.max_birth_year,
-            reporting_time: c.showReportingTime && c.reporting_time ? c.reporting_time + ":00" : undefined,
-            display_order: idx,
-        })),
+        // "Open to all ages" → an empty list. Otherwise every already-saved
+        // group carries its server id so the backend updates it in place.
+        age_categories: buildAgeCategoriesPayload(ageCategories, allAges),
+        eligibility_criteria: eligibilityCriteria
+            .filter(c => c.title.trim())
+            .map((c, idx) => ({ title: c.title.trim(), display_order: idx })),
         benefits: benefits
             .filter(b => b.title.trim())
             .map((b, idx) => ({ title: b.title.trim(), icon_name: b.icon_name, display_order: idx })),
@@ -1624,15 +1818,9 @@ export default function CreateRecruitmentModal({
                             </div>
                         </div>
 
+                        {/* Gender lives on the Eligibility step — it is part of
+                            "who can attend", not a basic. */}
                         <div className={styles.fieldRow}>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Gender</label>
-                                <select className={styles.fieldSelect} value={gender} onChange={e => setGender(e.target.value as RecruitmentGender)} disabled={isSubmitting}>
-                                    <option value="all">All</option>
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                </select>
-                            </div>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Experience Level</label>
                                 <select className={styles.fieldSelect} value={experienceLevel} onChange={e => setExperienceLevel(e.target.value)} disabled={isSubmitting}>
@@ -1642,6 +1830,14 @@ export default function CreateRecruitmentModal({
                                     <option value="state">State</option>
                                     <option value="national">National</option>
                                     <option value="international">International</option>
+                                </select>
+                            </div>
+                            <div className={styles.fieldGroup}>
+                                <label className={styles.fieldLabel}>Visibility</label>
+                                <select className={styles.fieldSelect} value={visibility} onChange={e => setVisibility(e.target.value as RecruitmentVisibility)} disabled={isSubmitting}>
+                                    <option value="public">Public</option>
+                                    <option value="followers_only">Followers Only</option>
+                                    <option value="private">Private</option>
                                 </select>
                             </div>
                         </div>
@@ -1659,37 +1855,62 @@ export default function CreateRecruitmentModal({
                             </div>
                         </div>
 
-                        <div className={styles.fieldRow}>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Max Applications</label>
-                                <input className={styles.fieldInput} type="number" min={1} placeholder="e.g. 300 (leave blank for unlimited)" value={maxApplications} onChange={e => setMaxApplications(e.target.value)} disabled={isSubmitting} />
-                            </div>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Visibility</label>
-                                <select className={styles.fieldSelect} value={visibility} onChange={e => setVisibility(e.target.value as RecruitmentVisibility)} disabled={isSubmitting}>
-                                    <option value="public">Public</option>
-                                    <option value="followers_only">Followers Only</option>
-                                    <option value="private">Private</option>
-                                </select>
-                            </div>
+                        <div className={styles.fieldGroup}>
+                            <label className={styles.fieldLabel}>Max Applications</label>
+                            <input className={styles.fieldInput} type="number" min={1} placeholder="e.g. 300 (leave blank for unlimited)" value={maxApplications} onChange={e => setMaxApplications(e.target.value)} disabled={isSubmitting} />
                         </div>
                     </div>
                 )
 
-            // ── Step 1: Age Categories + Venue ────────────────────────
+            // ── Step 1: Eligibility + Venue ───────────────────────────
             case 1:
                 return (
                     <div className={styles.stepContent}>
-                        {/* Age categories */}
+                        {/* Eligibility — who can attend. Displayed on the
+                            listing exactly as written; Goatza never checks a
+                            player against it. */}
                         <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Age Categories</label>
-                            <p className={styles.fieldSubLabel}>Select preset groups, add custom categories, or mark the trial open to all ages.</p>
+                            <label className={styles.fieldLabel}>Eligibility</label>
+                            <p className={styles.fieldSubLabel}>
+                                Tell players who this trial is for. It&rsquo;s shown on the listing —
+                                you verify it at the venue.
+                            </p>
+                        </div>
+
+                        {/* Age policy */}
+                        <div className={styles.fieldGroup}>
+                            <label className={styles.fieldLabelMuted}>Age</label>
                             <AgeCategoryBuilder
                                 categories={ageCategories}
                                 onChange={setAgeCategories}
                                 disabled={isSubmitting}
-                                noAge={noAgeCategory}
-                                onNoAgeChange={setNoAgeCategory}
+                                allAges={allAges}
+                                onAllAgesChange={setAllAges}
+                            />
+                        </div>
+
+                        {/* Gender */}
+                        <div className={styles.fieldGroup}>
+                            <label className={styles.fieldLabelMuted}>Gender</label>
+                            <select className={styles.fieldSelect} value={gender} onChange={e => setGender(e.target.value as RecruitmentGender)} disabled={isSubmitting}>
+                                <option value="all">Open to all</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+
+                        {/* Other criteria */}
+                        <div className={styles.fieldGroup}>
+                            <label className={styles.fieldLabelMuted}>
+                                Other criteria <span className={styles.optionalTag}>Optional</span>
+                            </label>
+                            <p className={styles.fieldSubLabel}>
+                                Anything else that decides who can turn up — residency, experience, paperwork.
+                            </p>
+                            <EligibilityCriteriaBuilder
+                                criteria={eligibilityCriteria}
+                                onChange={setEligibilityCriteria}
+                                disabled={isSubmitting}
                             />
                         </div>
 
@@ -1973,24 +2194,40 @@ export default function CreateRecruitmentModal({
                             <ReviewRow icon="mdi:soccer" label="Sport" value={sports.find(s => s.id === sportId)?.name} />
                             <ReviewRow icon="mdi:tag-outline" label="Type" value={recruitmentType.replace(/_/g, " ")} />
                             <ReviewRow icon="mdi:eye-outline" label="Visibility" value={visibility.replace(/_/g, " ")} />
-                            <ReviewRow icon="mdi:gender-male-female" label="Gender" value={gender} />
                             <ReviewRow icon="mdi:calendar" label="Event Date" value={fmtWizardDate(eventDate)} />
                             <ReviewRow icon="mdi:calendar-clock" label="Deadline" value={fmtWizardDate(applicationDeadline)} />
                         </div>
 
-                        {ageCategories.length > 0 && (
-                            <div className={styles.reviewSection}>
-                                <p className={styles.reviewSectionTitle}>Age Categories ({ageCategories.length})</p>
-                                {ageCategories.map(c => (
-                                    <ReviewRow
-                                        key={c.id}
-                                        icon="mdi:account-group-outline"
-                                        label={c.title}
-                                        value={`Born ${c.min_birth_year}–${c.max_birth_year}${c.showReportingTime && c.reporting_time ? ` · Reporting ${c.reporting_time}` : ""}`}
-                                    />
-                                ))}
-                            </div>
-                        )}
+                        <div className={styles.reviewSection}>
+                            <p className={styles.reviewSectionTitle}>Eligibility</p>
+                            <ReviewRow
+                                icon="mdi:cake-variant-outline"
+                                label="Age"
+                                value={allAges || ageCategories.length === 0
+                                    ? "All ages"
+                                    : `${ageCategories.length} group${ageCategories.length > 1 ? "s" : ""}`}
+                            />
+                            {!allAges && ageCategories.map(c => (
+                                <ReviewRow
+                                    key={c.id}
+                                    icon="mdi:account-group-outline"
+                                    label={c.title || "Untitled group"}
+                                    value={`${formatBirthYears(c.min_birth_year, c.max_birth_year)}${c.showReportingTime && c.reporting_time ? ` · Reporting ${c.reporting_time}` : ""}`}
+                                />
+                            ))}
+                            <ReviewRow
+                                icon="mdi:gender-male-female"
+                                label="Gender"
+                                value={gender === "all" ? "Open" : gender}
+                            />
+                            <ReviewRow
+                                icon="mdi:clipboard-text-outline"
+                                label="Other criteria"
+                                value={eligibilityCriteria.filter(c => c.title.trim()).length > 0
+                                    ? eligibilityCriteria.filter(c => c.title.trim()).map(c => c.title.trim()).join(", ")
+                                    : null}
+                            />
+                        </div>
 
                         <div className={styles.reviewSection}>
                             <p className={styles.reviewSectionTitle}>Venue</p>

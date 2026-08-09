@@ -21,6 +21,7 @@ import {
   useUpdateApplicationStatus,
 } from "../../hooks/useRecruitments"
 import { APPLICATION_STATUS_META } from "../../applicationStatus"
+import { formatReportingTime } from "../../eligibility"
 import type {
   ApplicationAnswer,
   ApplicationStatus,
@@ -297,6 +298,29 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
                   Applied {dayjs(data.applied_at).fromNow()}
                 </span>
               </div>
+
+              {/* The age group they applied under — with its reporting time,
+                  which is the detail the org calls them about. Absent when the
+                  recruitment has no groups, or the group was later deleted. */}
+              {data.age_category && (
+                <section className={styles.section}>
+                  <p className={styles.sectionTitle}>Age group</p>
+                  <div className={styles.contactList}>
+                    <div className={styles.contactRow}>
+                      <Icon icon="mdi:account-group-outline" width={16} height={16} className={styles.contactIcon} />
+                      <span className={styles.contactValue}>{data.age_category.title}</span>
+                    </div>
+                    {data.age_category.reporting_time && (
+                      <div className={styles.contactRow}>
+                        <Icon icon="mdi:clock-outline" width={16} height={16} className={styles.contactIcon} />
+                        <span className={styles.contactValue}>
+                          Reports at {formatReportingTime(data.age_category.reporting_time)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
 
               {/* Shared contact */}
               <section className={styles.section}>

@@ -27,6 +27,12 @@ const PHOTOS = {
   cover_photo: `${DEMO}sample.jpg`,
 }
 
+/** What the route would encode. Derived from the bundle rather than fixed, so a
+ *  long username produces the denser symbol it really would — and every preview
+ *  is a QR you can actually point a phone at. */
+const qrFor = (b: PublicUserBundle) =>
+  `https://goatza.com/profile/${b.profile.username}?ref=card`
+
 describe.skipIf(!OUT)("previews", () => {
   const cases: [string, CardFormat, PublicUserBundle][] = [
     ["story-full", "story", bundle(PHOTOS)],
@@ -51,6 +57,16 @@ describe.skipIf(!OUT)("previews", () => {
         name: "Kozhikode", city: "Kozhikodé", country_code: "IN",
       } }),
     ],
+    // The footer's worst case, and the one to look at after touching any of its
+    // measurements. `username` is a 50-character column on the backend, so the
+    // printed URL is the widest thing in the left column AND the longest string
+    // in the QR — which pushes the symbol to a higher version, i.e. more and
+    // smaller modules. Neither may reach the panel.
+    [
+      "story-long-username",
+      "story",
+      bundle({ ...PHOTOS, username: "aravind-menon-calicut-fc-winger-kerala-india-2026" }),
+    ],
     ["link-full", "link", bundle(PHOTOS)],
     ["link-bare", "link", bundle({ cover_photo: "", profile_photo: "" }, [])],
   ]
@@ -60,10 +76,23 @@ describe.skipIf(!OUT)("previews", () => {
 
     const { width, height } = CARD_SIZES[format]
     const response = new ImageResponse(
-      <ProfileCard data={toCardData(b, format, undefined)} format={format} />,
+      <ProfileCard data={toCardData(b, format, undefined, qrFor(b))} format={format} />,
       { width, height, fonts: await cardFonts() }
     )
 
     await writeFile(join(OUT!, `${name}.png`), Buffer.from(await response.arrayBuffer()))
+  })
+
+  // The same card with the QR switched off, to check the left column still
+  // reads as a deliberate composition rather than an amputated row.
+  it("story-no-qr", async () => {
+    await mkdir(OUT!, { recursive: true })
+
+    const response = new ImageResponse(
+      <ProfileCard data={toCardData(bundle(PHOTOS), "story", undefined, null)} format="story" />,
+      { ...CARD_SIZES.story, fonts: await cardFonts() }
+    )
+
+    await writeFile(join(OUT!, "story-no-qr.png"), Buffer.from(await response.arrayBuffer()))
   })
 })

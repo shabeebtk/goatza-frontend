@@ -1,0 +1,46 @@
+/* ============================================================
+   GOATZA — ImageLightbox
+   One image, fullscreen, on a dark backdrop.
+
+   Carried over verbatim from ImageMessage's old `.viewer` rules so the
+   chat photo viewer looks the same after the extraction as before it.
+   ============================================================ */
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  padding: var(--space-4);
+}
+
+/* The dialog takes focus on open so Esc works without a click. That focus is
+   programmatic, never a Tab landing, so the ring would only ever read as a
+   stray box around the whole screen. */
+.viewer:focus { outline: none; }
+
+.viewerImg {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.viewerClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+}

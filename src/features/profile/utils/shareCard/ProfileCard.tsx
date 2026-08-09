@@ -29,6 +29,7 @@
 
 import { nameFontSize, nameLines } from "./nameLadder"
 import { initials } from "./cardData"
+import { qrShape } from "./qr"
 import type { CardData, CardFormat } from "./types"
 import { CARD_SIZES } from "./types"
 
@@ -568,40 +569,191 @@ function Identity({
   )
 }
 
-function Footer({ data, scale }: { data: CardData; scale: Scale }) {
+// ── The QR panel ──────────────────────────────────────────────
+
+/**
+ * Drawn size of the symbol itself, excluding the quiet zone.
+ *
+ * The footer this sits in is ~258px tall against the ~40px the single URL row
+ * used to be. The worst case — a two-line name at the ladder's top rung, three
+ * chips, three stats and the verified-club panel, i.e. `story-full` in
+ * preview.test.tsx — lands at roughly 1800 of the 1840px inside the padding, so
+ * nothing had to be reclaimed: the club panel's 56px top margin and the
+ * avatar's 118px are untouched, and this is 190 as designed. The slack is
+ * ~120px and it shows up above the footer, which has `marginTop: auto`.
+ */
+const QR_PX = 190
+
+/** The spec's minimum light margin, in modules. Below this a reader can fail to
+ *  find the symbol's edge against a busy background — and this one sits on a
+ *  photograph's worth of dark card. */
+const QR_QUIET_MODULES = 4
+
+/**
+ * A scannable link to the profile, dark-on-white.
+ *
+ * White panel, ink modules, and nothing else. Tinting the modules green or
+ * inverting them onto the card's ink would look better and scan worse: contrast
+ * between the dark modules and their light field is the entire mechanism, and a
+ * card is read off a compressed screenshot on somebody else's phone.
+ *
+ * The panel's padding IS the quiet zone, which is why it is computed rather
+ * than a round number — a long username pushes the symbol to a higher version,
+ * more modules fit in the same 190px, and a fixed 18px silently drops below the
+ * four modules the spec asks for.
+ */
+function QrPanel({ url }: { url: string }) {
+  const { d, size } = qrShape(url)
+  const quiet = Math.ceil((QR_PX / size) * QR_QUIET_MODULES)
+
   return (
     <div
       style={{
-        // Pins the footer to the bottom whatever the block above it came to —
-        // a card with no club block is shorter, and the URL should not float up
-        // with it.
-        marginTop: "auto",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        justifyContent: "space-between",
+        // Never yields. A 50-character username (the backend's column width)
+        // makes the footer's left column wider than the frame, and without this
+        // the panel is the thing that gets pushed off the edge — a card whose
+        // QR is half-missing scans as nothing at all.
+        flexShrink: 0,
       }}
     >
-      <span
+      <div
         style={{
-          fontFamily: LABEL,
-          fontSize: scale.url,
-          letterSpacing: track(scale.url, 0.16),
-          color: MUTE,
+          display: "flex",
+          padding: quiet,
+          borderRadius: 20,
+          background: "#fff",
         }}
       >
-        goatza.com/{data.username}
-      </span>
+        <svg viewBox={`0 0 ${size} ${size}`} width={QR_PX} height={QR_PX}>
+          <path d={d} fill={INK} />
+        </svg>
+      </div>
+
       <span
         style={{
           fontFamily: LABEL,
-          fontSize: scale.meta,
-          letterSpacing: track(scale.meta, 0.2),
+          fontSize: 18,
+          letterSpacing: track(18, 0.2),
           textTransform: "uppercase",
           color: FAINT,
+          marginTop: 12,
         }}
       >
-        {data.kindLabel}
+        Scan to view
       </span>
+    </div>
+  )
+}
+
+/**
+ * The footer.
+ *
+ * Two columns on the story card: the call to action on the left, the QR on the
+ * right. One row on the link card, unchanged — that one is an OG preview, it is
+ * already a link somebody clicked, and 630px of height has no room to spare.
+ *
+ * With the QR off the left column stands alone and stays left-aligned. Same
+ * three lines, same rhythm; nothing about it reads as a missing right-hand
+ * side, which is the point — a card without a QR is a choice, not a failure.
+ */
+function Footer({
+  data,
+  scale,
+  format,
+}: {
+  data: CardData
+  scale: Scale
+  format: CardFormat
+}) {
+  const url = (
+    <span
+      style={{
+        fontFamily: LABEL,
+        fontSize: scale.url,
+        letterSpacing: track(scale.url, 0.16),
+        color: MUTE,
+      }}
+    >
+      goatza.com/{data.username}
+    </span>
+  )
+
+  const meta = (
+    <span
+      style={{
+        fontFamily: LABEL,
+        fontSize: scale.meta,
+        letterSpacing: track(scale.meta, 0.2),
+        textTransform: "uppercase",
+        color: FAINT,
+      }}
+    >
+      {data.kindLabel}
+    </span>
+  )
+
+  // Pins the footer to the bottom whatever the block above it came to — a card
+  // with no club block is shorter, and the URL should not float up with it.
+  if (format === "link") {
+    return (
+      <div
+        style={{
+          marginTop: "auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        {url}
+        {meta}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: "auto",
+        display: "flex",
+        flexDirection: "row",
+        // Bottom-aligned, so the meta line and the QR caption finish on the
+        // same edge however tall the panel comes out.
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        gap: 40,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          // The column that gives. A long username wraps the URL onto a second
+          // line rather than reaching across the card; the panel beside it is
+          // taller either way, so the footer's height does not move.
+          flexShrink: 1,
+          minWidth: 0,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: LABEL,
+            fontSize: 32,
+            letterSpacing: track(32, 0.16),
+            textTransform: "uppercase",
+            color: GREEN,
+          }}
+        >
+          Connect with me on Goatza
+        </span>
+        {url}
+        {meta}
+      </div>
+
+      {data.qrUrl && <QrPanel url={data.qrUrl} />}
     </div>
   )
 }
@@ -675,7 +827,7 @@ export default function ProfileCard({
             marginTop={118}
           />
           <Identity data={data} scale={scale} format={format} />
-          <Footer data={data} scale={scale} />
+          <Footer data={data} scale={scale} format={format} />
         </div>
       ) : (
         <div
@@ -706,7 +858,7 @@ export default function ProfileCard({
           >
             {mark}
             <Identity data={data} scale={scale} format={format} />
-            <Footer data={data} scale={scale} />
+            <Footer data={data} scale={scale} format={format} />
           </div>
         </div>
       )}
@@ -728,4 +880,10 @@ export default function ProfileCard({
  *   3. The club panel becomes an inline row — same name, same tick, same green,
  *      no border box. The panel's 26px padding and 56px top margin are a third
  *      of the card's height.
+ *   4. The footer keeps the original single row: URL left, meta right, no CTA
+ *      and no QR. Not a space compromise but a purpose one — this card is a
+ *      link preview that somebody has already clicked, so a code telling them
+ *      to reach for their phone is noise, and the ~258px the story footer
+ *      wants is 41% of 630 anyway. `toCardData` nulls `qrUrl` for this format
+ *      and the route never builds one, so it cannot arrive here by accident.
  */

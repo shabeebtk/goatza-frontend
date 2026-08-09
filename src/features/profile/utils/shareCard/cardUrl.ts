@@ -32,6 +32,13 @@ interface CardUrlOptions {
   updatedAt?: string | null
   /** Absolute origin. Required for the OG tag, omitted for an <img src>. */
   origin?: string
+  /**
+   * The footer QR. Story only, defaults to on.
+   *
+   * Never emitted for `link` — that card is an OG preview, already clickable,
+   * and the route ignores the param there anyway.
+   */
+  qr?: boolean
 }
 
 export function buildCardUrl({
@@ -40,6 +47,7 @@ export function buildCardUrl({
   slots,
   updatedAt,
   origin = "",
+  qr = true,
 }: CardUrlOptions): string {
   const params = new URLSearchParams({ format })
 
@@ -47,6 +55,14 @@ export function buildCardUrl({
   // second CDN entry for an image that renders identical bytes.
   if (format === "story" && slots?.length) {
     params.set("slots", canonicalSlotKey(slots))
+  }
+
+  // Absent means on. The canonical URL for the default state is the URL that
+  // existed before the QR did, byte for byte, which is what keeps every card
+  // already cached at the CDN — and every OG tag already scraped — on one
+  // entry instead of two. Only the deviation is spelled out.
+  if (format === "story" && !qr) {
+    params.set("qr", "0")
   }
 
   params.set("v", versionTag(updatedAt))

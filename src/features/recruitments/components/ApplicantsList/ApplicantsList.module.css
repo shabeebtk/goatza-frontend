@@ -223,6 +223,18 @@
   letter-spacing: var(--tracking-wide);
 }
 
+/* Which age group this applicant chose (or "—" when they chose none) */
+.groupTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-semi);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-wide);
+}
+
 .rowRight {
   display: flex;
   align-items: center;

@@ -1496,7 +1496,16 @@
   gap: var(--space-2);
 }
 
-/* "No age category" toggle — open to all ages */
+/* Age policy — "Open to all ages" vs "Specific age groups". Two pills acting
+   as a radio group, so the choice reads as one decision rather than a switch
+   with a hidden default. */
+.agePolicyRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* One age policy option (also still styles the pill on its own) */
 .noAgeToggle {
   display: inline-flex;
   align-items: center;
@@ -1529,6 +1538,47 @@
 
 .noAgeToggle:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Live read-back of a group's two year inputs ("Born 2010 or later"), so an
+   open-ended range is legible while it is being typed. */
+.ageRangePreview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+}
+
+/* Up/down reorder stack on an eligibility criteria row */
+.criteriaReorder {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.criteriaReorderBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 16px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast);
+}
+
+.criteriaReorderBtn:hover:not(:disabled) {
+  color: var(--color-brand);
+}
+
+.criteriaReorderBtn:disabled {
+  opacity: 0.3;
   cursor: not-allowed;
 }
  
