@@ -165,6 +165,61 @@ describe("caching", () => {
   })
 })
 
+/**
+ * The QR.
+ *
+ * Two cards come out of this route now, and the cache has to be able to tell
+ * them apart — a shared ETag would let a viewer who asked for no QR revalidate
+ * their way into somebody else's cached card with one on it, and vice versa.
+ * Everything that resolves to the SAME card must still share one identity.
+ */
+describe("the qr param", () => {
+  async function etag(query: string) {
+    const response = await GET(request(query), params())
+    resetRateLimit()
+    return response.headers.get("ETag")
+  }
+
+  it("gives the QR and no-QR story cards different identities", async () => {
+    expect(await etag("?format=story")).not.toBe(await etag("?format=story&qr=0"))
+  })
+
+  it.each(["", "&qr=1", "&qr=", "&qr=true", "&qr=junk", "&qr=00"])(
+    "treats `%s` as on — only the exact string \"0\" turns it off",
+    async (suffix) => {
+      // Same philosophy as parseFormat: a hand-edited query string gets the
+      // default, never a 400. The caller on the other end of a broken image is
+      // somebody's chat app.
+      expect(await etag(`?format=story${suffix}`)).toBe(await etag("?format=story"))
+    }
+  )
+
+  it("ignores the param entirely on the link card", async () => {
+    // The link card is an OG preview: already clickable, so a QR on it is noise.
+    // A `qr` somebody appended to it must not mint a second cache entry for a
+    // card that renders identical bytes.
+    const bare = await etag("?format=link")
+
+    expect(await etag("?format=link&qr=0")).toBe(bare)
+    expect(await etag("?format=link&qr=1")).toBe(bare)
+  })
+
+  it("still renders a story card at full size with the QR off", async () => {
+    const png = Buffer.from(
+      await (await GET(request("?format=story&qr=0"), params())).arrayBuffer()
+    )
+    expect(pngSize(png)).toEqual({ width: 1080, height: 1920 })
+  })
+
+  it("404s before it would build a QR target, for a profile that has no card", async () => {
+    getPublicUserProfile.mockResolvedValue(null)
+
+    const response = await GET(request("?format=story"), params())
+    expect(response.status).toBe(404)
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60")
+  })
+})
+
 describe("rate limit", () => {
   it("throttles one IP after its budget and tells it when to come back", async () => {
     let last: Response | undefined

@@ -63,6 +63,13 @@ describe("buildCardUrl", () => {
     expect(link).not.toContain("slots=")
   })
 
+  it("keeps the slots param canonically sorted", () => {
+    const a = buildCardUrl({ username: "rahul7", format: "story", slots: ["city", "height"] })
+    const b = buildCardUrl({ username: "rahul7", format: "story", slots: ["height", "city"] })
+
+    expect(a).toBe(b)
+  })
+
   it("moves the cache-buster when the profile changes", () => {
     const before = buildCardUrl({
       username: "rahul7",
@@ -76,5 +83,49 @@ describe("buildCardUrl", () => {
     })
 
     expect(before).not.toBe(after)
+  })
+})
+
+/**
+ * The QR param exists to be ABSENT.
+ *
+ * On is the default, and the canonical URL for the default is the URL that
+ * existed before the QR did. Emitting `qr=1` would be harmless to look at and
+ * expensive in practice: every card already cached at the CDN and every OG tag
+ * already scraped points at the param-free form, and a second spelling of the
+ * same image is a second cache entry, a second render and a halved hit rate.
+ */
+describe("the qr param", () => {
+  const story = (qr?: boolean) =>
+    buildCardUrl({ username: "rahul7", format: "story", qr })
+
+  it("is omitted when the QR is on, which is the default", () => {
+    expect(story()).not.toContain("qr=")
+    expect(story(true)).not.toContain("qr=")
+  })
+
+  it("leaves the default story URL byte-identical to the pre-QR one", () => {
+    expect(story()).toBe(story(true))
+  })
+
+  it("spells out only the deviation", () => {
+    expect(story(false)).toContain("qr=0")
+  })
+
+  it("is never emitted for a link card, on or off", () => {
+    for (const qr of [true, false, undefined]) {
+      expect(buildCardUrl({ username: "rahul7", format: "link", qr })).not.toContain("qr=")
+    }
+  })
+
+  it("does not disturb the slots param", () => {
+    const url = buildCardUrl({
+      username: "rahul7",
+      format: "story",
+      slots: ["height", "city"],
+      qr: false,
+    })
+
+    expect(new URL(url, "https://goatza.com").searchParams.get("slots")).toBe("city,height")
   })
 })

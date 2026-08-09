@@ -69,10 +69,16 @@ function kindLabel(role: string): string {
   return named[role] ?? "Goatza profile"
 }
 
+/**
+ * @param qrUrl Absolute URL for the footer QR, or null for no QR. Passed in
+ *   rather than derived: building it needs the request's origin, which is the
+ *   route's business and not something a pure adapter should reach for.
+ */
 export function toCardData(
   bundle: PublicUserBundle,
   format: CardFormat,
-  requestedSlots: string | null | undefined
+  requestedSlots: string | null | undefined,
+  qrUrl: string | null = null
 ): CardData {
   const { profile } = bundle
   const catalog = buildSlotCatalog(profile)
@@ -88,5 +94,8 @@ export function toCardData(
     club: verifiedClub(bundle.career ?? []),
     slots: resolveSlots(catalog, requestedSlots),
     kindLabel: kindLabel(profile.role),
+    // The link card is the crawler's, and a crawler cannot hold a phone up to
+    // it. Enforced here as well as at the route so no caller can put one there.
+    qrUrl: format === "story" ? qrUrl : null,
   }
 }

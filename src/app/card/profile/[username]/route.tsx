@@ -1,5 +1,5 @@
 /**
- * GET /card/profile/<username>?format=story|link&slots=height,attr:foot,city
+ * GET /card/profile/<username>?format=story|link&slots=height,attr:foot,city&qr=0
  *
  * The generated share card. One renderer produces both the 1080×1920 image a
  * player drops into an Instagram Story and the 1200×630 image a crawler picks
@@ -28,6 +28,7 @@ import {
 } from "@/features/profile/utils/shareCard/rateLimit"
 import { canonicalSlotKey } from "@/features/profile/utils/shareCard/slots"
 import { CARD_SIZES, type CardFormat } from "@/features/profile/utils/shareCard/types"
+import { profilePath } from "@/shared/services/profileUrl"
 
 export const runtime = "nodejs"
 
@@ -42,6 +43,26 @@ function parseFormat(raw: string | null): CardFormat {
   // Defaults to `link` — the crawler is the caller that cannot pass a param,
   // and it is the one that must never get a 400.
   return raw === "story" ? "story" : "link"
+}
+
+/**
+ * Where the QR points: the profile's own public URL, tagged as having been
+ * reached from a card.
+ *
+ * `NEXT_PUBLIC_SITE_URL` first, the request's own origin second. The result
+ * must be absolute — a camera has no origin to resolve a path against, so a
+ * relative URL here is a QR that scans to nothing. `profilePath` rather than
+ * `profileUrl`: the latter falls back to `window.location`, and there is no
+ * window inside a render.
+ *
+ * `ref=card` is attribution only. Nothing consumes it yet; it is in the encoded
+ * URL from the first scan so that when something does, the history is there.
+ */
+function qrTarget(username: string, requestUrl: string): string {
+  const configured = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "")
+  const origin = configured || new URL(requestUrl).origin
+
+  return `${origin}${profilePath(username, "user")}?ref=card`
 }
 
 /**
@@ -80,6 +101,12 @@ export async function GET(
   // somebody's picks would be a card nobody chose.
   const requestedSlots = format === "story" ? searchParams.get("slots") : null
 
+  // On unless explicitly switched off, and never on the link card. Only the
+  // exact string "0" turns it off — same philosophy as `parseFormat`: garbage
+  // in a hand-edited query string gets the default, not a 400, because the
+  // caller on the other end of a broken image is somebody's chat app.
+  const qrOn = format === "story" && searchParams.get("qr") !== "0"
+
   if (!allowRender(clientKey(request.headers))) {
     return new Response("Too many requests", {
       status: 429,
@@ -95,7 +122,12 @@ export async function GET(
     return notFound()
   }
 
-  const data = toCardData(bundle, format, requestedSlots)
+  const data = toCardData(
+    bundle,
+    format,
+    requestedSlots,
+    qrOn ? qrTarget(bundle.profile.username, request.url) : null
+  )
   const { width, height } = CARD_SIZES[format]
 
   const response = new ImageResponse(<ProfileCard data={data} format={format} />, {
@@ -106,16 +138,22 @@ export async function GET(
 
   response.headers.set("Cache-Control", CACHE_CONTROL)
 
-  // Cache identity: username + format + canonically-sorted slots + updated_at.
+  // Cache identity: username + format + canonically-sorted slots + qr state +
+  // updated_at.
   //
   // Built from the RESOLVED slots, not the requested ones, so every URL that
   // renders the same bytes carries the same ETag — `?slots=city,height` and
   // `?slots=height,city` and `?slots=nonsense` (which backfills to the
   // defaults) all revalidate against one entity instead of three.
+  //
+  // The qr state is the RESOLVED boolean for the same reason: `?qr=1`, `?qr=`
+  // and no param at all are one entity, and the link card is one entity
+  // whether or not somebody appended a `qr` it ignores.
   const identity = [
     bundle.profile.username,
     format,
     canonicalSlotKey(data.slots.map((slot) => slot.key)),
+    qrOn ? "qr1" : "qr0",
     bundle.profile.updated_at,
   ].join("|")
 

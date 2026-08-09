@@ -19,7 +19,7 @@
  *
  * The picker only renders for the profile's owner (§5.3). A scout can forward
  * somebody's card, but nobody can craft one that emphasises another player's
- * weight.
+ * weight. The QR toggle is not gated that way — see the comment on it.
  */
 
 import {
@@ -96,6 +96,7 @@ function ShareCardSheetInner({
   const sheetRef = useRef<HTMLDivElement>(null)
 
   const [selected, setSelected] = useState<string[] | null>(null)
+  const [qrOn, setQrOn] = useState(true)
   const [previewLoaded, setPreviewLoaded] = useState(false)
   const [busy, setBusy] = useState<"share" | "download" | null>(null)
 
@@ -136,6 +137,10 @@ function ShareCardSheetInner({
     return () => clearTimeout(id)
   }, [chosen])
 
+  // `qrOn` is deliberately NOT routed through the debounce. The debounce exists
+  // because dragging down the checkbox list fires a change per tap; the QR is
+  // one switch with two positions, so a tap is the whole gesture and waiting
+  // 400ms to show it would just read as lag.
   const previewUrl = useMemo(() => {
     if (!bundle) return null
     return buildCardUrl({
@@ -143,8 +148,9 @@ function ShareCardSheetInner({
       format: "story",
       slots: debouncedSlots,
       updatedAt: bundle.profile.updated_at,
+      qr: qrOn,
     })
-  }, [bundle, username, debouncedSlots])
+  }, [bundle, username, debouncedSlots, qrOn])
 
   // A new URL means a new image; show the skeleton until it paints.
   useEffect(() => {
@@ -341,6 +347,33 @@ function ShareCardSheetInner({
                   />
                 )}
               </div>
+
+              {/* ── QR toggle (everyone) ──
+                  Outside the `canCustomise` gate on purpose. The picker is the
+                  owner's because it decides which of their measurables get
+                  printed; the QR only points at the public profile whose URL
+                  the card already prints, so switching it off is a taste
+                  choice, not a privacy lever. */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={qrOn}
+                className={`${styles.toggle} ${qrOn ? styles.toggleOn : ""}`}
+                onClick={() => setQrOn((on) => !on)}
+              >
+                <span className={styles.toggleText}>
+                  <span className={styles.toggleKey}>Include QR code</span>
+                  <span className={styles.toggleHint}>
+                    Scans straight to your profile.
+                  </span>
+                </span>
+                <span
+                  className={`${styles.switch} ${qrOn ? styles.switchOn : ""}`}
+                  aria-hidden="true"
+                >
+                  <span className={styles.knob} />
+                </span>
+              </button>
 
               {/* ── Picker (owner only) ── */}
               {canCustomise && catalog.length > 0 && (
