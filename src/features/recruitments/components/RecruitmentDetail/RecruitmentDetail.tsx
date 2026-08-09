@@ -31,9 +31,11 @@ import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
+import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
   RecruitmentMedia,
+  RecruitmentAgeCategory,
   ApplicationStatus,
 } from "../../services/recruitments.api"
 import styles from "./RecruitmentDetail.module.css"
@@ -117,20 +119,6 @@ function fmtCount(n: number): string {
 function isDeadlinePast(iso: string | null | undefined): boolean {
   if (!iso) return false
   return dayjs(iso).isBefore(dayjs())
-}
-
-function fmtReportingTime(t: string | null | undefined): string {
-  if (!t) return ""
-  // "07:00:00" → "7:00 AM"
-  const [h, m] = t.split(":")
-  const hour = parseInt(h, 10)
-  const ampm = hour >= 12 ? "PM" : "AM"
-  const h12 = hour % 12 === 0 ? 12 : hour % 12
-  return `${h12}:${m} ${ampm}`
-}
-
-function birthYearToAge(year: number): number {
-  return new Date().getFullYear() - year
 }
 
 // ── Media carousel ─────────────────────────────────────────────
@@ -362,21 +350,21 @@ function ApplicationBanner({
   )
 }
 
-// ── Age category card ──────────────────────────────────────────
+// ── Age group chip ─────────────────────────────────────────────
 
-function AgeCategoryCard({ category }: { category: { id: string; title: string; min_birth_year: number; max_birth_year: number; reporting_time?: string | null } }) {
-  const minAge = birthYearToAge(category.max_birth_year) // older birth year = younger age
-  const maxAge = birthYearToAge(category.min_birth_year)
+// Purely informational. Deliberately says nothing about whether the person
+// reading it qualifies — eligibility is verified at the venue, never here.
+function AgeGroupChip({ category }: { category: RecruitmentAgeCategory }) {
+  const range = formatBirthYears(category.min_birth_year, category.max_birth_year)
   return (
-    <div className={styles.ageCatCard}>
-      <div className={styles.ageCatBadge}>{category.title}</div>
-      <div className={styles.ageCatAges}>{minAge}–{maxAge} yrs</div>
-      <div className={styles.ageCatYears}>Born {category.max_birth_year}–{category.min_birth_year}</div>
+    <div className={styles.eligChip}>
+      <span className={styles.eligChipTitle}>{category.title}</span>
+      {range && <span className={styles.eligChipDetail}>{range}</span>}
       {category.reporting_time && (
-        <div className={styles.ageCatTime}>
-          <Icon icon="mdi:clock-outline" width={12} height={12} />
-          Report by {fmtReportingTime(category.reporting_time)}
-        </div>
+        <span className={styles.eligChipTime}>
+          <Icon icon="mdi:clock-outline" width={11} height={11} />
+          Report by {formatReportingTime(category.reporting_time)}
+        </span>
       )}
     </div>
   )
@@ -572,6 +560,7 @@ export default function RecruitmentDetail({
   const contacts        = r.contacts        ?? []
   const benefits        = r.benefits        ?? []
   const requirements    = r.requirements    ?? []
+  const eligibilityCriteria = r.eligibility_criteria ?? []
 
   return (
     <div className={styles.wrapper}>
@@ -780,27 +769,63 @@ export default function RecruitmentDetail({
         </section>
       )}
 
-      {/* ── Age Categories ── */}
+      {/* ── Who can attend ──
+          Eligibility exactly as the organiser wrote it. Nothing here is
+          compared against the viewer — no "you qualify" / "you don't". */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
-          <Icon icon="mdi:account-group-outline" width={16} height={16} />
-          Age {ageCategories.length > 0 ? "Categories" : "Category"}
-          {ageCategories.length > 0 && (
-            <span className={styles.sectionCount}>{ageCategories.length}</span>
-          )}
+          <Icon icon="mdi:account-check-outline" width={16} height={16} />
+          Who Can Attend
         </h2>
-        <div className={styles.ageCatGrid}>
-          {ageCategories.length > 0 ? (
-            ageCategories.map((cat) => (
-              <AgeCategoryCard key={cat.id} category={cat} />
-            ))
-          ) : (
-            <div className={styles.ageCatCard}>
-              <div className={styles.ageCatBadge}>Open</div>
-              <div className={styles.ageCatAges}>All ages welcome</div>
+
+        <div className={styles.eligBlock}>
+          <div className={styles.eligRow}>
+            <span className={styles.eligRowLabel}>Age</span>
+            <div className={styles.eligChips}>
+              {ageCategories.length > 0 ? (
+                ageCategories.map((cat) => (
+                  <AgeGroupChip key={cat.id} category={cat} />
+                ))
+              ) : (
+                <div className={styles.eligChip}>
+                  <span className={styles.eligChipTitle}>All ages</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.eligRow}>
+            <span className={styles.eligRowLabel}>Gender</span>
+            <div className={styles.eligChips}>
+              <div className={styles.eligChip}>
+                <span className={styles.eligChipTitle}>
+                  {r.gender && r.gender !== "all"
+                    ? (GENDER_LABEL[r.gender] ?? r.gender)
+                    : "Open"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {eligibilityCriteria.length > 0 && (
+            <div className={styles.eligRow}>
+              <span className={styles.eligRowLabel}>Also</span>
+              <ul className={styles.eligCriteriaList}>
+                {eligibilityCriteria.map((c) => (
+                  <li key={c.id} className={styles.eligCriteriaItem}>
+                    <Icon icon="mdi:check-circle-outline" width={14} height={14} />
+                    {c.title}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
+
+        <p className={styles.eligNote}>
+          <Icon icon="mdi:information-outline" width={13} height={13} />
+          Set by the organiser and verified at the venue.
+        </p>
       </section>
 
       {/* ── Positions ── */}
@@ -921,13 +946,8 @@ export default function RecruitmentDetail({
               value={EXPERIENCE_LABEL[r.experience_level] ?? r.experience_level}
             />
           )}
-          {r.gender && (
-            <InfoRow
-              icon="mdi:gender-male-female"
-              label="Gender"
-              value={GENDER_LABEL[r.gender] ?? r.gender}
-            />
-          )}
+          {/* Gender lives in "Who Can Attend" — it is eligibility, not a
+              loose detail, and showing it twice reads as two rules. */}
           {(r.city || r.location_name) && (
             <InfoRow
               icon="mdi:map-marker-outline"

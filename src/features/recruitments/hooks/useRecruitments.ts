@@ -168,7 +168,11 @@ const APPLICANTS_LIMIT = 20
 
 export const useRecruitmentApplicants = (
   recruitmentId: string,
-  params: { status?: FetchRecruitmentApplicantsParams["status"]; search?: string } = {}
+  params: {
+    status?: FetchRecruitmentApplicantsParams["status"]
+    search?: string
+    age_category?: string
+  } = {}
 ) =>
   useInfiniteQuery<RecruitmentApplicantsResponse, Error>({
     queryKey: applicantKeys.list(recruitmentId, { ...params, limit: APPLICANTS_LIMIT }),

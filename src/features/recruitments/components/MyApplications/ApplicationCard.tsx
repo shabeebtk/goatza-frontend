@@ -6,6 +6,7 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import StatusBadge from "../StatusBadge/StatusBadge"
+import { formatReportingTime } from "../../eligibility"
 import type { MyApplicationListItem } from "../../services/recruitments.api"
 import { RECRUITMENT_TYPE_OPTIONS } from "../../filterOptions"
 import styles from "./ApplicationCard.module.css"
@@ -25,6 +26,11 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
   const typeLabel =
     RECRUITMENT_TYPE_OPTIONS.find((o) => o.value === r.recruitment_type)?.label ??
     r.recruitment_type
+
+  // The group they applied under, and when it reports — the one thing they
+  // need to remember on the day.
+  const group = application.age_category
+  const reportingTime = formatReportingTime(group?.reporting_time)
 
   return (
     <article className={styles.card}>
@@ -75,6 +81,16 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
           </span>
         )}
       </div>
+
+      {group && (
+        <div className={styles.groupRow}>
+          <Icon icon="mdi:account-group-outline" width={13} height={13} />
+          <span>
+            Applying under <strong>{group.title}</strong>
+            {reportingTime ? ` · report by ${reportingTime}` : ""}
+          </span>
+        </div>
+      )}
 
       <div className={styles.footer}>
         <span className={styles.applied}>

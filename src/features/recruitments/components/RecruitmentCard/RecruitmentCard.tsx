@@ -10,6 +10,7 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import styles from "./RecruitmentCard.module.css"
+import { summarizeAgeGroups } from "../../eligibility"
 import { Recruitment } from "../../services/recruitments.api"
 
 
@@ -81,6 +82,7 @@ export default function RecruitmentCard({
   const statusMeta = STATUS_META[recruitment.status] ?? STATUS_META.active
 
   const allPositions = recruitment.positions.map((p) => p.position.name)
+  const ageSummary = summarizeAgeGroups(recruitment.age_categories)
 
   const timeAgo = dayjs(recruitment.created_at).fromNow()
 
@@ -168,6 +170,19 @@ export default function RecruitmentCard({
         </span>
 
         <span className={styles.metaDivider} />
+
+        {/* Age — "All ages", one group's title, or a first–last span. Null
+            when the list payload carried no categories at all (older cache);
+            we skip the chip rather than fetch for it. */}
+        {ageSummary && (
+          <>
+            <span className={styles.metaItem}>
+              <Icon icon="mdi:cake-variant-outline" width={13} height={13} />
+              {ageSummary}
+            </span>
+            <span className={styles.metaDivider} />
+          </>
+        )}
 
         {/* City */}
         {recruitment.city && (

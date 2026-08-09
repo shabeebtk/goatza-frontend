@@ -83,11 +83,20 @@ export type RecruitmentQuestion = {
   options: QuestionOption[]
 }
 
+// The age group an application was submitted under. `null` when the
+// recruitment had no groups, or the group was deleted on a later org edit.
+export type ApplicationAgeCategory = {
+  id: string
+  title: string
+  reporting_time: string | null   // "HH:MM:SS" | null
+}
+
 export type MyApplication = {
   id: string
   status: ApplicationStatus
   applied_at: string
   updated_at: string
+  age_category: ApplicationAgeCategory | null
 }
 
 // ── List item (lightweight) ───────────────────────────────────
@@ -106,15 +115,21 @@ export type Recruitment = {
   organization: RecruitmentOrganization
   sport: RecruitmentSport
   positions: RecruitmentPosition[]
+  // Optional: an older cached list payload predates it. An EMPTY array is
+  // meaningful ("open to all ages"); missing means "we weren't told".
+  age_categories?: RecruitmentAgeCategory[]
 }
 
 // ── Detail (full — user + org-owner fields) ───────────────────
 
+// Either bound may be null — that is an open-ended group: min only reads
+// "born <min> or later", max only reads "born <max> or earlier". Both null is
+// impossible (the backend rejects it); "open to all ages" is an EMPTY list.
 export type RecruitmentAgeCategory = {
   id: string
   title: string
-  min_birth_year: number
-  max_birth_year: number
+  min_birth_year: number | null
+  max_birth_year: number | null
   reporting_time: string | null   // "HH:MM:SS" | null
   display_order?: number
 }
@@ -130,6 +145,14 @@ export type RecruitmentRequirement = {
   id: string
   title: string
   is_mandatory: boolean
+  display_order?: number
+}
+
+// Free-text "who can attend" lines the recruiter wrote. Never checked against
+// the viewer — Goatza displays them, the venue verifies them.
+export type RecruitmentEligibilityCriteria = {
+  id: string
+  title: string
   display_order?: number
 }
  
@@ -176,6 +199,7 @@ export type RecruitmentDetail = {
   age_categories: RecruitmentAgeCategory[]
   benefits: RecruitmentBenefit[]
   requirements: RecruitmentRequirement[]
+  eligibility_criteria: RecruitmentEligibilityCriteria[]
   contacts: RecruitmentContact[]
   my_application: MyApplication | null
   can_apply: boolean
@@ -231,9 +255,15 @@ export type CreateRecruitmentLocationPayload = {
 }
 
 export type CreateRecruitmentAgeCategoryPayload = {
+  // Present ONLY for a group that already exists on the server. The backend
+  // diff-syncs on it, so echoing the id back on edit is what keeps the group
+  // (and every application filed under it) alive across a save.
+  id?: string
   title: string
-  min_birth_year: number
-  max_birth_year: number
+  // Send exactly one for an open-ended group ("born 2010 or later"). Never
+  // both null — that shape is rejected server-side.
+  min_birth_year: number | null
+  max_birth_year: number | null
   reporting_time?: string   // "HH:MM:SS" or undefined
   display_order: number
 }
@@ -247,6 +277,11 @@ export type CreateRecruitmentBenefitPayload = {
 export type CreateRecruitmentRequirementPayload = {
   title: string
   is_mandatory: boolean
+  display_order: number
+}
+
+export type CreateRecruitmentEligibilityCriteriaPayload = {
+  title: string
   display_order: number
 }
  
@@ -288,9 +323,11 @@ export type CreateRecruitmentPayload = {
   location?: CreateRecruitmentLocationPayload
   // Collections
   positions?: CreateRecruitmentPositionPayload[]        // [] means "Any"
+  // [] means "open to all ages" — there is no separate flag.
   age_categories?: CreateRecruitmentAgeCategoryPayload[]
   benefits?: CreateRecruitmentBenefitPayload[]
   requirements?: CreateRecruitmentRequirementPayload[]
+  eligibility_criteria?: CreateRecruitmentEligibilityCriteriaPayload[]
   contacts?: CreateRecruitmentContactPayload[]
   questions?: CreateRecruitmentQuestionPayload[]
   media?: CreateRecruitmentMediaPayload[]
@@ -368,6 +405,7 @@ export type MyApplicationListItem = {
   applied_at: string
   updated_at: string
   recruitment: MyApplicationRecruitment
+  age_category: ApplicationAgeCategory | null
 }
 
 export type MyApplicationsResponse = {
@@ -448,6 +486,9 @@ export type ApplyRecruitmentPayload = {
   shared_name: string
   shared_email?: string
   shared_phone: string
+  // Which age group the player is applying under. Omitted when the
+  // recruitment has no groups. Never derived from their profile.
+  age_category?: string
   answers: ApplyAnswerPayload[]
 }
 
@@ -489,6 +530,7 @@ export type ApplicantListItem = {
    * `null` on endpoints that don't supply it (e.g. application detail).
    */
   highlights_count?: number | null
+  age_category: ApplicationAgeCategory | null
 }
 
 export type ApplicationAnswer = {
@@ -516,6 +558,8 @@ export type RecruitmentApplicantsResponse = {
 export type FetchRecruitmentApplicantsParams = {
   status?: ApplicationStatus
   search?: string
+  // Age-group id. The backend ignores an id it doesn't own, same as status.
+  age_category?: string
   limit?: number
   offset?: number
 }

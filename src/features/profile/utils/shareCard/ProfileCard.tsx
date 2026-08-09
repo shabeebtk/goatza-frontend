@@ -880,4 +880,10 @@ export default function ProfileCard({
  *   3. The club panel becomes an inline row — same name, same tick, same green,
  *      no border box. The panel's 26px padding and 56px top margin are a third
  *      of the card's height.
+ *   4. The footer keeps the original single row: URL left, meta right, no CTA
+ *      and no QR. Not a space compromise but a purpose one — this card is a
+ *      link preview that somebody has already clicked, so a code telling them
+ *      to reach for their phone is noise, and the ~258px the story footer
+ *      wants is 41% of 630 anyway. `toCardData` nulls `qrUrl` for this format
+ *      and the route never builds one, so it cannot arrive here by accident.
  */
