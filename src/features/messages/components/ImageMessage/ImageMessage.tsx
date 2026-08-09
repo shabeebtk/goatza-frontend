@@ -3,46 +3,16 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
+
+// The fullscreen viewer used to live here. Achievements needed the same one,
+// so it moved to shared/ — this file is now a caller, not its owner.
+import ImageLightbox from "@/shared/components/ImageLightbox/ImageLightbox"
 import type { ChatMessage } from "../../hooks/useChatSocket"
 import { cloudinaryThumb } from "../../services/chatUpload.service"
 // Space is reserved from intrinsic dimensions so the image never causes layout
 // shift while it loads. Shared with VideoMessage.
 import { displaySize } from "../../utils/mediaBox"
 import styles from "./ImageMessage.module.css"
-
-// ── Fullscreen viewer (single image) ──────────────────────────
-
-function ImageViewer({ src, onClose }: { src: string; onClose: () => void }) {
-    useEffect(() => {
-        const prev = document.body.style.overflow
-        document.body.style.overflow = "hidden"
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose()
-        }
-        document.addEventListener("keydown", onKey)
-        return () => {
-            document.body.style.overflow = prev
-            document.removeEventListener("keydown", onKey)
-        }
-    }, [onClose])
-
-    return createPortal(
-        <div
-            className={styles.viewer}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Photo viewer"
-            onClick={onClose}
-        >
-            <button className={styles.viewerClose} type="button" aria-label="Close">
-                <Icon icon="mdi:close" width={24} height={24} />
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt="" className={styles.viewerImg} />
-        </div>,
-        document.body
-    )
-}
 
 // ── Progress ring ─────────────────────────────────────────────
 
@@ -289,7 +259,14 @@ export default function ImageMessage({
             </div>
 
             {viewerOpen && (
-                <ImageViewer src={fullSrc} onClose={() => setViewerOpen(false)} />
+                // No alt: in a bubble the photo IS the message, so there is
+                // nothing to describe it with that isn't a guess. The dialog's
+                // own label is what a screen reader announces.
+                <ImageLightbox
+                    src={fullSrc}
+                    alt=""
+                    onClose={() => setViewerOpen(false)}
+                />
             )}
 
             {confirmCancel && (

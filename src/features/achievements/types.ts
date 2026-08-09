@@ -68,8 +68,13 @@ export const MAX_ACHIEVEMENTS = 20
  */
 export const MAX_PINNED_ACHIEVEMENTS = 3
 
-/** How many achievements the profile shows before "Show more". */
-export const ACHIEVEMENT_PAGE_SIZE = 4
+/**
+ * How many achievements the profile shows before "Show more". Three, the same
+ * as CAREER_PAGE_SIZE — the two sections sit one under the other, and a shelf
+ * that keeps showing a fourth card where the timeline above it already stopped
+ * reads as one of them being broken.
+ */
+export const ACHIEVEMENT_PAGE_SIZE = 3
 
 /** Server rule: the `title` column width. */
 export const MAX_ACHIEVEMENT_TITLE_LENGTH = 150

@@ -4,9 +4,10 @@
 
    Header, empty/error/skeleton states and the delete confirm are
    deliberately identical to CareerSection — the two sit next to each
-   other and any drift reads as a bug. The card container differs: a
-   responsive GRID, not a timeline, because achievements have no order
-   to trace between them.
+   other and any drift reads as a bug. The card container still differs:
+   a plain stack, not a timeline, because achievements have no order to
+   trace between them — no rail, no dots, nothing joining one to the
+   next.
    ============================================================ */
 
 @keyframes fadeInUp {
@@ -111,19 +112,22 @@
 
 /* ── Grid ────────────────────────────────────────────────────── */
 
-/* One column on a phone; two once there is room for a 64px thumbnail plus
-   readable text twice over. auto-fill with a min track keeps a lone card from
-   stretching across the full width on a tablet. */
+/* One card per row at every width.
+
+   This was two columns on a desktop, and the second column was never worth
+   what it cost: the profile column is 760px, so a two-up shelf gave each card
+   ~358px, and out of that the thumbnail and the three owner controls took
+   nearly two thirds — leaving a title strip so narrow that ordinary award
+   names ran to three lines. Full width buys the title one line, the chips one
+   row, and the description a readable measure. A shelf that scrolls is a
+   better trade than a grid that shreds its own text.
+
+   Card heights stop mattering once each row holds one card: there is no taller
+   neighbour to stretch against, so no `align-items` is needed here. */
 .grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
-}
-
-@media (min-width: 640px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  }
 }
 
 /* ── Show more ───────────────────────────────────────────────── */
@@ -312,14 +316,12 @@
 
 /* ── Skeleton ────────────────────────────────────────────────── */
 
+/* Mirrors .grid exactly — a skeleton that lays out differently from the cards
+   it stands in for makes the page jump the moment the data lands. */
 .skeleton {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
-}
-
-@media (min-width: 640px) {
-  .skeleton { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 }
 
 .skeletonCard {

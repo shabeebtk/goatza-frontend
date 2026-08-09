@@ -6,6 +6,13 @@
    sections read as one profile — but the layout is a media card, not a
    timeline row: an achievement is a moment with a picture, a career
    entry is a span without one.
+
+   The card is a COLUMN. Only the title block shares a row with the
+   thumbnail; the chips, the badge and every detail line below them get
+   the whole card width. The old shape nested all of it in the narrow
+   column beside an 84px thumb, which cost the chips a row each and the
+   description a third of its measure for nothing — the thumbnail has
+   no claim on the space under it.
    ============================================================ */
 
 @keyframes fadeInUp {
@@ -17,7 +24,8 @@
 
 .card {
   display: flex;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
   padding: var(--space-3);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -47,6 +55,15 @@
   .thumb { width: 84px; height: 84px; }
 }
 
+/* A thumb with a real picture behind it is a <button>. Stripping the button
+   chrome rather than re-declaring the box keeps the two states one shape —
+   only the affordance differs. */
+.thumbButton {
+  padding: 0;
+  border: none;
+  cursor: zoom-in;
+}
+
 .thumbImage {
   width: 100%;
   height: 100%;
@@ -65,20 +82,15 @@
   color: var(--color-text-muted);
 }
 
-/* ── Body ────────────────────────────────────────────────────── */
+/* ── Header row (thumb + title block + owner actions) ────────── */
 
-.body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
+/* Centred, not top-aligned: the thumb is a fixed 64/84px and the title block
+   is usually shorter, so aligning to the top hangs the text off the picture's
+   shoulder with a gap under it. Whichever is taller sets the row's height. */
 .header {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .headerText {
@@ -122,18 +134,24 @@
 
 /* ── Owner actions ───────────────────────────────────────────── */
 
+/* Pinned to the top of the row rather than centred with it — three controls
+   floating beside the middle of a picture read as part of the picture. */
 .actions {
   display: flex;
+  align-self: flex-start;
   gap: 2px;
   flex-shrink: 0;
 }
 
+/* 28px, not the 30px career uses for its two: this card carries three, and at
+   a 300px grid track those six pixels are the difference between a title that
+   wraps to two lines and one that wraps to three. */
 .actionBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   background: transparent;
   border: none;
   border-radius: var(--radius-full);
