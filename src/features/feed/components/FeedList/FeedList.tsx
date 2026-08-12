@@ -5,12 +5,22 @@ import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import { useFeedList } from "../../hooks/useFeedQueries"
+import { useImpressionTracker } from "../../hooks/useImpressionTracker"
 import styles from "./FeedList.module.css"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 
 // Stable empty reference so memoized PostCards never re-render from a fresh
 // object literal on each FeedList render.
 const EMPTY_QUERY_PARAMS: FetchPostsParams = {}
+
+function SuggestedChip() {
+    return (
+        <div className={styles.suggestedChip}>
+            <Icon icon="mdi:compass-outline" width={13} height={13} aria-hidden="true" />
+            <span>Suggested</span>
+        </div>
+    )
+}
 
 
 function EmptyState() {
@@ -53,6 +63,10 @@ export default function FeedList() {
         hasNextPage,
         fetchNextPage,
     } = useFeedList()
+
+    // Independent of the pagination observer below: different threshold,
+    // different job. See useImpressionTracker.
+    const { getPostRef } = useImpressionTracker()
 
     const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -113,7 +127,16 @@ export default function FeedList() {
         <div className={styles.wrapper}>
             <div className={styles.list}>
                 {allPosts.map((post) => (
-                    <div key={post.id} className={styles.feedItem}>
+                    <div
+                        key={post.id}
+                        ref={getPostRef(post.id)}
+                        className={styles.feedItem}
+                    >
+                        {/* A post from someone they don't follow has to explain
+                            itself, or it reads as a bug. */}
+                        {post.feed_source && post.feed_source !== "followed" && (
+                            <SuggestedChip />
+                        )}
                         <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
                     </div>
                 ))}
