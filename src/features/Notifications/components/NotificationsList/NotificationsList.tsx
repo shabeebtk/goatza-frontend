@@ -7,14 +7,13 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import CareerAddPromptSheet from "@/features/career/components/CareerAddPromptSheet/CareerAddPromptSheet"
-import { useNavigation } from "@/shared/services/navigation.service"
-import { useAuthStore } from "@/store/auth.store"
 import NotificationBell from "../NotificationBell/NotificationBell"
 import {
   useNotifications,
   useMarkNotificationRead,
   useMarkAllRead,
 } from "../../hooks/useNotificationQueries"
+import { resolveNotificationHref } from "../../services/notificationHref"
 import type { Notification, NotificationType } from "../../services/notifications.api"
 import styles from "./NotificationsList.module.css"
 
@@ -28,7 +27,9 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   like: "mdi:heart",
   comment: "mdi:comment",
   mention: "mdi:at",
-  connection: "mdi:account-network",
+  // A share, not a chat message: the only rows of this type the list ever shows
+  // were written by NotificationService.message_share.
+  message: "mdi:share-variant",
   recruitment_application: "mdi:account-multiple-plus",
   recruitment_application_status: "mdi:clipboard-check-outline",
   career_verification_request: "mdi:shield-search",
@@ -49,7 +50,7 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   like: "#e8462a",
   comment: "#3b82f6",
   mention: "#f59e0b",
-  connection: "var(--color-brand)",
+  message: "#0ea5e9",
   recruitment_application: "var(--color-brand)",
   recruitment_application_status: "#7c3aed",
   career_verification_request: "#f59e0b",
@@ -73,13 +74,6 @@ function NotificationItem({
   onAddToCareer: (notif: Notification) => void
 }) {
   const { mutate: markRead } = useMarkNotificationRead()
-  const {
-    toRecruitment,
-    toProfile,
-    toCareerVerifications,
-    toAchievementVerifications,
-  } = useNavigation()
-  const myUsername = useAuthStore((s) => s.user?.username)
   const actor = notif.actors[0]
 
   const handleClick = () => {
@@ -89,55 +83,24 @@ function NotificationItem({
   const icon = NOTIF_ICON[notif.type] ?? "mdi:bell"
   const color = NOTIF_COLOR[notif.type] ?? "var(--color-brand)"
 
-  // Org-side "someone applied" (grouped, → admin applicants tab) vs player-side
-  // "your status changed" (single, → the player recruitment detail). Both show
-  // the recruitment title context line.
+  // Org-side "someone applied" (grouped) vs player-side "your status changed"
+  // (single). These only pick the presentation now — which context line and
+  // icon to show. The destination comes from the backend.
   const isApply = notif.type === "recruitment_application"
   const isStatus = notif.type === "recruitment_application_status"
 
-  // Career decisions land on the player's OWN profile, anchored at the career
-  // section — the entry that changed lives there, not on the org that decided.
   const isCareerDecision =
     notif.type === "career_verified" || notif.type === "career_rejected"
   const isCareerRequest = notif.type === "career_verification_request"
   const isCareerPrompt = notif.type === "career_add_prompt"
 
-  // Achievement decisions land on the owner's OWN profile, anchored at the
-  // achievements section — the award that changed lives there, not on the org
-  // that decided. Exactly the career rule, one section along.
-  const isAchievementDecision =
-    notif.type === "achievement_verified" ||
-    notif.type === "achievement_rejected"
-  const isAchievementRequest =
-    notif.type === "achievement_verification_request"
-
   const isRecruitment = isApply || isStatus || isCareerPrompt
 
-  const careerOwner =
-    (notif.data?.owner_username as string | undefined) || myUsername
-
-  const href = isCareerDecision && careerOwner
-    ? `${toProfile(careerOwner)}#career`
-    : isAchievementDecision && careerOwner
-      ? `${toProfile(careerOwner)}#achievements`
-      : isCareerRequest
-      // Only ever arrives while acting as the org, so this resolves inside the
-      // admin route space.
-      ? toCareerVerifications()
-      : isAchievementRequest
-      // Same page, Achievements tab — one verifications route, two domains.
-      ? toAchievementVerifications()
-      : isStatus && notif.recruitment
-        ? `/recruitments/${notif.recruitment.id}`
-        : isApply && notif.recruitment
-          // toRecruitment() resolves the /organization/admin/<orgId>/… base path
-          // from the active org actor (apply notifications only arrive as the org).
-          ? `${toRecruitment(notif.recruitment.id)}?tab=applicants`
-          : notif.post
-            ? `/posts/${notif.post.id}`
-            : actor
-              ? `/profile/${actor.username || actor.name.toLowerCase().replace(/\s+/g, "")}`
-              : "#"
+  // The backend resolved this against the RECIPIENT's route space, so an
+  // org-recipient row keeps the reader inside /organization/admin/<id>/….
+  // Rebuilding it here from `type` + ids is what used to flip people out of
+  // their organization mid-click.
+  const href = resolveNotificationHref(notif.url)
 
   // Only grouped applies stack avatars; status changes are single-actor (the org).
   const stackedActors = isApply ? notif.actors.slice(0, 3) : []

@@ -38,7 +38,8 @@ export function useNavigation() {
       return `/organization/admin/${currentOrg.id}/posts/${postId}`
     }
 
-    return `/post/${postId}`
+    // Plural — /post/<id> is not a route and 404s.
+    return `/posts/${postId}`
   }
 
   function toPostsList(username: string, authorType: ProfileAuthorType = "user") {

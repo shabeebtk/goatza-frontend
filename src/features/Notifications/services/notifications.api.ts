@@ -2,11 +2,15 @@ import api from "@/core/api/axios"
 
 // ── Types ────────────────────────────────────────────────────
 
+export type ActorKind = "user" | "organization"
+
 export type NotificationActor = {
   id: string
   name: string
   username: string
   avatar: string
+  /** Which of the two profile route spaces this actor belongs to. */
+  type: ActorKind
 }
 
 export type NotificationPost = {
@@ -37,7 +41,12 @@ export type NotificationType =
   | "like"
   | "comment"
   | "mention"
-  | "connection"
+  /**
+   * Someone shared a post / recruitment / profile into a chat. In-app rows only
+   * ever come from a share; the push payload also uses this type for ordinary
+   * chat messages, which write no row.
+   */
+  | "message"
   | "recruitment_application"
   | "recruitment_application_status"
   /** Org-side: a player listed this org on their career and wants it verified. */
@@ -100,6 +109,15 @@ export type Notification = {
   others_count: number
   is_read: boolean
   created_at: string
+  /**
+   * Where this notification opens. The backend is the single source of truth
+   * for it — resolved against the RECIPIENT's route space, so an org-recipient
+   * row stays under /organization/admin/<id>/… and never flips the active
+   * actor. The client navigates to it verbatim and derives nothing from `type`.
+   */
+  url: string
+  actor_type: ActorKind
+  recipient_type: ActorKind
   post: NotificationPost | null
   comment: NotificationComment | null
   recruitment?: NotificationRecruitment | null

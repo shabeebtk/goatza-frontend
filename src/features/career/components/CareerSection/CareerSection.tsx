@@ -16,7 +16,7 @@
  * UserProfile has it as `profile.id`.
  */
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Icon } from "@iconify/react"
 
 import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
@@ -103,6 +103,29 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
         useUserCareer(publicEntries ? null : userId)
     const deleteEntry = useDeleteCareerEntry()
 
+    const sectionRef = useRef<HTMLDivElement>(null)
+    const scrolledRef = useRef(false)
+
+    /**
+     * Land a `#career` deep link on this section.
+     *
+     * The browser's own fragment scroll runs at first paint, when this section
+     * is still a skeleton somewhere else on the page — so by the time the real
+     * entries render, the viewport is in the wrong place. Re-running the scroll
+     * once the data has arrived is what actually gets a career_verified /
+     * career_rejected notification to its target.
+     *
+     * Guarded to fire once: after that the page is the reader's to scroll.
+     */
+    useEffect(() => {
+        if (scrolledRef.current) return
+        if (isLoading || !sectionRef.current) return
+        if (window.location.hash !== "#career") return
+
+        scrolledRef.current = true
+        sectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, [isLoading])
+
     const [form, setForm] = useState<FormState>(null)
     const [confirmingId, setConfirmingId] = useState<string | null>(null)
     // How many entries are on screen. Grows by CAREER_PAGE_SIZE per press and
@@ -183,8 +206,10 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
     return (
         <>
             {/* `#career` is the anchor the career_verified / career_rejected
-                notifications deep-link to. */}
-            <div className={styles.section} id="career">
+                notifications deep-link to. `scroll-margin` in the CSS keeps the
+                heading clear of the sticky top nav; the effect above re-runs
+                the scroll once the entries exist. */}
+            <div className={styles.section} id="career" ref={sectionRef}>
                 <div className={styles.sectionHeader}>
                     <h2 className={styles.sectionTitle}>
                         <Icon
