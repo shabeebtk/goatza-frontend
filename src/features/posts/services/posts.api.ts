@@ -88,7 +88,16 @@ export type Post = {
    * have separate saves. Optional because older cached payloads predate it.
    */
   is_saved?: boolean
+  /**
+   * Which candidate source put this post in the HOME FEED. Null on every other
+   * listing (profile, explore, search), which is why the feed renders the
+   * "Suggested" chip only when this is present and not "followed".
+   */
+  feed_source?: FeedSource | null
 }
+
+/** Home-feed candidate sources — see the feed ranking spec §3.4. */
+export type FeedSource = "followed" | "trending" | "interest"
 
 export type PostMention = {
   username: string

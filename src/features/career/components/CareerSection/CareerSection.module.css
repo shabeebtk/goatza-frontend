@@ -26,6 +26,9 @@
   gap: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border);
+  /* A `#career` deep link must land with the heading visible, not tucked
+     under the sticky top nav. */
+  scroll-margin-top: calc(var(--top-nav-h, 56px) + var(--space-4));
 }
 
 .sectionHeader {
