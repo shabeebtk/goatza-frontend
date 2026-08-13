@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
@@ -11,37 +10,22 @@ import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import styles from "./RecruitmentCard.module.css"
 import { summarizeAgeGroups } from "../../eligibility"
+import {
+  daysToDeadline,
+  formatDistance,
+  formatUrgency,
+  type UrgencyTone,
+} from "../../matchContext"
 import { Recruitment } from "../../services/recruitments.api"
-
-
-dayjs.extend(relativeTime)
 
 // ── Helpers ───────────────────────────────────────────────────
 
-const TYPE_META: Record<
-  string,
-  { label: string; icon: string; colorClass: string }
-> = {
-  open_trial: {
-    label: "Open Trial",
-    icon: "mdi:whistle-outline",
-    colorClass: "typeTrial",
-  },
-  private_trial: {
-    label: "Private Trial",
-    icon: "mdi:lock-outline",
-    colorClass: "typePrivate",
-  },
-  direct_recruitment: {
-    label: "Direct Recruitment",
-    icon: "mdi:account-arrow-right-outline",
-    colorClass: "typeDirect",
-  },
-  scholarship: {
-    label: "Scholarship",
-    icon: "mdi:school-outline",
-    colorClass: "typeScholarship",
-  },
+const TYPE_LABEL: Record<string, string> = {
+  open_trial: "Open Trial",
+  player_looking: "Player Looking",
+  private_trial: "Private Trial",
+  direct_recruitment: "Direct Recruitment",
+  scholarship: "Scholarship",
 }
 
 const STATUS_META: Record<string, { label: string; colorClass: string }> = {
@@ -51,13 +35,47 @@ const STATUS_META: Record<string, { label: string; colorClass: string }> = {
   cancelled: { label: "Cancelled", colorClass: "statusCancelled" },
 }
 
-function fmtDate(iso: string) {
-  return dayjs(iso).format("DD MMM YYYY")
+const TONE_CLASS: Record<UrgencyTone, string> = {
+  none: "toneCalm",
+  calm: "toneCalm",
+  soon: "toneSoon",
+  today: "toneToday",
+  closed: "toneClosed",
 }
+
+/** The one cell placeholder. A missing fact reads as "—", never as a zero. */
+const EMPTY = "—"
 
 function fmtCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
   return String(n)
+}
+
+/**
+ * "Free" / "₹200" / null when we simply weren't told.
+ *
+ * Never hard-codes a symbol: the currency is the recruiter's, and an org
+ * posting in AED should not read as rupees. A malformed code from an older row
+ * falls back to the bare number rather than throwing the card away.
+ */
+function formatFee(recruitment: Recruitment): string | null {
+  if (recruitment.is_paid === false) return "Free"
+  if (!recruitment.is_paid || !recruitment.fee_amount) return null
+
+  const amount = Number(recruitment.fee_amount)
+  if (!Number.isFinite(amount)) return null
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: recruitment.fee_currency || "INR",
+      // Trial fees are whole numbers; ".00" is two characters of noise in a
+      // cell that has to stay scannable at a glance.
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    return String(amount)
+  }
 }
 
 // ── Props ─────────────────────────────────────────────────────
@@ -77,143 +95,226 @@ export default function RecruitmentCard({
   const { toRecruitment, toProfile } = useNavigation()
   const [shareOpen, setShareOpen] = useState(false)
 
-  const typeMeta =
-    TYPE_META[recruitment.recruitment_type] ?? TYPE_META.open_trial
-  const statusMeta = STATUS_META[recruitment.status] ?? STATUS_META.active
+  const match = recruitment.match
+  const titleId = `rec-title-${recruitment.id}`
 
-  const allPositions = recruitment.positions.map((p) => p.position.name)
+  // Only ever rendered off the happy path. "ACTIVE" on every public row is
+  // pure noise; "DRAFT" on the org's own row is the whole point.
+  const statusMeta =
+    recruitment.status !== "active" ? STATUS_META[recruitment.status] : null
+
+  // ── Cell 2: venue. The stadium locates a trial, the city only narrows it to
+  // a district — so one wins outright and the other becomes the tooltip.
+  const venueName = recruitment.venue_name?.trim()
+  const city = recruitment.city?.trim()
+  const venuePrimary = venueName || city || ""
+  const distance =
+    match?.distance_km != null ? formatDistance(match.distance_km) : null
+  const venueValue = [venuePrimary, distance].filter(Boolean).join(" · ")
+
+  // ── Cell 3: positions, matched ones first. A stable sort keeps the
+  // recruiter's own ordering intact behind the promoted ones.
+  const matched = new Set(match?.matched_positions ?? [])
+  const positions = (recruitment.positions ?? []).map((p) => p.position.name)
+  const sortedPositions = [...positions].sort(
+    (a, b) => Number(matched.has(b)) - Number(matched.has(a))
+  )
+  // Two counts because the visible cap is a container query, not a measurement:
+  // one tag fits a narrow card, three fit a wide one. Both spans are in the DOM
+  // and aria-hidden — the full list is announced from the visually-hidden span,
+  // so hiding a tag with `display: none` never costs a screen reader a position.
+  const moreNarrow = positions.length - 1
+  const moreWide = positions.length - 3
+
+  // ── Cell 4
   const ageSummary = summarizeAgeGroups(recruitment.age_categories)
+  const fee = formatFee(recruitment)
+  const ageFeeValue = [ageSummary, fee].filter(Boolean).join(" · ")
 
-  const timeAgo = dayjs(recruitment.created_at).fromNow()
+  // ── Urgency. Derived from the deadline itself whenever we have one, and
+  // only otherwise from the server's count: `days_to_deadline` is computed at
+  // request time, so a cached page open across the deadline would keep
+  // counting down past it. The server's value stays the fallback for payloads
+  // that predate the deadline being on the list serializer.
+  const days =
+    daysToDeadline(recruitment.application_deadline) ??
+    match?.days_to_deadline ??
+    null
+  const urgency = formatUrgency(days)
+
+  // The badge and the urgency line can land on the same words ("Applications
+  // closed" from both sides). Say it once.
+  const rawBadge = match?.eligibility_badge ?? null
+  const badge =
+    rawBadge && rawBadge.trim().toLowerCase() === urgency?.label.toLowerCase()
+      ? null
+      : rawBadge
+
+  const isBestMatch = match?.sport_match === "primary" && match?.position_match === true
+  // A muted card, never a disabled one: the posting sank in the ranking and
+  // says why. Nothing here touches the Apply button — that stays derived from
+  // `is_accepting_applications` on the detail page, server-side.
+  const isMuted = match?.is_eligible === false
+
+  const typeLabel = TYPE_LABEL[recruitment.recruitment_type] ?? null
 
   return (
-    <article className={styles.card}>
-      {/* ── Top row: org + status ── */}
-      {showOrg && (
-        <div className={styles.orgRow}>
-          <Link
-            href={toProfile(recruitment.organization.username, "organization")}
-            className={styles.orgLink}
-          >
-            <Avatar
-              src={recruitment.organization.logo}
-              initials={recruitment.organization.name?.slice(0, 2).toUpperCase()}
-              size="sm"
-            />
-            <div className={styles.orgMeta}>
-              <span className={styles.orgName}>
-                {recruitment.organization.name}
-                {recruitment.organization.is_verified && (
-                  <Icon
-                    icon="mdi:check-decagram"
-                    width={13}
-                    height={13}
-                    className={styles.verifiedBadge}
+    <div className={styles.cardWrap}>
+      <article
+        className={`${styles.card} ${isMuted ? styles.cardMuted : ""}`}
+        aria-labelledby={titleId}
+      >
+        {/* ── Head ── */}
+        <div className={styles.head}>
+          {(showOrg || isBestMatch || statusMeta) && (
+            <div className={styles.headTop}>
+              {showOrg && (
+                <Link
+                  href={toProfile(
+                    recruitment.organization.username,
+                    "organization"
+                  )}
+                  className={styles.orgLink}
+                >
+                  <Avatar
+                    src={recruitment.organization.logo}
+                    initials={recruitment.organization.name
+                      ?.slice(0, 2)
+                      .toUpperCase()}
+                    size="sm"
                   />
-                )}
-              </span>
-              {recruitment.organization.headline && (
-                <span className={styles.orgHeadline}>
-                  {recruitment.organization.headline}
+                  <span className={styles.orgName}>
+                    {/* The text truncates on its own element: ellipsis has no
+                        effect on a flex container, and the row has to be flex
+                        to keep the tick beside the name. */}
+                    <span className={styles.orgNameText}>
+                      {recruitment.organization.name}
+                    </span>
+                    {recruitment.organization.is_verified && (
+                      <Icon
+                        icon="mdi:check-decagram"
+                        width={13}
+                        height={13}
+                        className={styles.verifiedBadge}
+                      />
+                    )}
+                  </span>
+                </Link>
+              )}
+
+              {isBestMatch && (
+                <span className={styles.bestMatch}>Best match</span>
+              )}
+
+              {statusMeta && (
+                <span
+                  className={`${styles.statusBadge} ${styles[statusMeta.colorClass]}`}
+                >
+                  {statusMeta.label}
                 </span>
               )}
             </div>
-          </Link>
-
-          <span className={`${styles.statusBadge} ${styles[statusMeta.colorClass]}`}>
-            {statusMeta.label}
-          </span>
-        </div>
-      )}
-
-      {/* ── Title + sport icon ── */}
-      <div className={styles.titleRow}>
-        <div className={styles.sportIcon} aria-label={recruitment.sport.name}>
-          <Icon
-            icon={recruitment.sport.icon_name || "mdi:trophy-outline"}
-            width={20}
-            height={20}
-          />
-        </div>
-        <div className={styles.titleBlock}>
-          <Link
-            href={toRecruitment(recruitment.id)}
-            className={styles.titleLink}
-          >
-            <h3 className={styles.title}>{recruitment.title}</h3>
-          </Link>
-          {/* Short description is optional — skip the block entirely when
-              it's blank so the card doesn't keep an empty line's gap. */}
-          {recruitment.short_description && (
-            <p className={styles.description}>{recruitment.short_description}</p>
           )}
+
+          <Link href={toRecruitment(recruitment.id)} className={styles.titleLink}>
+            <h3 id={titleId} className={styles.title}>
+              {recruitment.title}
+            </h3>
+          </Link>
         </div>
-      </div>
 
-      {/* ── Positions ── */}
-      {allPositions.length > 0 && (
-        <div className={styles.positions}>
-          {allPositions.map((pos) => (
-            <span key={pos} className={styles.posTag}>
-              {pos}
+        {/* ── Urgency. ONE node — the container query moves it beside the
+            title on a wide card and down into the footer on a narrow one.
+            Rendering it twice and hiding one would say it twice aloud. ── */}
+        <div className={styles.urg}>
+          {urgency && (
+            <span
+              className={`${styles.urgency} ${styles[TONE_CLASS[urgency.tone]]}`}
+            >
+              <span className={styles.dot} aria-hidden="true" />
+              {urgency.label}
             </span>
-          ))}
+          )}
+          {badge && <span className={styles.eligibilityBadge}>{badge}</span>}
         </div>
-      )}
 
-      {/* ── Meta row ── */}
-      <div className={styles.metaRow}>
-        {/* Type pill */}
-        <span className={`${styles.typePill} ${styles[typeMeta.colorClass]}`}>
-          <Icon icon={typeMeta.icon} width={12} height={12} />
-          {typeMeta.label}
-        </span>
-
-        <span className={styles.metaDivider} />
-
-        {/* Age — "All ages", one group's title, or a first–last span. Null
-            when the list payload carried no categories at all (older cache);
-            we skip the chip rather than fetch for it. */}
-        {ageSummary && (
-          <>
-            <span className={styles.metaItem}>
-              <Icon icon="mdi:cake-variant-outline" width={13} height={13} />
-              {ageSummary}
+        {/* ── Spec grid. Fixed order, labels always present: a cell that moves
+            between cards is what destroyed the alignment this replaces. ── */}
+        <div className={styles.body}>
+          <div className={styles.cell}>
+            <span className={styles.cellLabel}>Trial date</span>
+            <span
+              className={`${styles.cellValue} ${!recruitment.event_date ? styles.cellEmpty : ""}`}
+            >
+              {recruitment.event_date
+                ? dayjs(recruitment.event_date).format("D MMM YYYY")
+                : EMPTY}
             </span>
-            <span className={styles.metaDivider} />
-          </>
-        )}
+          </div>
 
-        {/* City */}
-        {recruitment.city && (
-          <>
-            <span className={styles.metaItem}>
-              <Icon icon="mdi:map-marker-outline" width={13} height={13} />
-              {recruitment.city}
+          <div className={styles.cell}>
+            <span className={styles.cellLabel}>Venue</span>
+            <span
+              className={`${styles.cellValue} ${!venueValue ? styles.cellEmpty : ""}`}
+              title={venueName && city ? city : venueValue || undefined}
+            >
+              {venueValue || EMPTY}
             </span>
-            <span className={styles.metaDivider} />
-          </>
-        )}
+          </div>
 
-        {/* Event date */}
-        <span className={styles.metaItem}>
-          <Icon icon="mdi:calendar-outline" width={13} height={13} />
-          {fmtDate(recruitment.event_date)}
-        </span>
-      </div>
+          <div className={styles.cell}>
+            <span className={styles.cellLabel}>Positions</span>
+            {positions.length === 0 ? (
+              <span className={styles.cellValue}>All positions</span>
+            ) : (
+              <span className={styles.cellValue}>
+                <span className={styles.srOnly}>
+                  {sortedPositions.join(", ")}
+                </span>
+                <span className={styles.tagRow} aria-hidden="true">
+                  {sortedPositions.map((name, i) => (
+                    <span
+                      key={`${name}-${i}`}
+                      className={`${styles.tag} ${matched.has(name) ? styles.hit : ""}`}
+                    >
+                      {name}
+                    </span>
+                  ))}
+                  {moreNarrow > 0 && (
+                    <span className={styles.moreNarrow}>+{moreNarrow}</span>
+                  )}
+                  {moreWide > 0 && (
+                    <span className={styles.moreWide}>+{moreWide}</span>
+                  )}
+                </span>
+              </span>
+            )}
+          </div>
 
-      {/* ── Footer ── */}
-      <div className={styles.footer}>
-        <span className={styles.timeAgo}>{timeAgo}</span>
+          <div className={styles.cell}>
+            <span className={styles.cellLabel}>Age · Fee</span>
+            <span
+              className={`${styles.cellValue} ${!ageFeeValue ? styles.cellEmpty : ""}`}
+              title={ageFeeValue || undefined}
+            >
+              {ageFeeValue || EMPTY}
+            </span>
+          </div>
+        </div>
 
-        <div className={styles.footerRight}>
+        {/* ── Footer meta (wide only — the narrow card gives this row to the
+            urgency line, which outranks it) ── */}
+        <div className={styles.meta}>
+          {typeLabel && <span>{typeLabel}</span>}
+          {typeLabel && recruitment.applications_count > 0 && (
+            <span className={styles.metaDot} aria-hidden="true" />
+          )}
           {recruitment.applications_count > 0 && (
-            <span className={styles.applicants}>
-              <Icon icon="mdi:account-multiple-outline" width={13} height={13} />
-              {fmtCount(recruitment.applications_count)} applied
-            </span>
+            <span>{fmtCount(recruitment.applications_count)} applied</span>
           )}
+        </div>
 
+        <div className={styles.cta}>
           <button
             type="button"
             className={styles.shareBtn}
@@ -224,15 +325,12 @@ export default function RecruitmentCard({
             <Icon icon="mdi:share-variant-outline" width={16} height={16} />
           </button>
 
-          <Link
-            href={toRecruitment(recruitment.id)}
-            className={styles.applyBtn}
-          >
+          <Link href={toRecruitment(recruitment.id)} className={styles.viewBtn}>
             View
             <Icon icon="mdi:arrow-right" width={14} height={14} />
           </Link>
         </div>
-      </div>
+      </article>
 
       <ShareSheet
         open={shareOpen}
@@ -247,6 +345,6 @@ export default function RecruitmentCard({
           />
         }
       />
-    </article>
+    </div>
   )
 }

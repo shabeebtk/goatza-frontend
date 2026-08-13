@@ -109,6 +109,10 @@
   /* ── Semantic states */
   --color-error: var(--primitive-red-500);
   --color-success: var(--primitive-green-600);
+  /* Approaching, not yet critical — a deadline 2–7 days out. Kept distinct
+     from --color-error so red keeps meaning "last day" and doesn't flatten
+     into a general "hurry up" colour. */
+  --color-warn: #c47a00;
 
   /* ── Chat read receipt (blue ticks)
      Deliberately the one blue in a green palette: "seen" is a universal
@@ -173,6 +177,7 @@
     /* ── Semantic states */
     --color-error: var(--primitive-red-400);
     --color-success: var(--primitive-green-400);
+    --color-warn: #e0a52e;
 
     /* ── Chat read receipt — brightened so it still reads as blue against
        the darker bubble fills */
