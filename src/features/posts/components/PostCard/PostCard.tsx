@@ -281,22 +281,34 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           </div>
         </Link>
 
-        {/* ── More button — opens options sheet ──
-            Every action inside that sheet (save, promote to highlight, edit,
-            delete, report) needs an account, so on a public profile the button
-            opens the login wall rather than a sheet of dead options. */}
-        <button
-          className={styles.moreBtn}
-          type="button"
-          aria-label="More options"
-          onClick={() =>
-            publicView
-              ? publicView.openLoginWall("save posts from")
-              : setShowOptions(true)
-          }
-        >
-          <Icon icon="mdi:dots-horizontal" width={20} height={20} />
-        </button>
+        <div className={styles.headerRight}>
+          {/* A post from someone they don't follow has to explain itself, or it
+              reads as a bug. Only the feed endpoint sets feed_source, so this
+              stays absent on profile/detail renders of the same card. */}
+          {post.feed_source && post.feed_source !== "followed" && (
+            <span className={styles.suggestedChip}>
+              <Icon icon="mdi:compass-outline" width={12} height={12} aria-hidden="true" />
+              <span>Suggested</span>
+            </span>
+          )}
+
+          {/* ── More button — opens options sheet ──
+              Every action inside that sheet (save, promote to highlight, edit,
+              delete, report) needs an account, so on a public profile the button
+              opens the login wall rather than a sheet of dead options. */}
+          <button
+            className={styles.moreBtn}
+            type="button"
+            aria-label="More options"
+            onClick={() =>
+              publicView
+                ? publicView.openLoginWall("save posts from")
+                : setShowOptions(true)
+            }
+          >
+            <Icon icon="mdi:dots-horizontal" width={20} height={20} />
+          </button>
+        </div>
       </div>
 
       {/* ── Content ── */}
