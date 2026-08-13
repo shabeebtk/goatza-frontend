@@ -942,10 +942,6 @@
 
 
 /* Location picker wrap — shown in body when toggled */
-.locationPickerWrap {
-  flex-shrink: 0;
-  animation: fadeIn 0.2s var(--ease-out) both;
-}
 
 
 

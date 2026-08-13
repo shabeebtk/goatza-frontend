@@ -1940,14 +1940,16 @@ export default function CreateRecruitmentModal({
                                     Search city or area…
                                 </button>
                             )}
-                            {locationOpen && !location && (
-                                <div className={styles.locationPickerWrap}>
-                                    <PostLocationPicker
-                                        value={location}
-                                        onChange={(place) => { setLocation(place); if (place) setLocationOpen(false) }}
-                                        disabled={isSubmitting}
-                                    />
-                                </div>
+                            {/* Full-screen search, portalled above this modal.
+                                It closes itself on pick; the pill above keeps
+                                its own remove. */}
+                            {locationOpen && (
+                                <PostLocationPicker
+                                    value={location}
+                                    onChange={setLocation}
+                                    onClose={() => setLocationOpen(false)}
+                                    disabled={isSubmitting}
+                                />
                             )}
                         </div>
 

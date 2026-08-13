@@ -439,10 +439,6 @@
   color: var(--color-brand-hover);
 }
 
-.locationPickerWrap {
-  animation: fadeIn 0.2s var(--ease-out) both;
-}
-
 .locationPill {
   display: flex;
   align-items: center;

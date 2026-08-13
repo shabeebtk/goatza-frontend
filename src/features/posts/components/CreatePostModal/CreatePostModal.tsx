@@ -502,12 +502,6 @@ export default function CreatePostModal({
     })
   }, [])
 
-  // ── Handle location select — close picker after pick ──────────
-  const handleLocationChange = (place: MapboxPlace | null) => {
-    setPostLocation(place)
-    if (place) setLocationOpen(false)
-  }
-
   // ── Submit ────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setSubmitError(null)
@@ -701,15 +695,16 @@ export default function CreatePostModal({
             </p>
           )}
 
-          {/* Location picker — inline in body, shown when toggled */}
+          {/* Location — full-screen search, portalled above this modal.
+              It closes itself on pick and on remove; the toolbar pill above
+              keeps its own remove for when the screen isn't open. */}
           {locationOpen && composing && (
-            <div className={styles.locationPickerWrap}>
-              <PostLocationPicker
-                value={postLocation}
-                onChange={handleLocationChange}
-                disabled={isSubmitting}
-              />
-            </div>
+            <PostLocationPicker
+              value={postLocation}
+              onChange={setPostLocation}
+              onClose={() => setLocationOpen(false)}
+              disabled={isSubmitting}
+            />
           )}
 
           {/* Media carousel */}
