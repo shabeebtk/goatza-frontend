@@ -838,3 +838,16 @@
     height: 30px;
     border-radius: var(--radius-full);
 }
+
+/* ── Print ────────────────────────────────────────────────────
+   All three bands are screen chrome — see the note in PublicNav.module.css.
+   Both render branches (skeleton and real) use these same three classes, so
+   this covers the nav in every state it can be in when a print is fired. */
+
+@media print {
+    .topNav,
+    .mobileTopBar,
+    .bottomBar {
+        display: none;
+    }
+}

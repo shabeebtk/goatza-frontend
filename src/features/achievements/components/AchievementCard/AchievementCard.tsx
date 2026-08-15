@@ -130,7 +130,7 @@ function AchievementThumb({
 
 // ── Verification line ─────────────────────────────────────────
 
-function VerificationLine({ achievement }: { achievement: Achievement }) {
+export function VerificationLine({ achievement }: { achievement: Achievement }) {
     if (achievement.verification_status !== "verified") return null
 
     return (

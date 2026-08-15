@@ -57,6 +57,19 @@ export default function SettingsPage() {
         {isPublic && profile?.username && (
           <ProfileLinkRow url={profileUrl(profile.username, "user")} />
         )}
+
+        {/* Directly under the toggle it depends on: the CV only resolves when
+            the profile is public too, and the two settings being adjacent is
+            the cheapest way to make that obvious. Players only — a coach or
+            scout has a profile, not a CV, and the endpoint behind this row
+            answers 403 for them. */}
+        {profile?.role === "player" && (
+          <SettingsRow
+            href="/settings/cv"
+            icon="mdi:file-account-outline"
+            label="Sports CV"
+          />
+        )}
       </SettingsSection>
 
       <SettingsSection title="Content">

@@ -26,10 +26,15 @@
     }
 }
 
-/* ── Loading skeleton ─────────────────────────────────────────
-   Shown while the auth store resolves. Shaped like a profile
-   (nav → cover → avatar → lines) so the real page swaps in
-   without the layout jumping. */
+/* ── Loading skeletons ────────────────────────────────────────
+   Shown while the auth store resolves, in one of two shapes (see
+   PublicShell.tsx): a profile card, or a CV sheet.
+
+   Every measurement below is taken from the page it stands in for —
+   UserProfile.module.css's 760px card for the profile, PublicCVView's
+   --container-tight sheet for the CV — so the real page swaps in without the
+   layout jumping. The nav band is the one full-width element, because the real
+   nav is fixed and does span the viewport. */
 
 .skeleton {
     min-height: 100dvh;
@@ -40,7 +45,13 @@
 .skeletonCover,
 .skeletonAvatar,
 .skeletonLine,
-.skeletonLineSm {
+.skeletonLineSm,
+.skeletonChip,
+.skeletonStat,
+.skeletonBtn,
+.skeletonBox,
+.skeletonSection,
+.skeletonCvPhoto {
     background: var(--color-surface-raised);
     animation: publicShellPulse 1.4s ease-in-out infinite;
 }
@@ -49,38 +60,155 @@
     height: calc(var(--top-nav-h) + var(--safe-top));
 }
 
+/* ── Shared pieces ─────────────────────────────────────────── */
+
+.skeletonLine {
+    height: 22px;
+    width: 55%;
+    border-radius: var(--radius-sm);
+}
+
+.skeletonLineSm {
+    height: 14px;
+    width: 32%;
+    border-radius: var(--radius-sm);
+}
+
+.skeletonRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.skeletonChip {
+    height: 26px;
+    width: 86px;
+    border-radius: var(--radius-full);
+}
+
+.skeletonStat {
+    height: 38px;
+    width: 76px;
+    border-radius: var(--radius-md);
+}
+
+.skeletonBtn {
+    height: 42px;
+    flex: 1 1 120px;
+    border-radius: var(--radius-full);
+}
+
+/* ── Profile shape ─────────────────────────────────────────── */
+
+/* Mirrors .profilePage: 760px, centred, unpadded on phones (the card is
+   full-bleed there) and inset from 640px up. */
+.skeletonPage {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+}
+
+@media (min-width: 640px) {
+    .skeletonPage {
+        padding: var(--space-4) var(--space-6) var(--space-8);
+    }
+}
+
+/* Mirrors .profileCard: square and borderless on phones, a bordered rounded
+   card from 640px up. */
+.skeletonCard {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    overflow: hidden;
+}
+
+@media (min-width: 640px) {
+    .skeletonCard {
+        border: 1.5px solid var(--color-border);
+        border-radius: var(--radius-xl);
+    }
+}
+
 .skeletonCover {
     aspect-ratio: 3 / 1;
     width: 100%;
-    margin-top: var(--space-1);
 }
 
 .skeletonBody {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    max-width: 680px;
-    margin: 0 auto;
-    padding: var(--space-4);
+    padding: 0 var(--space-5) var(--space-8);
 }
 
+@media (min-width: 640px) {
+    .skeletonBody {
+        padding: 0 var(--space-8) var(--space-8);
+    }
+}
+
+/* The overlap the real avatar has over the cover (.avatarRow). */
 .skeletonAvatar {
-    width: 88px;
-    height: 88px;
+    width: 92px;
+    height: 92px;
     border-radius: var(--radius-full);
+    border: 3px solid var(--color-surface);
     margin-top: -44px;
 }
 
-.skeletonLine {
-    height: 20px;
-    width: 60%;
-    border-radius: var(--radius-sm);
+@media (min-width: 640px) {
+    .skeletonAvatar {
+        margin-top: -52px;
+    }
 }
 
-.skeletonLineSm {
-    height: 14px;
-    width: 35%;
-    border-radius: var(--radius-sm);
+/* ── CV shape ──────────────────────────────────────────────── */
+
+/* Mirrors PublicCVView's .sheet. */
+.skeletonSheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+
+    width: 100%;
+    max-width: var(--container-tight);
+    margin-inline: auto;
+    padding: var(--space-6) var(--space-5) var(--space-10);
+}
+
+.skeletonCvHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+}
+
+.skeletonCvPhoto {
+    width: 92px;
+    height: 92px;
+    flex: 0 0 auto;
+    border-radius: var(--radius-full);
+}
+
+.skeletonCvHeaderText {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* The fact grid — one block rather than three cells: it is a bordered box on
+   the real page, and three floating rectangles read as content that then
+   moves. */
+.skeletonBox {
+    height: 84px;
+    border-radius: var(--radius-md);
+}
+
+.skeletonSection {
+    height: 128px;
+    border-radius: var(--radius-md);
 }
 
 @keyframes publicShellPulse {
@@ -101,7 +229,25 @@
     .skeletonCover,
     .skeletonAvatar,
     .skeletonLine,
-    .skeletonLineSm {
+    .skeletonLineSm,
+    .skeletonChip,
+    .skeletonStat,
+    .skeletonBtn,
+    .skeletonBox,
+    .skeletonSection,
+    .skeletonCvPhoto {
         animation: none;
+    }
+}
+
+/* ── Print ────────────────────────────────────────────────────
+   The offsets above reserve space for a fixed nav and a sticky CTA bar, and
+   PublicNav hides both in print — leaving that reserved space as a band of
+   white at the top and bottom of the first printed sheet. */
+
+@media print {
+    .content {
+        padding-top: 0;
+        padding-bottom: 0;
     }
 }

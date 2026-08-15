@@ -24,6 +24,9 @@ import { Icon } from "@iconify/react"
 
 import Button from "@/shared/components/ui/Button/Button"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import CVQrSheet from "@/features/cv/components/CVQrSheet/CVQrSheet"
+import { useCVSettings } from "@/features/cv/hooks/useCVSettings"
+import { cvUrl } from "@/features/cv/services/cv.api"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import type { ShareTarget } from "@/features/messages/services/conversations.api"
 import ProfileSharePreview from "@/features/profile/components/ProfileSharePreview/ProfileSharePreview"
@@ -65,10 +68,24 @@ export default function ProfileShareMenu({
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
   const [cardSheetOpen, setCardSheetOpen] = useState(false)
+  const [cvSheetOpen, setCvSheetOpen] = useState(false)
 
   // Organizations have no generated card — a different composition and a
   // deliberately later build — so the entry simply is not offered for one.
   const hasCard = target.type === "user"
+
+  // "Share CV" is the OWNER's action and nobody else's: a CV is a document its
+  // subject chose to publish, and offering a scout a "share their CV" button
+  // would put us in the business of forwarding it for them.
+  //
+  // Queried only once the menu is open, and never for an anonymous visitor.
+  // The GET get-or-creates the settings row server-side, so firing it on every
+  // profile render would write a row for anyone who merely looked at a share
+  // button. A non-player's 403 lands in `error` and simply leaves the entry
+  // hidden, which is the correct outcome.
+  const canOwnCV = isOwnProfile && !publicView && target.type === "user"
+  const { data: cvSettings } = useCVSettings(canOwnCV && menuOpen)
+  const hasCV = canOwnCV && Boolean(cvSettings?.is_enabled)
 
   // navigator.share exists on mobile Safari/Chrome and almost nowhere else.
   // Read through useSyncExternalStore so SSR and the first client render agree
@@ -180,6 +197,21 @@ export default function ProfileShareMenu({
                 </button>
               )}
 
+              {hasCV && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.item}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setCvSheetOpen(true)
+                  }}
+                >
+                  <Icon icon="mdi:file-account-outline" width={17} height={17} />
+                  Share CV
+                </button>
+              )}
+
               <button
                 type="button"
                 role="menuitem"
@@ -223,6 +255,18 @@ export default function ProfileShareMenu({
           username={username}
           name={name}
           canCustomise={isOwnProfile}
+        />
+      )}
+
+      {/* The QR sheet carries its own copy-link and navigator.share (feature
+          detected there, hidden where unavailable), so "Share CV" is one
+          entry rather than three. */}
+      {hasCV && (
+        <CVQrSheet
+          open={cvSheetOpen}
+          onClose={() => setCvSheetOpen(false)}
+          url={cvUrl(username)}
+          name={name}
         />
       )}
 

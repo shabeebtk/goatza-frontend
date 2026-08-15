@@ -71,6 +71,7 @@ const RESERVED = new Set([
   "card",
   "chat",
   "coaching",
+  "cv",
   "explore",
   "highlights",
   "home",
