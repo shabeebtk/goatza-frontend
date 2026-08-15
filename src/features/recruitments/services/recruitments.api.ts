@@ -118,6 +118,94 @@ export type Recruitment = {
   // Optional: an older cached list payload predates it. An EMPTY array is
   // meaningful ("open to all ages"); missing means "we weren't told".
   age_categories?: RecruitmentAgeCategory[]
+  // Everything below is optional for the same reason: a payload cached before
+  // the list serializer was widened must still type-check and still render.
+  // The card treats each one as "not told" rather than as a zero or a false.
+  application_deadline?: string | null
+  is_paid?: boolean
+  /** DRF serializes DecimalField as a string — parse before formatting. */
+  fee_amount?: string | null
+  fee_currency?: string
+  /** Preferred over `city` on the card when set; city stays the fallback. */
+  venue_name?: string
+  /** Available to callers, deliberately not rendered on the card (§4). */
+  gender?: RecruitmentGender | ""
+  // Match context (§5). Present on /discover and on the ranked "All" tab;
+  // absent on the org-scoped mounts, which stay newest-first and unscored.
+  // Every field is optional for exactly that reason — a card must render fine
+  // with none of them.
+  match?: RecruitmentMatchContext
+}
+
+// ── Match context (§3/§5) ─────────────────────────────────────
+
+/**
+ * How well a recruitment fits the viewer, as REASONS rather than a number.
+ *
+ * `match_score` is here so ordering stays debuggable, but §5 is explicit that
+ * the card never renders it: a score invites argument, a reason builds trust.
+ * The card draws "Your sport · Striker · 8 km · Closes in 5 days" from the
+ * fields below instead.
+ *
+ * `is_eligible` is display + ranking ONLY. It never gates Apply — that stays
+ * derived from `is_accepting_applications`, server-side, exactly as before.
+ */
+export type RecruitmentMatchContext = {
+  match_score: number | null
+  is_eligible: boolean
+  /** Informational, never prohibitive: "U-17 only", "Applications closed". */
+  eligibility_badge: string | null
+  /** "primary" = the viewer's main sport, "other" = one they also play. */
+  sport_match: "primary" | "other" | "none" | null
+  /** null when either side left positions unstated — unknown, not a mismatch. */
+  position_match: boolean | null
+  /** The positions that actually overlapped — the chip's own words. */
+  matched_positions: string[]
+  /** null when either side has no coordinates. */
+  distance_km: number | null
+  /** Negative once the deadline has passed; null when there is no deadline. */
+  days_to_deadline: number | null
+}
+
+// The backend returns the match fields FLAT alongside the card fields (one
+// serializer, one object). Reading them into a nested `match` keeps the card's
+// props honest about what is optional.
+type RecruitmentApiRow = Omit<Recruitment, "match"> &
+  Partial<RecruitmentMatchContext> & {
+    // Discover-only; `application_deadline` moved onto `Recruitment` itself
+    // once every mount's card started counting down to it.
+    published_at?: string | null
+  }
+
+const MATCH_KEYS = [
+  "match_score",
+  "is_eligible",
+  "eligibility_badge",
+  "sport_match",
+  "position_match",
+  "matched_positions",
+  "distance_km",
+  "days_to_deadline",
+] as const
+
+function withMatch(row: RecruitmentApiRow): Recruitment {
+  // An unranked payload carries none of these; leave `match` undefined so the
+  // card skips the whole chip row rather than rendering empty chips.
+  if (!MATCH_KEYS.some((key) => key in row)) return row as Recruitment
+
+  return {
+    ...(row as Recruitment),
+    match: {
+      match_score: row.match_score ?? null,
+      is_eligible: row.is_eligible ?? true,
+      eligibility_badge: row.eligibility_badge ?? null,
+      sport_match: row.sport_match ?? null,
+      position_match: row.position_match ?? null,
+      matched_positions: row.matched_positions ?? [],
+      distance_km: row.distance_km ?? null,
+      days_to_deadline: row.days_to_deadline ?? null,
+    },
+  }
 }
 
 // ── Detail (full — user + org-owner fields) ───────────────────
@@ -360,6 +448,14 @@ export type FetchRecruitmentsParams = {
   experience_level?: string
   birth_year?: number
   apply_method?: ApplyMethod
+  position_id?: string
+  max_distance_km?: number
+  /** The "for me" toggle — filters on AGE only, and only when asked for. */
+  age_eligible?: boolean
+  // What the "Closing soon" / "New this week" rails mean as a filter, so their
+  // "See all" opens the same rule rather than an unfiltered list.
+  closing_within_days?: number
+  published_within_days?: number
   limit?: number
   offset?: number
 }
@@ -372,7 +468,62 @@ export const fetchRecruitmentsApi = async (
   const res = await api.get("/recruitments/list", {
     params: { limit: 10, ...params },
   })
-  return res.data.data
+  const data = res.data.data
+  return { ...data, results: (data.results ?? []).map(withMatch) }
+}
+
+// ── Discover (§4) ─────────────────────────────────────────────
+
+export type DiscoverSection =
+  | "recommended"
+  | "closing_soon"
+  | "near_you"
+  | "new_this_week"
+
+/** Profile fields the match score actually reads (§5's honest prompt). */
+export type MissingProfileField =
+  | "sport"
+  | "positions"
+  | "birthdate"
+  | "location"
+
+export type RecruitmentDiscoverResponse = {
+  recommended: Recruitment[]
+  closing_soon: Recruitment[]
+  near_you: Recruitment[]
+  new_this_week: Recruitment[]
+  max_distance_km: number
+  /**
+   * False for an org actor, or a player with no sports on file. The sections
+   * are still real — just ordered by freshness / deadline / distance instead
+   * of by fit. The client cannot infer this from an empty payload, which is
+   * why the server says it outright.
+   */
+  is_personalized: boolean
+  missing_profile_fields: MissingProfileField[]
+}
+
+export const DISCOVER_SECTIONS: DiscoverSection[] = [
+  "recommended",
+  "closing_soon",
+  "near_you",
+  "new_this_week",
+]
+
+export const fetchRecruitmentDiscoverApi = async (params: {
+  max_distance_km?: number
+}): Promise<RecruitmentDiscoverResponse> => {
+  const res = await api.get("/recruitments/discover", { params })
+  const data = res.data.data
+  return {
+    ...data,
+    ...Object.fromEntries(
+      DISCOVER_SECTIONS.map((section) => [
+        section,
+        (data[section] ?? []).map(withMatch),
+      ])
+    ),
+  } as RecruitmentDiscoverResponse
 }
 
 // ── My applications (player) ──────────────────────────────────

@@ -114,3 +114,15 @@
     background: var(--color-brand-hover);
     border-color: var(--color-brand-hover);
 }
+
+/* ── Print ────────────────────────────────────────────────────
+   A fixed top bar is screen chrome. It has no business on paper, and on a
+   printed page it would land as a stripe across the top of sheet one and
+   nowhere else. The Sports CV is the page this actually matters for (it is
+   printed to PDF by design), but the rule is right for anything printed. */
+
+@media print {
+    .nav {
+        display: none;
+    }
+}

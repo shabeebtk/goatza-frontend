@@ -9,6 +9,12 @@
  * card renderer refuses to tell them apart.
  *
  * The bundle fetches are stubbed: these are assertions about this route's rules.
+ *
+ * The two Cache-Control assertions that used to live here are gone with the
+ * route handler that set those headers. Caching is now the data layer's:
+ * fetchPublic sends `next: { revalidate: 60 }`, which is mocked out here, so
+ * there is nothing for this file to observe. Asserting it belongs to
+ * publicProfile.api.test.ts, not to a suite where the fetch never happens.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -21,10 +27,39 @@ vi.mock("@/features/profile/services/publicProfile.api", () => ({
   getPublicOrganizationProfile,
 }))
 
-const { GET } = await import("./route")
+/**
+ * `notFound()` and `permanentRedirect()` do their work by THROWING — Next
+ * catches the throw above the page and turns it into a 404 render or a 308.
+ * Tagged throws are how a test observes which of the two the page reached;
+ * hoisted because vi.mock factories run before the module body.
+ */
+const { NotFoundSignal, RedirectSignal } = vi.hoisted(() => {
+  class NotFoundSignal extends Error {}
 
-const request = (path: string) => new Request(`https://goatza.com/${path}`)
-const params = (username: string) => ({ params: Promise.resolve({ username }) })
+  class RedirectSignal extends Error {
+    destination: string
+
+    constructor(destination: string) {
+      super(`redirect:${destination}`)
+      this.destination = destination
+    }
+  }
+
+  return { NotFoundSignal, RedirectSignal }
+})
+
+vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new NotFoundSignal()
+  },
+  permanentRedirect: (destination: string) => {
+    throw new RedirectSignal(destination)
+  },
+}))
+
+const { default: VanityProfilePage } = await import("./page")
+
+type SearchParams = Record<string, string | string[] | undefined>
 
 const userBundle = (username = "aravind10") => ({
   type: "user" as const,
@@ -36,16 +71,24 @@ const orgBundle = (username = "calicutfc") => ({
   profile: { username },
 })
 
-/** The route's own return, with the Location resolved to a path. */
-async function go(username: string, path = username) {
-  const response = await GET(request(path), params(username))
-  const location = response.headers.get("Location")
-
-  return {
-    status: response.status,
-    path: location ? new URL(location).pathname + new URL(location).search : null,
-    cacheControl: response.headers.get("Cache-Control"),
+/** Renders the page and reports which signal came out of it. */
+async function go(username: string, searchParams: SearchParams = {}) {
+  try {
+    await VanityProfilePage({
+      params: Promise.resolve({ username }),
+      searchParams: Promise.resolve(searchParams),
+    })
+  } catch (error) {
+    if (error instanceof RedirectSignal) {
+      return { status: 308, path: error.destination }
+    }
+    if (error instanceof NotFoundSignal) {
+      return { status: 404, path: null }
+    }
+    throw error
   }
+
+  throw new Error("page returned without redirecting or calling notFound()")
 }
 
 beforeEach(() => {
@@ -111,10 +154,6 @@ describe("a user", () => {
     })
   })
 
-  it("is cached for five minutes", async () => {
-    expect((await go("aravind10")).cacheControl).toBe("public, max-age=300")
-  })
-
   it("does not cost the organization lookup", async () => {
     await go("aravind10")
     expect(getPublicOrganizationProfile).not.toHaveBeenCalled()
@@ -123,7 +162,7 @@ describe("a user", () => {
   it("carries the query string through", async () => {
     // A 308 that drops the query silently loses whatever brought the visitor
     // here — `?ref=card` today, a campaign tag tomorrow.
-    expect((await go("aravind10", "aravind10?ref=card")).path).toBe(
+    expect((await go("aravind10", { ref: "card" })).path).toBe(
       "/profile/aravind10?ref=card"
     )
   })
@@ -161,10 +200,6 @@ describe("an unknown name", () => {
     expect((await go("nobody")).status).toBe(404)
     expect(getPublicUserProfile).toHaveBeenCalledWith("nobody")
     expect(getPublicOrganizationProfile).toHaveBeenCalledWith("nobody")
-  })
-
-  it("is briefly cacheable, so a dead link is not a round trip every time", async () => {
-    expect((await go("nobody")).cacheControl).toBe("public, max-age=60")
   })
 
   it("is indistinguishable from a hidden profile", async () => {

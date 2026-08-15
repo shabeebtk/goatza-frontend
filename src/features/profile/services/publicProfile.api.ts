@@ -259,7 +259,13 @@ export type PublicFetchResult<T> =
   /** We never got a usable answer — misconfigured, unreachable, or a 5xx. */
   | { status: "unavailable"; reason: string }
 
-async function fetchPublic<T>(path: string): Promise<PublicFetchResult<T>> {
+/**
+ * Exported so other public surfaces (the Sports CV) reuse this machinery rather
+ * than copy-pasting it. The reason is the module docstring above: the axios
+ * instance reads a Zustand store that is a module-level singleton on the
+ * server, so every anonymous, server-rendered fetch has to come through here.
+ */
+export async function fetchPublic<T>(path: string): Promise<PublicFetchResult<T>> {
   const base = apiBase()
 
   if (!base) {

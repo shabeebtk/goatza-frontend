@@ -1,10 +1,13 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
+import { useAuthStore } from "@/store/auth.store"
 import {
   fetchRecruitmentsApi,
   fetchRecruitmentDetailApi,
   fetchMyApplicationsApi,
+  fetchRecruitmentDiscoverApi,
   type FetchRecruitmentsParams,
   type RecruitmentsListResponse,
+  type RecruitmentDiscoverResponse,
   type FetchMyApplicationsParams,
   type MyApplicationsResponse,
 } from "../services/recruitments.api"
@@ -35,6 +38,11 @@ import {
 export const recruitmentKeys = {
   list: (p: FetchRecruitmentsParams) => ["recruitments", "list", p] as const,
   detail: (id: string) => ["recruitments", "detail", id] as const,
+  // Scoped by actor: the discover payload is personalized to whoever asked for
+  // it, and an actor switch must not hand a player their club's rails (or the
+  // other way round) out of cache.
+  discover: (actorKey: string, p: { max_distance_km?: number }) =>
+    ["recruitments", "discover", actorKey, p] as const,
 }
 
 export const applicantKeys = {
@@ -75,6 +83,30 @@ export const useRecruitmentsList = (
     },
     staleTime: 1000 * 60 * 5,
   })
+
+// ── Discover (§4) ─────────────────────────────────────────────
+
+/**
+ * The four personalized rails. Never errors on a thin profile — an org actor
+ * or a sportless player gets the same shape back with `is_personalized: false`,
+ * which is what drives the profile-completion prompt.
+ *
+ * `staleTime` matches the server's own 10-minute cache: refetching sooner
+ * would just re-read the same cached payload over the network.
+ */
+export const useRecruitmentDiscover = (params: { max_distance_km?: number } = {}) => {
+  const actorType = useAuthStore((s) => s.actorType)
+  const actorId = useAuthStore((s) => s.actorId)
+  const userId = useAuthStore((s) => s.user?.id)
+  const actorKey =
+    actorType === "organization" ? `org:${actorId ?? ""}` : `user:${userId ?? ""}`
+
+  return useQuery<RecruitmentDiscoverResponse, Error>({
+    queryKey: recruitmentKeys.discover(actorKey, params),
+    queryFn: () => fetchRecruitmentDiscoverApi(params),
+    staleTime: 1000 * 60 * 10,
+  })
+}
 
 // ── My applications (player) ──────────────────────────────────
 

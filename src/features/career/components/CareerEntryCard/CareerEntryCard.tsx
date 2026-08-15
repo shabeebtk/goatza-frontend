@@ -71,7 +71,7 @@ function CareerDescription({ text }: { text: string }) {
  * visitors. An unverified entry is the normal case, not a defect, so it is not
  * labelled as one.
  */
-function VerificationLine({ entry }: { entry: CareerEntry }) {
+export function VerificationLine({ entry }: { entry: CareerEntry }) {
     if (entry.verification_status !== "verified") return null
 
     return (

@@ -24,3 +24,13 @@
         padding-bottom: 0;
     }
 }
+/* ── Print ────────────────────────────────────────────────────
+   Same as PublicShell: the offset exists for a fixed nav that AppNav hides in
+   print, so without this the first sheet opens with a band of white. */
+
+@media print {
+    .content {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}

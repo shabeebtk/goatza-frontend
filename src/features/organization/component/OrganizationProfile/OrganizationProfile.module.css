@@ -404,11 +404,26 @@
   flex-wrap: wrap;
 }
 
+/* Same reset, and for the same reason, as UserProfile.module.css's .statPill:
+   this class lands on a <Link> for a signed-in visitor and on a <button> for
+   an anonymous one (the follower list is walled), and without it the UA
+   `buttonface` drew three light boxes that swallowed .statValue whole. */
 .statPill {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1px;
+
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
 }
 
 .statPillLink {

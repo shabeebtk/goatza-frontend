@@ -121,6 +121,38 @@
 
 .moreBtn:hover { background: var(--color-brand-subtle); color: var(--color-brand-hover); }
 
+/* Top-right cluster: the discovery marker sits beside the "more" button so it
+   reads as card chrome, not as content above the card. */
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Marks a post that came from discovery rather than the follow graph, so a
+   stranger's post in the feed reads as a recommendation and not a bug. */
+.suggestedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  padding: 3px var(--space-2);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+
+  font-family: var(--font-ui);
+  font-size: 0.625rem;
+  line-height: 1;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ── Content ─────────────────────────────────────────────────── */
 
 .content {

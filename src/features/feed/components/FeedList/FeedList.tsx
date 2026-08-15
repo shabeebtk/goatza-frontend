@@ -13,16 +13,6 @@ import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 // object literal on each FeedList render.
 const EMPTY_QUERY_PARAMS: FetchPostsParams = {}
 
-function SuggestedChip() {
-    return (
-        <div className={styles.suggestedChip}>
-            <Icon icon="mdi:compass-outline" width={13} height={13} aria-hidden="true" />
-            <span>Suggested</span>
-        </div>
-    )
-}
-
-
 function EmptyState() {
     return (
         <div className={styles.emptyState}>
@@ -132,11 +122,8 @@ export default function FeedList() {
                         ref={getPostRef(post.id)}
                         className={styles.feedItem}
                     >
-                        {/* A post from someone they don't follow has to explain
-                            itself, or it reads as a bug. */}
-                        {post.feed_source && post.feed_source !== "followed" && (
-                            <SuggestedChip />
-                        )}
+                        {/* The "Suggested" marker lives inside PostCard's header
+                            (top-right), driven by post.feed_source. */}
                         <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
                     </div>
                 ))}

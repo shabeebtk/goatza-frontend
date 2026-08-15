@@ -198,7 +198,6 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
 
   const handleLocationChange = (place: MapboxPlace | null) => {
     setLocationEdit(place ? { kind: "set", place } : { kind: "cleared" })
-    if (place) setLocationOpen(false)
   }
 
   const requestClose = () => {
@@ -350,15 +349,16 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
             </p>
           )}
 
-          {/* Location picker — inline when toggled */}
+          {/* Location — full-screen search, portalled above this modal.
+              Opening it with a value set is the edit case: the screen shows
+              the current pick with its own Remove. */}
           {locationOpen && (
-            <div className={shared.locationPickerWrap}>
-              <PostLocationPicker
-                value={locationEdit.kind === "set" ? locationEdit.place : null}
-                onChange={handleLocationChange}
-                disabled={saving}
-              />
-            </div>
+            <PostLocationPicker
+              value={locationEdit.kind === "set" ? locationEdit.place : null}
+              onChange={handleLocationChange}
+              onClose={() => setLocationOpen(false)}
+              disabled={saving}
+            />
           )}
 
           {/* Media preview — read-only (media can't be edited) */}
