@@ -2,7 +2,10 @@ import api from "@/core/api/axios"
 
 // ── Types ────────────────────────────────────────────────────
 
-export type UploadType = "profile" | "cover" | "posts" | "organization_logo" | "organization_cover" | "recruitments" | "chat" | "achievements"
+// "matches" is the match diary photo — user-only, scoped server-side to
+// users/<id>/matches, exactly like "achievements". See
+// GetUploadConfigAPIView.ALLOWED_TYPES.
+export type UploadType = "profile" | "cover" | "posts" | "organization_logo" | "organization_cover" | "recruitments" | "chat" | "achievements" | "matches"
 
 export type UploadConfigItem = {
   upload_url: string

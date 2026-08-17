@@ -11,6 +11,7 @@ import EditProfileModal from "@/features/profile/components/EditProfileModal/Edi
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import CareerSection from "@/features/career/components/CareerSection/CareerSection"
 import AchievementsSection from "@/features/achievements/components/AchievementsSection/AchievementsSection"
+import MatchDiarySection from "@/features/matchDiary/components/MatchDiarySection/MatchDiarySection"
 import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
@@ -486,6 +487,18 @@ export default function UserProfile({
                 Same id-not-username keying and the same self-carried divider,
                 for the same reasons. */}
             <AchievementsSection userId={profile.id} isOwn={isMe} />
+
+            {/* Match diary. Keyed by USERNAME, not id — the showcase endpoint
+                is /matches/summary/<username>, the one match route that names
+                a person at all.
+
+                Last, and deliberately: career and achievements are claims
+                about the past that other people verify, and this is the
+                running record the player keeps themselves. Renders nothing for
+                a visitor whose player has the showcase off — and nothing at
+                all on the logged-out profile — so it carries its own top
+                divider rather than taking one from here. */}
+            <MatchDiarySection username={profile.username} isOwn={isMe} />
 
           </div>
         </div>
