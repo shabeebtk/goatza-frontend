@@ -1,0 +1,536 @@
+/* ============================================================
+   GOATZA — MatchDetailModal
+   Mobile:  full-screen sheet. Sticky header, sticky footer, the
+            body scrolls between them.
+   640px+:  centred card, max 600px, 16px radius, body scrolls
+            internally.
+
+   dvh, not vh, throughout — the same rule MatchEntrySheet states at
+   the top of its own module, and for the same reason: on a phone
+   `100vh` is the viewport WITHOUT the browser chrome, so a footer
+   pinned to it sits under the chrome instead of above it.
+
+   Every colour is a token. The header tint in particular has to
+   follow the theme into dark mode, which a hex could not.
+   ============================================================ */
+
+@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp    { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* ── Backdrop + shell ────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: backdropIn 0.18s var(--ease-out) both;
+}
+
+.modal {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+
+  background: var(--color-surface);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  animation: slideUp 0.24s var(--ease-spring) both;
+}
+
+/* Focused on open so a keyboard user lands inside the dialog rather than
+   on the page behind it. It is a container, not a control — no ring. */
+.modal:focus { outline: none; }
+
+@media (min-width: 640px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--space-6);
+  }
+
+  .modal {
+    height: auto;
+    max-height: 90dvh;
+    max-width: 600px;
+    border: 1.5px solid var(--color-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* The enter animation is the only motion here, and it is the only thing
+   that needs disabling. globals.css flattens the duration; this stops the
+   transform running at all, so nothing slides for somebody who asked for
+   no sliding. */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .modal { animation: none; }
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+/* Same four tones as the diary card, driven by the same `resultTone`,
+   so a win is the same green on the card and on the modal it opens. */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  padding: var(--space-4) var(--space-5);
+  padding-top: calc(var(--space-4) + var(--safe-top));
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.header[data-tone="win"] { background: var(--color-brand-subtle); }
+
+/* Mixed from the error token rather than frozen as a hex — there is no
+   error-subtle token, and a literal would stop following the theme. */
+.header[data-tone="loss"] {
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+.header[data-tone="draw"],
+.header[data-tone="neutral"] { background: var(--color-surface-raised); }
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 36px;
+}
+
+.chip {
+  padding: 3px var(--space-3);
+  border-radius: var(--radius-full);
+
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  line-height: 1.5;
+}
+
+.chipScheduled {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.chipResult[data-tone="win"] {
+  background: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+.chipResult[data-tone="loss"] {
+  background: var(--color-surface);
+  color: var(--color-error);
+}
+
+.chipResult[data-tone="draw"] {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.chipResult[data-tone="neutral"] {
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.closeBtn {
+  /* Pushed right whether or not there is a chip beside it. */
+  margin-left: auto;
+
+  display: grid;
+  place-items: center;
+
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius-md);
+
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.closeBtn:hover:not(:disabled) {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.closeBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.closeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.opponent {
+  font-size: 22px;
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+
+  /* A club name can be long. It wraps here rather than truncating —
+     this is the one place the full name is worth the second line. */
+  overflow-wrap: anywhere;
+}
+
+.when {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ── Body ────────────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+
+  padding: var(--space-5);
+}
+
+/* ── Stat tiles ──────────────────────────────────────────────── */
+/* Wider minimum than the card's 64px: three per row here, and the
+   labels are the full stat names rather than truncations. */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: var(--space-2);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-md);
+
+  background: var(--color-bg);
+}
+
+.tileValue {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+}
+
+.tileUnit {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.tileLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  text-align: center;
+  color: var(--color-text-muted);
+
+  /* Wraps rather than truncates — twelve stats with cryptic labels is
+     what `short_label` would give, and the room is here. */
+  overflow-wrap: anywhere;
+}
+
+/* ── Rating ──────────────────────────────────────────────────── */
+
+.rating {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+
+  background: var(--color-brand-subtle);
+}
+
+.ratingLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-secondary);
+}
+
+.ratingStars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--color-brand);
+}
+
+/* ── Meta rows ───────────────────────────────────────────────── */
+
+.meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  padding: var(--space-3) 0;
+}
+
+.metaRow + .metaRow {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.metaIcon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
+}
+
+.metaLabel {
+  flex: 0 0 auto;
+
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.metaValue {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  font-size: var(--text-sm);
+  text-align: right;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.careerValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.verified {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-brand);
+}
+
+/* ── Note ────────────────────────────────────────────────────── */
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+
+  background: var(--color-bg);
+}
+
+.noteLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.noteText {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+
+  /* The line breaks the player typed are part of what they wrote. A
+     500-word note simply makes the body scroll, which it already does. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Photo ───────────────────────────────────────────────────── */
+
+.photo {
+  width: 100%;
+  max-height: 220px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--color-surface-raised);
+}
+
+/* ── Delete error ────────────────────────────────────────────── */
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-error);
+  border-radius: var(--radius-md);
+
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-error);
+}
+
+.error svg { flex-shrink: 0; margin-top: 2px; }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  padding: var(--space-3) var(--space-5);
+  padding-bottom: calc(var(--space-3) + var(--safe-bottom));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.editBtn {
+  flex: 1 1 auto;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 14px var(--space-6);
+  border: none;
+  border-radius: var(--radius-full);
+
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  cursor: pointer;
+
+  transition: background var(--duration-fast);
+}
+
+.editBtn:hover { background: var(--color-brand-hover); }
+.editBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+
+.trashBtn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+
+  width: 48px;
+  height: 48px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  transition: border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.trashBtn:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.trashBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+/* ── Inline delete confirm ───────────────────────────────────── */
+
+.confirmText {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.confirmActions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.cancelBtn,
+.deleteBtn {
+  min-height: 44px;
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-full);
+
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.cancelBtn {
+  border: 1.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.cancelBtn:hover { background: var(--color-surface-raised); color: var(--color-text-primary); }
+
+.deleteBtn {
+  border: none;
+  background: var(--color-error);
+  color: var(--color-text-inverted);
+}
+
+.deleteBtn:hover { opacity: 0.9; }
+
+.cancelBtn:disabled,
+.deleteBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.cancelBtn:focus-visible,
+.deleteBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }

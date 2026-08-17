@@ -70,6 +70,19 @@ export default function SettingsPage() {
             label="Sports CV"
           />
         )}
+
+        {/* Beside the CV row because they are the same kind of decision —
+            "which part of my record do other people get to read" — even though
+            they answer to different audiences: the CV faces logged-out
+            visitors, the diary summary is in-app only. Players only, same as
+            the CV; the endpoint behind this row answers 403 to anyone else. */}
+        {profile?.role === "player" && (
+          <SettingsRow
+            href="/settings/match-diary"
+            icon="mdi:notebook-outline"
+            label="Match diary"
+          />
+        )}
       </SettingsSection>
 
       <SettingsSection title="Content">

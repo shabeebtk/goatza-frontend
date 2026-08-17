@@ -149,6 +149,13 @@ export function useNavigation() {
     return "/highlights/manage"
   }
 
+  function toMatchDiary() {
+    // Same shape as highlights: the diary belongs to a player acting as
+    // themselves, every endpoint behind it refuses an organization actor, and
+    // there is no org equivalent to route to.
+    return "/matches"
+  }
+
   function toRecruitmentsList(username: string) {
     // recruitments belong to organizations; keep the org's own list inside admin
     if (isOrgAdminView && currentOrg && currentOrg.username === username) {
@@ -171,5 +178,6 @@ export function useNavigation() {
     toCareerVerifications,
     toAchievementVerifications,
     toHighlightsManage,
+    toMatchDiary,
   }
 }
