@@ -15,6 +15,20 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   rightIcon?: React.ReactNode;
   as?: "button" | "a";
   href?: string;
+  /**
+   * Link-only. `href` renders a next/link <a>, and these are the two props an
+   * OUTBOUND link needs — a new tab, and severing the opener reference. Neither
+   * exists on ButtonHTMLAttributes, so they are declared here rather than
+   * arriving through the spread (which the href branch does not apply anyway).
+   */
+  target?: string;
+  rel?: string;
+  /**
+   * Link-only. Present means "save this, do not navigate to it" — a string
+   * sets the filename. Its presence also switches the anchor below away from
+   * next/link; see there for why.
+   */
+  download?: boolean | string;
 }
  
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -32,6 +46,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled,
       as: Tag = "button",
       href,
+      target,
+      rel,
+      download,
       ...props
     },
     ref
@@ -79,8 +96,28 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     );
 
     if (href) {
+      // A download is a PLAIN anchor, never next/link. Link intercepts the
+      // click to run a client-side navigation, and a client-side navigation
+      // cannot produce a file — the browser would route to the URL instead of
+      // saving it, so the button would silently do the wrong thing. Link's
+      // own bail-outs (modifier keys, target != _self) do not include
+      // `download`, so this has to be decided here.
+      if (download !== undefined) {
+        return (
+          <a
+            href={href}
+            className={classes}
+            download={download}
+            target={target}
+            rel={rel}
+          >
+            {content}
+          </a>
+        );
+      }
+
       return (
-        <Link href={href} className={classes}>
+        <Link href={href} className={classes} target={target} rel={rel}>
           {content}
         </Link>
       );

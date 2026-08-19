@@ -34,21 +34,27 @@ import type { CardData, CardFormat } from "./types"
 import { CARD_SIZES } from "./types"
 
 // ── The reference's palette, verbatim ─────────────────────────
+//
+// Exported (with GoatzaMark and `track`) so sibling cards — currently the
+// founding-player card in features/join/utils/joinCard — are drawn in the
+// same green, the same faces and the same mark rather than in copies of
+// them that drift. Nothing about the layout below is exported: a sibling
+// shares the vocabulary, not the composition.
 
-const INK = "#0A0A0A"
-const GREEN = "#00C96E"
+export const INK = "#0A0A0A"
+export const GREEN = "#00C96E"
 const GREEN_INK = "#06210f"
 /** Muted body text — the handle and the footer URL. */
-const MUTE = "#7A9480"
+export const MUTE = "#7A9480"
 /** The dimmest legible tone — stat labels and the footer meta. */
-const FAINT = "#556655"
+export const FAINT = "#556655"
 const AVATAR_WELL = "#1a211b"
 const MONOGRAM_WELL = "#1c2a20"
 const HAIRLINE = "rgba(255,255,255,.09)"
 
-const DISPLAY = "Bebas Neue"
-const LABEL = "Oswald"
-const BODY = "Outfit"
+export const DISPLAY = "Bebas Neue"
+export const LABEL = "Oswald"
+export const BODY = "Outfit"
 
 /**
  * The scrim over the cover.
@@ -149,11 +155,11 @@ const SCALES: Record<CardFormat, Scale> = {
 
 /** The reference's letter-spacings, which are all in em, resolved against the
  *  font size they apply to. */
-const track = (size: number, em: number) => size * em
+export const track = (size: number, em: number) => size * em
 
 // ── Pieces ────────────────────────────────────────────────────
 
-function GoatzaMark({ size }: { size: number }) {
+export function GoatzaMark({ size }: { size: number }) {
   return (
     <svg viewBox="0 0 1024 1024" width={size} height={size}>
       <path

@@ -101,8 +101,8 @@ function Header({ scrolled }: { scrolled: boolean }) {
           >
             Sign In
           </Button>
-          <Button variant="brand" size="sm" href="/auth?mode=signup">
-            Get Started
+          <Button variant="brand" size="sm" href="/join">
+            Register
           </Button>
         </div>
       </div>
@@ -206,9 +206,9 @@ function HeroSection() {
               variant="brand"
               size="lg"
               rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
-              href="/auth?mode=signup"
+              href="/join"
             >
-              Start for Free
+              Register
             </Button>
             {/* TODO: re-enable when the "how it works" video clip is ready
             <Button
@@ -746,10 +746,10 @@ function PersonaSelector() {
                 <Button
                   variant="brand"
                   size="lg"
-                  href="/auth?mode=signup"
+                  href="/join"
                   rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
                 >
-                  Get Started as {article} {persona.label}
+                  Register
                 </Button>
               </div>
             </div>
@@ -795,9 +795,9 @@ function FinalCTA() {
               variant="brand"
               size="lg"
               rightIcon={<Icon icon="mdi:arrow-right" width={18} height={18} />}
-              href="/auth?mode=signup"
+              href="/join"
             >
-              Create Free Account
+              Register
             </Button>
             <Button variant="outline" size="lg" href="/auth" className={styles.ctaOutlineBtn}>
               Sign In
