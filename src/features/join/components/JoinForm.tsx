@@ -12,7 +12,9 @@
  *
  * Date of birth sits outside react-hook-form, the same way DetailsStep handles
  * it — DateOfBirthPicker is three selects behind one `onChange(string | null)`,
- * not an input RHF can register.
+ * not an input RHF can register. The city picker is outside it for the same
+ * reason: LocationPicker holds a MapboxCity object, not a string, and RHF has
+ * nothing to register against a component that never renders a named input.
  */
 
 import { useState } from "react"
@@ -21,12 +23,14 @@ import { Icon } from "@iconify/react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
+import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { Button, DateOfBirthPicker, Input, Select } from "@/shared/components/ui"
+import type { MapboxCity } from "@/shared/services/mapbox.service"
 
 import { useJoinWaitlist } from "../hooks/useJoinWaitlist"
 import { JoinApiError } from "../services/join.api"
 import type { SignupPayload, SignupResult } from "../types"
-import { DISTRICTS, LEVELS, POSITIONS } from "../types"
+import { LEVELS, POSITIONS, toSignupLocation } from "../types"
 import styles from "./JoinPage.module.css"
 
 // Deliberately loose. This gate exists to catch "not an email", not to
@@ -92,7 +96,6 @@ const schema = z.object({
       "Enter a valid email",
     ),
 
-  district: z.string(),
   position: z.string(),
   level: z.string(),
   instagram: z.string().max(200, "That link is too long"),
@@ -106,8 +109,20 @@ const schema = z.object({
 
 type FormFields = z.infer<typeof schema>
 
+/** The payload keys whose value is a plain string filled in by the form. */
+type TextPayloadField =
+  | "email"
+  | "position"
+  | "level"
+  | "instagram"
+  | "club_or_academy"
+
 /** Drops every empty value, so an unanswered field is absent rather than "". */
-function buildPayload(values: FormFields, birthdate: string | null): SignupPayload {
+function buildPayload(
+  values: FormFields,
+  birthdate: string | null,
+  city: MapboxCity | null,
+): SignupPayload {
   const payload: SignupPayload = {
     name: values.name.trim(),
     // Always E.164. The backend would default a bare 10-digit number to +91
@@ -115,9 +130,12 @@ function buildPayload(values: FormFields, birthdate: string | null): SignupPaylo
     phone: `+91${toTenDigits(values.phone)}`,
   }
 
-  const optional: Array<[keyof SignupPayload, string]> = [
+  // The TEXT fields only. `location` is on the payload too but is an object,
+  // and typing this list as `keyof SignupPayload` would let a string be written
+  // into it — the compiler caught exactly that when the district string became
+  // a location object.
+  const optional: Array<[TextPayloadField, string]> = [
     ["email", values.email.trim()],
-    ["district", values.district],
     ["position", values.position],
     ["level", values.level],
     ["instagram", values.instagram.trim()],
@@ -129,6 +147,12 @@ function buildPayload(values: FormFields, birthdate: string | null): SignupPaylo
   }
 
   if (birthdate) payload.date_of_birth = birthdate
+
+  // Nested, and only when a city was actually picked. Not `location: null` and
+  // not `{}` — the backend treats an absent key as "not answered", which is
+  // exactly what an untouched picker means.
+  if (city) payload.location = toSignupLocation(city)
+
   if (values.website.trim()) payload.website = values.website
 
   return payload
@@ -141,7 +165,6 @@ const FORM_FIELDS = [
   "name",
   "phone",
   "email",
-  "district",
   "position",
   "level",
   "instagram",
@@ -159,6 +182,11 @@ export default function JoinForm({
   const [birthdate, setBirthdate] = useState<string | null>(null)
   const [birthdateError, setBirthdateError] = useState<string | null>(null)
 
+  // Also outside RHF: an object, not a string. Null until a city is picked,
+  // and picking one is never required.
+  const [city, setCity] = useState<MapboxCity | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+
   const [formError, setFormError] = useState<string | null>(null)
 
   const {
@@ -172,7 +200,6 @@ export default function JoinForm({
       name: "",
       phone: "",
       email: "",
-      district: "",
       position: "",
       level: "",
       instagram: "",
@@ -184,6 +211,7 @@ export default function JoinForm({
   const onSubmit = async (values: FormFields) => {
     setFormError(null)
     setBirthdateError(null)
+    setLocationError(null)
 
     if (birthdate) {
       const age = ageFrom(birthdate)
@@ -194,7 +222,9 @@ export default function JoinForm({
     }
 
     try {
-      const result = await join.mutateAsync(buildPayload(values, birthdate))
+      const result = await join.mutateAsync(
+        buildPayload(values, birthdate, city),
+      )
       onJoined(result)
     } catch (error) {
       // Nothing is cleared and nothing is reset. Whatever failed, the form is
@@ -219,6 +249,15 @@ export default function JoinForm({
 
       if (fieldErrors.date_of_birth) {
         setBirthdateError(fieldErrors.date_of_birth)
+        placed = true
+      }
+
+      // The backend drops a location it cannot use rather than refusing the
+      // signup, so this should never arrive. Placed anyway: a field error with
+      // nowhere to land becomes a generic line above the button, which is the
+      // one thing this form does not do.
+      if (fieldErrors.location) {
+        setLocationError(fieldErrors.location)
         placed = true
       }
 
@@ -293,13 +332,33 @@ export default function JoinForm({
           )}
         </div>
 
-        <Select
-          label="District"
-          placeholder="Select your district"
-          options={[...DISTRICTS]}
-          {...register("district")}
-          error={errors.district?.message}
-        />
+        {/*
+          The city, geocoded. LocationPicker is the app's existing Mapbox
+          search — the same component the post composer and profile editing
+          use — so a city picked here is the same Location row the player's
+          profile will point at after launch.
+
+          Wrapped in `.locationField` rather than styled: the dropdown is
+          absolutely positioned inside the picker's own root, and the wrapper
+          only supplies the label and the stacking context that keeps the list
+          above the fields below it.
+        */}
+        <div className={styles.locationField}>
+          <label className={styles.fieldLabel} htmlFor="join-location">
+            Where do you play?
+          </label>
+          <LocationPicker
+            inputId="join-location"
+            value={city}
+            onChange={(picked) => {
+              setCity(picked)
+              setLocationError(null)
+            }}
+            placeholder="Search your city"
+            disabled={busy}
+            error={locationError ?? undefined}
+          />
+        </div>
 
         <Select
           label="Position"

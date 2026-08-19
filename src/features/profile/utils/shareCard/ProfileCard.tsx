@@ -50,7 +50,9 @@ export const MUTE = "#7A9480"
 export const FAINT = "#556655"
 const AVATAR_WELL = "#1a211b"
 const MONOGRAM_WELL = "#1c2a20"
-const HAIRLINE = "rgba(255,255,255,.09)"
+/** The rule tone. Exported for the same reason the palette is: a sibling card
+ *  drawing "the same faint line" must draw this one. */
+export const HAIRLINE = "rgba(255,255,255,.09)"
 
 export const DISPLAY = "Bebas Neue"
 export const LABEL = "Oswald"

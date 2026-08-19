@@ -34,6 +34,15 @@ interface LocationPickerProps {
   clearable?: boolean
   /** Error message from parent form */
   error?: string
+  /**
+   * Id for the search input, so a caller that renders its own visible <label
+   * htmlFor> is actually associated with it.
+   *
+   * Passing it also DROPS the built-in `aria-label`: an aria-label wins over a
+   * <label>, so leaving it on would announce "Search city" and silence the
+   * caller's wording. Without this prop nothing changes for existing callers.
+   */
+  inputId?: string
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -45,6 +54,7 @@ export default function LocationPicker({
   disabled = false,
   clearable = true,
   error,
+  inputId,
 }: LocationPickerProps) {
   const [query,   setQuery]   = useState("")
   const [results, setResults] = useState<MapboxCity[]>([])
@@ -55,6 +65,7 @@ export default function LocationPicker({
   const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef     = useRef<HTMLInputElement>(null)
+  const listRef      = useRef<HTMLUListElement>(null)
 
   // ── Close dropdown on outside click ──────────────────────────
   useEffect(() => {
@@ -66,6 +77,23 @@ export default function LocationPicker({
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
+
+  // ── Keep the list on screen when it opens ─────────────────────
+  //
+  // On a phone the keyboard takes roughly the bottom half of the screen the
+  // moment this input is focused. A field sitting low in the form then drops
+  // its suggestions below the fold, where they are reachable only by scrolling
+  // a list the user cannot see. `block: "nearest"` scrolls the minimum needed
+  // and does nothing at all when the list is already visible, so this is inert
+  // on a desktop and on every field near the top of a form.
+  //
+  // Called optionally: jsdom does not implement scrollIntoView, and this is an
+  // enhancement rather than a requirement — without it the list is still there,
+  // still open and still selectable, just not scrolled to.
+  useEffect(() => {
+    if (!open || results.length === 0) return
+    listRef.current?.scrollIntoView?.({ block: "nearest" })
+  }, [open, results.length])
 
   // ── Debounced search ──────────────────────────────────────────
   const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,6 +200,7 @@ export default function LocationPicker({
           </span>
           <input
             ref={inputRef}
+            id={inputId}
             type="text"
             className={styles.input}
             placeholder={placeholder}
@@ -182,7 +211,7 @@ export default function LocationPicker({
             disabled={disabled}
             autoComplete="off"
             spellCheck={false}
-            aria-label="Search city"
+            aria-label={inputId ? undefined : "Search city"}
             aria-expanded={open}
             aria-haspopup="listbox"
             role="combobox"
@@ -207,6 +236,7 @@ export default function LocationPicker({
       {/* ── Dropdown ── */}
       {open && results.length > 0 && (
         <ul
+          ref={listRef}
           className={styles.dropdown}
           role="listbox"
           aria-label="City suggestions"

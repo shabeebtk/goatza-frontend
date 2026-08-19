@@ -214,24 +214,29 @@ export async function joinWaitlist(
     signup_number: data.signup_number,
     ref_code: data.ref_code,
     name: data.name,
-    district: data.district ?? "",
-    // Defaulted rather than required: an older backend that does not send the
-    // flag should render the ordinary "you're in" screen, not crash on it.
+    city: data.city ?? "",
+    // Both flags are defaulted rather than required: an older backend that does
+    // not send one should render the ordinary "you're in" screen without a
+    // badge, not crash on it.
+    is_founding: data.is_founding === true,
     already_registered: data.already_registered === true,
   }
 }
 
 // ── Share card (server-side) ──────────────────────────────────
 
-/** The five fields GET /public/waitlist/players/<ref> publishes. Phone, email
- *  and Instagram are NOT in the backend's serializer, so they cannot arrive
- *  here even by mistake — a ref code is a short public string. */
+/** The seven fields GET /public/waitlist/players/<ref> publishes. Phone, email,
+ *  Instagram and the coordinates are NOT in the backend's serializer, so they
+ *  cannot arrive here even by mistake — a ref code is a short public string.
+ *  `signup_number` is the display number; the raw one never leaves the server. */
 export type FoundingPlayerSignup = {
   name: string
   signup_number: number
-  district: string
+  city: string
+  country_code: string
   position: string
   sport: string
+  is_founding: boolean
 }
 
 /**

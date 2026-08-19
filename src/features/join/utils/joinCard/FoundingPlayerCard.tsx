@@ -17,14 +17,33 @@
  * rather than restated, so "the same green" is the same constant and not a
  * matching hex that drifts on the next brand tweak.
  *
- * Where it deliberately differs: this card is centred and has no photography,
- * no avatar, no club panel and no QR. It has no photograph because a signup
- * has no media, and no QR because the profile card's code points at a profile
- * URL that will not exist until launch — a card whose only interactive element
- * scans to a 404 is worse than one with nothing to scan.
+ * WHAT THIS CARD IS FOR, AND WHY THE ORDER CHANGED
  *
- * One format only. There is no `link` variant because there is no page for a
- * crawler to scrape: /join is the landing page, and it is not per-player.
+ * It used to be a number on a background: "#47" at 460px with the name under
+ * it. That is a receipt. It tells the person holding it something they already
+ * know, and it tells the twenty teammates who see it in a story nothing at all
+ * — not what Goatza is, not that it is for them, not when it opens.
+ *
+ * So the hierarchy is now PLAYER first, PLATFORM second, number third:
+ *
+ *   mark  →  FOUNDING PLAYER  →  the name  →  #37 · city  →  ─  →  tagline  →  footer
+ *
+ * The name is the anchor because the person posting it is the subject, and
+ * because a name is what makes a friend look twice. The number drops to a
+ * quiet line: it is the proof, not the point. The tagline is the only line
+ * addressed to the AUDIENCE rather than the owner, which is what turns a
+ * screenshot into an ad — and it is sized to survive the compression and the
+ * thumb-sized preview a story gets scrolled past at.
+ *
+ * Still one format, no QR and no photography, for the reasons ProfileCard's
+ * counterpart lists: a signup has no media, and the profile URL a QR would
+ * point at does not exist until launch.
+ *
+ * NOTHING HERE SHRINKS TO FIT. Satori draws an overflowing line straight off
+ * the edge, so every size is decided before the render: the name through
+ * `nameFontSize` (the ladder measures the longest WORD, which is what cannot be
+ * broken), and every other line is a fixed size proven against its longest
+ * realistic content in `__tests__/render.test.tsx`.
  */
 
 import {
@@ -33,6 +52,7 @@ import {
   FAINT,
   GoatzaMark,
   GREEN,
+  HAIRLINE,
   INK,
   LABEL,
   MUTE,
@@ -41,47 +61,78 @@ import {
 import { nameFontSize, nameLines } from "@/features/profile/utils/shareCard/nameLadder"
 import { CARD_SIZES } from "@/features/profile/utils/shareCard/types"
 
+import { LAUNCH_DATE_LABEL, SITE_DOMAIN } from "../../types"
+
 const { width: WIDTH, height: HEIGHT } = CARD_SIZES.story
 
 /** Matches ProfileCard's story padding, which is also what nameLadder's
  *  FRAME_WIDTH assumes when it clamps the name to fit. */
 const PAD = 80
 
-const MARK_LOGO = 60
-const MARK_TEXT = 44
+const MARK_LOGO = 56
+const MARK_TEXT = 40
+
+/** The eyebrow over the name. Small and tracked wide — it labels the name, it
+ *  does not compete with it. */
+const EYEBROW = 30
+
+/** "#37 · Kozhikode". Deliberately close to the eyebrow's size: this is the
+ *  line that used to be 460px tall, and the whole redesign is the decision that
+ *  it should not be. */
+const META = 34
 
 /**
- * The name is secondary here — the number is the hero — so the ladder's story
- * sizes (up to 180px) are capped well below it. Capping only ever makes the
- * text smaller than the size the ladder proved fits, so the fit guarantee
- * survives the cap.
- */
-const NAME_MAX = 92
-
-/**
- * How big "#47" is drawn.
+ * The tagline, on two lines.
  *
- * By digit count, because Satori does not shrink text to fit and will happily
- * draw a five-digit number straight off the edge of the frame. The widest case
- * here is "#99999" at 260px, which at Bebas's ~0.52 width ratio comes to ~811px
- * inside a 920px frame.
+ * 64px in Bebas: the longest of the two lines is 18 characters, which at the
+ * face's ~0.52 width ratio comes to ~599px inside a 920px frame — comfortable
+ * even before the ladder's pessimism. Split into two elements because Satori
+ * has no `<br>`, and split HERE rather than at render time because the break
+ * is a typographic decision, not a wrapping accident.
  */
-function numberFontSize(signupNumber: number): number {
-  const digits = String(Math.max(1, Math.floor(signupNumber))).length
+const TAGLINE = 64
+const TAGLINE_LINES = ["Where the greatest", "get discovered"] as const
 
-  if (digits <= 2) return 460
-  if (digits === 3) return 400
-  if (digits === 4) return 320
-  return 260
-}
+const FOOTER = 28
+
+/**
+ * How tall the name is allowed to get.
+ *
+ * The ladder's top rung is 180px, which is right for a short name and is what
+ * makes this card feel like it is about a person. No cap below it any more —
+ * the old 92px cap existed only to keep the name out of the number's way, and
+ * the number is no longer the hero.
+ */
+const NAME_LINE_HEIGHT = 1.04
 
 export interface FoundingPlayerCardData {
   name: string
+  /** The DISPLAY number the backend published — never the raw row number. */
   signupNumber: number
-  /** Display label ("Kozhikode"), already resolved from the API's slug. */
-  district: string | null
-  /** Display label ("Striker"), already resolved from the API's slug. */
-  position: string | null
+  /** Short city name ("Kozhikode") as the API published it. */
+  city: string | null
+  /** ISO country code ("IN"), shown after the city when both are known. */
+  countryCode: string | null
+  /**
+   * Whether this signup made the founding cohort, as the API decided it.
+   *
+   * The eyebrow used to read "Founding Player" unconditionally, which was true
+   * while every signup was one. It is not any more — the backend closes the
+   * cohort at the goal — and a card that hands somebody a title they do not
+   * have is the one thing a shareable image must never do.
+   */
+  isFounding: boolean
+}
+
+/**
+ * "#37 · Kozhikode, IN" — or whichever parts exist.
+ *
+ * Assembled rather than templated so a missing city cannot leave a dangling
+ * separator: a lone "·" on a card is a bug somebody has already posted.
+ */
+function metaLine(data: FoundingPlayerCardData): string {
+  const place = [data.city, data.countryCode].filter(Boolean).join(", ")
+  return [`#${data.signupNumber}`, place].filter(Boolean).join("   ·   ")
 }
 
 export default function FoundingPlayerCard({
@@ -89,14 +140,9 @@ export default function FoundingPlayerCard({
 }: {
   data: FoundingPlayerCardData
 }) {
-  const numberSize = numberFontSize(data.signupNumber)
-  const nameSize = Math.min(nameFontSize(data.name, "story"), NAME_MAX)
+  const nameSize = nameFontSize(data.name, "story")
   const lines = nameLines(data.name, "story")
-
-  // "Kozhikode · Striker", or whichever one of the two exists, or nothing.
-  // Absent rather than blank: a lone separator on a card is a bug somebody
-  // screenshots.
-  const meta = [data.district, data.position].filter(Boolean).join("  ·  ")
+  const meta = metaLine(data)
 
   return (
     <div
@@ -139,8 +185,9 @@ export default function FoundingPlayerCard({
           padding: PAD,
         }}
       >
-        {/* Mark — top left, the same lockup and the same sizes as the story
-            profile card, so the two read as one set. */}
+        {/* Mark — top left, the same lockup as the story profile card so the
+            two read as one set. Smaller than the profile card's because here it
+            is a signature, not a header: the name below it is the subject. */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <GoatzaMark size={MARK_LOGO} />
           <span
@@ -156,7 +203,7 @@ export default function FoundingPlayerCard({
 
         {/* The hero block, optically centred in what is left. `flexGrow: 1`
             plus `justifyContent: center` rather than a fixed offset, so a
-            two-line name and a five-digit number both stay centred. */}
+            two-line name and a one-line name both stay centred. */}
         <div
           style={{
             display: "flex",
@@ -170,34 +217,23 @@ export default function FoundingPlayerCard({
           <span
             style={{
               fontFamily: LABEL,
-              fontSize: 30,
-              letterSpacing: track(30, 0.32),
+              fontSize: EYEBROW,
+              letterSpacing: track(EYEBROW, 0.34),
               textTransform: "uppercase",
               color: GREEN,
             }}
           >
-            Founding Player
+            {data.isFounding ? "Founding Player" : "Goatza Player"}
           </span>
 
-          <span
-            style={{
-              fontFamily: DISPLAY,
-              fontSize: numberSize,
-              lineHeight: 1,
-              letterSpacing: track(numberSize, 0.01),
-              marginTop: 24,
-              color: "#fff",
-            }}
-          >
-            #{data.signupNumber}
-          </span>
-
+          {/* THE ANCHOR. One element per line — no <br> under Satori — at the
+              size the ladder proved fits the longest word in it. */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              marginTop: 40,
+              marginTop: 28,
             }}
           >
             {lines.map((line) => (
@@ -206,7 +242,7 @@ export default function FoundingPlayerCard({
                 style={{
                   fontFamily: DISPLAY,
                   fontSize: nameSize,
-                  lineHeight: 1.04,
+                  lineHeight: NAME_LINE_HEIGHT,
                   letterSpacing: track(nameSize, 0.02),
                   textTransform: "uppercase",
                   color: "#fff",
@@ -217,26 +253,63 @@ export default function FoundingPlayerCard({
             ))}
           </div>
 
-          {meta ? (
-            <span
-              style={{
-                fontFamily: LABEL,
-                fontSize: 34,
-                letterSpacing: track(34, 0.14),
-                textTransform: "uppercase",
-                marginTop: 28,
-                color: MUTE,
-              }}
-            >
-              {meta}
-            </span>
-          ) : null}
+          <span
+            style={{
+              fontFamily: LABEL,
+              fontSize: META,
+              letterSpacing: track(META, 0.14),
+              textTransform: "uppercase",
+              marginTop: 26,
+              color: MUTE,
+            }}
+          >
+            {meta}
+          </span>
+
+          {/* The divider. A fixed 180px rather than a full-width rule: it marks
+              the turn from the player to the platform, and a rule that reached
+              the edges would read as a section break in a document. */}
+          <div
+            style={{
+              display: "flex",
+              width: 180,
+              height: 2,
+              marginTop: 56,
+              background: HAIRLINE,
+            }}
+          />
+
+          {/* The only line addressed to whoever is SCROLLING PAST this, rather
+              than to the player holding it. Sized to survive a thumbnail. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              marginTop: 52,
+            }}
+          >
+            {TAGLINE_LINES.map((line) => (
+              <span
+                key={line}
+                style={{
+                  fontFamily: DISPLAY,
+                  fontSize: TAGLINE,
+                  lineHeight: 1.08,
+                  letterSpacing: track(TAGLINE, 0.03),
+                  textTransform: "uppercase",
+                  color: "#fff",
+                }}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Footer — the specified line, verbatim and on one row, centred
-            under a centred card. Two tones rather than one, matching
-            ProfileCard's footer where the address reads brighter than the meta
-            beside it. */}
+        {/* Footer — one row, centred under a centred card. Two tones rather
+            than one, matching ProfileCard's footer where the address reads
+            brighter than the meta beside it. */}
         <div
           style={{
             display: "flex",
@@ -250,24 +323,26 @@ export default function FoundingPlayerCard({
           <span
             style={{
               fontFamily: LABEL,
-              fontSize: 30,
-              letterSpacing: track(30, 0.16),
+              fontSize: FOOTER,
+              letterSpacing: track(FOOTER, 0.16),
               color: MUTE,
             }}
           >
-            goatza.com
+            {SITE_DOMAIN}
           </span>
-          <span style={{ fontFamily: LABEL, fontSize: 30, color: FAINT }}>·</span>
+          <span style={{ fontFamily: LABEL, fontSize: FOOTER, color: FAINT }}>
+            ·
+          </span>
           <span
             style={{
               fontFamily: LABEL,
-              fontSize: 26,
-              letterSpacing: track(26, 0.2),
+              fontSize: FOOTER,
+              letterSpacing: track(FOOTER, 0.2),
               textTransform: "uppercase",
               color: FAINT,
             }}
           >
-            Launching 1 Jan 2027
+            Opening {LAUNCH_DATE_LABEL}
           </span>
         </div>
       </div>

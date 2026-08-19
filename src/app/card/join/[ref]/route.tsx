@@ -21,7 +21,6 @@ import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
 
 import { getFoundingPlayerCard } from "@/features/join/services/join.api"
-import { districtLabel, positionLabel } from "@/features/join/types"
 import FoundingPlayerCard from "@/features/join/utils/joinCard/FoundingPlayerCard"
 import { cardFonts } from "@/features/profile/utils/shareCard/fonts"
 import {
@@ -89,9 +88,14 @@ export async function GET(
     return notFound()
   }
 
-  // Slugs become labels HERE, not in the layout: the card renders what it is
-  // given and knows nothing about the backend's TextChoices, exactly as
-  // ProfileCard renders CardData and knows nothing about the profile bundle.
+  // Everything the card draws arrives ready to draw. `city` and `country_code`
+  // need no translation — they are a place name and an ISO code from anywhere
+  // in the world, not slugs out of a TextChoices list. The card no longer shows
+  // the POSITION at all: the redesign gives the quiet line under the name to
+  // the number and the place, and a third item there competed with both.
+  //
+  // `signup_number` is the backend's DISPLAY number. It arrives ready to print
+  // and nothing here adjusts it — the raw row number never leaves the server.
   const { width, height } = CARD_SIZES.story
 
   const response = new ImageResponse(
@@ -100,8 +104,9 @@ export async function GET(
         data={{
           name: signup.name,
           signupNumber: signup.signup_number,
-          district: districtLabel(signup.district) || null,
-          position: positionLabel(signup.position) || null,
+          city: signup.city || null,
+          countryCode: signup.country_code || null,
+          isFounding: signup.is_founding === true,
         }}
       />
     ),
