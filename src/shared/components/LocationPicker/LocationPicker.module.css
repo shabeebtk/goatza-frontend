@@ -69,6 +69,7 @@
 }
 
 .clearBtn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,6 +87,15 @@
 .clearBtn:hover {
   background: var(--color-brand-muted);
   color: var(--color-brand-hover);
+}
+
+/* The visible circle stays 24px; the TOUCH target is 44px. Drawn as an overlay
+   rather than as padding so the pill's height and the icon's position are
+   unchanged for every existing caller. */
+.clearBtn::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
 }
 
 /* ── Search input ────────────────────────────────────────────── */
@@ -170,8 +180,12 @@
   list-style: none;
   overflow: hidden;
   animation: dropIn 0.2s var(--ease-out) both;
-  max-height: 260px;
+  /* Capped against the viewport as well as in pixels. On a phone with the
+     keyboard open the visible area is roughly half the screen, and a 260px
+     list under a focused input puts its last rows behind the keyboard. */
+  max-height: min(260px, 42dvh);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .dropdownItem {
