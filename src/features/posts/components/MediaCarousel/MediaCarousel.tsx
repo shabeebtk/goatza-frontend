@@ -26,6 +26,7 @@ import { Icon } from "@iconify/react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
 import { getPostAspectRatio } from "@/features/posts/utils/media"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
+import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import {
     videoDeliveryUrl,
     videoHlsUrl,
@@ -114,28 +115,19 @@ function LazyVideo({
     // viewport. Until then the hook stays on the plain mp4 src and, with
     // preload="none", fetches nothing at all — the feed's lazy contract.
     const [activated, setActivated] = useState(false)
-    // Muted by default — autoplay policy allows no other start. Per tile, and
-    // it has to survive the pause/resume cycle of scrolling past and back, so
-    // the observer reads it from a ref (its callback is created once).
-    const [muted, setMuted] = useState(true)
-    const mutedRef = useRef(true)
 
-    /**
-     * Push the mute state onto the ELEMENT.
-     *
-     * React does not reliably render the `muted` prop as a DOM attribute
-     * (it is a property, and SSR/hydration can leave the element unmuted),
-     * so the browser saw an unmuted video, blocked autoplay, and the
-     * rejection went into an empty catch — the reason feed videos silently
-     * refused to start. Setting the property directly is the only thing the
-     * autoplay policy actually reads.
-     */
-    const applyMuted = useCallback((next: boolean) => {
-        const el = videoRef.current
-        if (!el) return
-        el.muted = next
-        el.defaultMuted = next
-    }, [])
+    // Sound is GLOBAL (src/store/sound.store.ts) — unmute one video and every
+    // video in the app plays with sound until the user mutes again. The hook
+    // still pushes the state onto the element as a PROPERTY, which is what the
+    // autoplay policy reads, and still exposes a ref because the observer's
+    // callback below is created once.
+    const {
+        muted,
+        toggleMuted,
+        applyMuted,
+        mutedRef,
+        reportBlocked,
+    } = useVideoSound(videoRef)
 
     // Owns video.src (hence no src attribute below) — hls.js attaches through
     // MediaSource, which a React-controlled src would fight every render.
@@ -150,11 +142,12 @@ function LazyVideo({
         // The tile wrapper opens the lightbox on click — this button must not
         // reach it, which is the whole reason the old badge was unusable.
         e.stopPropagation()
-        const next = !mutedRef.current
-        mutedRef.current = next
-        setMuted(next)
-        applyMuted(next)
-    }, [applyMuted])
+        // Apply to THIS element in the same tick as well as through the store:
+        // the tap is the user gesture the autoplay policy is waiting for, and
+        // waiting a render for the effect would spend it.
+        applyMuted(!mutedRef.current)
+        toggleMuted()
+    }, [applyMuted, mutedRef, toggleMuted])
 
     useEffect(() => {
         const el = videoRef.current
@@ -178,12 +171,11 @@ function LazyVideo({
                     el.play().catch(() => {
                         // Scrolled into view while unmuted and the browser
                         // refused. Autoplay always beats sound: drop to muted,
-                        // retry once, and move the icon so the UI isn't lying
-                        // about the state.
+                        // retry once, and move EVERY icon in the app so none
+                        // of them are lying about the state.
                         if (el.muted) return
-                        mutedRef.current = true
-                        setMuted(true)
                         applyMuted(true)
+                        reportBlocked()
                         el.play().catch(() => { })
                     })
                     setPlaying(true)
@@ -200,7 +192,7 @@ function LazyVideo({
         )
         obs.observe(el)
         return () => obs.disconnect()
-    }, [applyMuted])
+    }, [applyMuted, mutedRef, reportBlocked])
 
     return (
         <div className={`${styles.mediaItem} ${styles.videoItem}`}>
@@ -292,9 +284,11 @@ function LightboxVideo({
 }) {
     const videoRef = useRef<HTMLVideoElement>(null)
     const [paused, setPaused] = useState(false)
-    // Opening the lightbox is a deliberate user gesture, so start WITH sound —
-    // unlike the feed, where autoplay policy leaves no choice.
-    const [muted, setMuted] = useState(false)
+    // Inherits the GLOBAL sound state rather than opening unmuted on its own.
+    // Deliberate change: the lightbox used to be the one surface that started
+    // with sound, so opening it from a muted feed was a jump-scare and muting
+    // it never carried back out.
+    const { muted, toggleMuted, applyMuted, reportBlocked } = useVideoSound(videoRef)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
     const [controlsVisible, setControlsVisible] = useState(true)
@@ -333,11 +327,12 @@ function LightboxVideo({
     const toggleMute = useCallback(() => {
         const el = videoRef.current
         if (!el) return
-        const next = !el.muted
-        el.muted = next
-        setMuted(next)
+        // Applied to the element in the same tick as the store write — the
+        // click is the gesture the autoplay policy is waiting for.
+        applyMuted(!el.muted)
+        toggleMuted()
         showControls()
-    }, [showControls])
+    }, [applyMuted, showControls, toggleMuted])
 
     const seekBy = useCallback((seconds: number) => {
         const el = videoRef.current
@@ -369,13 +364,13 @@ function LightboxVideo({
         autoPlayedRef.current = true
         el.play().catch(() => {
             // The opening gesture can expire while the source attaches (dynamic
-            // import + manifest fetch). Muted playback is always allowed —
-            // take it, and move the icon so the button tells the truth.
-            el.muted = true
-            setMuted(true)
+            // import + manifest fetch). Muted playback is always allowed — take
+            // it, and move EVERY icon in the app so none of them are lying.
+            applyMuted(true)
+            reportBlocked()
             el.play().catch(() => { })
         })
-    }, [])
+    }, [applyMuted, reportBlocked])
 
     const seekMax = duration || 0
 
@@ -396,6 +391,10 @@ function LightboxVideo({
                         : undefined
                 }
                 autoPlay
+                // BARE `muted`, never muted={muted}: the server-rendered
+                // markup and first client paint must always be muted, and
+                // useVideoSound sets the property after mount.
+                muted
                 playsInline
                 onClick={togglePlay}
                 onCanPlay={onCanPlay}

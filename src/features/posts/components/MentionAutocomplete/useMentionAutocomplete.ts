@@ -27,10 +27,11 @@ type ActiveToken = {
 }
 
 // Matches the handle the caret is sitting inside — same charset as the
-// backend's MENTION_RE, anchored to the end of the text before the caret.
-// A "@" must open the token at the start of the body or after whitespace, so
-// an email address ("me@example") never triggers the dropdown.
-const ACTIVE_TOKEN_RE = /(?:^|\s)@([A-Za-z0-9_.]*)$/
+// backend's MENTION_RE (letters/digits/underscore, no dot now that users and
+// organizations share one namespace), anchored to the end of the text before
+// the caret. A "@" must open the token at the start of the body or after
+// whitespace, so an email address ("me@example") never triggers the dropdown.
+const ACTIVE_TOKEN_RE = /(?:^|\s)@([A-Za-z0-9_]*)$/
 
 function readActiveToken(value: string, caret: number): ActiveToken | null {
   const before = value.slice(0, caret)

@@ -61,11 +61,14 @@ const CONTENT_LIMIT = 220
 // match in a capture group so String.split hands the tokens back interleaved
 // with the plain text between them.
 //
-// The mention branch allows dots only BETWEEN segments (org handles permit
-// them, user handles don't), so "@kochifc." at the end of a sentence tokenizes
-// as "@kochifc" and the full stop stays prose.
-const CONTENT_SPLIT_RE =
-  /(#[A-Za-z0-9_]{1,50}|@[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)/
+// The mention branch is letters/digits/underscore for BOTH actor types: users
+// and organizations draw from one namespace now, and the dot organizations
+// used to allow is gone. "@kochifc." at the end of a sentence still tokenizes
+// as "@kochifc" — because the charset stops at the full stop, not because the
+// pattern works around it.
+// Exported so the charset can be asserted against the backend's in a test
+// rather than only in review — this pair has drifted before.
+export const CONTENT_SPLIT_RE = /(#[A-Za-z0-9_]{1,50}|@[A-Za-z0-9_]+)/
 
 type ContentSegment =
   | { kind: "text"; key: string; value: string }

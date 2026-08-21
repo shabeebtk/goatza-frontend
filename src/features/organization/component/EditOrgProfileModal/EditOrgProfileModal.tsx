@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm, type SubmitHandler, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
 import { Input, Button } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
@@ -23,11 +24,13 @@ import styles from "./EditOrgProfileModal.module.css"
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(100),
-  username: z
-    .string()
-    .min(3, "At least 3 characters")
-    .max(50, "Max 50 characters")
-    .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and _"),
+  // The SAME mirror the user form uses: organizations no longer have their own
+  // charset (the dot is gone) or their own length (this said 50, which the API
+  // has never accepted), because both actor types draw from one namespace.
+  username: z.string().superRefine((val, ctx) => {
+    const err = validateUsernameFormat(val)
+    if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err })
+  }),
   type: z.enum(["club", "team", "academy", "school", ""]),
   headline: z.string().max(150).optional(),
   description: z.string().max(2000).optional(),
@@ -156,7 +159,8 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
   useEffect(() => {
     const current = watchedUsername?.trim()
     if (!current || current === org.username) { setUsernameStatus("idle"); return }
-    if (!/^[a-zA-Z0-9_]{3,50}$/.test(current)) { setUsernameStatus("idle"); return }
+    // Let Zod surface the format error; don't hit the API for invalid input.
+    if (validateUsernameFormat(current)) { setUsernameStatus("idle"); return }
 
     setUsernameStatus("checking")
     if (debounceRef.current) clearTimeout(debounceRef.current)

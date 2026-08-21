@@ -19,6 +19,7 @@ import { toast } from "sonner"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
+import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { videoHlsUrl } from "@/shared/services/cloudinaryDelivery"
 import { highlightVideoUrl } from "../../services/highlightUpload.service"
 import { useDeleteHighlight } from "../../hooks/useHighlights"
@@ -79,12 +80,15 @@ export default function HighlightViewer({
         Math.min(Math.max(startIndex, 0), Math.max(clips.length - 1, 0))
     )
     const [progress, setProgress] = useState(0)
-    const [muted, setMuted] = useState(true)
     const [paused, setPaused] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
     const [confirmDelete, setConfirmDelete] = useState(false)
 
     const videoRef = useRef<HTMLVideoElement | null>(null)
+    // Sound is GLOBAL (src/store/sound.store.ts): arrive here from an unmuted
+    // feed video and the clip plays with sound, and muting here carries back.
+    const { muted, toggleMuted, applyMuted, mutedRef, reportBlocked } =
+        useVideoSound(videoRef)
     const dialogRef = useRef<HTMLDivElement | null>(null)
     const holdTimerRef = useRef<number | null>(null)
     const heldRef = useRef(false)
@@ -191,7 +195,7 @@ export default function HighlightViewer({
                     break
                 case "m":
                     e.preventDefault()
-                    setMuted((m) => !m)
+                    toggleMuted()
                     break
                 case "Tab": {
                     // Focus trap — keep Tab inside the overlay.
@@ -219,7 +223,7 @@ export default function HighlightViewer({
 
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [goNext, goPrev, onClose])
+    }, [goNext, goPrev, onClose, toggleMuted])
 
     // Nothing left to show (last clip deleted) → leave.
     useEffect(() => {
@@ -232,17 +236,25 @@ export default function HighlightViewer({
         const video = videoRef.current
         if (!video || !videoSrc) return
 
-        video.muted = muted
+        // The property, before play() — the policy check reads it, and
+        // useVideoSound's own effect may not have run for this element yet on
+        // the first render after a clip swap.
+        applyMuted(muted)
 
         if (paused) {
             video.pause()
             return
         }
 
-        // A rejected play() is normal (autoplay policy, or a src swap mid-play)
-        // and must not bubble as an unhandled rejection.
-        void video.play().catch(() => undefined)
-    }, [videoSrc, paused, muted])
+        void video.play().catch(() => {
+            // Refused because the store says unmuted and this tab has not seen
+            // a gesture yet. Sound loses to playback, app-wide.
+            if (video.muted) return
+            applyMuted(true)
+            reportBlocked()
+            void video.play().catch(() => undefined)
+        })
+    }, [videoSrc, paused, muted, applyMuted, reportBlocked])
 
     // Count the view once the clip has actually stayed on screen.
     useEffect(() => {
@@ -335,10 +347,13 @@ export default function HighlightViewer({
             }
 
             // A plain tap toggles sound — the clip starts muted by policy, so
-            // the first tap is how you hear it.
-            setMuted((m) => !m)
+            // the first tap is how you hear it. Applied to the element in the
+            // same tick as the store write: the tap IS the gesture the
+            // autoplay policy is waiting for.
+            applyMuted(!mutedRef.current)
+            toggleMuted()
         },
-        [clearHold, goNext, goPrev, onClose]
+        [applyMuted, clearHold, goNext, goPrev, mutedRef, onClose, toggleMuted]
     )
 
     const onPointerCancel = useCallback(() => {
@@ -517,7 +532,11 @@ export default function HighlightViewer({
                         // so exactly one video is ever wired up.
                         poster={clip.thumbnail_url || undefined}
                         autoPlay
-                        muted={muted}
+                        // BARE `muted`, never muted={muted}: the server-
+                        // rendered markup and first client paint must always
+                        // be muted, and useVideoSound sets the property after
+                        // mount.
+                        muted
                         playsInline
                         preload="auto"
                         onTimeUpdate={onTimeUpdate}
@@ -535,6 +554,10 @@ export default function HighlightViewer({
                             // so buffering the next one costs little and makes a
                             // swipe start on the first frame instead of a spinner.
                             preload="auto"
+                            // UNCONDITIONALLY muted, and deliberately NOT
+                            // bound to the sound store: this is a warm-up
+                            // element that must never emit audio, global
+                            // unmute or not.
                             muted
                             playsInline
                             tabIndex={-1}
