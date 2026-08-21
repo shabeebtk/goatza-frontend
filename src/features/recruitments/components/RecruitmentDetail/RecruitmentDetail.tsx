@@ -24,6 +24,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { videoDeliveryUrl, videoPosterUrl } from "@/shared/services/cloudinaryDelivery"
 import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
@@ -128,6 +129,12 @@ function DetailMediaCarousel({ media }: { media: RecruitmentMedia[] }) {
   const [idx, setIdx] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const touchStartX = useRef(0)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  // Sound is GLOBAL (src/store/sound.store.ts) instead of hardcoded muted, so
+  // arriving here from an unmuted feed plays with sound. This player renders
+  // native `controls`, so onVolumeChange feeds the browser's own mute button
+  // back into the store — otherwise it would be a second source of truth.
+  const { muted, applyMuted, onVolumeChange } = useVideoSound(videoRef)
   const total = sorted.length
   const current = sorted[idx]
 
@@ -152,18 +159,29 @@ function DetailMediaCarousel({ media }: { media: RecruitmentMedia[] }) {
         {current.media_type === "video" ? (
           <video
             key={current.id}
+            ref={videoRef}
             src={videoDeliveryUrl(current.file_url)}
             className={`${styles.mediaAsset} ${loaded ? styles.mediaLoaded : ""}`}
             controls
             playsInline
+            // BARE `muted`, never muted={muted}: the server-rendered markup and
+            // first client paint must always be muted, and useVideoSound sets
+            // the property after mount.
             muted
+            onVolumeChange={onVolumeChange}
             poster={current.thumbnail_url ? videoPosterUrl(current.thumbnail_url) : undefined}
             // Not `canplay`: it can fire before a frame is composited, which
             // fades the element in over black. This player doesn't autoplay, so
             // `playing` alone would keep it hidden until the user hits play —
             // `loadeddata` (first frame decoded, fires earlier than canplay)
             // reveals it with something real to show.
-            onLoadedData={() => setLoaded(true)}
+            onLoadedData={() => {
+              setLoaded(true)
+              // key={current.id} remounts the ELEMENT without remounting this
+              // component, so the hook's mount effect does not re-run for the
+              // new one — re-apply the store's state to it here.
+              applyMuted(muted)
+            }}
             onPlaying={() => setLoaded(true)}
           />
         ) : (

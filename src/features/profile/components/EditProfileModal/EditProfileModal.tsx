@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm, type SubmitHandler, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
 import { Input, DateOfBirthPicker } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
@@ -17,11 +18,12 @@ import styles from "./EditProfileModal.module.css"
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(60),
-  username: z
-    .string()
-    .min(3, "At least 3 characters")
-    .max(30, "Max 30 characters")
-    .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and _"),
+  // The shared mirror of the backend validator, not a local regex — it also
+  // carries the reserved-name and numeric-handle rules a regex cannot.
+  username: z.string().superRefine((val, ctx) => {
+    const err = validateUsernameFormat(val)
+    if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err })
+  }),
   headline: z.string().max(120).optional(),
   about: z.string().max(600).optional(),
   gender: z.enum(["male", "female", "other", ""]).optional(),
@@ -181,7 +183,8 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   useEffect(() => {
     const current = watchedUsername?.trim()
     if (!current || current === profile.username) { setUsernameStatus("idle"); return }
-    if (!/^[a-zA-Z0-9_]{3,30}$/.test(current)) { setUsernameStatus("idle"); return }
+    // Let Zod surface the format error; don't hit the API for invalid input.
+    if (validateUsernameFormat(current)) { setUsernameStatus("idle"); return }
 
     setUsernameStatus("checking")
     if (debounceRef.current) clearTimeout(debounceRef.current)
