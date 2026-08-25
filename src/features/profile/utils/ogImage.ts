@@ -10,10 +10,9 @@
  * function for a URL and still does not care how it was produced.
  *
  * An ORGANIZATION does not have a card. Org cards are a different job with a
- * different composition and are deliberately not built, so that path keeps the
- * Cloudinary transform of the logo it has always used: not a designed card, but
- * a real mark at the right aspect ratio, and a WhatsApp link with an image in
- * it gets opened where a bare link does not.
+ * different composition and are deliberately not built, so that path shares the
+ * org's logo directly: not a designed card, but a real mark, and a WhatsApp
+ * link with an image in it gets opened where a bare link does not.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -24,47 +23,25 @@ export const OG_IMAGE_WIDTH = 1200
 export const OG_IMAGE_HEIGHT = 630
 
 /**
- * `c_fill` crops to the exact box rather than letterboxing, `g_face` keeps the
- * subject's face in frame when there is one (Cloudinary falls back to a centre
- * crop when it finds none), and `b_auto` fills any remaining edge with a colour
- * sampled from the image instead of black bars.
- */
-const TRANSFORM = [
-  `c_fill`,
-  `w_${OG_IMAGE_WIDTH}`,
-  `h_${OG_IMAGE_HEIGHT}`,
-  `g_face`,
-  `b_auto`,
-  `f_jpg`,
-  `q_auto`,
-].join(",")
-
-/**
  * Fallback for a profile with no photo. A branded static asset, not a
  * transform: there is nothing to transform, and an OG tag pointing at a 404 is
  * worse than a generic card — several platforms drop the preview entirely.
  */
 const FALLBACK_PATH = "/icons/icon-512.png"
 
-/** Inject a transform segment into a Cloudinary delivery URL. */
-function withTransform(url: string): string | null {
-  // Cloudinary delivery URLs are .../<resource>/upload/<version>/<public_id>.
-  // The transform goes immediately after `/upload/`.
-  const marker = "/upload/"
-  const at = url.indexOf(marker)
-  if (at === -1) return null
-
-  const head = url.slice(0, at + marker.length)
-  let tail = url.slice(at + marker.length)
-
-  // A URL that already carries a transform (a cropped avatar, say) would end up
-  // with two stacked segments. Drop a leading one so the OG box always wins.
-  const firstSegment = tail.split("/")[0] ?? ""
-  if (/^[a-z]{1,3}_[^/]+/.test(firstSegment) && firstSegment.includes(",")) {
-    tail = tail.slice(firstSegment.length + 1)
-  }
-
-  return `${head}${TRANSFORM}/${tail}`
+/**
+ * Is this something a scraper can actually fetch?
+ *
+ * Any absolute http(s) URL qualifies — the media domain, the r2.dev URL a dev
+ * environment uses, and Cloudinary URLs on rows that predate the migration.
+ * There is no host allow-list on purpose: the value comes from our own API, and
+ * the previous single-provider check silently sent every org whose logo lives
+ * anywhere else (i.e. every org after the migration) to the fallback icon.
+ *
+ * Relative paths are rejected: an OG tag must be absolute or scrapers ignore it.
+ */
+function isAbsoluteUrl(url: string): boolean {
+  return url.startsWith("https://") || url.startsWith("http://")
 }
 
 /** A user profile gets the generated card. */
@@ -75,8 +52,8 @@ interface CardProfile {
   cover_photo?: string
 }
 
-/** An organization keeps the Cloudinary transform — `logo` is the discriminant
- *  as well as the source, and only org payloads carry it. */
+/** An organization shares its logo directly — `logo` is the discriminant as
+ *  well as the source, and only org payloads carry it. */
 interface OrgProfile {
   logo?: string
   cover_image?: string
@@ -119,12 +96,11 @@ export function buildProfileOgImageUrl(
   const source =
     org.logo || org.profile_photo || org.cover_image || org.cover_photo || ""
 
-  if (source && source.includes("res.cloudinary.com")) {
-    const transformed = withTransform(source)
-    if (transformed) return transformed
-  }
+  // The stored URL is already a final, directly-fetchable image — there is no
+  // transform to apply any more, and the OG box is advisory: every platform
+  // crops the image it is given to its own preview shape.
+  if (source && isAbsoluteUrl(source)) return source
 
-  // Non-Cloudinary URL (shouldn't happen — all media goes through us) or no
-  // photo at all.
+  // No logo at all, or a relative path a scraper could not resolve.
   return `${siteOrigin}${FALLBACK_PATH}`
 }

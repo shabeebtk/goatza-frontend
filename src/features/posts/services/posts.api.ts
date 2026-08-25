@@ -21,8 +21,16 @@ export type PostMediaPayload = {
   file_url: string
   public_id: string
   media_type: PostMediaType
+  /** The 640px copy uploaded alongside the image, as its own object. */
   thumbnail_url?: string
   duration?: number          // seconds, video only
+  /**
+   * Measured client-side. The server stopped reading these off the provider
+   * when it stopped being Cloudinary, so it is the client or nothing.
+   */
+  width?: number
+  height?: number
+  size_bytes?: number
   order: number
 }
 

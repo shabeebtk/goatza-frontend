@@ -5,12 +5,10 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { ChatMessage } from "../../hooks/useChatSocket"
 import { formatDuration } from "../../services/chatUpload.service"
-// Chat videos are stored as the raw original — the fullscreen player must ask
-// Cloudinary for the capped H.264 derivative, never the 4K phone file.
-import {
-    videoDeliveryUrl,
-    videoPosterUrl,
-} from "@/shared/services/cloudinaryDelivery"
+// The stored object IS the clip that plays and the poster that shows — no
+// derivative is built any more, so these just read the right field.
+import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
+import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 // Space is reserved from intrinsic dimensions so the poster never causes layout
 // shift while it loads. Shared with ImageMessage.
@@ -214,10 +212,12 @@ export default function VideoMessage({
 
     const { w, h, known } = displaySize(msg.media_width, msg.media_height)
 
-    // Poster: optimistic → locally captured frame; server → Cloudinary poster.
+    // Poster: optimistic → the locally captured frame (a blob: URL, which the
+    // delivery helpers pass through verbatim); server → the stored poster
+    // object, falling back to the local frame while one is still in flight.
     const poster = isOptimistic
         ? msg.localPreviewUrl
-        : msg.media_thumbnail_url || msg.localPreviewUrl
+        : posterSrc(msg) || msg.localPreviewUrl
 
     const durationSec = msg.media_duration_ms
         ? msg.media_duration_ms / 1000
@@ -296,7 +296,11 @@ export default function VideoMessage({
                                 </span>
                             </button>
                             <span className={styles.uploadingLabel}>
-                                Uploading {Math.round(msg.uploadProgress ?? 0)}%
+                                {/* The encode is the first 70% of the bar and
+                                    the slower half on a phone — saying
+                                    "Uploading" through it reads as a stall. */}
+                                {msg.optimizing ? OPTIMIZING_LABEL : "Uploading"}{" "}
+                                {Math.round(msg.uploadProgress ?? 0)}%
                             </span>
                         </div>
                     )}
@@ -365,8 +369,8 @@ export default function VideoMessage({
 
             {playerOpen && (
                 <VideoPlayer
-                    src={videoDeliveryUrl(msg.media_url || "")}
-                    poster={videoPosterUrl(msg.media_thumbnail_url || "")}
+                    src={videoSrc(msg)}
+                    poster={posterSrc(msg)}
                     onClose={() => setPlayerOpen(false)}
                 />
             )}

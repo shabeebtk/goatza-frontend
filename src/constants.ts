@@ -1,8 +1,16 @@
 export const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbx1HrLB57lHlOScYAdixOXayHAZw3o6uvf5JC0UTvjKODFv5NEY2JPWHmSIK2R7nMfAvg/exec";
 
-export const LOGO_URL =
-  "https://res.cloudinary.com/duotwo8gf/image/upload/v1774332703/goatza-logo-black_ve34f5.png";
+/**
+ * The wordmark, served from /public rather than a media CDN.
+ *
+ * It is app chrome, not user media: it ships with the bundle, is needed on the
+ * very first paint of the auth and landing pages, and must not depend on the
+ * media domain being reachable. The SVG carries `fill="currentColor"`, which
+ * resolves to black inside an <img> — the same black mark the previous hosted
+ * PNG rendered.
+ */
+export const LOGO_URL = "/brand/goatza-logo.svg";
 
 /**
  * Cover / banner aspect ratio (width ÷ height) for user + org profiles.

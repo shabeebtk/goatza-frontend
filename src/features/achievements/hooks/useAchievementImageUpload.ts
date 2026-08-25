@@ -2,13 +2,13 @@
  * Upload one achievement's proof/showcase image.
  *
  * Same three-step flow as usePhotoUpload — compress → signed config from the
- * backend → straight to Cloudinary — with two deliberate differences:
+ * backend → straight to storage — with two deliberate differences:
  *
  *   1. It does NOT persist anything. A profile photo has its own endpoint and
  *      is saved the moment it uploads; an achievement image is one field of a
  *      form that hasn't been submitted yet, so this hands the URL + public_id
  *      back and AchievementModal writes them into the form. Uploading and then
- *      cancelling the modal leaves an orphan in Cloudinary — the same trade
+ *      cancelling the modal leaves an orphan in storage — the same trade
  *      CreatePostModal already makes, and the alternative (holding the blob
  *      until submit) means the owner can't see what they picked.
  *   2. Lighter compression than a profile photo. This renders at thumbnail size
@@ -21,9 +21,10 @@ import { useMutation } from "@tanstack/react-query"
 import imageCompression from "browser-image-compression"
 
 import {
-    getUploadSignatureApi,
-    uploadToCloudinaryApi,
-} from "@/features/profile/services/upload.api"
+    describeBlob,
+    getUploadConfigApi,
+    putToR2,
+} from "@/shared/services/mediaUpload"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -71,9 +72,16 @@ export const useAchievementImageUpload = () =>
             // `achievements` is user-actor only and scoped server-side to
             // users/<id>/achievements with a fresh public_id per upload, so
             // replacing one award's image never touches another's.
-            const res = await getUploadSignatureApi("achievements")
-            const sig = res.uploads[0]
+            const res = await getUploadConfigApi("achievements", [
+                describeBlob(compressed),
+            ])
+            const entry = res.uploads[0]
+            if (!entry) throw new Error("Couldn't start the upload. Try again.")
 
-            return uploadToCloudinaryApi(compressed, sig)
+            await putToR2(compressed, entry)
+
+            // A fresh key per upload (no fixed slot), so no cache-buster is
+            // needed — the URL is new every time.
+            return { secure_url: entry.public_url, public_id: entry.key }
         },
     })

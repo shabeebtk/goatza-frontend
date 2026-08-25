@@ -16,6 +16,7 @@ import {
 import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/posts/services/posts.api"
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import { VIDEO_ACCEPT } from "@/shared/constants/media"
+import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
@@ -34,6 +35,8 @@ type FileEntry = {
   isVideo:  boolean
   progress: number
   status:   "idle" | "uploading" | "done" | "error"
+  /** True while the browser is re-encoding this video, before any bytes move. */
+  optimizing?: boolean
   error:    string | null
   result:   PostMediaPayload | null
   crop?:    CropState     // saved reposition so re-opening the cropper resumes
@@ -318,6 +321,9 @@ function UploadProgressSection({ entries, phase, onDone }: {
   const overallPct = total === 0 ? 100 : Math.round(entries.reduce((s, e) => s + e.progress, 0) / total)
   const isPosting  = phase === "posting"
   const isDone     = phase === "done"
+  // A video spends the first 70% of its bar being encoded, which on a phone is
+  // the slower half — saying "Uploading" through it reads as a stall.
+  const isOptimizing = entries.some((e) => e.optimizing)
 
   useEffect(() => {
     if (isDone) {
@@ -337,7 +343,10 @@ function UploadProgressSection({ entries, phase, onDone }: {
         <>
           <div className={styles.uploadHeader}>
             <span className={styles.uploadLabel}>
-              {isPosting ? "Publishing…" : total === 0 ? "Publishing…" : `Uploading ${doneCount}/${total} file${total > 1 ? "s" : ""}`}
+              {isPosting ? "Publishing…"
+                : isOptimizing ? OPTIMIZING_LABEL
+                : total === 0 ? "Publishing…"
+                : `Uploading ${doneCount}/${total} file${total > 1 ? "s" : ""}`}
             </span>
             <span className={styles.uploadPct}>{isPosting ? "" : `${overallPct}%`}</span>
           </div>
@@ -520,19 +529,21 @@ export default function CreatePostModal({
       try {
         const results = await uploadMediaFile(
           entries.map(e => e.file),
-          (fileIndex, loaded, total) => {
+          (fileIndex, loaded, total, uploadPhase) => {
             const pct = Math.round((loaded / total) * 100)
-            setEntries(prev => prev.map((e, i) => i === fileIndex ? { ...e, progress: pct } : e))
+            setEntries(prev => prev.map((e, i) => i === fileIndex
+              ? { ...e, progress: pct, optimizing: uploadPhase === "encoding" }
+              : e))
           }
         )
         for (let i = 0; i < results.length; i++) {
-          setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, result: results[i] } : e))
+          setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, optimizing: false, result: results[i] } : e))
           if (i < results.length - 1) await new Promise(r => setTimeout(r, 120))
         }
         uploadedMedia = results
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Upload failed"
-        setEntries(prev => prev.map(e => e.status !== "done" ? { ...e, status: "error", error: msg } : e))
+        setEntries(prev => prev.map(e => e.status !== "done" ? { ...e, status: "error", optimizing: false, error: msg } : e))
         setSubmitError(msg)
         setPhase("idle")
         return

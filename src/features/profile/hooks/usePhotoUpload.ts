@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import imageCompression from "browser-image-compression"
+import { updateMediaApi, type UploadType } from "../services/upload.api"
 import {
-  getUploadSignatureApi,
-  uploadToCloudinaryApi,
-  updateMediaApi,
-  type UploadType,
-} from "../services/upload.api"
+  describeBlob,
+  getUploadConfigApi,
+  putToR2,
+  withCacheBust,
+} from "@/shared/services/mediaUpload"
 import { profileKeys } from "@/features/profile/hooks/useProfileQueries"
 import type { UserProfile } from "@/features/profile/services/profile.api"
 
@@ -50,14 +51,22 @@ export const usePhotoUpload = (username: string) => {
       // 3. Compress
       const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
 
-      // 4. Get signed upload config
-      const res = await getUploadSignatureApi(type)
-      const sig = res.uploads[0] 
+      // 4. Get a presigned PUT for exactly this blob
+      const res = await getUploadConfigApi(type, [describeBlob(compressed)])
+      const entry = res.uploads[0]
+      if (!entry) throw new Error("Couldn't start the upload. Try again.")
 
-      // 5. Upload to Cloudinary
-      const { secure_url, public_id } = await uploadToCloudinaryApi(compressed, sig)
+      // 5. PUT the bytes straight to storage
+      await putToR2(compressed, entry)
 
-      // 6. Save to backend
+      // 6. Save to backend.
+      //
+      // profile/cover live at ONE fixed key per user and overwrite in place, so
+      // the server stamps a ?v= cache-buster on the URL it stores. The
+      // public_id column keeps the bare key, which is what `entry.key` is.
+      const secure_url = entry.public_url
+      const public_id = entry.key
+
       const payload =
         type === "profile"
           ? { profile_photo: secure_url, profile_photo_public_id: public_id }
@@ -65,7 +74,10 @@ export const usePhotoUpload = (username: string) => {
 
       await updateMediaApi(payload)
 
-      return { type, secure_url }
+      // The cache write below needs a URL the browser has not already painted.
+      // The endpoint returns no body, so stamp one here; the next profile
+      // refetch replaces it with the server's own ?v=, same object.
+      return { type, secure_url: withCacheBust(secure_url) }
     },
 
     // Optimistic cache update so the avatar/cover refreshes immediately

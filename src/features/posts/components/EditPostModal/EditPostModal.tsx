@@ -7,7 +7,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "../PostLocationPicker/PostLocationPicker"
 import { useMyPostSports, useUpdatePost } from "@/features/posts/hooks/usePostMutations"
 import { getPostAspectRatio } from "@/features/posts/utils/media"
-import { videoDeliveryUrl, videoPosterUrl } from "@/shared/services/cloudinaryDelivery"
+import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import type { Post, PostMedia, PostVisibility, PostLocation, UpdatePostPayload } from "@/features/posts/services/posts.api"
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
@@ -29,11 +29,11 @@ function EditMediaPreview({ media }: { media: PostMedia[] }) {
       {current.media_type === "video" ? (
         <video
           key={current.file_url}
-          // Already-uploaded media, so this is a stored Cloudinary original —
-          // same transcoded delivery as the feed, not the raw file.
-          src={videoDeliveryUrl(current.file_url)}
+          // Already-uploaded media: the stored object is the exact file that
+          // plays, same as the feed renders.
+          src={videoSrc(current)}
           className={styles.previewMedia}
-          poster={current.thumbnail_url ? videoPosterUrl(current.thumbnail_url) : undefined}
+          poster={posterSrc(current) || undefined}
           muted
           playsInline
           preload="metadata"

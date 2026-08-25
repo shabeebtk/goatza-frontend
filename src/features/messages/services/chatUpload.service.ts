@@ -1,8 +1,20 @@
 import imageCompression from "browser-image-compression"
+
+import { getBlobDimensions, makeThumb } from "@/shared/services/imageVariants"
 import {
-    getUploadSignatureApi,
-    type UploadConfigItem,
-} from "@/features/profile/services/upload.api"
+    describeBlob,
+    getUploadConfigApi,
+    putToR2,
+    UPLOAD_CANCELLED as SHARED_UPLOAD_CANCELLED,
+    type UploadProgress,
+} from "@/shared/services/mediaUpload"
+import { describeVideo } from "@/features/posts/services/postUpload.service"
+import {
+    capturePoster,
+    encodeVideo,
+    videoProgressSplit,
+    type VideoUploadPhase,
+} from "@/shared/services/videoEncode"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -12,7 +24,19 @@ export const MAX_CHAT_IMAGES = 5
 export const MAX_CHAT_IMAGE_MB = 25
 
 // Video limits mirror the backend (_validate_chat_video).
-export const MAX_CHAT_VIDEO_MB = 100
+/**
+ * POST-ENCODE ceiling, matching the server cap (POLICY: chat video 80MB).
+ * The browser encodes to ~2 Mbps H.264, so a 90s clip lands near 23MB.
+ */
+export const MAX_CHAT_VIDEO_MB = 80
+
+/**
+ * RAW-INPUT ceiling, checked at pick time before any decode starts. Generous
+ * because a 90s 4K phone clip is ~200MB and encodes to a fraction of that;
+ * this only refuses a file nobody should wait on.
+ */
+export const MAX_RAW_CHAT_VIDEO_MB = 300
+
 export const MAX_CHAT_VIDEO_SECONDS = 90
 // Mirrors CHAT_VIDEO_EXTENSIONS in messaging/services/message_service.py.
 const CHAT_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"])
@@ -30,6 +54,8 @@ const CHAT_IMAGE_COMPRESSION = {
 export type ChatImageUploadResult = {
     media_url: string
     media_public_id: string
+    /** The 640px copy the bubble loads first. Its own object on R2. */
+    thumbnail_url?: string
     width?: number
     height?: number
     size_bytes?: number
@@ -39,7 +65,12 @@ export type ChatVideoUploadResult = ChatImageUploadResult & {
     duration_ms?: number
 }
 
-export type ChatUploadProgress = (loaded: number, total: number) => void
+
+export type ChatUploadProgress = (
+    loaded: number,
+    total: number,
+    phase?: VideoUploadPhase
+) => void
 
 // ── Validation ────────────────────────────────────────────────
 
@@ -63,11 +94,11 @@ export function validateChatImages(files: File[]): string | null {
  */
 export function validateChatVideoFile(file: File): string | null {
     if (!file.type.startsWith("video/")) return "That file isn't a video."
-    if (file.size > MAX_CHAT_VIDEO_MB * 1024 * 1024)
-        return `Video must be under ${MAX_CHAT_VIDEO_MB} MB.`
-    // Mirror the backend's CHAT_VIDEO_EXTENSIONS. Without this the file uploads
-    // to Cloudinary in full and only THEN gets a 400 from our own API — minutes
-    // of mobile data for a rejection we could have given instantly.
+    if (file.size > MAX_RAW_CHAT_VIDEO_MB * 1024 * 1024)
+        return `Video must be under ${MAX_RAW_CHAT_VIDEO_MB} MB.`
+    // Mirror the backend's CHAT_VIDEO_EXTENSIONS. Without this the user waits
+    // through a doomed encode to be told at the end. A .mov IS accepted — it is
+    // encoded to H.264/MP4 before upload, never sent raw.
     const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
     if (ext && !CHAT_VIDEO_EXTENSIONS.has(ext))
         return "Videos must be MP4, MOV or WebM."
@@ -226,93 +257,25 @@ export function captureVideoThumbnail(file: File): Promise<string> {
 
 // ── Direct upload to Cloudinary with XHR progress ─────────────
 
-/** Thrown when the user cancels — callers use this to stay silent. */
-export const UPLOAD_CANCELLED = "upload_cancelled"
-
-function uploadWithProgress(
-    file: File,
-    sig: UploadConfigItem,
-    onProgress?: ChatUploadProgress,
-    signal?: AbortSignal
-): Promise<{
-    secure_url: string
-    public_id: string
-    width?: number
-    height?: number
-    bytes?: number
-    duration?: number
-}> {
-    const form = new FormData()
-    form.append("file", file)
-    form.append("api_key", sig.api_key)
-    form.append("timestamp", String(sig.timestamp))
-    form.append("signature", sig.signature)
-    form.append("folder", sig.folder)
-    form.append("public_id", sig.public_id)
-    form.append("overwrite", sig.overwrite)
-
-    return new Promise((resolve, reject) => {
-        if (signal?.aborted) {
-            reject(new Error(UPLOAD_CANCELLED))
-            return
-        }
-
-        const xhr = new XMLHttpRequest()
-
-        const onCancel = () => xhr.abort()
-        signal?.addEventListener("abort", onCancel, { once: true })
-        const cleanupSignal = () =>
-            signal?.removeEventListener("abort", onCancel)
-
-        xhr.upload.addEventListener("progress", (e) => {
-            if (e.lengthComputable) onProgress?.(e.loaded, e.total)
-        })
-
-        xhr.addEventListener("loadend", cleanupSignal)
-
-        xhr.addEventListener("load", () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                // A throw in here would escape the executor and leave this
-                // promise permanently unsettled — the bubble would sit at 99%
-                // forever with no error.
-                try {
-                    const data = JSON.parse(xhr.responseText)
-                    resolve({
-                        secure_url: data.secure_url,
-                        public_id: data.public_id,
-                        width: data.width,
-                        height: data.height,
-                        bytes: data.bytes,
-                        duration: data.duration,
-                    })
-                } catch {
-                    reject(new Error("Upload response was not readable"))
-                }
-            } else {
-                reject(new Error("Upload failed"))
-            }
-        })
-
-        xhr.addEventListener("error", () => reject(new Error("Network error")))
-        xhr.addEventListener("abort", () => reject(new Error(UPLOAD_CANCELLED)))
-        xhr.addEventListener("timeout", () => reject(new Error("Upload timed out")))
-
-        xhr.open("POST", sig.upload_url)
-        // Videos are uploaded uncompressed over mobile data; generous, but never
-        // unbounded — an unbounded request can hang the bubble indefinitely.
-        xhr.timeout = 10 * 60 * 1000
-        xhr.send(form)
-    })
-}
+/**
+ * Thrown when the user cancels — callers use this to stay silent. Re-exported
+ * from the shared uploader so `putToR2`'s abort and this are the same sentinel.
+ */
+export const UPLOAD_CANCELLED = SHARED_UPLOAD_CANCELLED
 
 // ── Public: compress → sign → upload one chat image ───────────
 
 /**
- * Compresses `file`, gets a chat-scoped signature (the active actor's chat
- * folder — the axios interceptor attaches X-Actor headers, so acting as an org
- * signs into chat/organizations/…), and direct-uploads to Cloudinary.
- * width/height/bytes come from Cloudinary's response — authoritative, no extra
- * decode.
+ * Compresses `file`, asks for a chat-scoped presigned batch (the active actor's
+ * chat folder — the axios interceptor attaches X-Actor headers, so acting as an
+ * org signs into chat/organizations/…), and PUTs the bytes straight to storage.
+ *
+ * TWO objects go up, not one: the full image and a 640px thumb. The bubble
+ * loads the thumb, which used to be a Cloudinary URL transform of the original
+ * — R2 serves objects verbatim, so a small copy has to actually exist.
+ *
+ * width/height/bytes are measured here. The upload response is empty now, so
+ * there is nothing authoritative to read them back from.
  */
 export async function uploadChatImage(
     file: File,
@@ -322,31 +285,43 @@ export async function uploadChatImage(
     const compressed = await imageCompression(file, CHAT_IMAGE_COMPRESSION)
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    const res = await getUploadSignatureApi("chat", 1)
-    const sig = res.uploads?.[0]
-    if (!sig) throw new Error("Upload config missing")
+    const thumb = await makeThumb(compressed)
+    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    const uploaded = await uploadWithProgress(
-        new File([compressed], file.name, { type: compressed.type }),
-        sig,
-        onProgress,
-        signal
-    )
+    const dims = await getBlobDimensions(compressed)
+
+    // One request for both objects: same order in, same order out, and the
+    // server's pairing rules are checked once instead of twice.
+    const res = await getUploadConfigApi("chat", [
+        describeBlob(compressed, "image"),
+        describeBlob(thumb, "thumb"),
+    ])
+
+    const [fullEntry, thumbEntry] = res.uploads ?? []
+    if (!fullEntry || !thumbEntry) throw new Error("Upload config missing")
+
+    // The full image owns the progress bar — the thumb is tens of KB and would
+    // only make the bar jump backwards when it starts.
+    await putToR2(compressed, fullEntry, onProgress as UploadProgress, signal)
+    await putToR2(thumb, thumbEntry, undefined, signal)
 
     return {
-        media_url: uploaded.secure_url,
-        media_public_id: uploaded.public_id,
-        width: uploaded.width,
-        height: uploaded.height,
-        size_bytes: uploaded.bytes,
+        media_url: fullEntry.public_url,
+        media_public_id: fullEntry.key,
+        thumbnail_url: thumbEntry.public_url,
+        width: dims.width || undefined,
+        height: dims.height || undefined,
+        size_bytes: compressed.size,
     }
 }
 
 /**
- * Direct-upload a chat video (no client compression — videos are uploaded
- * as-is, Cloudinary transcodes on delivery). duration/width/height/bytes come
- * from Cloudinary's response. `localDurationSec` is a fallback if Cloudinary
- * omits duration for the raw upload.
+ * Encode the clip, capture its poster, and PUT both into one presigned batch.
+ *
+ * The poster is mandatory here: the send endpoint requires `thumbnail_url` for
+ * a video and checks it shares the video's folder — which one config request
+ * guarantees. `localDurationSec` is what the composer already probed off the
+ * ORIGINAL; the encoder's own measurement wins when it has one.
  */
 export async function uploadChatVideo(
     file: File,
@@ -354,21 +329,50 @@ export async function uploadChatVideo(
     localDurationSec?: number,
     signal?: AbortSignal
 ): Promise<ChatVideoUploadResult> {
-    const res = await getUploadSignatureApi("chat", 1)
-    const sig = res.uploads?.[0]
-    if (!sig) throw new Error("Upload config missing")
+    // One bar: encode 0→70%, upload 70→100% — same split as posts and highlights.
+    const { onEncode, onUpload } = videoProgressSplit((fraction, phase) =>
+        onProgress?.(fraction * 100, 100, phase)
+    )
 
-    const uploaded = await uploadWithProgress(file, sig, onProgress, signal)
+    const encoded = await encodeVideo(file, {
+        maxBytes: MAX_CHAT_VIDEO_MB * 1024 * 1024,
+        onProgress: onEncode,
+        signal,
+    })
 
-    const durationSec = uploaded.duration ?? localDurationSec
+    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
+
+    // From the ENCODED blob — it is H.264/MP4, which every browser can decode a
+    // frame out of. A raw HEVC .mov is exactly what one may refuse to open.
+    const poster = await capturePoster(encoded.blob, { mode: "feed" })
+
+    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
+
+    const res = await getUploadConfigApi("chat", [
+        describeVideo(encoded.blob),
+        describeBlob(poster, "thumb"),
+    ])
+
+    const [videoEntry, posterEntry] = res.uploads ?? []
+    if (!videoEntry || !posterEntry) throw new Error("Upload config missing")
+
+    // The clip owns the progress bar; the poster is a few tens of KB.
+    await putToR2(encoded.blob, videoEntry, onUpload as UploadProgress, signal)
+    await putToR2(poster, posterEntry, undefined, signal)
+
+    const durationSec = encoded.duration || localDurationSec
+
     return {
-        media_url: uploaded.secure_url,
-        media_public_id: uploaded.public_id,
-        width: uploaded.width,
-        height: uploaded.height,
-        size_bytes: uploaded.bytes,
+        media_url: videoEntry.public_url,
+        media_public_id: videoEntry.key,
+        thumbnail_url: posterEntry.public_url,
+        width: encoded.width || undefined,
+        height: encoded.height || undefined,
+        size_bytes: encoded.blob.size,
         duration_ms:
-            durationSec != null ? Math.round(durationSec * 1000) : undefined,
+            durationSec != null && durationSec > 0
+                ? Math.round(durationSec * 1000)
+                : undefined,
     }
 }
 
@@ -381,19 +385,4 @@ export function formatDuration(totalSeconds: number): string {
     const m = Math.floor(s / 60)
     const sec = s % 60
     return `${m}:${sec.toString().padStart(2, "0")}`
-}
-
-// ── Cloudinary sized-thumbnail transform ──────────────────────
-
-/**
- * Insert a transformation so the bubble loads a sized, auto-format derivative
- * instead of the full original. Falls back to the original URL if the shape is
- * unexpected.
- */
-export function cloudinaryThumb(url: string, width = 640): string {
-    if (!url || !url.includes("/upload/")) return url
-    return url.replace(
-        "/upload/",
-        `/upload/c_limit,w_${width},q_auto,f_auto/`
-    )
 }

@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
+import { Toaster } from "sonner"
 
 import { useHighlightUpload } from "../../hooks/useHighlightUpload"
 import {
@@ -26,6 +27,7 @@ import {
     type HighlightVideoMeta,
 } from "../../services/highlightUpload.service"
 import { VIDEO_ACCEPT } from "@/shared/constants/media"
+import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
 import { HIGHLIGHT_VISIBILITIES, type HighlightVisibility } from "../../types"
 import { VISIBILITY_META, formatClipDuration } from "../../visibilityMeta"
 import styles from "./AddHighlightModal.module.css"
@@ -199,7 +201,11 @@ export default function AddHighlightModal({
             ? "Checking clip…"
             : upload.status === "saving"
               ? "Finishing up…"
-              : `Uploading… ${upload.progress}%`
+              // The encode is the first 70% of the bar and the slower half on a
+              // phone — labelling it "Uploading" reads as a stall.
+              : upload.optimizing
+                ? `${OPTIMIZING_LABEL} ${upload.progress}%`
+                : `Uploading… ${upload.progress}%`
 
     return createPortal(
         <div
@@ -211,6 +217,11 @@ export default function AddHighlightModal({
                 if (e.target === e.currentTarget && !isBusy) onClose()
             }}
         >
+            {/* Sonner has no global <Toaster /> — the app-wide toast system is
+                ToastProvider. Mounted here because useHighlightUpload reports
+                every failure (unsupported format, too long, network) through
+                sonner, and without this they are silent no-ops. */}
+            <Toaster position="top-center" richColors />
             <div className={styles.modal}>
                 {/* ── Header ── */}
                 <header className={styles.header}>

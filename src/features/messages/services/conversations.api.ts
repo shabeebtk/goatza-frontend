@@ -378,6 +378,12 @@ export const getMessagesApi = async (
 export type SendImageMessagePayload = {
     media_url: string
     media_public_id: string
+    /**
+     * The 640px copy uploaded alongside the full image. Optional for an image,
+     * required by the server for a video — nothing derives a poster frame
+     * server-side any more.
+     */
+    thumbnail_url?: string
     width?: number
     height?: number
     size_bytes?: number

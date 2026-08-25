@@ -2,7 +2,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import imageCompression from "browser-image-compression"
 
 import api from "@/core/api/axios"
-import { getUploadSignatureApi, uploadToCloudinaryApi, UploadType } from "@/features/profile/services/upload.api"
+import type { UploadType } from "@/features/profile/services/upload.api"
+import {
+  describeBlob,
+  getUploadConfigApi,
+  putToR2,
+  withCacheBust,
+} from "@/shared/services/mediaUpload"
 import { orgKeys } from "./useOrganizations"
 
 // ── Types ────────────────────────────────────────────────────
@@ -36,11 +42,19 @@ type OrgMediaPayload =
   | { is_delete_logo: true }
   | { is_delete_cover: true }
 
+/**
+ * Returns the stored URL when the endpoint reports one (it may come back with a
+ * ?v= cache-buster, which must be surfaced as-is), otherwise undefined.
+ */
 const updateOrgMediaApi = async (
   orgId: string,
   payload: OrgMediaPayload
-): Promise<void> => {
-  await api.post(`/organizations/update/logo/cover`, { org_id: orgId, ...payload })
+): Promise<string | undefined> => {
+  const res = await api.post(`/organizations/update/logo/cover`, { org_id: orgId, ...payload })
+  const data = res.data?.data
+  if (!data || typeof data !== "object") return undefined
+  const url = "logo" in payload ? data.logo : data.cover_image
+  return typeof url === "string" && url ? url : undefined
 }
 
 // ── Hook ─────────────────────────────────────────────────────
@@ -57,17 +71,36 @@ export const useOrgPhotoUpload = (orgId: string) => {
 
       if (file.size > 5 * 1024 * 1024) throw new Error("File must be under 5 MB")
 
-      const compressed           = await imageCompression(file, COMPRESSION_OPTIONS)
-      const sig                  = await getUploadSignatureApi(UPLOAD_TYPE_MAP[type])
-      const { secure_url, public_id } = await uploadToCloudinaryApi(compressed, sig.uploads[0])
+      const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
+
+      // org_id is passed explicitly: a user acting personally can still upload
+      // for an org they belong to, and it is what scopes the key to that org.
+      const res = await getUploadConfigApi(
+        UPLOAD_TYPE_MAP[type],
+        [describeBlob(compressed)],
+        orgId
+      )
+      const entry = res.uploads[0]
+      if (!entry) throw new Error("Couldn't start the upload. Try again.")
+
+      await putToR2(compressed, entry)
+
+      // logo/cover are fixed keys overwritten in place, so the stored URL never
+      // changes — the server stamps its own ?v= on it. `entry.key` is the bare
+      // key the *_public_id column wants.
+      const secure_url = entry.public_url
+      const public_id = entry.key
 
       const payload: OrgMediaPayload =
         type === "logo"
           ? { logo: secure_url, logo_public_id: public_id }
           : { cover_image: secure_url, cover_image_public_id: public_id }
 
-      await updateOrgMediaApi(orgId, payload)
-      return { type, secure_url }
+      const saved = await updateOrgMediaApi(orgId, payload)
+
+      // Surface the server's cache-busted URL when it sends one back; it does
+      // not today, so stamp our own so the switcher logo repaints immediately.
+      return { type, secure_url: saved ?? withCacheBust(secure_url) }
     },
 
     onSuccess: ({ type, secure_url }) => {

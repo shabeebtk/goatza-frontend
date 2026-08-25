@@ -25,7 +25,7 @@ import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
-import { videoDeliveryUrl, videoPosterUrl } from "@/shared/services/cloudinaryDelivery"
+import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
@@ -160,7 +160,7 @@ function DetailMediaCarousel({ media }: { media: RecruitmentMedia[] }) {
           <video
             key={current.id}
             ref={videoRef}
-            src={videoDeliveryUrl(current.file_url)}
+            src={videoSrc(current)}
             className={`${styles.mediaAsset} ${loaded ? styles.mediaLoaded : ""}`}
             controls
             playsInline
@@ -169,7 +169,7 @@ function DetailMediaCarousel({ media }: { media: RecruitmentMedia[] }) {
             // the property after mount.
             muted
             onVolumeChange={onVolumeChange}
-            poster={current.thumbnail_url ? videoPosterUrl(current.thumbnail_url) : undefined}
+            poster={posterSrc(current) || undefined}
             // Not `canplay`: it can fire before a frame is composited, which
             // fades the element in over black. This player doesn't autoplay, so
             // `playing` alone would keep it hidden until the user hits play —
