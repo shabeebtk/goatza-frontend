@@ -1,12 +1,12 @@
 /**
- * Direct upload for a highlight clip: validate → sign → upload to Cloudinary →
+ * Direct upload for a highlight clip: validate → encode → sign → upload →
  * hand back exactly the fields `POST /highlights/` wants.
  *
  * No new media plumbing (HIGHLIGHTS_SPEC.md §2): the signature comes from the
  * existing `/user/get/upload/signature` endpoint. It has no `highlights` type
- * yet, so clips are signed as `posts` — the same user-scoped Cloudinary folder
- * the player's post videos use. Add a dedicated `highlights` type to
- * `ALLOWED_TYPES` server-side if you want them stored apart.
+ * yet, so clips are signed as `posts` — the same user-scoped folder the
+ * player's post videos use. Add a dedicated `highlights` type server-side if
+ * you want them stored apart.
  *
  * The video probe (`getVideoMeta`) and the cancellation sentinel are reused from
  * the chat uploader rather than written a third time — that probe carries real
@@ -55,8 +55,8 @@ export const MAX_HIGHLIGHT_MB = 40
 export const MAX_RAW_HIGHLIGHT_MB = 300
 
 /**
- * What browsers + Cloudinary both handle reliably. Shared with posts and the
- * file pickers — see `@/shared/constants/media`.
+ * What the picker accepts. Shared with posts — see
+ * `@/shared/constants/media`. A .mov is encoded to MP4 before upload.
  */
 const HIGHLIGHT_VIDEO_EXTENSIONS = VIDEO_EXTENSIONS
 
@@ -70,7 +70,7 @@ export type HighlightUploadResult = {
     file_url: string
     public_id: string
     thumbnail_url: string
-    /** Seconds, from Cloudinary (authoritative) or the local probe. */
+    /** Seconds, from the encoder (authoritative) or the local probe. */
     duration?: number
     width?: number
     height?: number

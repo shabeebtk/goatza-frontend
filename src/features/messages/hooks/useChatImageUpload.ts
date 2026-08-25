@@ -49,7 +49,7 @@ type Job = {
     durationSec?: number   // video fallback duration
     /** The optimistic row, kept so it can be restored if a refetch wipes it. */
     optimistic?: OptimisticMedia
-    /** Aborts the in-flight Cloudinary upload when the user cancels. */
+    /** Aborts the in-flight upload when the user cancels. */
     controller?: AbortController
 }
 

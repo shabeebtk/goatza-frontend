@@ -39,13 +39,6 @@ const nextConfig = {
         protocol: "https",
         hostname: mediaHost(),
       },
-      // TODO(cleanup-stage): drop this once no row still points at Cloudinary.
-      // Media uploaded before the R2 migration is still served from here, and
-      // removing the pattern would break every one of those images.
-      {
-        protocol: "https",
-        hostname: "res.cloudinary.com",
-      },
     ],
   },
   typescript: {

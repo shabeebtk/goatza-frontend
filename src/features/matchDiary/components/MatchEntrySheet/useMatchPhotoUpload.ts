@@ -35,7 +35,7 @@ export type SettledMatchPhoto = {
 
 export type MatchPhotoUpload = {
     status: MatchPhotoStatus
-    /** Object URL while uploading, the Cloudinary URL once it lands. */
+    /** Object URL while uploading, the hosted URL once it lands. */
     previewUrl: string | null
     error: string | null
     /**

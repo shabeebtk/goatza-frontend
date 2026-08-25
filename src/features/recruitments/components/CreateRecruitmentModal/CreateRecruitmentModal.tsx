@@ -1541,7 +1541,7 @@ export default function CreateRecruitmentModal({
         setMediaEntries(prev => {
             const e = prev.find(x => x.id === id)
             // Only object URLs from local files need revoking; existing media
-            // uses remote Cloudinary URLs.
+            // uses remote media-domain URLs.
             if (e && e.preview.startsWith("blob:")) URL.revokeObjectURL(e.preview)
             return prev.filter(x => x.id !== id)
         })

@@ -1,15 +1,13 @@
 /**
  * Presigned direct uploads to Cloudflare R2.
  *
- * The shape of an upload changed with the provider. Cloudinary took a signed
- * multipart POST and decided the final path itself, then told us where it put
- * the file. R2 decides nothing: the backend picks the object key, signs a PUT
- * bound to that exact key AND content type, and the browser streams the raw
- * bytes there. Two consequences run through every caller:
+ * R2 decides nothing about where a file goes: the backend picks the object key,
+ * signs a PUT bound to that exact key AND content type, and the browser streams
+ * the raw bytes there. Two consequences run through every caller:
  *
  *   1. The response is empty. There is no JSON to parse and nothing to learn
  *      from the upload — `public_url` and `key` are known BEFORE the bytes move,
- *      handed to us in the config. Anything Cloudinary used to report back
+ *      handed to us in the config. Anything a provider used to report back
  *      (width, height, bytes, duration) is now the client's job to measure.
  *   2. The Content-Type header is signed in. Sending anything other than
  *      `entry.headers["Content-Type"]` fails the signature check, so the header
@@ -110,9 +108,8 @@ export function describeBlob(
 // ── Step 1: ask the backend to sign the batch ─────────────────
 
 /**
- * POST to the same endpoint the old `getUploadSignatureApi` used — the axios
- * instance attaches the JWT and the X-Actor-Type / X-Actor-Id headers exactly
- * as before, so acting as an org still scopes the keys to that org.
+ * The axios instance attaches the JWT and the X-Actor-Type / X-Actor-Id
+ * headers, so acting as an org scopes the keys to that org.
  *
  * `orgId` is only for org-scoped types; it mirrors the old `org_id` query
  * param and lets a user acting personally upload for an org they belong to.

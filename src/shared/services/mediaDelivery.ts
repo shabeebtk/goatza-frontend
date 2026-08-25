@@ -1,16 +1,16 @@
 /**
  * Where to point an <img> or a <video>.
  *
- * This file replaces the old Cloudinary delivery layer, and is deliberately
+ * This file replaced a delivery layer that rewrote every URL, and is deliberately
  * almost empty. That is the point of the migration: the database now stores
  * FINAL, directly-playable URLs. `file_url` / `media_url` IS the object to
  * render, and `thumbnail_url` is a real second object sitting next to it — a
  * 640px WebP for images, a poster frame for videos.
  *
- * The old layer existed because Cloudinary stored the raw original: a 4K HEVC
+ * That layer existed because the provider stored the raw original: a 4K HEVC
  * clip straight off a phone, unplayable on half the devices in the app, so
- * every URL had to be rewritten into a `c_limit,q_auto,vc_h264` derivative
- * before it could be handed to a player. Nothing is stored raw any more —
+ * every URL had to be rewritten into a capped H.264 derivative before it could
+ * be handed to a player. Nothing is stored raw any more —
  * images are compressed client-side before upload, videos will be encoded
  * client-side when they come back — so there is nothing left to rewrite. These
  * helpers pick a field. They do not transform, and they must not start to.
@@ -46,9 +46,9 @@ export type MediaLike = {
  * This is a guarantee, not an accident, and it is load-bearing: the create and
  * edit modals hand their <video> and <img> a local object URL for the file the
  * user just picked, before anything has been uploaded. The old layer preserved
- * this by explicitly refusing to rewrite anything that did not look like a
- * Cloudinary URL. Here it holds because these helpers only ever READ a field
- * and hand back exactly what they found.
+ * this by explicitly refusing to rewrite anything it did not recognise. Here it
+ * holds because these helpers only ever READ a field and hand back exactly what
+ * they found.
  *
  * If a transformation is ever reintroduced in this file, it MUST skip these two
  * schemes — see `isLocalPreview`.
@@ -110,9 +110,9 @@ export function thumbSrc(
 /**
  * The adaptive-streaming manifest — always "".
  *
- * HLS is parked, not deleted. It was a Cloudinary streaming profile (`sp_hd`),
- * which has no R2 equivalent: adaptive streaming needs a rendition ladder built
- * by something, and nothing builds one now.
+ * HLS is parked, not deleted. It was a provider-side streaming profile, and it
+ * has no equivalent here: adaptive streaming needs a rendition ladder built by
+ * something, and nothing builds one now.
  *
  * `useAdaptiveVideo` already treats an empty `hlsSrc` as "mp4 only" and returns
  * BEFORE it even imports hls.js, so every caller keeps working unchanged and no

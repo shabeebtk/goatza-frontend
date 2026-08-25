@@ -22,7 +22,7 @@ vi.mock("@iconify/react", () => ({
 
 afterEach(cleanup)
 
-const IMAGE = "https://res.cloudinary.com/demo/image/upload/v1/certificate.jpg"
+const IMAGE = "https://media.goatza.test/users/u1/achievements/certificate.webp"
 
 const achievement = (overrides: Partial<Achievement> = {}): Achievement => ({
     id: "a1",

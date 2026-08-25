@@ -264,7 +264,7 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 // and prepending it then showed BOTH the still-uploading bubble
                 // and the finished one until reconcile caught up. The upload hook
                 // stamps `pendingMediaUrl` on its optimistic row as soon as
-                // Cloudinary returns, so the echo can be matched to it exactly
+                // the upload finishes, so the echo can be matched to it exactly
                 // and swapped in place instead.
                 const mediaIdx =
                     (incomingType === "image" || incomingType === "video") &&

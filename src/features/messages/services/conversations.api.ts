@@ -371,7 +371,7 @@ export const getMessagesApi = async (
 // ── Photo messages ────────────────────────────────────────────
 
 /**
- * The image is already on Cloudinary (signed direct upload). This just records
+ * The image is already in storage (presigned direct upload). This just records
  * the message; the backend re-validates the URL belongs to us + the sender's
  * chat folder before trusting it.
  */

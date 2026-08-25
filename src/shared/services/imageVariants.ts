@@ -1,8 +1,8 @@
 /**
  * Derived copies of an image the client is about to upload.
  *
- * Cloudinary used to make these on delivery — a URL transform produced any size
- * we asked for. R2 serves objects verbatim, so a small copy has to be a real
+ * These used to be made on delivery — a URL transform produced any size we
+ * asked for. Objects are served verbatim now, so a small copy has to be a real
  * second object, made here and uploaded alongside the full one.
  */
 
@@ -55,7 +55,7 @@ export async function makeThumb(fullBlob: Blob): Promise<File> {
  * Intrinsic pixel size of an image blob.
  *
  * The backend stopped reading dimensions off the provider when it stopped being
- * Cloudinary, so the client is now the only source. Without them a feed tile
+ * the provider, so the client is now the only source. Without them a feed tile
  * has no aspect ratio to reserve and the timeline reflows as each image lands.
  *
  * Best-effort by design: resolves to zeros rather than rejecting, so a browser

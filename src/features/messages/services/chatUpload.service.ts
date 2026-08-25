@@ -255,7 +255,7 @@ export function captureVideoThumbnail(file: File): Promise<string> {
     })
 }
 
-// ── Direct upload to Cloudinary with XHR progress ─────────────
+// ── Direct upload with XHR progress ───────────────────────────
 
 /**
  * Thrown when the user cancels — callers use this to stay silent. Re-exported
@@ -271,7 +271,7 @@ export const UPLOAD_CANCELLED = SHARED_UPLOAD_CANCELLED
  * org signs into chat/organizations/…), and PUTs the bytes straight to storage.
  *
  * TWO objects go up, not one: the full image and a 640px thumb. The bubble
- * loads the thumb, which used to be a Cloudinary URL transform of the original
+ * loads the thumb, which used to be a URL transform of the original
  * — R2 serves objects verbatim, so a small copy has to actually exist.
  *
  * width/height/bytes are measured here. The upload response is empty now, so

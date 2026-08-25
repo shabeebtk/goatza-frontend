@@ -26,7 +26,7 @@ export type PostMediaPayload = {
   duration?: number          // seconds, video only
   /**
    * Measured client-side. The server stopped reading these off the provider
-   * when it stopped being Cloudinary, so it is the client or nothing.
+   * off the storage provider, so it is the client or nothing.
    */
   width?: number
   height?: number

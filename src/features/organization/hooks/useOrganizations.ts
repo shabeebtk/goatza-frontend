@@ -84,13 +84,13 @@ export const useOrgDetail = (
 //   2. If logoFile provided:
 //        a. compress
 //        b. GET signature (with org_id so backend scopes the folder)
-//        c. upload to Cloudinary
+//        c. upload to storage
 //        d. PATCH /organizations/update/logo/cover?org_id=…
 //   3. Invalidate queries → redirect
 
 export type CreateOrgInput = {
   payload:   CreateOrganizationPayload
-  logoFile?: File | null     // raw File from the local preview, no Cloudinary yet
+  logoFile?: File | null     // raw File from the local preview, not uploaded yet
 }
 
 export const useCreateOrganization = () => {

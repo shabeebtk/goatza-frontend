@@ -5,10 +5,10 @@
  * WHY THIS EXISTS AT ALL
  *
  * R2 does no server-side transcoding: the file that is uploaded is byte-for-byte
- * the file every viewer downloads. Cloudinary used to absorb this — a 4K HEVC
- * .mov straight off an iPhone was re-delivered as capped H.264 — and it is gone.
- * An unencoded phone recording would now upload in full and then fail to play
- * for most of the people it was posted for. So the browser encodes first.
+ * the file every viewer downloads. Nothing transcodes it on the way in or out,
+ * so an unencoded phone recording — a 4K HEVC .mov straight off an iPhone —
+ * would upload in full and then fail to play for most of the people it was
+ * posted for. So the browser encodes first.
  *
  * ─────────────────────────────────────────────────────────────
  * WHY MEDIABUNNY, AND NOT @remotion/webcodecs
@@ -72,7 +72,7 @@ const KEYFRAME_INTERVAL = 2
 const POSTER_QUALITY = 0.82
 const POSTER_MAX_DIMENSION = 1280
 
-/** The highlight rail tile: 9:16, matching the old so_0,c_fill,w_360,h_640. */
+/** The highlight rail tile: 9:16. */
 const HIGHLIGHT_POSTER_WIDTH = 360
 const HIGHLIGHT_POSTER_HEIGHT = 640
 
@@ -395,9 +395,8 @@ export type PosterMode = "feed" | "highlight"
 /**
  * Grab a poster frame as WebP.
  *
- * Nothing generates poster frames server-side any more (Cloudinary's `so_0`
- * transform went with the provider), and the attach endpoints REQUIRE a
- * thumbnail for every video — so this is not decoration, it is a required part
+ * Nothing generates poster frames server-side, and the attach endpoints REQUIRE
+ * a thumbnail for every video — so this is not decoration, it is a required part
  * of the upload.
  *
  * Seeks to ~0s and falls back to whatever frame is decodable: frame 0 of a
@@ -405,8 +404,7 @@ export type PosterMode = "feed" | "highlight"
  * blob-sourced <video> can refuse to seek at all.
  *
  * - `feed`      — intrinsic aspect, longest side ≤1280.
- * - `highlight` — 9:16 cover-crop at 360×640, replicating the rail tile the old
- *                 `so_0,f_jpg,q_auto,c_fill,w_360,h_640` transform produced.
+ * - `highlight` — 9:16 cover-crop at 360×640, the shape the rail tile expects.
  */
 export function capturePoster(
     source: Blob,
@@ -469,7 +467,7 @@ export function capturePoster(
 
                 if (mode === "highlight") {
                     // Cover-crop to 9:16: scale so the box is filled, then
-                    // centre what overflows — same result as Cloudinary c_fill.
+                    // centre what overflows — a cover-crop, not a letterbox.
                     canvas.width = HIGHLIGHT_POSTER_WIDTH
                     canvas.height = HIGHLIGHT_POSTER_HEIGHT
 

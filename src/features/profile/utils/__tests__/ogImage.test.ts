@@ -2,9 +2,9 @@
  * The share-card seam.
  *
  * A user profile's OG image is now the generated card; an organization's is
- * still the Cloudinary transform, because org cards are a different job and
- * deliberately not built. What these pin is that the swap happened and that it
- * did not take the org path with it.
+ * still its logo URL, because org cards are a different job and deliberately
+ * not built. What these pin is that the swap happened and that it did not take
+ * the org path with it.
  */
 
 import { describe, expect, it } from "vitest"
@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest"
 import { buildProfileOgImageUrl } from "../ogImage"
 
 const ORIGIN = "https://goatza.com"
-const CLOUDINARY = "https://res.cloudinary.com/goatza/image/upload/v1/logo.jpg"
+const LOGO_URL = "https://media.goatza.test/organizations/o1/logo.webp"
 
 const user = (overrides = {}) => ({
   username: "aravind10",
@@ -24,7 +24,7 @@ const user = (overrides = {}) => ({
 
 const org = (overrides = {}) => ({
   username: "calicutfc",
-  logo: CLOUDINARY,
+  logo: LOGO_URL,
   cover_image: "",
   ...overrides,
 })
@@ -66,12 +66,14 @@ describe("a user profile", () => {
 })
 
 describe("an organization", () => {
-  it("keeps the Cloudinary transform — orgs have no generated card", () => {
+  it("shares the logo as-is — orgs have no generated card", () => {
     const url = buildProfileOgImageUrl(org(), ORIGIN)
 
     expect(url).not.toContain("/card/")
-    expect(url).toContain("res.cloudinary.com")
-    expect(url).toContain("c_fill,w_1200,h_630")
+    // The stored URL is already a final, directly-fetchable image: there is no
+    // transform to inject any more, and every platform crops what it is given
+    // to its own preview shape.
+    expect(url).toBe(LOGO_URL)
   })
 
   it("is routed by the SHAPE of the payload, not by whether a logo was uploaded", () => {

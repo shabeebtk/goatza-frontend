@@ -31,7 +31,7 @@ export type MediaUploadResult = {
     duration?: number         // video: seconds
     /**
      * Measured client-side. The server stopped reading dimensions off the
-     * provider when it stopped being Cloudinary, and without them a feed tile
+     * provider, and without them a feed tile
      * has no aspect ratio to reserve.
      */
     width?: number

@@ -9,7 +9,7 @@
  * inline and hands back a URL the parent writes into the form.
  *
  * The upload runs on confirm-crop rather than on form submit. That means
- * cancelling the modal after picking an image leaves an orphan in Cloudinary —
+ * cancelling the modal after picking an image leaves an orphan in storage —
  * the same trade CreatePostModal makes, and the alternative (holding the blob
  * until submit) means the owner cannot see what they picked.
  */

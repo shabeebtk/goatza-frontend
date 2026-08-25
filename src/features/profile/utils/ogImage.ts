@@ -33,7 +33,7 @@ const FALLBACK_PATH = "/icons/icon-512.png"
  * Is this something a scraper can actually fetch?
  *
  * Any absolute http(s) URL qualifies — the media domain, the r2.dev URL a dev
- * environment uses, and Cloudinary URLs on rows that predate the migration.
+ * environment uses, and any other absolute URL our API hands back.
  * There is no host allow-list on purpose: the value comes from our own API, and
  * the previous single-provider check silently sent every org whose logo lives
  * anywhere else (i.e. every org after the migration) to the fallback icon.
