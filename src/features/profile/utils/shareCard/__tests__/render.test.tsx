@@ -7,7 +7,7 @@
  * A tree assertion would pass on all three.
  *
  * Network is stubbed: Satori fetches every image URL inside the render, and a
- * test that reached Cloudinary would be slow and flaky. The stub returns a real
+ * test that reached the network would be slow and flaky. The stub returns a real
  * 1×1 PNG so the image path is genuinely exercised.
  */
 
@@ -31,7 +31,7 @@ const realFetch = globalThis.fetch
 beforeAll(() => {
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input)
-    if (url.includes("res.cloudinary.com")) {
+    if (url.includes("media.goatza")) {
       return new Response(PIXEL, { headers: { "Content-Type": "image/png" } })
     }
     return realFetch(input as RequestInfo)

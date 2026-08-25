@@ -28,10 +28,11 @@ import { getPostAspectRatio } from "@/features/posts/utils/media"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import {
-    videoDeliveryUrl,
-    videoHlsUrl,
-    videoPosterUrl,
-} from "@/shared/services/cloudinaryDelivery"
+    hlsSrc,
+    posterSrc,
+    thumbSrc,
+    videoSrc,
+} from "@/shared/services/mediaDelivery"
 import styles from "./MediaCarousel.module.css"
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -299,8 +300,8 @@ function LightboxVideo({
 
     // Fullscreen buffers normally — no maxBufferLength. The hook owns video.src.
     useAdaptiveVideo(videoRef, {
-        hlsSrc: videoHlsUrl(item.file_url),
-        mp4Src: videoDeliveryUrl(item.file_url),
+        hlsSrc: hlsSrc(),
+        mp4Src: videoSrc(item),
     })
 
     const showControls = useCallback(() => {
@@ -385,11 +386,7 @@ function LightboxVideo({
                 // No src / no controls: useAdaptiveVideo attaches the source and
                 // the bar below replaces the browser's chrome.
                 className={`${styles.lightboxImg} ${styles.lightboxVideo}`}
-                poster={
-                    item.thumbnail_url
-                        ? videoPosterUrl(item.thumbnail_url)
-                        : undefined
-                }
+                poster={posterSrc(item) || undefined}
                 autoPlay
                 // BARE `muted`, never muted={muted}: the server-rendered
                 // markup and first client paint must always be muted, and
@@ -896,18 +893,16 @@ export default function MediaCarousel({ media, postId }: MediaCarouselProps) {
                         >
                             {item.media_type === "video" ? (
                                 <LazyVideo
-                                    src={videoDeliveryUrl(item.file_url)}
-                                    hlsSrc={videoHlsUrl(item.file_url)}
-                                    thumbnail={
-                                        item.thumbnail_url
-                                            ? videoPosterUrl(item.thumbnail_url)
-                                            : undefined
-                                    }
+                                    src={videoSrc(item)}
+                                    hlsSrc={hlsSrc()}
+                                    thumbnail={posterSrc(item) || undefined}
                                     duration={item.duration}
                                 />
                             ) : (
                                 <LazyImage
-                                    src={item.file_url}
+                                    // The 640px copy in the scrolling feed; the
+                                    // lightbox below loads the full object.
+                                    src={thumbSrc(item)}
                                     alt={`Media ${i + 1}`}
                                 />
                             )}

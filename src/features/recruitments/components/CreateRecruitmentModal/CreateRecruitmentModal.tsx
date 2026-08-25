@@ -7,10 +7,12 @@ import imageCompression from "browser-image-compression"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
+import { makeThumb } from "@/shared/services/imageVariants"
 import {
-    getUploadSignatureApi,
-    uploadToCloudinaryApi,
-} from "@/features/profile/services/upload.api"
+    describeBlob,
+    getUploadConfigApi,
+    putToR2,
+} from "@/shared/services/mediaUpload"
 import type { MapboxPlace } from "@/shared/services/mapbox.service"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import styles from "./CreateRecruitmentModal.module.css"
@@ -1539,7 +1541,7 @@ export default function CreateRecruitmentModal({
         setMediaEntries(prev => {
             const e = prev.find(x => x.id === id)
             // Only object URLs from local files need revoking; existing media
-            // uses remote Cloudinary URLs.
+            // uses remote media-domain URLs.
             if (e && e.preview.startsWith("blob:")) URL.revokeObjectURL(e.preview)
             return prev.filter(x => x.id !== id)
         })
@@ -1674,32 +1676,56 @@ export default function CreateRecruitmentModal({
             setPhase("uploading")
             setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "uploading", progress: 0 })))
             try {
-                const sigRes = await getUploadSignatureApi("recruitments", newEntries.length, orgId)
-                const uploads = sigRes.uploads
-                for (let i = 0; i < newEntries.length; i++) {
-                    const entry = newEntries[i]
+                // Compress + derive a thumb for every new entry FIRST, so the
+                // whole batch can be signed in one request: `temp_post_id`
+                // names one folder per request, and the server's same-folder
+                // rule binds a thumbnail to the image it posters.
+                const prepared: { entryId: string; full: File; thumb: File }[] = []
+                for (const entry of newEntries) {
                     const file = entry.file
                     if (!file) continue
-                    const sig = uploads[i]
+                    // Compress to WebP first — same sizes/formats the feed uses.
+                    const compressed = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
+                    const base = file.name.replace(/\.[^.]+$/, "") || "photo"
+                    const full = new File([compressed], `${base}.webp`, { type: compressed.type })
+                    prepared.push({ entryId: entry.id, full, thumb: await makeThumb(full) })
+                }
+
+                // files: [img0, thumb0, img1, thumb1, …] → image i at 2i.
+                const sigRes = await getUploadConfigApi(
+                    "recruitments",
+                    prepared.flatMap(p => [
+                        describeBlob(p.full, "image"),
+                        describeBlob(p.thumb, "thumb"),
+                    ]),
+                    orgId
+                )
+                const uploads = sigRes.uploads
+
+                for (let i = 0; i < prepared.length; i++) {
+                    const { entryId, full, thumb } = prepared[i]
+                    const fullEntry = uploads[i * 2]
+                    const thumbEntry = uploads[i * 2 + 1]
                     try {
-                        // Compress to WebP first — same sizes/formats the feed uses.
-                        const compressed = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
-                        const base = file.name.replace(/\.[^.]+$/, "") || "photo"
-                        const toUpload = new File([compressed], `${base}.webp`, { type: compressed.type })
-                        const result = await uploadToCloudinaryApi(toUpload, sig)
+                        if (!fullEntry || !thumbEntry) throw new Error("Upload config mismatch")
+
+                        await putToR2(full, fullEntry)
+                        await putToR2(thumb, thumbEntry)
+
                         const uploaded: UploadedMedia = {
-                            file_url: result.secure_url,
-                            public_id: result.public_id,
+                            file_url: fullEntry.public_url,
+                            public_id: fullEntry.key,
                             media_type: "image",
+                            thumbnail_url: thumbEntry.public_url,
                             order: 0,
                         }
-                        uploadedByEntryId.set(entry.id, uploaded)
+                        uploadedByEntryId.set(entryId, uploaded)
                         setMediaEntries(prev => prev.map(e =>
-                            e.id === entry.id ? { ...e, status: "done", progress: 100, result: uploaded } : e
+                            e.id === entryId ? { ...e, status: "done", progress: 100, result: uploaded } : e
                         ))
                     } catch (uploadErr) {
                         const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
-                        setMediaEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: "error", error: msg } : e))
+                        setMediaEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: "error", error: msg } : e))
                         throw new Error(msg)
                     }
                 }

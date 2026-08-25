@@ -25,7 +25,7 @@ vi.mock("@/features/profile/services/publicProfile.api", () => ({
 
 const { GET } = await import("./route")
 
-/** 1×1 transparent PNG, for the Cloudinary fetches Satori makes mid-render. */
+/** 1×1 transparent PNG, for the image fetches Satori makes mid-render. */
 const PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64"
@@ -49,7 +49,7 @@ beforeEach(() => {
   getPublicUserProfile.mockResolvedValue(bundle())
 
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-    if (String(input).includes("res.cloudinary.com")) {
+    if (String(input).includes("media.goatza")) {
       return new Response(PIXEL, { headers: { "Content-Type": "image/png" } })
     }
     throw new Error(`Unexpected fetch: ${input}`)

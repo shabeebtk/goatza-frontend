@@ -45,10 +45,19 @@ export type ChatMessage = {
     media_duration_ms?: number | null
     /** Optimistic-only: local object-URL preview shown while uploading. */
     localPreviewUrl?: string
-    /** Optimistic-only: 0–100 upload progress. */
+    /**
+     * Optimistic-only: 0–100 across the WHOLE operation. For a video the first
+     * 70% is the in-browser encode and the last 30% the upload.
+     */
     uploadProgress?: number
     /**
-     * Optimistic-only: the Cloudinary URL, stamped on as soon as the upload
+     * Optimistic-only: true while a video is being re-encoded, before any bytes
+     * move. The bubble labels this phase rather than showing a stalled
+     * "uploading" through the slower half.
+     */
+    optimizing?: boolean
+    /**
+     * Optimistic-only: the stored media URL, stamped on as soon as the upload
      * finishes but before our own POST returns. Used to match the websocket
      * echo of this very message to its optimistic row.
      */
@@ -255,7 +264,7 @@ export function useChatSocket(conversationId: string | null): UseChatSocketRetur
                 // and prepending it then showed BOTH the still-uploading bubble
                 // and the finished one until reconcile caught up. The upload hook
                 // stamps `pendingMediaUrl` on its optimistic row as soon as
-                // Cloudinary returns, so the echo can be matched to it exactly
+                // the upload finishes, so the echo can be matched to it exactly
                 // and swapped in place instead.
                 const mediaIdx =
                     (incomingType === "image" || incomingType === "video") &&

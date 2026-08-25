@@ -10,7 +10,7 @@
  * extension check is the one that actually decides.
  */
 
-/** Containers browsers + Cloudinary both handle reliably. AVI plays nowhere. */
+/** Containers the picker accepts. A .mov is encoded to MP4 before upload. */
 export const VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"])
 
 /** `accept` attribute matching {@link VIDEO_EXTENSIONS} (quicktime = .mov). */

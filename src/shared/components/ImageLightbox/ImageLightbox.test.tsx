@@ -23,7 +23,7 @@ vi.mock("@iconify/react", () => ({
 
 afterEach(cleanup)
 
-const SRC = "https://res.cloudinary.com/demo/image/upload/v1/trophy.jpg"
+const SRC = "https://media.goatza.test/users/u1/achievements/trophy.webp"
 
 describe("ImageLightbox", () => {
     it("is a modal dialog showing the image", () => {

@@ -2,7 +2,7 @@
  * Test config for the frontend.
  *
  * Node environment by DEFAULT, not jsdom. The bulk of what's under test is pure
- * (slot validation, the name ladder, Cloudinary transforms, eligibility) or
+ * (slot validation, the name ladder, media URL handling, eligibility) or
  * renders through Satori on the server, and paying jsdom's start-up for every
  * one of those files is a tax on the common case.
  *

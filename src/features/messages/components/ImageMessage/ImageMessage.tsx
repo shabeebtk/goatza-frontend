@@ -8,7 +8,7 @@ import { Icon } from "@iconify/react"
 // so it moved to shared/ — this file is now a caller, not its owner.
 import ImageLightbox from "@/shared/components/ImageLightbox/ImageLightbox"
 import type { ChatMessage } from "../../hooks/useChatSocket"
-import { cloudinaryThumb } from "../../services/chatUpload.service"
+import { thumbSrc } from "@/shared/services/mediaDelivery"
 // Space is reserved from intrinsic dimensions so the image never causes layout
 // shift while it loads. Shared with VideoMessage.
 import { displaySize } from "../../utils/mediaBox"
@@ -126,11 +126,13 @@ export default function ImageMessage({
 
     const { w, h, known } = displaySize(msg.media_width, msg.media_height)
 
-    // Optimistic → local object URL; server → a sized Cloudinary derivative
-    // (never the full original in the bubble). Full-res only in the viewer.
+    // Optimistic → local object URL (blob:, passed through verbatim). Server →
+    // the 640px thumb OBJECT uploaded alongside the full image, falling back to
+    // the full image for messages sent before thumbs existed.
+    // Full-res only in the viewer, never in the bubble.
     const bubbleSrc = isOptimistic
         ? msg.localPreviewUrl!
-        : cloudinaryThumb(msg.media_url || "", 640)
+        : thumbSrc(msg)
     const fullSrc = msg.media_url || msg.localPreviewUrl || ""
 
     const canOpen = !isOptimistic && !isFailed && Boolean(msg.media_url)

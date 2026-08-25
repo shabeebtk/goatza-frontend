@@ -4,7 +4,7 @@
  * HighlightsRail — the 9:16 thumbnail strip on a player's profile
  * (HIGHLIGHTS_SPEC.md §3).
  *
- * Images ONLY: the rail is a row of Cloudinary JPEGs, never <video> elements, so
+ * Images ONLY: the rail is a row of poster frames, never <video> elements, so
  * it paints as fast as any photo grid. Offscreen tiles lazy-load.
  *
  * Who sees what:
@@ -128,7 +128,7 @@ export default function HighlightsRail({
                     >
                         {clip.thumbnail_url ? (
                             // Plain <img>: the rail must load like images. next/image
-                            // isn't used anywhere for Cloudinary media in this app.
+                            // isn't used anywhere for stored media in this app.
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                                 src={clip.thumbnail_url}

@@ -2,7 +2,7 @@
  * The match diary's one photo: validate, compress, upload.
  *
  * Same three steps as every other image in the app — compress client-side,
- * ask the backend for a signature, go straight to Cloudinary — so a phone on a
+ * ask the backend for a presigned PUT, go straight to storage — so a phone on a
  * bus never pushes 8MB through the API. The signature type is `matches`, which
  * the backend scopes to `users/<id>/matches` and refuses to an organization
  * actor (`GetUploadConfigAPIView.ALLOWED_TYPES`).
@@ -12,7 +12,7 @@
  * of a match, not a separate save the player has to think about.
  *
  * The consequence, which posts and achievements already accept: uploading and
- * then abandoning the sheet leaves an orphan in Cloudinary. Holding the blob
+ * then abandoning the sheet leaves an orphan in storage. Holding the blob
  * until submit would avoid that, at the cost of making the player wait for the
  * upload after they press Save — which is the one moment they are least willing
  * to wait.
@@ -21,9 +21,10 @@
 import imageCompression from "browser-image-compression"
 
 import {
-    getUploadSignatureApi,
-    uploadToCloudinaryApi,
-} from "@/features/profile/services/upload.api"
+    describeBlob,
+    getUploadConfigApi,
+    putToR2,
+} from "@/shared/services/mediaUpload"
 
 export type UploadedMatchPhoto = {
     photo_url: string
@@ -76,18 +77,15 @@ export const uploadMatchPhoto = async (
 ): Promise<UploadedMatchPhoto> => {
     const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
 
-    const res = await getUploadSignatureApi("matches")
-    const signature = res.uploads[0]
+    const res = await getUploadConfigApi("matches", [describeBlob(compressed)])
+    const entry = res.uploads[0]
 
-    if (!signature) throw new Error("Couldn't start the upload. Try again.")
+    if (!entry) throw new Error("Couldn't start the upload. Try again.")
 
-    const uploaded = await uploadToCloudinaryApi(
-        new File([compressed], file.name, { type: compressed.type }),
-        signature
-    )
+    await putToR2(compressed, entry)
 
     return {
-        photo_url: uploaded.secure_url,
-        photo_public_id: uploaded.public_id,
+        photo_url: entry.public_url,
+        photo_public_id: entry.key,
     }
 }

@@ -97,7 +97,7 @@ export default function ImageLightbox({ src, alt, onClose }: ImageLightboxProps)
                 >
                     <Icon icon="mdi:close" width={24} height={24} />
                 </button>
-                {/* Plain <img>: the src is a Cloudinary URL on a remote host,
+                {/* Plain <img>: the src is on the media domain,
                     and next/image would need it in remotePatterns for no gain
                     on a full-bleed image that is already the right size. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}

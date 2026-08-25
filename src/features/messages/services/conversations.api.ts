@@ -371,13 +371,19 @@ export const getMessagesApi = async (
 // ── Photo messages ────────────────────────────────────────────
 
 /**
- * The image is already on Cloudinary (signed direct upload). This just records
+ * The image is already in storage (presigned direct upload). This just records
  * the message; the backend re-validates the URL belongs to us + the sender's
  * chat folder before trusting it.
  */
 export type SendImageMessagePayload = {
     media_url: string
     media_public_id: string
+    /**
+     * The 640px copy uploaded alongside the full image. Optional for an image,
+     * required by the server for a video — nothing derives a poster frame
+     * server-side any more.
+     */
+    thumbnail_url?: string
     width?: number
     height?: number
     size_bytes?: number

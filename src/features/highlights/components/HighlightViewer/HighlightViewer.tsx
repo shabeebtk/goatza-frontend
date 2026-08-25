@@ -20,8 +20,7 @@ import { toast } from "sonner"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
-import { videoHlsUrl } from "@/shared/services/cloudinaryDelivery"
-import { highlightVideoUrl } from "../../services/highlightUpload.service"
+import { hlsSrc, posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import { useDeleteHighlight } from "../../hooks/useHighlights"
 import { useHighlightViews } from "../../hooks/useHighlightViews"
 import { VISIBILITY_META } from "../../visibilityMeta"
@@ -107,24 +106,20 @@ export default function HighlightViewer({
     const clip: Highlight | undefined = clips[safeIndex]
     const nextClip: Highlight | undefined = clips[safeIndex + 1]
 
-    const videoSrc = useMemo(
-        () => (clip ? highlightVideoUrl(clip.file_url) : ""),
-        [clip]
-    )
+    // The stored object IS the clip that plays — nothing is transcoded on
+    // delivery any more, so this just reads the field.
+    const clipSrc = useMemo(() => (clip ? videoSrc(clip) : ""), [clip])
 
-    // Adaptive ladder for the active clip. Built from the RAW stored URL, not
-    // from videoSrc — a URL that already carries a transformation comes back
-    // unchanged, so chaining the two would just hand back the mp4.
-    const hlsSrc = useMemo(
-        () => (clip ? videoHlsUrl(clip.file_url) : ""),
-        [clip]
-    )
+    // Adaptive streaming is parked: `hlsSrc()` is always "", which
+    // useAdaptiveVideo reads as "mp4 only" and returns on before importing
+    // hls.js. Kept as a prop so re-enabling it later is a one-line change.
+    const clipHlsSrc = hlsSrc()
 
     // Owns video.src (hence no src attribute below): hls.js attaches through
     // MediaSource, which a React-controlled src would fight every render.
     const { canFallBackRef } = useAdaptiveVideo(videoRef, {
-        hlsSrc,
-        mp4Src: videoSrc,
+        hlsSrc: clipHlsSrc,
+        mp4Src: clipSrc,
     })
 
     // ── navigation ─────────────────────────────────────────────
@@ -234,7 +229,7 @@ export default function HighlightViewer({
 
     useEffect(() => {
         const video = videoRef.current
-        if (!video || !videoSrc) return
+        if (!video || !clipSrc) return
 
         // The property, before play() — the policy check reads it, and
         // useVideoSound's own effect may not have run for this element yet on
@@ -254,7 +249,7 @@ export default function HighlightViewer({
             reportBlocked()
             void video.play().catch(() => undefined)
         })
-    }, [videoSrc, paused, muted, applyMuted, reportBlocked])
+    }, [clipSrc, paused, muted, applyMuted, reportBlocked])
 
     // Count the view once the clip has actually stayed on screen.
     useEffect(() => {
@@ -266,9 +261,10 @@ export default function HighlightViewer({
     // Warm the next poster so the swipe has an image ready even before the
     // hidden <video> reports metadata.
     useEffect(() => {
-        if (!nextClip?.thumbnail_url) return
+        const nextPoster = posterSrc(nextClip)
+        if (!nextPoster) return
         const img = new Image()
-        img.src = nextClip.thumbnail_url
+        img.src = nextPoster
     }, [nextClip?.thumbnail_url])
 
     // ── video element callbacks ────────────────────────────────
@@ -530,7 +526,7 @@ export default function HighlightViewer({
                         // No src: useAdaptiveVideo attaches HLS or mp4 to the
                         // element itself. key={clip.id} still remounts per clip,
                         // so exactly one video is ever wired up.
-                        poster={clip.thumbnail_url || undefined}
+                        poster={posterSrc(clip) || undefined}
                         autoPlay
                         // BARE `muted`, never muted={muted}: the server-
                         // rendered markup and first client paint must always
@@ -548,11 +544,11 @@ export default function HighlightViewer({
                     {nextClip && (
                         <video
                             className={styles.preload}
-                            src={highlightVideoUrl(nextClip.file_url)}
+                            src={videoSrc(nextClip)}
                             // `auto`, not `metadata`: a clip is capped at 90s and
-                            // now delivered as the 720p-capped H.264 derivative,
-                            // so buffering the next one costs little and makes a
-                            // swipe start on the first frame instead of a spinner.
+                            // encoded client-side before upload, so buffering the
+                            // next one costs little and makes a swipe start on
+                            // the first frame instead of a spinner.
                             preload="auto"
                             // UNCONDITIONALLY muted, and deliberately NOT
                             // bound to the sound store: this is a warm-up

@@ -52,7 +52,7 @@ import styles from "./OrgAchievementVerifications.module.css"
  * The proof image at full size.
  *
  * Worth a modal rather than a new tab: the reviewer is working down a queue and
- * bouncing to a Cloudinary URL loses their place. Closes on backdrop, Escape is
+ * bouncing to the media domain loses their place. Closes on backdrop, Escape is
  * handled by the button being focused on mount.
  */
 function ProofLightbox({

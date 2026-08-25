@@ -7,7 +7,7 @@ function ToastDemoInner() {
   const showFollowNotif = () => {
     toast.show({
       title: "Nazal ch started following you",
-      avatarSrc: "https://res.cloudinary.com/duotwo8gf/image/upload/v1775291391/users/019d491b-f1aa-75e5-8895-bb2c65453cfe/profile/profile.webp",
+      avatarSrc: "",
       avatarInitials: "NC",
       position: "top-right",
       duration: 4000,
@@ -23,7 +23,7 @@ function ToastDemoInner() {
     toast.show({
       title: "Nazal ch liked your post",
       message: '"great game today ❤️"',
-      avatarSrc: "https://res.cloudinary.com/duotwo8gf/image/upload/v1775291391/users/019d491b-f1aa-75e5-8895-bb2c65453cfe/profile/profile.webp",
+      avatarSrc: "",
       avatarInitials: "NC",
       position: "top-right",
       duration: 4000,

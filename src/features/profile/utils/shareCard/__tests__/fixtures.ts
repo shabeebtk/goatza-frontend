@@ -11,7 +11,7 @@ import type {
   PublicUserProfile,
 } from "@/features/profile/services/publicProfile.api"
 
-const CLOUDINARY = "https://res.cloudinary.com/goatza/image/upload/v1/"
+const MEDIA = "https://media.goatza.test/users/u1/"
 
 export function profile(overrides: Partial<PublicUserProfile> = {}): PublicUserProfile {
   return {
@@ -23,8 +23,8 @@ export function profile(overrides: Partial<PublicUserProfile> = {}): PublicUserP
     name: "Aravind Menon",
     headline: "Winger · Calicut",
     about: "",
-    profile_photo: `${CLOUDINARY}avatar.jpg`,
-    cover_photo: `${CLOUDINARY}cover.jpg`,
+    profile_photo: `${MEDIA}profile.webp`,
+    cover_photo: `${MEDIA}cover.webp`,
     followers_count: 120,
     following_count: 80,
     connections_count: 40,

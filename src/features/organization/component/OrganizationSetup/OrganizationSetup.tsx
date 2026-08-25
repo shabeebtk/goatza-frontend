@@ -126,7 +126,7 @@ function TypeCard({
 // ── Logo uploader ─────────────────────────────────────────────────
 //
 // NO upload here — stores the raw File + a local object URL for preview.
-// Cloudinary upload happens after org creation via useCreateOrganization.
+// The logo upload happens after org creation via useCreateOrganization.
 
 function LogoUploader({
   previewUrl,
@@ -275,7 +275,7 @@ export default function OrganizationSetup() {
   const [level, setLevel]             = useState<OrgLevel | "">("")
   const [website, setWebsite]         = useState("")
 
-  // ── Logo — local file only, no Cloudinary yet ─────────────────
+  // ── Logo — local file only, nothing uploaded yet ─────────────────
   const [logoFile, setLogoFile]           = useState<File | null>(null)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
 
@@ -384,7 +384,7 @@ export default function OrganizationSetup() {
 
     createOrg({
       payload,
-      logoFile: logoFile ?? null,   // hook handles Cloudinary upload post-create
+      logoFile: logoFile ?? null,   // the hook handles the upload upload post-create
     })
   }
 

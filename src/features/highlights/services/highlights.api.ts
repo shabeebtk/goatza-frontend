@@ -26,7 +26,7 @@ const BASE = "/highlights"
 
 // ── Payloads ──────────────────────────────────────────────────
 
-/** Direct upload — the file went straight to Cloudinary and never was a post. */
+/** Direct upload — the file went straight to storage and never was a post. */
 export type CreateHighlightDirectPayload = {
     file_url: string
     public_id: string

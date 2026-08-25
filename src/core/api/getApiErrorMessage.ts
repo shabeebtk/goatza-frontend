@@ -44,7 +44,7 @@ export function getApiErrorMessage(
     return fallback
   }
 
-  // Non-axios throws (e.g. the Cloudinary upload's `new Error(...)`) carry a
+  // Non-axios throws (e.g. the upload helpers' `new Error(...)`) carry a
   // friendly message of their own — but never the axios status-code string.
   if (err instanceof Error && err.message) return err.message
 

@@ -19,9 +19,10 @@ import {
 } from "../types"
 import { useAuthStore } from "@/store/auth.store"
 import {
-  getUploadSignatureApi,
-  uploadToCloudinaryApi,
-} from "@/features/profile/services/upload.api"
+  describeBlob,
+  getUploadConfigApi,
+  putToR2,
+} from "@/shared/services/mediaUpload"
 
 // ── Query keys ────────────────────────────────────────────────────
 
@@ -83,13 +84,13 @@ export const useOrgDetail = (
 //   2. If logoFile provided:
 //        a. compress
 //        b. GET signature (with org_id so backend scopes the folder)
-//        c. upload to Cloudinary
+//        c. upload to storage
 //        d. PATCH /organizations/update/logo/cover?org_id=…
 //   3. Invalidate queries → redirect
 
 export type CreateOrgInput = {
   payload:   CreateOrganizationPayload
-  logoFile?: File | null     // raw File from the local preview, no Cloudinary yet
+  logoFile?: File | null     // raw File from the local preview, not uploaded yet
 }
 
 export const useCreateOrganization = () => {
@@ -107,15 +108,21 @@ export const useCreateOrganization = () => {
         try {
           const compressed = await imageCompression(logoFile, LOGO_COMPRESSION)
 
-          // Pass org_id so the backend can scope the Cloudinary folder/public_id
-          const sigRes = await getUploadSignatureApi("organization_logo", 1, org.id)
-          const sig    = sigRes.uploads[0]
+          // Pass org_id so the backend scopes the object key to this org — the
+          // actor is still the person, who has only just become its owner.
+          const sigRes = await getUploadConfigApi(
+            "organization_logo",
+            [describeBlob(compressed)],
+            org.id
+          )
+          const entry = sigRes.uploads[0]
+          if (!entry) throw new Error("Upload config missing")
 
-          const { secure_url, public_id } = await uploadToCloudinaryApi(compressed, sig)
+          await putToR2(compressed, entry)
 
           await updateOrgMediaApi(org.id, {
-            logo:           secure_url,
-            logo_public_id: public_id,
+            logo:           entry.public_url,
+            logo_public_id: entry.key,
           })
         } catch {
           // Logo upload is non-fatal — org is already created.

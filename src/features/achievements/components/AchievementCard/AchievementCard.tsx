@@ -102,7 +102,7 @@ function AchievementThumb({
                 aria-label={`View image for ${achievement.title}`}
                 type="button"
             >
-                {/* Plain <img>: the src is a Cloudinary URL on a remote host,
+                {/* Plain <img>: the src is on the media domain,
                     and next/image would need it in remotePatterns for no gain
                     at this size. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -344,7 +344,7 @@ export default function AchievementCard({
             )}
 
             {viewerOpen && (
-                // The full Cloudinary original, not the thumb's own src — they
+                // The full stored image, not the thumb's own src — they
                 // are the same URL today, and this is the line to change on the
                 // day the card starts asking for a derivative.
                 <ImageLightbox

@@ -32,6 +32,12 @@ import {
     getImageDimensions,
     captureVideoThumbnail,
 } from "../services/chatUpload.service"
+import {
+    VIDEO_UNSUPPORTED_MESSAGE,
+    type VideoUploadPhase,
+} from "@/shared/services/videoEncode"
+import { isUploadCancelled } from "@/shared/services/mediaUpload"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 type OptimisticMedia = Message & Partial<ChatMessage>
 
@@ -43,12 +49,13 @@ type Job = {
     durationSec?: number   // video fallback duration
     /** The optimistic row, kept so it can be restored if a refetch wipes it. */
     optimistic?: OptimisticMedia
-    /** Aborts the in-flight Cloudinary upload when the user cancels. */
+    /** Aborts the in-flight upload when the user cancels. */
     controller?: AbortController
 }
 
 export function useChatMediaUpload(conversationId: string | null) {
     const queryClient = useQueryClient()
+    const toast = useToast()
     const user = useAuthStore((s) => s.user)
     const actorType = useAuthStore((s) => s.actorType)
     const actorId = useAuthStore((s) => s.actorId)
@@ -228,10 +235,20 @@ export function useChatMediaUpload(conversationId: string | null) {
                 uploadProgress: 0,
             })
 
-            const onProgress = (loaded: number, total: number) => {
+            const onProgress = (
+                loaded: number,
+                total: number,
+                phase?: VideoUploadPhase
+            ) => {
                 // Round to 5% steps to limit cache churn/re-renders.
                 const pct = Math.min(99, Math.round((loaded / total) * 20) * 5)
-                patchMessage(tempId, { uploadProgress: pct })
+                patchMessage(tempId, {
+                    uploadProgress: pct,
+                    // The encode is the first 70% and the slower half on a
+                    // phone; the bubble labels it rather than showing a
+                    // stalled "uploading".
+                    optimizing: phase === "encoding",
+                })
             }
 
             try {
@@ -248,6 +265,9 @@ export function useChatMediaUpload(conversationId: string | null) {
                     serverMsg = await sendVideoMessageApi(conversationId, {
                         media_url: uploaded.media_url,
                         media_public_id: uploaded.media_public_id,
+                        // REQUIRED for a video: nothing derives a poster
+                        // server-side, and the send is rejected without one.
+                        thumbnail_url: uploaded.thumbnail_url,
                         width: uploaded.width,
                         height: uploaded.height,
                         duration_ms: uploaded.duration_ms,
@@ -265,6 +285,7 @@ export function useChatMediaUpload(conversationId: string | null) {
                     serverMsg = await sendImageMessageApi(conversationId, {
                         media_url: uploaded.media_url,
                         media_public_id: uploaded.media_public_id,
+                        thumbnail_url: uploaded.thumbnail_url,
                         width: uploaded.width,
                         height: uploaded.height,
                         size_bytes: uploaded.size_bytes,
@@ -291,14 +312,23 @@ export function useChatMediaUpload(conversationId: string | null) {
                 // Deliberately NOT the message history: refetching it here would
                 // replace `data.pages` and wipe the sibling photos still uploading.
                 invalidateConversationsExceptMessages(queryClient)
-            } catch {
+            } catch (err) {
                 // Cancelled uploads have already had their job and bubble
                 // removed — don't resurrect them as a failed message.
                 if (!jobsRef.current.has(tempId)) return
-                patchMessage(tempId, { failed: true, pending: false })
+                if (isUploadCancelled(err)) return
+                patchMessage(tempId, { failed: true, pending: false, optimizing: false })
+
+                // A failed bubble alone cannot say WHY. It matters most for the
+                // one case the user can act on: a video this device could not
+                // encode, where "try a different file" is the whole fix.
+                const message = err instanceof Error ? err.message : ""
+                if (message === VIDEO_UNSUPPORTED_MESSAGE) {
+                    toast.show({ title: message, variant: "error" })
+                }
             }
         },
-        [conversationId, cacheKey, patchMessage, reconcile, queryClient]
+        [conversationId, cacheKey, patchMessage, reconcile, queryClient, toast]
     )
 
     // ── send photos ───────────────────────────────────────────

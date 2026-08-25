@@ -19,9 +19,9 @@ import type { PublicUserBundle } from "@/features/profile/services/publicProfile
 
 const OUT = process.env.CARD_PREVIEW_DIR
 
-// Cloudinary's public demo account, so a preview shows real photography going
+// A public demo image host, so a preview shows real photography going
 // through the real transforms rather than a stubbed pixel.
-const DEMO = "https://res.cloudinary.com/demo/image/upload/v1/"
+const DEMO = "https://images.example.com/demo/"
 const PHOTOS = {
   profile_photo: `${DEMO}woman.jpg`,
   cover_photo: `${DEMO}sample.jpg`,

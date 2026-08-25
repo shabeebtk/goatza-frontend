@@ -1,8 +1,9 @@
 /**
  * useHighlightUpload — the whole direct-upload flow behind one hook:
  *
- *   pick → validate (mime/size/90s) → sign → upload to Cloudinary (progress,
- *   cancelable) → derive the poster → POST create → rail cache updated.
+ *   pick → validate (mime/size/90s) → encode in-browser → capture the 9:16
+ *   poster → sign → PUT both objects (progress, cancelable) → POST create →
+ *   rail cache updated.
  *
  * Every failure ends in a sonner toast carrying the human message, with a Retry
  * action when retrying could actually help (a network/upload failure — not a
@@ -34,18 +35,24 @@ import { useCreateHighlight } from "./useHighlights"
 export type HighlightUploadStatus =
     | "idle"
     | "checking"    // reading metadata / validating
-    | "uploading"   // bytes in flight to Cloudinary
+    | "uploading"   // encoding, then bytes in flight to storage
     | "saving"      // creating the highlight row
     | "failed"
 
 export type HighlightUploadState = {
     status: HighlightUploadStatus
-    /** 0–100, Cloudinary bytes only. */
+    /** 0–100 across the WHOLE operation: encode is 0→70, upload 70→100. */
     progress: number
     fileName: string | null
     error: string | null
     /** Whether re-running the same file could plausibly succeed. */
     retryable: boolean
+    /**
+     * True while the browser is re-encoding, before any bytes move. The encode
+     * is the slower half on a phone, so the UI says so instead of showing a
+     * stalled "uploading".
+     */
+    optimizing: boolean
 }
 
 const IDLE_STATE: HighlightUploadState = {
@@ -54,6 +61,7 @@ const IDLE_STATE: HighlightUploadState = {
     fileName: null,
     error: null,
     retryable: false,
+    optimizing: false,
 }
 
 export type StartHighlightUploadOptions = {
@@ -125,7 +133,7 @@ export function useHighlightUpload(options?: {
 
     const fail = useCallback(
         (message: string, retryable = false) => {
-            patch({ status: "failed", error: message, progress: 0, retryable })
+            patch({ status: "failed", error: message, progress: 0, retryable, optimizing: false })
             toast.error(
                 message,
                 retryable
@@ -149,26 +157,30 @@ export function useHighlightUpload(options?: {
                 progress: 0,
                 fileName: job.file.name,
                 error: null,
+                optimizing: true,
             })
 
             try {
                 const uploaded = await uploadHighlightVideo(job.file, {
                     localMeta: job.meta,
                     signal: controller.signal,
-                    onProgress: (loaded, total) => {
+                    onProgress: (loaded, total, phase) => {
                         // 5% steps — enough for a progress ring, few enough that
                         // a big file doesn't re-render the tile hundreds of times.
                         const pct = Math.min(
                             99,
                             Math.round((loaded / total) * 20) * 5
                         )
-                        patch({ progress: pct })
+                        patch({
+                            progress: pct,
+                            optimizing: phase === "encoding",
+                        })
                     },
                 })
 
                 if (controller.signal.aborted) return
 
-                patch({ status: "saving", progress: 100 })
+                patch({ status: "saving", progress: 100, optimizing: false })
 
                 const created = await createHighlight.mutateAsync({
                     file_url: uploaded.file_url,
@@ -216,7 +228,7 @@ export function useHighlightUpload(options?: {
                 // `createHighlight` already toasted its own API error; only the
                 // upload leg needs a toast (and a retry) from here.
                 if (createHighlight.isError) {
-                    patch({ status: "failed", error: message, progress: 0 })
+                    patch({ status: "failed", error: message, progress: 0, optimizing: false })
                     return
                 }
 
