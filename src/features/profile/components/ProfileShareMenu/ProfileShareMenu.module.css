@@ -74,3 +74,13 @@
         animation: none;
     }
 }
+
+/* The one destructive row (Block). Same treatment PostOptionsSheet gives
+   Delete/Report, so a red row means the same thing in both menus. */
+.itemDanger {
+  color: var(--color-error);
+}
+
+.itemDanger:hover {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}

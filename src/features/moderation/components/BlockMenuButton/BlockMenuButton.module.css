@@ -1,0 +1,97 @@
+/* ============================================================
+   GOATZA — Chat thread "⋯" menu
+
+   Geometry copied from ProfileShareMenu so the two overflow
+   menus in the app open the same way and land in the same
+   place relative to their trigger.
+   ============================================================ */
+
+@keyframes blockMenuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.trigger:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+/* Full-viewport catcher so a tap anywhere else closes the menu. Below the
+   menu, above everything else on the page. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 201;
+
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.28));
+
+  animation: blockMenuIn var(--duration-fast) var(--ease-out);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  width: 100%;
+  padding: var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition: background var(--duration-fast);
+}
+
+.item:hover {
+  background: var(--color-surface-raised);
+}
+
+.itemDanger {
+  color: var(--color-error);
+}
+
+.itemDanger:hover {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}

@@ -12,6 +12,7 @@ import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import CareerSection from "@/features/career/components/CareerSection/CareerSection"
 import AchievementsSection from "@/features/achievements/components/AchievementsSection/AchievementsSection"
 import MatchDiarySection from "@/features/matchDiary/components/MatchDiarySection/MatchDiarySection"
+import BlockedProfileBanner from "@/features/moderation/components/BlockedProfileBanner/BlockedProfileBanner"
 import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
@@ -178,6 +179,19 @@ export default function UserProfile({
   // A logged-out visitor is never "me", whatever else is passed in.
   const isMe = !isPublicView && (isOwn || (rel?.is_me ?? false))
 
+  // §1.5 — YOU blocked THEM. The shell stays (you know who this is and you
+  // are entitled to find the Unblock button), but everything the profile owns
+  // is withheld: counts, actions, highlights, posts, career, achievements,
+  // diary. The server already empties those endpoints for this viewer; not
+  // rendering them is what stops a row of zeroes reading as real data.
+  //
+  // The other direction needs nothing here: a viewer THEY blocked never gets
+  // a payload at all, the query 404s, and the not-found state below is the
+  // same one an unknown username produces.
+  const isBlockedByMe = Boolean(
+    profile.is_blocked_by_me ?? rel?.is_blocked_by_me
+  )
+
   // The public payload carries a server-derived band instead of a raw
   // birthdate — the date itself never leaves the server on that path.
   const ageGroup = profile.age_group ?? ageGroupBadge(profile.birthdate)
@@ -315,7 +329,9 @@ export default function UserProfile({
             ) : null}
 
             {/* Stats. Counts always render; in public view the LIST behind
-                each one is walled (see StatPill). */}
+                each one is walled (see StatPill). Withheld entirely from a
+                viewer who blocked this account — see isBlockedByMe. */}
+            {!isBlockedByMe && (
             <div className={styles.statsRow}>
               <StatPill
                 value={profile.followers_count}
@@ -338,8 +354,20 @@ export default function UserProfile({
                 onWalled={isPublicView ? wall("see the connections of") : undefined}
               />
             </div>
+            )}
+
+            {/* The blocked state replaces the whole action row: no Follow, no
+                Message, only the way back out. */}
+            {isBlockedByMe && (
+              <BlockedProfileBanner
+                targetType="user"
+                targetId={profile.id}
+                username={profile.username}
+              />
+            )}
 
             {/* Profile Action Buttons (Moved from top) */}
+            {!isBlockedByMe && (
             <div className={styles.profileActionsBase}>
               {isMe ? (
                 <>
@@ -360,6 +388,8 @@ export default function UserProfile({
                     avatarUrl={profile.profile_photo}
                     subtitle={profile.headline || profile.primary_sport?.sport}
                     isOwnProfile={isMe}
+                    targetId={profile.id}
+                    isBlockedByMe={isBlockedByMe}
                   />
                 </>
               ) : (
@@ -423,10 +453,13 @@ export default function UserProfile({
                     avatarUrl={profile.profile_photo}
                     subtitle={profile.headline || profile.primary_sport?.sport}
                     isOwnProfile={isMe}
+                    targetId={profile.id}
+                    isBlockedByMe={isBlockedByMe}
                   />
                 </>
               )}
             </div>
+            )}
 
             {/* About */}
             {(profile.about || isMe) && (
@@ -445,6 +478,12 @@ export default function UserProfile({
               </>
             )}
 
+            {/* Everything below is profile-OWNED content. Withheld from a
+                viewer who blocked this account; the server returns it empty
+                for them anyway, so rendering the sections would only produce
+                a column of empty rails. */}
+            {!isBlockedByMe && (
+            <>
             {/* Sports */}
             <div className={styles.sectionDivider} />
             <UserSportsSection username={profile.username} isOwn={isMe} />
@@ -499,6 +538,8 @@ export default function UserProfile({
                 all on the logged-out profile — so it carries its own top
                 divider rather than taking one from here. */}
             <MatchDiarySection username={profile.username} isOwn={isMe} />
+            </>
+            )}
 
           </div>
         </div>

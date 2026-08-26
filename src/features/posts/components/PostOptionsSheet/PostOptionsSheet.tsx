@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { useDeletePost, useToggleSave } from "../../hooks/usePostMutations"
 import { usePromoteToHighlights } from "@/features/highlights/hooks/usePromoteToHighlights"
 import { formatClipDuration } from "@/features/highlights/visibilityMeta"
+import BlockConfirmSheet from "@/features/moderation/components/BlockConfirmSheet/BlockConfirmSheet"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import type { PostMedia } from "../../services/posts.api"
 import styles from "./PostOptionsSheet.module.css"
@@ -24,6 +25,17 @@ interface PostOptionsSheetProps {
   promotableVideos?: PostMedia[]
   onClose: () => void
   onEdit?: () => void
+  /**
+   * The post's author, so the sheet can offer "Block author". Omitted on an
+   * own post (there is nobody to block) and by any caller that has not wired
+   * it — the row simply does not render.
+   */
+  author?: {
+    id: string
+    username: string
+    name?: string
+    type: "user" | "organization"
+  }
 }
 
 export default function PostOptionsSheet({
@@ -34,6 +46,7 @@ export default function PostOptionsSheet({
   promotableVideos = [],
   onClose,
   onEdit,
+  author,
 }: PostOptionsSheetProps) {
   const router = useRouter()
   const toast = useToast()
@@ -45,6 +58,10 @@ export default function PostOptionsSheet({
   const [confirmDelete, setConfirmDelete] = useState(false)
   // Second step of "Add to Highlights" when the post carries several videos.
   const [pickVideo, setPickVideo] = useState(false)
+  const [blockOpen, setBlockOpen] = useState(false)
+
+  // Never on your own post, and never without an author to name.
+  const canBlock = !isOwn && Boolean(author)
 
   const { promote, isPromoting } = usePromoteToHighlights()
   const canPromote = promotableVideos.length > 0
@@ -306,16 +323,35 @@ export default function PostOptionsSheet({
                   <span className={styles.optionLabel}>Delete Post</span>
                 </button>
               ) : (
-                <button
-                  className={`${styles.option} ${styles.optionDanger}`}
-                  onClick={onClose}
-                  type="button"
-                >
-                  <span className={styles.optionIcon}>
-                    <Icon icon="mdi:flag-outline" width={20} height={20} />
-                  </span>
-                  <span className={styles.optionLabel}>Report Post</span>
-                </button>
+                <>
+                  {canBlock && (
+                    <button
+                      className={`${styles.option} ${styles.optionDanger}`}
+                      onClick={() => setBlockOpen(true)}
+                      type="button"
+                    >
+                      <span className={styles.optionIcon}>
+                        <Icon
+                          icon="mdi:account-cancel-outline"
+                          width={20}
+                          height={20}
+                        />
+                      </span>
+                      <span className={styles.optionLabel}>Block author</span>
+                    </button>
+                  )}
+
+                  <button
+                    className={`${styles.option} ${styles.optionDanger}`}
+                    onClick={onClose}
+                    type="button"
+                  >
+                    <span className={styles.optionIcon}>
+                      <Icon icon="mdi:flag-outline" width={20} height={20} />
+                    </span>
+                    <span className={styles.optionLabel}>Report Post</span>
+                  </button>
+                </>
               )}
             </div>
 
@@ -330,6 +366,19 @@ export default function PostOptionsSheet({
           </>
         )}
       </div>
+      {blockOpen && author && (
+        <BlockConfirmSheet
+          targetType={author.type}
+          targetId={author.id}
+          username={author.username}
+          name={author.name}
+          onClose={() => setBlockOpen(false)}
+          // The feed cards are already filtered out by useBlock; closing the
+          // options sheet too leaves the user back on a feed that no longer
+          // contains the post they were looking at.
+          onBlocked={onClose}
+        />
+      )}
     </div>,
     document.body
   )

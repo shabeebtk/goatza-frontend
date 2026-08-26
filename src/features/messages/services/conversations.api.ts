@@ -148,6 +148,14 @@ export type Conversation = {
     last_message_at: string | null
     other_participant: ConversationParticipant
     unread_count: number
+    /**
+     * A block exists between the two participants, in EITHER direction.
+     *
+     * Presentation only: history stays readable and the thread stays in the
+     * list — this just disables the composer. The send is refused server-side
+     * regardless, so a stale `false` here cannot deliver anything.
+     */
+    is_blocked?: boolean
 }
 
 export type ConversationDetail = Conversation & {

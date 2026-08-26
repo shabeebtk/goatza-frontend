@@ -83,6 +83,13 @@ export default function SettingsPage() {
             label="Match diary"
           />
         )}
+        {/* Last in Privacy, and deliberately here rather than under Content:
+            blocking is about who may reach you, not about what you saved. */}
+        <SettingsRow
+          href="/settings/blocked"
+          icon="mdi:account-cancel-outline"
+          label="Blocked accounts"
+        />
       </SettingsSection>
 
       <SettingsSection title="Content">

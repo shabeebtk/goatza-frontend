@@ -182,6 +182,10 @@ export const useFollowOrg = (orgId: string, username?: string) => {
               is_following: true,
               is_followed_by: false,
               is_connected: false,
+              // You cannot follow an account you are blocked with, so an
+              // optimistic follow always implies both are false.
+              is_blocked: false,
+              is_blocked_by_me: false,
             },
       }))
 
@@ -229,6 +233,10 @@ export const useFollowOrg = (orgId: string, username?: string) => {
               is_following: false,
               is_followed_by: false,
               is_connected: false,
+              // You cannot follow an account you are blocked with, so an
+              // optimistic follow always implies both are false.
+              is_blocked: false,
+              is_blocked_by_me: false,
             },
       }))
 

@@ -30,6 +30,7 @@ import { cvUrl } from "@/features/cv/services/cv.api"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import type { ShareTarget } from "@/features/messages/services/conversations.api"
 import ProfileSharePreview from "@/features/profile/components/ProfileSharePreview/ProfileSharePreview"
+import BlockConfirmSheet from "@/features/moderation/components/BlockConfirmSheet/BlockConfirmSheet"
 import ShareCardSheet from "@/features/profile/components/ShareCardSheet/ShareCardSheet"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { profileUrl } from "@/shared/services/profileUrl"
@@ -51,6 +52,13 @@ interface ProfileShareMenuProps {
    * which of that player's measurables it emphasises.
    */
   isOwnProfile?: boolean
+  /**
+   * Identity id — required to offer Block. Absent (an anonymous visitor, or a
+   * caller that has not wired it) simply hides the row.
+   */
+  targetId?: string
+  /** Already blocked by this viewer — the profile banner owns Unblock instead. */
+  isBlockedByMe?: boolean
 }
 
 export default function ProfileShareMenu({
@@ -61,6 +69,8 @@ export default function ProfileShareMenu({
   subtitle,
   isVerified,
   isOwnProfile = false,
+  targetId,
+  isBlockedByMe = false,
 }: ProfileShareMenuProps) {
   const toast = useToast()
   const publicView = usePublicProfile()
@@ -69,6 +79,13 @@ export default function ProfileShareMenu({
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
   const [cardSheetOpen, setCardSheetOpen] = useState(false)
   const [cvSheetOpen, setCvSheetOpen] = useState(false)
+  const [blockSheetOpen, setBlockSheetOpen] = useState(false)
+
+  // Block is offered only to a signed-in visitor looking at SOMEONE ELSE who
+  // they have not already blocked. `publicView` is the logged-out rendering —
+  // there is no actor to block on behalf of.
+  const canBlock =
+    !publicView && !isOwnProfile && !isBlockedByMe && Boolean(targetId)
 
   // Organizations have no generated card — a different composition and a
   // deliberately later build — so the entry simply is not offered for one.
@@ -162,12 +179,15 @@ export default function ProfileShareMenu({
           variant="ghost"
           size="sm"
           iconOnly
-          aria-label={`Share ${name}'s profile`}
+          aria-label={`More options for ${name}`}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           onClick={() => setMenuOpen((v) => !v)}
         >
-          <Icon icon="mdi:share-variant-outline" width={18} height={18} />
+          {/* An overflow glyph, not a share glyph: this menu stopped being
+              share-only when Block joined it, and a share icon that opens a
+              destructive action is a mislabelled control. */}
+          <Icon icon="mdi:dots-horizontal" width={18} height={18} />
         </Button>
 
         {menuOpen && (
@@ -243,10 +263,37 @@ export default function ProfileShareMenu({
                   Share via…
                 </button>
               )}
+
+              {/* LAST, and the only destructive row — same placement rule the
+                  post options sheet uses for Delete/Report. */}
+              {canBlock && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`${styles.item} ${styles.itemDanger}`}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setBlockSheetOpen(true)
+                  }}
+                >
+                  <Icon icon="mdi:account-cancel-outline" width={17} height={17} />
+                  Block @{username}
+                </button>
+              )}
             </div>
           </>
         )}
       </span>
+
+      {blockSheetOpen && targetId && (
+        <BlockConfirmSheet
+          targetType={target.type === "organization" ? "organization" : "user"}
+          targetId={targetId}
+          username={username}
+          name={name}
+          onClose={() => setBlockSheetOpen(false)}
+        />
+      )}
 
       {hasCard && (
         <ShareCardSheet

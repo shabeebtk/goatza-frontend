@@ -14,6 +14,7 @@ import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
 import { useChatMediaUpload } from "../../hooks/useChatImageUpload"
+import BlockMenuButton from "@/features/moderation/components/BlockMenuButton/BlockMenuButton"
 import {
   useConversationDetail,
   useMessages,
@@ -1032,6 +1033,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const otherUser    = detail?.other_participant
   const isRequested  = detail?.status === "requested"
   const canMessage   = detail?.can_message ?? true
+  // §1.5 — blocked in either direction. The thread and its history stay
+  // exactly as they were; only the composer goes away. Read off the detail
+  // rather than can_message, which reports the REQUEST state (has_accepted)
+  // and is true for the blocker.
+  const isBlocked    = detail?.is_blocked ?? false
   const basePath     = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
 
   if (!isMounted) return null
@@ -1070,6 +1076,15 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
           <div className={styles.headerActions}>
             <ConnectionPill status={status} />
+            {otherUser && (
+              <BlockMenuButton
+                targetType={otherUser.type}
+                targetId={otherUser.id}
+                username={otherUser.username}
+                name={otherUser.name}
+                isBlocked={isBlocked}
+              />
+            )}
           </div>
         </div>
 
@@ -1186,7 +1201,16 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
         {/* ── Fixed input area ── */}
         <div className={styles.inputArea}>
-          {isRequested && !canMessage ? (
+          {isBlocked ? (
+            /* No send button, no input — the row is a statement, not a
+               disabled control someone will keep tapping. The list above stays
+               scrollable and every message stays readable. */
+            <div className={styles.acceptRow}>
+              <p className={styles.cannotReply}>
+                You can&apos;t reply to this conversation.
+              </p>
+            </div>
+          ) : isRequested && !canMessage ? (
             <div className={styles.acceptRow}>
               <p className={styles.cannotReply}>Accept the request to reply.</p>
               <button

@@ -7,6 +7,18 @@ export type Relationship = {
   is_following: boolean
   is_followed_by: boolean
   is_connected: boolean
+  /**
+   * A block exists in EITHER direction — the flag that swaps Follow/Message
+   * for the blocked state. Symmetric on purpose: the blocked party must not be
+   * able to tell which side blocked.
+   *
+   * In practice a viewer who was blocked never sees this profile at all (the
+   * endpoint 404s for them), so in the payloads the client actually receives
+   * this is true only for the blocker.
+   */
+  is_blocked: boolean
+  /** THIS viewer did the blocking — the only case that offers Unblock. */
+  is_blocked_by_me: boolean
 }
 
 export type PrimarySport = {
@@ -91,6 +103,12 @@ export type UserProfile = {
   created_at: string
   primary_sport: PrimarySport | null
   relationship?: Relationship
+  /**
+   * Top-level twin of `relationship.is_blocked_by_me`, sent by the profile
+   * endpoints. Present so the shell can decide what to render without
+   * depending on `relationship` having been included.
+   */
+  is_blocked_by_me?: boolean
 }
 
 export type UsernameAvailability = {
