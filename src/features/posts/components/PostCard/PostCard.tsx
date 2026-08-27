@@ -388,6 +388,15 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           promotableVideos={promotableVideos}
           onClose={() => setShowOptions(false)}
           onEdit={() => setShowEdit(true)}
+          author={{
+            id: post.author.id,
+            username: post.author.username,
+            name: post.author.name,
+            // author_type is the server's string; anything not "organization"
+            // is a person, which is also the safe default for old payloads.
+            type:
+              post.author_type === "organization" ? "organization" : "user",
+          }}
         />
       )}
 

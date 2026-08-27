@@ -17,6 +17,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
 import { useOrgDetail, useFollowOrg } from "@/features/organization/hooks/useOrganizations"
 import type { OrgLocation, OrgSport, OrganizationDetail } from "@/features/organization/types"
+import BlockedProfileBanner from "@/features/moderation/components/BlockedProfileBanner/BlockedProfileBanner"
 import ProfileShareMenu from "@/features/profile/components/ProfileShareMenu/ProfileShareMenu"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import type { PublicOrganizationProfile } from "@/features/profile/services/publicProfile.api"
@@ -252,6 +253,12 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
     const rel = org.relationship
     // A logged-out visitor is never "me", whatever else is passed in.
     const isMe = !isPublicView && (isOwn || (rel?.is_me ?? false))
+    // §1.5 — this viewer blocked the org. Same treatment as a user profile:
+    // shell plus the way back out, no actions, no owned content.
+    const isBlockedByMe = Boolean(
+        (org as { is_blocked_by_me?: boolean }).is_blocked_by_me ??
+        rel?.is_blocked_by_me
+    )
     const isFollowing = rel?.is_following ?? false
     const isFollowedBy = rel?.is_followed_by ?? false
 
@@ -414,7 +421,19 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                             <StatPill value={org.posts_count} label="Posts" />
                         </div>
 
+                        {/* The blocked state replaces the action row entirely
+                            — a Follow button next to "you blocked this" offers
+                            something the server refuses. */}
+                        {isBlockedByMe && (
+                            <BlockedProfileBanner
+                                targetType="organization"
+                                targetId={org.id}
+                                username={org.username}
+                            />
+                        )}
+
                         {/* Action buttons */}
+                        {!isBlockedByMe && (
                         <div className={styles.profileActionsBase}>
                             {isMe ? (
                                 <>
@@ -435,6 +454,9 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         avatarUrl={org.logo}
                                         subtitle={org.headline || TYPE_LABELS[org.type]}
                                         isVerified={org.is_verified}
+                                        targetId={org.id}
+                                        isOwnProfile={isMe}
+                                        isBlockedByMe={isBlockedByMe}
                                     />
                                 </>
                             ) : (
@@ -505,10 +527,14 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         avatarUrl={org.logo}
                                         subtitle={org.headline || TYPE_LABELS[org.type]}
                                         isVerified={org.is_verified}
+                                        targetId={org.id}
+                                        isOwnProfile={isMe}
+                                        isBlockedByMe={isBlockedByMe}
                                     />
                                 </>
                             )}
                         </div>
+                        )}
 
                         {/* ── About ────────────────────────────────────── */}
                         {(org.description || isMe) && (

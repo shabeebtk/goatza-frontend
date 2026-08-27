@@ -31,11 +31,18 @@ interface MessageActionsProps {
   children: React.ReactNode
   /** Own messages align their menu right, like the bubble. */
   isMine: boolean
-  /** No menu at all when false (someone else's message, or still uploading). */
+  /** Own, settled message — gates Delete only. */
   canDelete: boolean
   onDelete: () => void
   /** Text to copy, when the message has a body worth copying. */
   copyText?: string
+  /**
+   * Someone ELSE's message, settled — gates Report. The exact complement of
+   * canDelete, which is why the menu can no longer key its existence off
+   * canDelete alone.
+   */
+  canReport?: boolean
+  onReport?: () => void
 }
 
 export default function MessageActions({
@@ -44,6 +51,8 @@ export default function MessageActions({
   canDelete,
   onDelete,
   copyText,
+  canReport = false,
+  onReport,
 }: MessageActionsProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -55,7 +64,8 @@ export default function MessageActions({
   const [confirming, setConfirming] = useState(false)
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
 
-  const hasActions = canDelete || Boolean(copyText)
+  const canReportHere = canReport && Boolean(onReport)
+  const hasActions = canDelete || canReportHere || Boolean(copyText)
 
   const closeMenu = useCallback(() => {
     setOpen(false)
@@ -179,6 +189,14 @@ export default function MessageActions({
     closeMenu()
   }, [onDelete, closeMenu])
 
+  // Close FIRST, then open the sheet: this menu is a portal positioned at the
+  // press point, and leaving it up behind a modal sheet leaves two overlays
+  // fighting for the same backdrop tap.
+  const handleReport = useCallback(() => {
+    closeMenu()
+    onReport?.()
+  }, [onReport, closeMenu])
+
   return (
     <div
       ref={wrapRef}
@@ -234,6 +252,18 @@ export default function MessageActions({
               >
                 <Icon icon="mdi:content-copy" width={17} height={17} />
                 Copy
+              </button>
+            )}
+
+            {canReportHere && !confirming && (
+              <button
+                type="button"
+                className={`${styles.item} ${styles.itemDanger}`}
+                onClick={handleReport}
+                role="menuitem"
+              >
+                <Icon icon="mdi:flag-outline" width={17} height={17} />
+                Report message
               </button>
             )}
 

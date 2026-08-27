@@ -14,6 +14,8 @@ import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
 import { useChatMediaUpload } from "../../hooks/useChatImageUpload"
+import BlockMenuButton from "@/features/moderation/components/BlockMenuButton/BlockMenuButton"
+import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import {
   useConversationDetail,
   useMessages,
@@ -387,6 +389,12 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const lastSenderRef   = useRef<string | null>(null)
   const convRef         = useRef(conversationId)
   const [unseen, setUnseen] = useState(0)
+  /**
+   * Which message the report sheet is about. ONE sheet for the whole thread,
+   * keyed by id — rendering a sheet per bubble would mount a portal for every
+   * message in a long conversation.
+   */
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null)
 
   // ── Read acknowledgement state ────────────────────────────
   // Newest message id already reported to the server as read, so re-renders
@@ -1032,6 +1040,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const otherUser    = detail?.other_participant
   const isRequested  = detail?.status === "requested"
   const canMessage   = detail?.can_message ?? true
+  // §1.5 — blocked in either direction. The thread and its history stay
+  // exactly as they were; only the composer goes away. Read off the detail
+  // rather than can_message, which reports the REQUEST state (has_accepted)
+  // and is true for the blocker.
+  const isBlocked    = detail?.is_blocked ?? false
   const basePath     = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
 
   if (!isMounted) return null
@@ -1070,6 +1083,15 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
           <div className={styles.headerActions}>
             <ConnectionPill status={status} />
+            {otherUser && (
+              <BlockMenuButton
+                targetType={otherUser.type}
+                targetId={otherUser.id}
+                username={otherUser.username}
+                name={otherUser.name}
+                isBlocked={isBlocked}
+              />
+            )}
           </div>
         </div>
 
@@ -1139,6 +1161,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                           isMine={isMine}
                           canDelete={isMine && isSettled}
                           onDelete={() => deleteMessage(msg.id)}
+                          // The exact complement of canDelete: you report what
+                          // someone else sent. `isSettled` because an optimistic
+                          // row has no server id to report yet.
+                          canReport={!isMine && isSettled}
+                          onReport={() => setReportMessageId(msg.id)}
                           copyText={
                             msg.message_type === "text" || !msg.message_type
                               ? msg.content || undefined
@@ -1186,7 +1213,16 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
         {/* ── Fixed input area ── */}
         <div className={styles.inputArea}>
-          {isRequested && !canMessage ? (
+          {isBlocked ? (
+            /* No send button, no input — the row is a statement, not a
+               disabled control someone will keep tapping. The list above stays
+               scrollable and every message stays readable. */
+            <div className={styles.acceptRow}>
+              <p className={styles.cannotReply}>
+                You can&apos;t reply to this conversation.
+              </p>
+            </div>
+          ) : isRequested && !canMessage ? (
             <div className={styles.acceptRow}>
               <p className={styles.cannotReply}>Accept the request to reply.</p>
               <button
@@ -1293,6 +1329,28 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         </div>
 
       </div>
+
+      {reportMessageId && (
+        <ReportSheet
+          targetType="message"
+          targetId={reportMessageId}
+          username={otherUser?.username}
+          // The only person who can have sent a message you may report is the
+          // other party, so the block shortcut is the thread's counterpart.
+          // Hidden once already blocked — the header owns that state.
+          blockTarget={
+            otherUser && !isBlocked
+              ? {
+                  type: otherUser.type,
+                  id: otherUser.id,
+                  username: otherUser.username,
+                  name: otherUser.name,
+                }
+              : undefined
+          }
+          onClose={() => setReportMessageId(null)}
+        />
+      )}
     </div>
   )
 }

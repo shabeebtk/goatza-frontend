@@ -56,6 +56,10 @@ export type OrgRelationship = {
   is_following: boolean
   is_followed_by: boolean
   is_connected: boolean
+  /** A block in EITHER direction — swaps Follow/Message for the blocked state. */
+  is_blocked: boolean
+  /** THIS viewer did the blocking — the only case that offers Unblock. */
+  is_blocked_by_me: boolean
 }
 
 /** An org member's role, as `my_role` reports it. */
@@ -88,6 +92,8 @@ export type OrganizationDetail = {
   sports:          OrgSport[]
   created_at:      string
   relationship?:   OrgRelationship
+  /** Top-level twin of relationship.is_blocked_by_me (see UserProfile). */
+  is_blocked_by_me?: boolean
 }
 
 // ── Payloads ──────────────────────────────────────────────────────

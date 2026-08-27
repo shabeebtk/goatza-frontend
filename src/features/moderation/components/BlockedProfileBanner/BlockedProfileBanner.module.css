@@ -1,0 +1,128 @@
+/* ============================================================
+   GOATZA — "You blocked this account" banner
+
+   Sits exactly where the Follow / Message row would be, so the
+   profile keeps its shape and the eye lands on the same spot.
+   ============================================================ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+/* ── Actions ─────────────────────────────────────────────────
+   Unblock confirms INLINE rather than opening a sheet: it is the
+   reversible half of the pair, and a full-screen dialog for
+   "undo the thing you chose" is friction in the wrong place.
+   ============================================================ */
+
+.unblockBtn,
+.cancelBtn,
+.confirmBtn {
+  flex-shrink: 0;
+  padding: 9px var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.unblockBtn,
+.cancelBtn {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.unblockBtn:hover:not(:disabled),
+.cancelBtn:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+}
+
+.confirmRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.confirmBtn {
+  background: var(--color-brand);
+  border: 1.5px solid var(--color-brand);
+  color: #fff;
+}
+
+.confirmBtn:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.unblockBtn:active:not(:disabled),
+.cancelBtn:active:not(:disabled),
+.confirmBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.unblockBtn:disabled,
+.cancelBtn:disabled,
+.confirmBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* On a narrow screen the button drops to its own full-width line rather than
+   squeezing the copy to two words per line. */
+@media (max-width: 400px) {
+  .unblockBtn,
+  .confirmRow {
+    width: 100%;
+  }
+  .confirmRow > * {
+    flex: 1;
+  }
+}
