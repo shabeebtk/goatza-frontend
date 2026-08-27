@@ -31,6 +31,7 @@ import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import type { ShareTarget } from "@/features/messages/services/conversations.api"
 import ProfileSharePreview from "@/features/profile/components/ProfileSharePreview/ProfileSharePreview"
 import BlockConfirmSheet from "@/features/moderation/components/BlockConfirmSheet/BlockConfirmSheet"
+import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import ShareCardSheet from "@/features/profile/components/ShareCardSheet/ShareCardSheet"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { profileUrl } from "@/shared/services/profileUrl"
@@ -80,12 +81,21 @@ export default function ProfileShareMenu({
   const [cardSheetOpen, setCardSheetOpen] = useState(false)
   const [cvSheetOpen, setCvSheetOpen] = useState(false)
   const [blockSheetOpen, setBlockSheetOpen] = useState(false)
+  const [reportSheetOpen, setReportSheetOpen] = useState(false)
 
   // Block is offered only to a signed-in visitor looking at SOMEONE ELSE who
   // they have not already blocked. `publicView` is the logged-out rendering —
   // there is no actor to block on behalf of.
   const canBlock =
     !publicView && !isOwnProfile && !isBlockedByMe && Boolean(targetId)
+
+  // Report is offered wherever Block is, MINUS the already-blocked exclusion:
+  // blocking someone does not mean you reported them, and the profile stays
+  // reachable from Settings → Blocked accounts, where reporting it is still a
+  // reasonable thing to want.
+  const canReport = !publicView && !isOwnProfile && Boolean(targetId)
+
+  const reportTargetType = target.type === "organization" ? "organization" : "user"
 
   // Organizations have no generated card — a different composition and a
   // deliberately later build — so the entry simply is not offered for one.
@@ -264,8 +274,25 @@ export default function ProfileShareMenu({
                 </button>
               )}
 
-              {/* LAST, and the only destructive row — same placement rule the
-                  post options sheet uses for Delete/Report. */}
+              {/* LAST, and the only destructive rows — same placement rule the
+                  post options sheet uses for Delete/Report. Report sits above
+                  Block: it is the lighter of the two, and the block shortcut
+                  on the report sheet's done step covers wanting both. */}
+              {canReport && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`${styles.item} ${styles.itemDanger}`}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setReportSheetOpen(true)
+                  }}
+                >
+                  <Icon icon="mdi:flag-outline" width={17} height={17} />
+                  Report account
+                </button>
+              )}
+
               {canBlock && (
                 <button
                   type="button"
@@ -284,6 +311,22 @@ export default function ProfileShareMenu({
           </>
         )}
       </span>
+
+      {reportSheetOpen && targetId && (
+        <ReportSheet
+          targetType={reportTargetType}
+          targetId={targetId}
+          username={username}
+          // For a profile the reported thing IS the account, so the block
+          // shortcut points at the same identity. Hidden once already blocked.
+          blockTarget={
+            isBlockedByMe
+              ? undefined
+              : { type: reportTargetType, id: targetId, username, name }
+          }
+          onClose={() => setReportSheetOpen(false)}
+        />
+      )}
 
       {blockSheetOpen && targetId && (
         <BlockConfirmSheet

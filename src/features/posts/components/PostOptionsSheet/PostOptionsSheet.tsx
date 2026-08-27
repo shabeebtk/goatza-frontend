@@ -8,6 +8,7 @@ import { useDeletePost, useToggleSave } from "../../hooks/usePostMutations"
 import { usePromoteToHighlights } from "@/features/highlights/hooks/usePromoteToHighlights"
 import { formatClipDuration } from "@/features/highlights/visibilityMeta"
 import BlockConfirmSheet from "@/features/moderation/components/BlockConfirmSheet/BlockConfirmSheet"
+import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import type { PostMedia } from "../../services/posts.api"
 import styles from "./PostOptionsSheet.module.css"
@@ -59,6 +60,7 @@ export default function PostOptionsSheet({
   // Second step of "Add to Highlights" when the post carries several videos.
   const [pickVideo, setPickVideo] = useState(false)
   const [blockOpen, setBlockOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
 
   // Never on your own post, and never without an author to name.
   const canBlock = !isOwn && Boolean(author)
@@ -343,7 +345,7 @@ export default function PostOptionsSheet({
 
                   <button
                     className={`${styles.option} ${styles.optionDanger}`}
-                    onClick={onClose}
+                    onClick={() => setReportOpen(true)}
                     type="button"
                   >
                     <span className={styles.optionIcon}>
@@ -366,6 +368,31 @@ export default function PostOptionsSheet({
           </>
         )}
       </div>
+      {reportOpen && (
+        <ReportSheet
+          targetType="post"
+          targetId={postId}
+          username={author?.username}
+          // The block shortcut acts on the AUTHOR, not the post. Omitted when
+          // the caller never wired an author — the sheet just hides the row.
+          blockTarget={
+            author
+              ? {
+                  type: author.type,
+                  id: author.id,
+                  username: author.username,
+                  name: author.name,
+                }
+              : undefined
+          }
+          // Close the whole options sheet too: the report is filed, and leaving
+          // the menu open behind it invites a second tap on the same row.
+          onClose={() => {
+            setReportOpen(false)
+            onClose()
+          }}
+        />
+      )}
       {blockOpen && author && (
         <BlockConfirmSheet
           targetType={author.type}

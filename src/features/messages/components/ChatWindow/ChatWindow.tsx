@@ -15,6 +15,7 @@ import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
 import { useChatMediaUpload } from "../../hooks/useChatImageUpload"
 import BlockMenuButton from "@/features/moderation/components/BlockMenuButton/BlockMenuButton"
+import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import {
   useConversationDetail,
   useMessages,
@@ -388,6 +389,12 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const lastSenderRef   = useRef<string | null>(null)
   const convRef         = useRef(conversationId)
   const [unseen, setUnseen] = useState(0)
+  /**
+   * Which message the report sheet is about. ONE sheet for the whole thread,
+   * keyed by id — rendering a sheet per bubble would mount a portal for every
+   * message in a long conversation.
+   */
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null)
 
   // ── Read acknowledgement state ────────────────────────────
   // Newest message id already reported to the server as read, so re-renders
@@ -1154,6 +1161,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                           isMine={isMine}
                           canDelete={isMine && isSettled}
                           onDelete={() => deleteMessage(msg.id)}
+                          // The exact complement of canDelete: you report what
+                          // someone else sent. `isSettled` because an optimistic
+                          // row has no server id to report yet.
+                          canReport={!isMine && isSettled}
+                          onReport={() => setReportMessageId(msg.id)}
                           copyText={
                             msg.message_type === "text" || !msg.message_type
                               ? msg.content || undefined
@@ -1317,6 +1329,28 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         </div>
 
       </div>
+
+      {reportMessageId && (
+        <ReportSheet
+          targetType="message"
+          targetId={reportMessageId}
+          username={otherUser?.username}
+          // The only person who can have sent a message you may report is the
+          // other party, so the block shortcut is the thread's counterpart.
+          // Hidden once already blocked — the header owns that state.
+          blockTarget={
+            otherUser && !isBlocked
+              ? {
+                  type: otherUser.type,
+                  id: otherUser.id,
+                  username: otherUser.username,
+                  name: otherUser.name,
+                }
+              : undefined
+          }
+          onClose={() => setReportMessageId(null)}
+        />
+      )}
     </div>
   )
 }

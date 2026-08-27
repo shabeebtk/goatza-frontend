@@ -29,6 +29,7 @@ import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
+import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
@@ -550,6 +551,7 @@ export default function RecruitmentDetail({
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [applyOpen, setApplyOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
 
   if (isLoading) return <DetailSkeleton />
 
@@ -646,6 +648,21 @@ export default function RecruitmentDetail({
             >
               <Icon icon="mdi:share-variant-outline" width={18} height={18} />
             </button>
+            {/* Report — a sibling icon button rather than a ⋯ menu, because
+                Share is the only other action here and a two-item overflow is
+                one more tap than the actions are worth. Never in the ORG view:
+                that is the club looking at its own listing. */}
+            {!isOrgView && (
+              <button
+                className={styles.shareIconBtn}
+                type="button"
+                onClick={() => setReportOpen(true)}
+                aria-label="Report recruitment"
+                title="Report"
+              >
+                <Icon icon="mdi:flag-outline" width={18} height={18} />
+              </button>
+            )}
           </div>
           {r.short_description && (
             <p className={styles.shortDesc}>{r.short_description}</p>
@@ -1046,6 +1063,24 @@ export default function RecruitmentDetail({
       {/* ── Apply modal (goatza in-app apply only) ── */}
       {applyOpen && (
         <ApplyRecruitmentModal recruitment={r} onClose={() => setApplyOpen(false)} />
+      )}
+
+      {/* ── Report sheet ── */}
+      {reportOpen && (
+        <ReportSheet
+          targetType="recruitment"
+          targetId={r.id}
+          username={r.organization.username}
+          // A recruitment is always org-owned, so the block shortcut points at
+          // the club that published it.
+          blockTarget={{
+            type: "organization",
+            id: r.organization.id,
+            username: r.organization.username,
+            name: r.organization.name,
+          }}
+          onClose={() => setReportOpen(false)}
+        />
       )}
 
       {/* ── Share sheet ── */}

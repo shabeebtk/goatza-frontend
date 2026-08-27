@@ -455,6 +455,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         subtitle={org.headline || TYPE_LABELS[org.type]}
                                         isVerified={org.is_verified}
                                         targetId={org.id}
+                                        isOwnProfile={isMe}
                                         isBlockedByMe={isBlockedByMe}
                                     />
                                 </>
@@ -527,6 +528,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         subtitle={org.headline || TYPE_LABELS[org.type]}
                                         isVerified={org.is_verified}
                                         targetId={org.id}
+                                        isOwnProfile={isMe}
                                         isBlockedByMe={isBlockedByMe}
                                     />
                                 </>

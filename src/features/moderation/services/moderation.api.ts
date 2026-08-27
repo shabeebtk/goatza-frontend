@@ -75,3 +75,58 @@ export const fetchBlockedListApi = async (
   const res = await api.get("/moderation/blocked", { params })
   return res.data.data
 }
+
+// ── Report ───────────────────────────────────────────────────
+
+/**
+ * What a report can point at. A superset of BlockTargetType: you block an
+ * ACCOUNT, but you report the specific thing you saw — which is usually a post
+ * or a message, not the person behind it.
+ */
+export type ReportTargetType =
+  | "user"
+  | "organization"
+  | "post"
+  | "comment"
+  | "message"
+  | "recruitment"
+
+/** The ten categories, exactly as the backend's ReportCategory spells them. */
+export type ReportCategory =
+  | "spam"
+  | "harassment"
+  | "hate_speech"
+  | "nudity_sexual"
+  | "violence"
+  | "scam_fraud"
+  | "impersonation_fake"
+  | "minor_safety"
+  | "self_harm"
+  | "other"
+
+export type ReportPayload = {
+  target_type: ReportTargetType
+  target_id: string
+  category: ReportCategory
+  details?: string
+}
+
+/**
+ * `already_reported` is a SUCCESS, not an error: filing a second report on
+ * something you already reported returns the first one untouched. The sheet
+ * shows the same thank-you either way — telling someone their report was a
+ * duplicate serves nobody and reads as a rejection.
+ */
+export type ReportResult = {
+  report_id: string
+  already_reported: boolean
+  status: string
+  is_priority: boolean
+}
+
+export const reportTargetApi = async (
+  payload: ReportPayload
+): Promise<ReportResult> => {
+  const res = await api.post("/moderation/report", payload)
+  return res.data.data
+}

@@ -1,0 +1,399 @@
+/* ============================================================
+   GOATZA — Report sheet
+
+   Geometry, motion and the bottom-sheet-on-mobile / centred-card-
+   on-desktop split are taken from BlockConfirmSheet, which took
+   them from PostOptionsSheet. Reporting and blocking are adjacent
+   decisions reached from the same ⋯ menus, so they should feel
+   like the same surface rather than two bespoke dialogs.
+
+   The one structural difference: this sheet has a SCROLLING body
+   (ten categories do not fit a small phone above the fold), so
+   the option list owns the overflow rather than the sheet.
+   ============================================================ */
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Backdrop ────────────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: backdropIn 0.18s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--space-6);
+  }
+}
+
+/* ── Sheet ───────────────────────────────────────────────────── */
+
+.sheet {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  display: flex;
+  flex-direction: column;
+  /* Never taller than the viewport — the option list scrolls inside. */
+  max-height: 88vh;
+  padding: 0 var(--space-5) calc(var(--space-5) + var(--safe-bottom));
+  animation: sheetUp 0.26s var(--ease-spring) both;
+}
+
+@media (min-width: 640px) {
+  .sheet {
+    max-width: 400px;
+    max-height: 80vh;
+    border-radius: var(--radius-xl);
+    animation: popIn 0.22s var(--ease-spring) both;
+    padding: var(--space-5) var(--space-6) var(--space-6);
+  }
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  margin: var(--space-3) auto var(--space-2);
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .handle { display: none; }
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.header {
+  position: relative;
+  flex-shrink: 0;
+  padding: var(--space-1) 0 var(--space-3);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;   /* a long handle must not widen the sheet */
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* Absolutely placed so the title stays optically centred whether or not
+   there is a back button — a flex row would shift it between steps. */
+.backBtn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.backBtn:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+/* ── Step 1: category list ───────────────────────────────────── */
+
+.options {
+  flex: 1 1 auto;
+  min-height: 0;              /* lets the list actually scroll inside flex */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  margin: 0 calc(var(--space-5) * -1);
+  padding: 0 var(--space-5);
+}
+
+@media (min-width: 640px) {
+  .options {
+    margin: 0 calc(var(--space-6) * -1);
+    padding: 0 var(--space-6);
+  }
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  /* 52px of target height — this list is read and tapped in a hurry. */
+  padding: 14px var(--space-1);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.option:last-child { border-bottom: none; }
+
+.option:hover { background: var(--color-surface-raised); }
+
+.option:active { background: var(--color-bg); }
+
+.radio {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  transition: border-color var(--duration-fast);
+}
+
+.option[aria-checked="true"] .radio {
+  border-color: var(--color-brand);
+}
+
+.radioDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+
+.optionLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.optionChevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/* ── Step 2: details ─────────────────────────────────────────── */
+
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 96px;
+  padding: var(--space-3);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  transition: border-color var(--duration-fast);
+}
+
+.textarea::placeholder { color: var(--color-text-muted); }
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--color-brand);
+}
+
+.textarea:disabled { opacity: 0.6; }
+
+/* ── Step 3: done ────────────────────────────────────────────── */
+
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.doneMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+  margin-bottom: var(--space-1);
+}
+
+.text {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  max-width: 340px;
+}
+
+.doneActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.blockedNote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-success);
+}
+
+/* ── Actions ─────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.cancelBtn,
+.submitBtn,
+.blockBtn,
+.doneBtn {
+  /* `min-width: 0` matters: a flex item will not shrink below its content
+     width without it, which is how two buttons plus the gap overflow a
+     narrow sheet. Same note as BlockConfirmSheet. */
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 13px var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.cancelBtn,
+.doneBtn {
+  width: 100%;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+/* Step 1's Cancel is the only control below the scrolling list. */
+.cancelBtn { margin-top: var(--space-4); flex-shrink: 0; }
+
+.actions .cancelBtn { margin-top: 0; }
+
+.cancelBtn:hover:not(:disabled),
+.doneBtn:hover:not(:disabled) {
+  background: var(--color-bg);
+  border-color: var(--color-text-muted);
+}
+
+.submitBtn {
+  background: var(--color-brand);
+  border: 1.5px solid var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.submitBtn:hover:not(:disabled) { background: var(--color-brand-hover);
+  border-color: var(--color-brand-hover); }
+
+/* Destructive treatment, matching BlockConfirmSheet's confirm button — the
+   shortcut opens exactly that sheet, so it should look like its own trigger. */
+.blockBtn {
+  width: 100%;
+  background: transparent;
+  border: 1.5px solid var(--color-error);
+  color: var(--color-error);
+}
+
+.blockBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+
+.cancelBtn:active:not(:disabled),
+.submitBtn:active:not(:disabled),
+.blockBtn:active:not(:disabled),
+.doneBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.cancelBtn:disabled,
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}

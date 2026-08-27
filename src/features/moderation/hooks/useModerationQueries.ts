@@ -15,10 +15,12 @@ import { profileKeys } from "@/features/profile/hooks/useProfileQueries"
 import {
   blockApi,
   fetchBlockedListApi,
+  reportTargetApi,
   unblockApi,
   type BlockedListResponse,
   type BlockPayload,
   type BlockTargetType,
+  type ReportPayload,
 } from "../services/moderation.api"
 
 // ── Query keys ───────────────────────────────────────────────
@@ -223,3 +225,55 @@ export const useBlockedList = () =>
       lastPage.has_more ? lastPage.offset + lastPage.results.length : undefined,
     staleTime: 1000 * 60,
   })
+
+// ── Report ───────────────────────────────────────────────────
+
+/**
+ * File a report.
+ *
+ * Deliberately invalidates NOTHING. A report changes no surface the reporter
+ * can see — the content stays where it was until a moderator decides — so a
+ * refetch here would cost a round trip to show the user the same screen. The
+ * one visible consequence, content disappearing after a takedown, arrives
+ * through the normal feed refresh, not from this mutation.
+ *
+ * No success toast either: the sheet owns that moment with its own confirmation
+ * step, and a toast sliding in over it would be the same message twice.
+ *
+ * Errors ARE handled here so every entry point gets the same words. 429 is
+ * called out separately because it is the one failure with a specific remedy —
+ * wait — while everything else is "try again".
+ */
+export const useReport = () => {
+  const toast = useToast()
+
+  return useMutation({
+    mutationFn: (payload: ReportPayload) => reportTargetApi(payload),
+
+    onError: (error: unknown) => {
+      const status =
+        typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { status?: number } }).response?.status
+          : undefined
+
+      if (status === 429) {
+        toast.show({
+          title: "You're reporting too fast. Try again later.",
+          variant: "warning",
+          icon: "mdi:timer-sand",
+          position: "top-right",
+          duration: 5000,
+        })
+        return
+      }
+
+      toast.show({
+        title: "Couldn't send this report",
+        message: "Try again.",
+        variant: "error",
+        position: "top-right",
+        duration: 4000,
+      })
+    },
+  })
+}

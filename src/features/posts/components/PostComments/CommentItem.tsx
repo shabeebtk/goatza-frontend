@@ -6,6 +6,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { resolveCommentAuthorType, commentActorAvatar } from "@/features/posts/utils/comment"
@@ -15,9 +16,20 @@ import styles from "./PostComments.module.css"
 
 dayjs.extend(relativeTime)
 
-// ── Small 3-dot menu (shown only when the actor may delete) ───
+// ── Small 3-dot menu ──────────────────────────────────────────
+//
+// Used to render only for someone who could DELETE. It now also carries
+// Report, which is offered on exactly the opposite set of comments — anything
+// the active actor did not write — so the menu itself appears whenever either
+// row would. A post owner reading a stranger's comment sees both.
 
-function CommentMenu({ onDelete }: { onDelete: () => void }) {
+function CommentMenu({
+  onDelete,
+  onReport,
+}: {
+  onDelete?: () => void
+  onReport?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -29,6 +41,8 @@ function CommentMenu({ onDelete }: { onDelete: () => void }) {
     document.addEventListener("mousedown", onDoc)
     return () => document.removeEventListener("mousedown", onDoc)
   }, [open])
+
+  if (!onDelete && !onReport) return null
 
   return (
     <div className={styles.menuWrap} ref={ref}>
@@ -42,15 +56,28 @@ function CommentMenu({ onDelete }: { onDelete: () => void }) {
       </button>
       {open && (
         <div className={styles.menuDropdown} role="menu">
-          <button
-            type="button"
-            className={styles.menuItemDanger}
-            onClick={() => { setOpen(false); onDelete() }}
-            role="menuitem"
-          >
-            <Icon icon="mdi:trash-can-outline" width={15} height={15} />
-            Delete
-          </button>
+          {onReport && (
+            <button
+              type="button"
+              className={styles.menuItemDanger}
+              onClick={() => { setOpen(false); onReport() }}
+              role="menuitem"
+            >
+              <Icon icon="mdi:flag-outline" width={15} height={15} />
+              Report
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className={styles.menuItemDanger}
+              onClick={() => { setOpen(false); onDelete() }}
+              role="menuitem"
+            >
+              <Icon icon="mdi:trash-can-outline" width={15} height={15} />
+              Delete
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -91,6 +118,10 @@ function ReplyItem({
   const authorType = resolveCommentAuthorType(reply.actor)
   const href = toProfile(reply.actor.username, authorType)
   const canDelete = isPostOwner || isActiveAuthor(reply.actor, authorType)
+  // Reportable by anyone who did not write it — including a post owner, who
+  // can both remove it from their own post and tell us why it was there.
+  const canReport = !isActiveAuthor(reply.actor, authorType)
+  const [reportOpen, setReportOpen] = useState(false)
 
   return (
     <div className={styles.replyItem}>
@@ -119,10 +150,30 @@ function ReplyItem({
           )}
           {reply.comment}
         </p>
-        {canDelete && (
-          <CommentMenu onDelete={() => onDelete({ commentId: reply.id, postId, parentId })} />
-        )}
+        <CommentMenu
+          onDelete={
+            canDelete
+              ? () => onDelete({ commentId: reply.id, postId, parentId })
+              : undefined
+          }
+          onReport={canReport ? () => setReportOpen(true) : undefined}
+        />
       </div>
+
+      {reportOpen && (
+        <ReportSheet
+          targetType="comment"
+          targetId={reply.id}
+          username={reply.actor.username}
+          blockTarget={{
+            type: authorType,
+            id: reply.actor.id,
+            username: reply.actor.username,
+            name: reply.actor.name,
+          }}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -150,6 +201,8 @@ export default function CommentItem({
   const authorType = resolveCommentAuthorType(comment.actor, comment.actor_type)
   const href = toProfile(comment.actor.username, authorType)
   const canDelete = isPostOwner || isActiveAuthor(comment.actor, authorType)
+  const canReport = !isActiveAuthor(comment.actor, authorType)
+  const [reportOpen, setReportOpen] = useState(false)
 
   return (
     <div className={styles.commentRow} data-comment-id={comment.id}>
@@ -174,14 +227,35 @@ export default function CommentItem({
             <span className={styles.commentTime}>{dayjs(comment.created_at).fromNow(true)}</span>
           </div>
           <p className={styles.commentText}>{comment.comment}</p>
-          {canDelete && (
-            <CommentMenu
-              onDelete={() =>
-                onDelete({ commentId: comment.id, postId, repliesCount: comment.replies_count })
-              }
-            />
-          )}
+          <CommentMenu
+            onDelete={
+              canDelete
+                ? () =>
+                    onDelete({
+                      commentId: comment.id,
+                      postId,
+                      repliesCount: comment.replies_count,
+                    })
+                : undefined
+            }
+            onReport={canReport ? () => setReportOpen(true) : undefined}
+          />
         </div>
+
+        {reportOpen && (
+          <ReportSheet
+            targetType="comment"
+            targetId={comment.id}
+            username={comment.actor.username}
+            blockTarget={{
+              type: authorType,
+              id: comment.actor.id,
+              username: comment.actor.username,
+              name: comment.actor.name,
+            }}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
 
         <div className={styles.commentActions}>
           <button className={styles.commentActionBtn} onClick={() => onReply(comment)}>
