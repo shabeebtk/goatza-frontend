@@ -6,7 +6,7 @@ import Select from "@/shared/components/ui/Select/Select"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useSportPositions } from "@/features/profile/hooks/useSportsQueries"
 import type { Sport } from "@/features/profile/services/sports.api"
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
 import styles from "./ExploreListFilters.module.css"
 
 // ── Values (URL-synced by the page) ───────────────────────────
@@ -38,21 +38,31 @@ const RADIUS_OPTIONS = [
   { value: "200", label: "200 km" },
 ]
 
-// A MapboxCity reconstructed from the flat URL values (for LocationPicker).
-function toCity(v: ExploreFilterValues): MapboxCity | null {
+// A PlaceResult reconstructed from the flat URL values (for LocationPicker).
+//
+// The URL carries a label and a point and nothing else, so there is no place id
+// to recover — `external_id` stays the "committed" sentinel it has always been.
+// That is fine here and only here: this value is never sent to a write endpoint,
+// it only re-renders the picker's pill from a shareable URL.
+function toCity(v: ExploreFilterValues): PlaceResult | null {
   if (!v.cityLabel || !v.lat || !v.lng) return null
   return {
+    provider: "google",
+    place_type: "city",
     label: v.cityLabel,
     name: v.cityLabel,
+    city: v.cityLabel,
     state: "",
+    country: "",
     country_code: "",
     latitude: Number(v.lat),
     longitude: Number(v.lng),
     external_id: "committed",
+    types: [],
   }
 }
 
-function cityPatch(city: MapboxCity | null, radius: string): Partial<ExploreFilterValues> {
+function cityPatch(city: PlaceResult | null, radius: string): Partial<ExploreFilterValues> {
   if (!city) return { cityLabel: "", lat: "", lng: "", radius: "" }
   return {
     cityLabel: city.label,

@@ -13,7 +13,8 @@ import {
     getUploadConfigApi,
     putToR2,
 } from "@/shared/services/mediaUpload"
-import type { MapboxPlace } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
+import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import styles from "./CreateRecruitmentModal.module.css"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
@@ -349,18 +350,22 @@ function mapInitialPositions(r: RecruitmentDetail): { any: boolean; list: Positi
     }
 }
 
-function mapInitialLocation(r: RecruitmentDetail): MapboxPlace | null {
+function mapInitialLocation(r: RecruitmentDetail): PlaceResult | null {
     if (r.latitude == null || r.longitude == null) return null
     const primary = r.location_name || r.city || "Location"
     return {
+        provider: "google",
         label: [r.location_name || r.city, r.country_code].filter(Boolean).join(", "),
         name: primary,
         place_type: "place",
+        city: r.city || "",
         state: "",
+        country: "",
         country_code: r.country_code,
         latitude: r.latitude,
         longitude: r.longitude,
         external_id: "",
+        types: [],
     }
 }
 
@@ -1291,8 +1296,11 @@ export default function CreateRecruitmentModal({
     )
     const [venueName, setVenueName] = useState(() => init?.venue_name ?? "")
     const [venueLink, setVenueLink] = useState(() => init?.venue_link ?? "")
-    const [location, setLocation] = useState<MapboxPlace | null>(() => (init ? mapInitialLocation(init) : null))
+    const [location, setLocation] = useState<PlaceResult | null>(() => (init ? mapInitialLocation(init) : null))
     const [locationOpen, setLocationOpen] = useState(false)
+    // The actor's own coordinates, as a 50 km bias circle for place search.
+    // Cache-only: never fetches, and null is a perfectly normal answer.
+    const placeBias = useProfileBias()
 
     // ── Step 2: Positions + Questions ────────────────────────────
     const [anyPosition, setAnyPosition] = useState(() => (initialPositions ? initialPositions.any : true))
@@ -1595,12 +1603,20 @@ export default function CreateRecruitmentModal({
         venue_name: venueName.trim() || undefined,
         venue_link: venueLink.trim() || undefined,
         location: location ? {
-            // Mapbox returns poi/place/region/district/locality — only "place"
-            // is a true city, but the backend just stores city as a display
-            // string, so send the place name for every type (never undefined,
-            // which would trip the nested "city is required" validation).
+            // provider + external_id are NEW here: this payload used to drop
+            // the place id entirely, so every recruitment minted its own
+            // Location row and none of them could ever be refreshed by id.
+            provider: location.provider,
+            external_id: location.external_id,
             name: location.name,
-            city: location.name,
+            type: location.place_type,
+            // `city` must never be undefined — the nested serializer treats a
+            // missing city as a validation error. Google usually resolves a
+            // real locality now; the place name is the fallback when it does
+            // not (a ground outside any named town).
+            city: location.city || location.name,
+            state: location.state,
+            country: location.country,
             country_code: location.country_code,
             latitude: location.latitude,
             longitude: location.longitude,
@@ -1975,6 +1991,7 @@ export default function CreateRecruitmentModal({
                                     onChange={setLocation}
                                     onClose={() => setLocationOpen(false)}
                                     disabled={isSubmitting}
+                                    bias={placeBias}
                                 />
                             )}
                         </div>

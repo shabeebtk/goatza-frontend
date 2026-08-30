@@ -13,11 +13,15 @@
  * no caller is a thing the next person has to check before changing.
  *
  * Location is NOT one of these lists. It used to be Kerala's fourteen districts
- * in a dropdown; it is now a geocoded city from Mapbox, which cannot be an
- * enum — see `SignupLocation` and `toSignupLocation`.
+ * in a dropdown; it is now a place picked from Google Places, which cannot be
+ * an enum — see `SignupLocation` and `toSignupLocation`.
  */
 
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import {
+  toLocationPayload,
+  type LocationPayload,
+  type PlaceResult,
+} from "@/shared/services/places.service"
 
 export type Option = {
   value: string
@@ -63,46 +67,33 @@ export const INSTAGRAM_URL = `https://instagram.com/${INSTAGRAM_HANDLE}`
 /**
  * The nested `location` object the backend's serializer accepts.
  *
- * Every key is optional there, and every key is sent from here — a Mapbox
- * result has all of them, and half a location is harder to reason about later
+ * Every key is optional there, and every key is sent from here — a resolved
+ * place has all of them, and half a location is harder to reason about later
  * than none.
  *
  * `name` is the FULL label ("Kozhikode, Kerala, India") and `city` is the short
- * one ("Kozhikode"). MapboxCity calls those two `label` and `name`, which is
+ * one ("Kozhikode"). PlaceResult calls those two `label` and `name`, which is
  * the one rename in this file and the reason `toSignupLocation` exists rather
- * than a spread at the call site: passing a MapboxCity through untouched would
+ * than a spread at the call site: passing a PlaceResult through untouched would
  * store the city in the label column and nothing in the city column.
+ *
+ * `provider` and `external_id` are what let a signup and a profile naming the
+ * same place share ONE Location row — the backend looks a place up by that
+ * pair. This is just the shared `LocationPayload` under the waitlist's own
+ * name, kept as its own type because the waitlist is a public endpoint with an
+ * explicit allow-list rather than a general write path.
  */
-export type SignupLocation = {
-  name: string
-  city: string
-  state: string
-  country: string
-  country_code: string
-  latitude: number
-  longitude: number
-  external_id: string
-}
+export type SignupLocation = LocationPayload
 
 /**
- * MapboxCity → the POST body's `location`.
+ * PlaceResult → the POST body's `location`.
  *
- * `country` is not on MapboxCity — the service builds the label from it and
- * then drops the field — so it is sent empty rather than parsed back out of the
- * label. The backend stores what it is given and the country code is the part
- * anything queries on.
+ * Delegates to the shared `toLocationPayload` so the label/name rename and the
+ * provider fields cannot drift from the other five write paths that send the
+ * same object.
  */
-export function toSignupLocation(city: MapboxCity): SignupLocation {
-  return {
-    name: city.label,
-    city: city.name,
-    state: city.state,
-    country: "",
-    country_code: city.country_code,
-    latitude: city.latitude,
-    longitude: city.longitude,
-    external_id: city.external_id,
-  }
+export function toSignupLocation(city: PlaceResult): SignupLocation {
+  return toLocationPayload(city)
 }
 
 // ── API shapes ────────────────────────────────────────────────

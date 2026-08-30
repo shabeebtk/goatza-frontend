@@ -334,9 +334,22 @@ export type CreateRecruitmentMediaPayload = {
   duration?: number
 }
 
+/**
+ * The `location` block on a recruitment (docs/PLACES_MIGRATION.md 5.4).
+ *
+ * `provider` + `external_id` are NEW. This payload used to send a label and a
+ * point and nothing else, which meant every recruitment created its own
+ * Location row and none of them could ever be found — or coordinate-refreshed —
+ * by place id.
+ */
 export type CreateRecruitmentLocationPayload = {
+  provider?: "google"
+  external_id?: string
   name?: string
+  type?: "city" | "place"
   city?: string
+  state?: string
+  country?: string
   country_code?: string
   latitude?: number
   longitude?: number

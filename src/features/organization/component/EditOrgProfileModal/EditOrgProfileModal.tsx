@@ -8,7 +8,8 @@ import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
 import { Input, Button } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
+import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 
 import { 
   useUpdateOrganization, 
@@ -126,7 +127,10 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
   const [locationName, setLocationName] = useState("")
   const [locationAddress, setLocationAddress] = useState("")
   const [isPrimaryLocation, setIsPrimaryLocation] = useState(false)
-  const [selectedCity, setSelectedCity] = useState<MapboxCity | null>(null)
+  const [selectedCity, setSelectedCity] = useState<PlaceResult | null>(null)
+  // The actor's own coordinates, as a 50 km bias circle for place search.
+  // Cache-only: never fetches, and null is a perfectly normal answer.
+  const placeBias = useProfileBias()
 
   // Lock body scroll
   useEffect(() => {
@@ -218,9 +222,14 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
       setIsPrimaryLocation(loc.is_primary || false)
       if (loc.city && loc.country_code) {
         setSelectedCity({
+          provider: "google",
+          place_type: "city",
           label: `${loc.city}, ${loc.country_code}`,
           name: loc.city,
+          city: loc.city,
           state: loc.state || "",
+          country: "",
+          types: [],
           country_code: loc.country_code,
           latitude: loc.latitude ?? 0,
           longitude: loc.longitude ?? 0,
@@ -250,6 +259,7 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
 
     const payload: OrgLocationPayload = {
       id: editingLocationId,
+      // The BRANCH name and address — the org's own, never the place's.
       name: locationName,
       address: locationAddress,
       city: selectedCity.name,
@@ -257,6 +267,13 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
       country_code: selectedCity.country_code,
       latitude: selectedCity.latitude,
       longitude: selectedCity.longitude,
+      // The PLACE. `location_name` is the picked label; provider + external_id
+      // are what tie this branch to the shared Location row.
+      location_name: selectedCity.label,
+      provider: selectedCity.provider,
+      external_id: selectedCity.external_id,
+      type: selectedCity.place_type,
+      country: selectedCity.country,
       is_primary: isPrimaryLocation
     }
 
@@ -431,6 +448,7 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                       onChange={setSelectedCity}
                       placeholder="Search city…"
                       disabled={upsertLocation.isPending}
+                      bias={placeBias}
                     />
                   </Field>
                   <Field label="Address (Optional)">

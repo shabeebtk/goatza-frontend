@@ -14,7 +14,8 @@ import {
   MAX_VIDEO_MB,
 } from "@/features/posts/services/postUpload.service"
 import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/posts/services/posts.api"
-import type { MapboxPlace } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
+import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
 import { useNavigation } from "@/shared/services/navigation.service"
@@ -409,8 +410,11 @@ export default function CreatePostModal({
   const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   // Location state — managed outside any form library
-  const [postLocation,  setPostLocation]  = useState<MapboxPlace | null>(null)
+  const [postLocation,  setPostLocation]  = useState<PlaceResult | null>(null)
   const [locationOpen,  setLocationOpen]  = useState(false)
+  // The actor's own coordinates, as a 50 km bias circle for place search.
+  // Cache-only: never fetches, and null is a perfectly normal answer.
+  const placeBias = useProfileBias()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef  = useRef<HTMLTextAreaElement>(null)
@@ -556,10 +560,14 @@ export default function CreatePostModal({
 
     // Build location payload if selected
     const locationPayload: PostLocation | undefined = postLocation ? {
+      provider:     postLocation.provider,
       name:         postLocation.name,
       type:         postLocation.place_type,
-      city:         postLocation.place_type === "place" ? postLocation.name : undefined,
+      // The picker now resolves a real city for a venue, so prefer it and fall
+      // back to the place name only when Google had no locality to give.
+      city:         postLocation.city || postLocation.name,
       state:        postLocation.state || undefined,
+      country:      postLocation.country || undefined,
       country_code: postLocation.country_code,
       latitude:     postLocation.latitude,
       longitude:    postLocation.longitude,
@@ -715,6 +723,7 @@ export default function CreatePostModal({
               onChange={setPostLocation}
               onClose={() => setLocationOpen(false)}
               disabled={isSubmitting}
+              bias={placeBias}
             />
           )}
 

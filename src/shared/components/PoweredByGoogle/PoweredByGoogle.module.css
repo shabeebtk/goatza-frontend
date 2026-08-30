@@ -1,0 +1,45 @@
+/* ============================================================
+   GOATZA — PoweredByGoogle
+   Required attribution under any list of Places predictions.
+   ============================================================ */
+
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 6px var(--space-3);
+  line-height: 0;
+}
+
+.logo {
+  height: 18px;
+  width: auto;
+  display: block;
+  opacity: 0.9;
+}
+
+/* Only one variant is ever visible. The app is token-themed, so this media
+   query is the one place that has to branch on the scheme directly — a `src`
+   cannot be chosen from CSS. */
+.logoDark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .logoLight {
+    display: none;
+  }
+
+  .logoDark {
+    display: block;
+  }
+}
+
+/* Text fallback, until the official PNGs land in public/google/. */
+.text {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted, #6b7280);
+  line-height: 1.4;
+}

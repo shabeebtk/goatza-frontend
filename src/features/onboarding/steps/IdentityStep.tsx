@@ -9,7 +9,7 @@ import { Input } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useMyProfile, useUpdateProfileData, useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import type { UserProfile, LocationPayload, UpdateProfileDataPayload } from "@/features/profile/services/profile.api"
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
 import { useAuthStore } from "@/store/auth.store"
 import { useOnboardingStore } from "../store/onboarding.store"
 import { useCompleteOnboarding } from "../hooks/useCompleteOnboarding"
@@ -45,11 +45,14 @@ type IdentityDraft = {
   name: string
   username: string
   gender: GenderValue
-  city: MapboxCity | null
+  city: PlaceResult | null
 }
 
-// Rebuild a MapboxCity from the stored profile location (mirrors EditProfileModal).
-function cityFromProfile(profile: UserProfile): MapboxCity | null {
+// Rebuild a PlaceResult from the stored profile location (mirrors
+// EditProfileModal). The API does not publish the place id, so `external_id`
+// stays "" — the picker only needs this to render the pill, and any real edit
+// replaces the whole object with a freshly resolved one.
+function cityFromProfile(profile: UserProfile): PlaceResult | null {
   if (!profile.location) return null
   // Coordinates are optional on UserLocation because the PUBLIC profile payload
   // omits them. Onboarding always runs against the authenticated payload, which
@@ -59,13 +62,18 @@ function cityFromProfile(profile: UserProfile): MapboxCity | null {
   if (latitude == null || longitude == null) return null
 
   return {
+    provider: "google",
+    place_type: "city",
     label: [profile.location.city, profile.location.country_code].filter(Boolean).join(", "),
     name: profile.location.city,
+    city: profile.location.city,
     state: "",
+    country: "",
     country_code: profile.location.country_code,
     latitude,
     longitude,
     external_id: "",
+    types: [],
   }
 }
 
@@ -136,7 +144,7 @@ function IdentityForm({
   // Initial values: saved draft wins (returning via Back), else the profile.
   const initialGender: GenderValue = draft?.gender ?? ((profile.gender as GenderValue) ?? "")
   const [gender, setGender] = useState<GenderValue>(initialGender)
-  const [selectedCity, setSelectedCity] = useState<MapboxCity | null>(
+  const [selectedCity, setSelectedCity] = useState<PlaceResult | null>(
     draft?.city ?? cityFromProfile(profile)
   )
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle")
@@ -259,10 +267,12 @@ function IdentityForm({
     if (locationChanged) {
       payload.location = selectedCity
         ? ({
+            provider: "google",
             name: selectedCity.name,
             type: "city",
             city: selectedCity.name,
             state: selectedCity.state,
+            country: selectedCity.country,
             country_code: selectedCity.country_code,
             latitude: selectedCity.latitude,
             longitude: selectedCity.longitude,
@@ -424,6 +434,11 @@ function IdentityForm({
             onChange={setSelectedCity}
             placeholder="Search your city…"
             disabled={busy}
+            bias={
+              selectedCity
+                ? { latitude: selectedCity.latitude, longitude: selectedCity.longitude }
+                : null
+            }
           />
         </div>
 

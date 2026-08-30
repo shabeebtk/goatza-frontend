@@ -9,7 +9,8 @@ import { useMyPostSports, useUpdatePost } from "@/features/posts/hooks/usePostMu
 import { getPostAspectRatio } from "@/features/posts/utils/media"
 import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import type { Post, PostMedia, PostVisibility, PostLocation, UpdatePostPayload } from "@/features/posts/services/posts.api"
-import type { MapboxPlace } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
+import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import shared from "../CreatePostModal/CreatePostModal.module.css"
@@ -100,14 +101,18 @@ function VisibilityBtn({ value, onChange }: {
 type LocationEdit =
   | { kind: "keep" }
   | { kind: "cleared" }
-  | { kind: "set"; place: MapboxPlace }
+  | { kind: "set"; place: PlaceResult }
 
-function buildLocationPayload(place: MapboxPlace): PostLocation {
+function buildLocationPayload(place: PlaceResult): PostLocation {
   return {
+    provider:     place.provider,
     name:         place.name,
     type:         place.place_type,
-    city:         place.place_type === "place" ? place.name : undefined,
+    // The picker now resolves a real city for a venue, so prefer it and fall
+    // back to the place name only when Google had no locality to give.
+    city:         place.city || place.name,
     state:        place.state || undefined,
+    country:      place.country || undefined,
     country_code: place.country_code,
     latitude:     place.latitude,
     longitude:    place.longitude,
@@ -131,6 +136,9 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
   const [sportId, setSportId]       = useState(initialSportId)
   const [locationEdit, setLocationEdit] = useState<LocationEdit>({ kind: "keep" })
   const [locationOpen, setLocationOpen] = useState(false)
+  // The actor's own coordinates, as a 50 km bias circle for place search.
+  // Cache-only: never fetches, and null is a perfectly normal answer.
+  const placeBias = useProfileBias()
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [saving, setSaving]             = useState(false)
 
@@ -196,7 +204,7 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
     mention.syncCaret()
   }
 
-  const handleLocationChange = (place: MapboxPlace | null) => {
+  const handleLocationChange = (place: PlaceResult | null) => {
     setLocationEdit(place ? { kind: "set", place } : { kind: "cleared" })
   }
 
@@ -358,6 +366,7 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
               onChange={handleLocationChange}
               onClose={() => setLocationOpen(false)}
               disabled={saving}
+              bias={placeBias}
             />
           )}
 

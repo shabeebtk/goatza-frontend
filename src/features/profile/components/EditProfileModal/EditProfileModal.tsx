@@ -11,7 +11,7 @@ import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useUpdateProfileData, useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { useAuthStore } from "@/store/auth.store"
 import type { UserProfile, LocationPayload } from "@/features/profile/services/profile.api"
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
 import styles from "./EditProfileModal.module.css"
 
 // ── Zod schema ────────────────────────────────────────────────
@@ -117,9 +117,9 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Location state (managed outside react-hook-form) ─────────
-  // We track the MapboxCity separately because it's not a simple
+  // We track the PlaceResult separately because it's not a simple
   // scalar value — it gets serialised into LocationPayload on submit.
-  const [selectedCity, setSelectedCity] = useState<MapboxCity | null>(() => {
+  const [selectedCity, setSelectedCity] = useState<PlaceResult | null>(() => {
     if (!profile.location) return null
 
     // Coordinates are optional on UserLocation because the PUBLIC profile
@@ -129,17 +129,29 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
     const { latitude, longitude } = profile.location
     if (latitude == null || longitude == null) return null
 
-    // Reconstruct a minimal MapboxCity from existing profile location
+    // Reconstruct a minimal PlaceResult from existing profile location
     return {
+      provider: "google",
+      place_type: "city",
       label: [profile.location.city, profile.location.country_code].filter(Boolean).join(", "),
       name: profile.location.city,
+      city: profile.location.city,
       state: "",                        // not stored in profile read response
+      country: "",                      // not stored in profile read response
       country_code: profile.location.country_code,
       latitude,
       longitude,
       external_id: "",                        // not stored, will be fresh from picker
+      types: [],
     }
   })
+
+  // Bias place search toward where this profile already says the user is.
+  // A ranking hint only — null is normal for a profile with no city yet.
+  const profileBias =
+    profile.location?.latitude != null && profile.location?.longitude != null
+      ? { latitude: profile.location.latitude, longitude: profile.location.longitude }
+      : null
 
   // Track whether location changed from the initial value
   const originalLocationName = profile.location?.city ?? null
@@ -223,12 +235,14 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
         // User cleared location — send null
         payload.location = null
       } else {
-        // Build full LocationPayload from MapboxCity
+        // Build full LocationPayload from PlaceResult
         const loc: LocationPayload = {
+          provider: "google",
           name: selectedCity.name,
           type: "city",
           city: selectedCity.name,
           state: selectedCity.state,
+          country: selectedCity.country,
           country_code: selectedCity.country_code,
           latitude: selectedCity.latitude,
           longitude: selectedCity.longitude,
@@ -356,6 +370,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
                   onChange={setSelectedCity}
                   placeholder="Search city, e.g. Kannur…"
                   disabled={isSubmitting}
+                  bias={profileBias}
                 />
               </Field>
             </div>
