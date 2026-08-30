@@ -98,6 +98,16 @@ export type OrganizationDetail = {
 
 // ── Payloads ──────────────────────────────────────────────────────
 
+/**
+ * One org branch. TWO things share this payload: the org's own facts (`name` is
+ * the BRANCH label — "Main Branch" — plus `address` and `is_primary`) and the
+ * PLACE it sits at (everything from `provider` down).
+ *
+ * That split is why the place's own label arrives as `location_name` rather
+ * than `name`: `name` was already taken by the branch, and sending the city
+ * label in it would name the shared Location row "Main Branch". The backend
+ * reads exactly this pair of names (see organization_location_service.py).
+ */
 export type OrgLocationPayload = {
   id?:          string | null
   name:         string
@@ -105,6 +115,12 @@ export type OrgLocationPayload = {
   city:         string
   state:        string
   country_code: string
+  /** The place's own label, e.g. "Kannur, Kerala, India". */
+  location_name?: string
+  provider?:    "google"
+  external_id?: string
+  type?:        "city" | "place"
+  country?:     string
   latitude:     number | null
   longitude:    number | null
   is_primary?:  boolean

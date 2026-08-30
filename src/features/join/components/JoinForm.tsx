@@ -13,7 +13,7 @@
  * Date of birth sits outside react-hook-form, the same way DetailsStep handles
  * it — DateOfBirthPicker is three selects behind one `onChange(string | null)`,
  * not an input RHF can register. The city picker is outside it for the same
- * reason: LocationPicker holds a MapboxCity object, not a string, and RHF has
+ * reason: LocationPicker holds a PlaceResult object, not a string, and RHF has
  * nothing to register against a component that never renders a named input.
  */
 
@@ -25,7 +25,7 @@ import { z } from "zod"
 
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { Button, DateOfBirthPicker, Input, Select } from "@/shared/components/ui"
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
 
 import { useJoinWaitlist } from "../hooks/useJoinWaitlist"
 import { JoinApiError } from "../services/join.api"
@@ -121,7 +121,7 @@ type TextPayloadField =
 function buildPayload(
   values: FormFields,
   birthdate: string | null,
-  city: MapboxCity | null,
+  city: PlaceResult | null,
 ): SignupPayload {
   const payload: SignupPayload = {
     name: values.name.trim(),
@@ -184,7 +184,7 @@ export default function JoinForm({
 
   // Also outside RHF: an object, not a string. Null until a city is picked,
   // and picking one is never required.
-  const [city, setCity] = useState<MapboxCity | null>(null)
+  const [city, setCity] = useState<PlaceResult | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
 
   const [formError, setFormError] = useState<string | null>(null)
@@ -333,7 +333,7 @@ export default function JoinForm({
         </div>
 
         {/*
-          The city, geocoded. LocationPicker is the app's existing Mapbox
+          The city, resolved. LocationPicker is the app's existing Places
           search — the same component the post composer and profile editing
           use — so a city picked here is the same Location row the player's
           profile will point at after launch.

@@ -6,11 +6,20 @@ export type PostMediaType = "image" | "video"
 export type PostVisibility = "public" | "followers"
 export type PostType = "normal"
 
+/**
+ * The `location` block on a post create/edit (docs/PLACES_MIGRATION.md 5.4).
+ *
+ * `provider` + `external_id` identify the shared Location row. They are what
+ * make one "Kannur Stadium" a single row rather than one per post, and what the
+ * coordinate-refresh job follows when it re-fetches a place's point.
+ */
 export type PostLocation = {
+  provider:     "google"
   name:         string
   type:         string
   city?:        string
   state?:       string
+  country?:     string
   country_code: string
   latitude:     number
   longitude:    number

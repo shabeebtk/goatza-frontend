@@ -31,9 +31,13 @@
  *      everything else has already gone wrong.
  *
  * The API module is mocked; `JoinApiError` is kept real because the error
- * handling branches on `instanceof`. Mapbox is mocked too — the city picker is
- * a network call behind a debounce, and this suite is about what the form does
- * with a selection, not about the geocoder.
+ * handling branches on `instanceof`. Place search is mocked too — the city
+ * picker is two network calls behind a debounce, and this suite is about what
+ * the form does with a selection, not about the provider.
+ *
+ * Only `placesProvider` is replaced. `toPlaceResult` / `toLocationPayload` stay
+ * REAL, because the prediction→payload rename they perform is exactly what the
+ * city tests below assert.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -43,7 +47,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { toast } from "sonner"
 
 import JoinPage from "./JoinPage"
-import { searchCities } from "@/shared/services/mapbox.service"
+import { placesProvider } from "@/shared/services/places.service"
 import { JoinApiError, fetchWaitlistStats, joinWaitlist } from "../services/join.api"
 import type { SignupResult } from "../types"
 
@@ -71,9 +75,18 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-vi.mock("@/shared/services/mapbox.service", () => ({
-  searchCities: vi.fn(),
-}))
+vi.mock("@/shared/services/places.service", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/shared/services/places.service")>()
+  return {
+    ...actual,
+    placesProvider: {
+      searchCities: vi.fn(),
+      searchPlaces: vi.fn(),
+      getPlaceDetails: vi.fn(),
+    },
+  }
+})
 
 vi.mock("../services/join.api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/join.api")>()
@@ -86,7 +99,8 @@ vi.mock("../services/join.api", async (importOriginal) => {
 
 const mockStats = vi.mocked(fetchWaitlistStats)
 const mockJoin = vi.mocked(joinWaitlist)
-const mockCities = vi.mocked(searchCities)
+const mockCities = vi.mocked(placesProvider.searchCities)
+const mockDetails = vi.mocked(placesProvider.getPlaceDetails)
 
 /** The display number — 11 real signups behind an offset of 36. */
 const RESULT: SignupResult = {
@@ -98,15 +112,31 @@ const RESULT: SignupResult = {
   already_registered: false,
 }
 
-/** One Mapbox result, in the shape the service returns. */
-const KOZHIKODE = {
-  label: "Kozhikode, Kerala, India",
+/**
+ * One autocomplete prediction, in the shape the proxy returns.
+ *
+ * Note what is NOT here: coordinates. A prediction never carries them — they
+ * cost the Place Details call below, which is made only for the one prediction
+ * the user actually picks.
+ */
+const KOZHIKODE_PREDICTION = {
+  place_id: "ChIJ_kozhikode_test",
   name: "Kozhikode",
-  state: "Kerala",
-  country_code: "IN",
+  label: "Kozhikode, Kerala, India",
+  secondary: "Kerala, India",
+  types: ["locality", "political"],
+}
+
+/** What GET /places/details/<place_id> answers with for that prediction. */
+const KOZHIKODE_DETAILS = {
+  place_id: "ChIJ_kozhikode_test",
   latitude: 11.2588,
   longitude: 75.7804,
-  external_id: "place.11223344",
+  city: "Kozhikode",
+  state: "Kerala",
+  country: "India",
+  country_code: "IN",
+  types: ["locality", "political"],
 }
 
 function renderPage() {
@@ -146,6 +176,11 @@ async function pickCity(query = "Kozhi") {
   // The list selects on mousedown, not click — a click fires after blur, by
   // which point the dropdown has closed.
   fireEvent.mouseDown(option)
+
+  // Selecting is asynchronous now: the details call has to resolve before
+  // onChange fires. The clear button only exists once a value is committed, so
+  // waiting for it is what stops a submit racing an unresolved selection.
+  await screen.findByRole("button", { name: /clear location/i })
 }
 
 const submit = () =>
@@ -155,7 +190,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockStats.mockResolvedValue({ count: 412, goal: 1000 })
   mockJoin.mockResolvedValue(RESULT)
-  mockCities.mockResolvedValue([KOZHIKODE])
+  mockCities.mockResolvedValue([KOZHIKODE_PREDICTION])
+  mockDetails.mockResolvedValue(KOZHIKODE_DETAILS)
 })
 
 afterEach(cleanup)
@@ -375,17 +411,21 @@ describe("the city", () => {
 
     await waitFor(() => expect(mockJoin).toHaveBeenCalledTimes(1))
 
-    // The rename is the whole point: Mapbox's `label` is the backend's `name`,
-    // and Mapbox's `name` is the backend's `city`.
+    // The rename is the whole point: the prediction's `label` is the backend's
+    // `name`, and its `name` is the backend's `city`. `country` is a real value
+    // now — it comes from the details call, which the old provider had no
+    // equivalent of.
     expect(mockJoin.mock.calls[0][0].location).toEqual({
+      provider: "google",
+      external_id: "ChIJ_kozhikode_test",
       name: "Kozhikode, Kerala, India",
+      type: "city",
       city: "Kozhikode",
       state: "Kerala",
-      country: "",
+      country: "India",
       country_code: "IN",
       latitude: 11.2588,
       longitude: 75.7804,
-      external_id: "place.11223344",
     })
   })
 
@@ -398,8 +438,8 @@ describe("the city", () => {
     expect("location" in mockJoin.mock.calls[0][0]).toBe(false)
   })
 
-  it("never blocks a submit when the geocoder is down", async () => {
-    mockCities.mockRejectedValue(new Error("mapbox down"))
+  it("never blocks a submit when place search is down", async () => {
+    mockCities.mockRejectedValue(new Error("places down"))
 
     renderPage()
     fillRequired()

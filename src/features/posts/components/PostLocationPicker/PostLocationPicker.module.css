@@ -408,3 +408,19 @@
 }
 
 .retryBtn:hover { background: var(--color-brand-subtle); border-color: var(--color-brand); }
+
+/* ── Selection error ──────────────────────────────────────────
+   Shown when the Place Details call for a picked prediction fails. Sits above
+   the results list rather than replacing it: the list is still valid and the
+   next tap is the retry. */
+
+.selectError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 10px var(--space-4);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--color-error);
+}

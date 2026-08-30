@@ -44,12 +44,25 @@ export type UserLocation = {
   longitude?: number
 }
 
-/** Location shape sent to the API (superset of UserLocation) */
+/**
+ * Location shape sent to the API (superset of UserLocation).
+ *
+ * Matches docs/PLACES_MIGRATION.md 5.4. `provider` + `external_id` are the
+ * shared Location row's identity — the backend looks a place up by that pair,
+ * so without them every save mints a duplicate row and the coordinate-refresh
+ * job has nothing to re-fetch by.
+ *
+ * `name` here is the SHORT city name, not the full label, which is what the
+ * profile has always displayed. (The waitlist deliberately sends the full label
+ * in the same field — see features/join/types.ts.)
+ */
 export type LocationPayload = {
+  provider: "google"
   name: string
   type: "city"
   city: string
   state: string
+  country: string
   country_code: string
   latitude: number
   longitude: number

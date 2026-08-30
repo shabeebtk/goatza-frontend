@@ -7,7 +7,8 @@ import Link from "next/link"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import { useCreateOrganization } from "../../hooks/useOrganizations"
-import type { MapboxCity } from "@/shared/services/mapbox.service"
+import type { PlaceResult } from "@/shared/services/places.service"
+import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import styles from "./OrganizationSetup.module.css"
 import { CreateOrganizationPayload, OrgLevel, OrgType } from "../../types"
 
@@ -305,7 +306,10 @@ export default function OrganizationSetup() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 3
-  const [city, setCity]       = useState<MapboxCity | null>(null)
+  const [city, setCity]       = useState<PlaceResult | null>(null)
+  // The actor's own coordinates, as a 50 km bias circle for place search.
+  // Cache-only: never fetches, and null is a perfectly normal answer.
+  const placeBias = useProfileBias()
   const [address, setAddress] = useState("")
   const [locName, setLocName] = useState("")
 
@@ -316,7 +320,7 @@ export default function OrganizationSetup() {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // ── City auto-fill ────────────────────────────────────────────
-  const handleCityChange = (selected: MapboxCity | null) => {
+  const handleCityChange = (selected: PlaceResult | null) => {
     setCity(selected)
     if (selected && !locName) setLocName("Main Branch")
   }
@@ -370,6 +374,7 @@ export default function OrganizationSetup() {
       ...(selectedSports.length > 0 && { sport_ids: selectedSports }),
       ...(city && {
         location: {
+          // BRANCH fields — the org's own.
           name:         locName.trim() || "Main Branch",
           address:      address.trim(),
           city:         city.name,
@@ -377,6 +382,15 @@ export default function OrganizationSetup() {
           country_code: city.country_code,
           latitude:     city.latitude,
           longitude:    city.longitude,
+          // PLACE fields. `location_name` carries the picked label because
+          // `name` above is the branch's; provider + external_id are NEW and
+          // are what let this branch share one Location row with every other
+          // actor in the same city.
+          location_name: city.label,
+          provider:      city.provider,
+          external_id:   city.external_id,
+          type:          city.place_type,
+          country:       city.country,
         },
       }),
       // NOTE: logo is NOT sent here — uploaded after org creation
@@ -540,6 +554,7 @@ export default function OrganizationSetup() {
                   value={city}
                   onChange={handleCityChange}
                   placeholder="Search city, e.g. Kannur…"
+                  bias={placeBias}
                 />
               </Field>
 

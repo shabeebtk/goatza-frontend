@@ -44,28 +44,68 @@ import {
 } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
-import { searchPlaces, type MapboxPlace } from "@/shared/services/mapbox.service"
+import {
+  isAbortError,
+  newSessionToken,
+  placesProvider,
+  PlaceSearchUnavailableError,
+  toPlaceResult,
+  type PlaceBias,
+  type PlaceResult,
+  type PlaceSuggestion,
+} from "@/shared/services/places.service"
+import PoweredByGoogle from "@/shared/components/PoweredByGoogle/PoweredByGoogle"
 import styles from "./PostLocationPicker.module.css"
 
-const SEARCH_DEBOUNCE_MS = 350
-const MIN_QUERY_LENGTH = 2
+// Both are cost rules from docs/PLACES_MIGRATION.md section 3, not UX taste:
+// every keystroke that reaches Google is a billed Autocomplete event, and
+// one/two-character queries are almost pure noise.
+const SEARCH_DEBOUNCE_MS = 400
+const MIN_QUERY_LENGTH = 3
 
 /** Module-level so useSyncExternalStore doesn't resubscribe on every render. */
 const subscribeToNothing = () => () => {}
 
 interface PostLocationPickerProps {
-  value: MapboxPlace | null
-  onChange: (place: MapboxPlace | null) => void
+  value: PlaceResult | null
+  onChange: (place: PlaceResult | null) => void
   /** Close without changing anything. Required: every caller owns the mount. */
   onClose: () => void
   disabled?: boolean
+  /**
+   * The actor's own coordinates, used as a 50 km bias centre so nearby grounds
+   * rank first. Optional - a search without one is less local, not broken.
+   */
+  bias?: PlaceBias | null
 }
 
-/** Icon per Mapbox place_type. */
-function placeIcon(type: string): string {
-  if (type === "poi") return "mdi:map-marker-outline"
-  if (type === "region" || type === "district") return "mdi:map-outline"
-  return "mdi:city-variant-outline"
+/**
+ * Icon per Google place type.
+ *
+ * Reads the prediction's `types` array rather than a single place_type string:
+ * that field now says only "city" or "place" (which picker produced it), while
+ * Google's own types are what distinguish a stadium from a district.
+ */
+function placeIcon(types: string[] | undefined): string {
+  const set = new Set(types ?? [])
+
+  if (
+    set.has("locality") ||
+    set.has("administrative_area_level_3") ||
+    set.has("postal_town")
+  ) {
+    return "mdi:city-variant-outline"
+  }
+
+  if (
+    set.has("administrative_area_level_1") ||
+    set.has("administrative_area_level_2") ||
+    set.has("country")
+  ) {
+    return "mdi:map-outline"
+  }
+
+  return "mdi:map-marker-outline"
 }
 
 function PostLocationPickerInner({
@@ -73,21 +113,43 @@ function PostLocationPickerInner({
   onChange,
   onClose,
   disabled = false,
+  bias,
 }: PostLocationPickerProps) {
   const [query, setQuery] = useState("")
-  const [results, setResults] = useState<MapboxPlace[]>([])
+  const [results, setResults] = useState<PlaceSuggestion[]>([])
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
   const [searched, setSearched] = useState(false)
   const [hiIdx, setHiIdx] = useState(-1)
+  /** Set while the Details call for a picked prediction is in flight. */
+  const [resolving, setResolving] = useState(false)
+  /** Details failed for the selection - the list stays up so you can retry. */
+  const [selectError, setSelectError] = useState<string | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  /**
+   * The search session. Minted lazily and thrown away after a select or a
+   * clear; mounting IS opening here, so a fresh screen always starts a fresh
+   * session and closing needs no explicit reset.
+   *
+   * The same token must ride every autocomplete AND the single details call -
+   * that is what makes a whole search bill as one session rather than one
+   * event per keystroke.
+   */
+  const sessionRef = useRef<string | null>(null)
+
+  const sessionToken = useCallback(() => {
+    if (!sessionRef.current) sessionRef.current = newSessionToken()
+    return sessionRef.current
+  }, [])
 
   /**
    * Which request the UI is currently showing. Typing "kann" then "kannur"
-   * puts two calls in flight, and Mapbox does not promise they land in order —
+   * puts two calls in flight, and nothing promises they land in order —
    * without this the stale "kann" results can overwrite the ones you asked for
    * last. Only the newest sequence number is allowed to paint.
    */
@@ -121,6 +183,7 @@ function PostLocationPickerInner({
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      abortRef.current?.abort()
     }
   }, [])
 
@@ -129,8 +192,13 @@ function PostLocationPickerInner({
     const seq = ++seqRef.current
 
     // Owns its own timer so every entry point — keystroke, Retry — replaces
-    // the pending search rather than racing a second one alongside it.
+    // the pending search rather than racing a second one alongside it. The
+    // abort does the same for a request that already left.
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    abortRef.current?.abort()
+    abortRef.current = null
+
+    setSelectError(null)
 
     if (q.length < MIN_QUERY_LENGTH) {
       setResults([])
@@ -144,20 +212,30 @@ function PostLocationPickerInner({
     setFailed(false)
 
     debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController()
+      abortRef.current = controller
+
       try {
-        const found = await searchPlaces(q)
+        const found = await placesProvider.searchPlaces(
+          q,
+          sessionToken(),
+          bias,
+          { signal: controller.signal },
+        )
         if (seq !== seqRef.current) return
         setResults(found)
         setSearched(true)
-      } catch {
-        if (seq !== seqRef.current) return
+      } catch (err) {
+        // An abort is this screen replacing its own request — not a failure,
+        // and painting one would flash an error on every keystroke.
+        if (isAbortError(err) || seq !== seqRef.current) return
         setResults([])
         setFailed(true)
       } finally {
         if (seq === seqRef.current) setLoading(false)
       }
     }, SEARCH_DEBOUNCE_MS)
-  }, [])
+  }, [bias, sessionToken])
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = e.target.value
@@ -168,22 +246,79 @@ function PostLocationPickerInner({
 
   const handleClearQuery = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    abortRef.current?.abort()
+    abortRef.current = null
     seqRef.current++
     setQuery("")
     setResults([])
     setLoading(false)
     setFailed(false)
     setSearched(false)
+    setSelectError(null)
+    setResolving(false)
     setHiIdx(-1)
+    // Clearing ends the search session: the next search must start a new
+    // billed one rather than continue this token's.
+    sessionRef.current = null
     inputRef.current?.focus()
   }
 
   // Select and remove both settle the question this screen was opened to ask,
   // so both return you to the form.
-  const handleSelect = (place: MapboxPlace) => {
-    if (disabled) return
-    onChange(place)
-    onClose()
+  //
+  // Selecting is TWO steps now: a prediction carries no coordinates, so the one
+  // Place Details call allowed per search resolves the pick. The screen stays
+  // OPEN until that succeeds — on failure you are still looking at the list you
+  // chose from and can simply pick again, which is why this does not close
+  // optimistically.
+  const handleSelect = async (suggestion: PlaceSuggestion) => {
+    if (disabled || resolving) return
+
+    // Must be the same token every autocomplete above used: that is what closes
+    // the session and makes the whole search bill as one.
+    const token = sessionToken()
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    abortRef.current?.abort()
+    const seq = ++seqRef.current
+
+    setResolving(true)
+    setSelectError(null)
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    try {
+      const details = await placesProvider.getPlaceDetails(
+        suggestion.place_id,
+        token,
+        { signal: controller.signal },
+      )
+      if (seq !== seqRef.current) return
+
+      const place = toPlaceResult(suggestion, details, "place")
+
+      if (!place) {
+        // Details answered without a point. Storing half a location is worse
+        // than asking for another pick.
+        setSelectError("Couldn't get that location. Try another.")
+        return
+      }
+
+      // Selection ends the session.
+      sessionRef.current = null
+      onChange(place)
+      onClose()
+    } catch (err) {
+      if (isAbortError(err) || seq !== seqRef.current) return
+      setSelectError(
+        err instanceof PlaceSearchUnavailableError
+          ? "Search is unavailable right now. Please try again later."
+          : "Couldn't get that location. Try again.",
+      )
+    } finally {
+      if (seq === seqRef.current) setResolving(false)
+    }
   }
 
   const handleRemove = () => {
@@ -204,7 +339,7 @@ function PostLocationPickerInner({
       setHiIdx((i) => Math.max(i - 1, 0))
     } else if (e.key === "Enter" && hiIdx >= 0) {
       e.preventDefault()
-      handleSelect(results[hiIdx])
+      void handleSelect(results[hiIdx])
     }
   }
 
@@ -228,11 +363,12 @@ function PostLocationPickerInner({
     listRef.current?.children[hiIdx]?.scrollIntoView({ block: "nearest" })
   }, [hiIdx])
 
+  const busy = loading || resolving
   const showEmpty =
-    !loading && !failed && searched && results.length === 0 &&
+    !busy && !failed && searched && results.length === 0 &&
     query.trim().length >= MIN_QUERY_LENGTH
   const showHint =
-    !loading && !failed && query.trim().length < MIN_QUERY_LENGTH && !results.length
+    !busy && !failed && query.trim().length < MIN_QUERY_LENGTH && !results.length
 
   return createPortal(
     <div className={styles.screen} role="dialog" aria-modal="true" aria-labelledby={titleId}>
@@ -254,7 +390,7 @@ function PostLocationPickerInner({
         {/* ── Search field ── */}
         <div className={styles.searchRow}>
           <span className={styles.searchIcon} aria-hidden="true">
-            {loading
+            {busy
               ? <Icon icon="mdi:loading" width={18} height={18} className={styles.spin} />
               : <Icon icon="mdi:magnify" width={18} height={18} />}
           </span>
@@ -266,12 +402,13 @@ function PostLocationPickerInner({
             value={query}
             onChange={handleQueryChange}
             onKeyDown={handleKeyDown}
-            disabled={disabled}
+            disabled={disabled || resolving}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
             enterKeyHint="search"
             aria-label="Search location"
+            aria-busy={busy}
             aria-controls={`${titleId}-results`}
           />
           {query && (
@@ -320,38 +457,52 @@ function PostLocationPickerInner({
           )}
 
           {results.length > 0 && (
-            <ul
-              ref={listRef}
-              id={`${titleId}-results`}
-              className={styles.list}
-              role="listbox"
-              aria-label="Location results"
-            >
-              {results.map((place, i) => (
-                <li key={place.external_id || `${place.label}-${i}`} role="none">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={i === hiIdx}
-                    className={`${styles.item} ${i === hiIdx ? styles.itemHi : ""}`}
-                    onClick={() => handleSelect(place)}
-                    onMouseEnter={() => setHiIdx(i)}
-                    disabled={disabled}
-                  >
-                    <span className={styles.itemIcon} aria-hidden="true">
-                      <Icon icon={placeIcon(place.place_type)} width={19} height={19} />
-                    </span>
-                    <span className={styles.itemText}>
-                      <span className={styles.itemName}>{place.name}</span>
-                      <span className={styles.itemMeta}>
-                        {[place.state, place.country_code].filter(Boolean).join(", ") ||
-                          place.label}
+            <>
+              {/* Details failed for a pick. Deliberately ABOVE the list it
+                  refers to and non-blocking: the list stays live so the next
+                  tap is a retry. */}
+              {selectError && (
+                <p className={styles.selectError} role="alert">
+                  <Icon icon="mdi:alert-circle-outline" width={14} height={14} />
+                  {selectError}
+                </p>
+              )}
+
+              <ul
+                ref={listRef}
+                id={`${titleId}-results`}
+                className={styles.list}
+                role="listbox"
+                aria-label="Location results"
+              >
+                {results.map((place, i) => (
+                  <li key={place.place_id || `${place.label}-${i}`} role="none">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={i === hiIdx}
+                      className={`${styles.item} ${i === hiIdx ? styles.itemHi : ""}`}
+                      onClick={() => void handleSelect(place)}
+                      onMouseEnter={() => setHiIdx(i)}
+                      disabled={disabled || resolving}
+                    >
+                      <span className={styles.itemIcon} aria-hidden="true">
+                        <Icon icon={placeIcon(place.types)} width={19} height={19} />
                       </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <span className={styles.itemText}>
+                        <span className={styles.itemName}>{place.name}</span>
+                        <span className={styles.itemMeta}>
+                          {place.secondary || place.label}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Required wherever predictions are shown. */}
+              <PoweredByGoogle />
+            </>
           )}
 
           {/* Three different dead ends, three different next actions. */}
