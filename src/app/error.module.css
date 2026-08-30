@@ -1,0 +1,80 @@
+/* ============================================================
+   GOATZA — Root error boundary
+   Layout + controls compose from the 404 page: both are "the app
+   stopped, here's the way out" screens and must read as one design.
+   Only the hero mark and the dev-only detail block are new here.
+   ============================================================ */
+
+/* Keyframes are module-scoped, so they can't be composed like classes —
+   this is the one thing worth restating per file. */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cardDrop {
+  from { opacity: 0; transform: translateY(-24px) rotate(-24deg); }
+  to   { opacity: 1; transform: translateY(0) rotate(12deg); }
+}
+
+/* ── Shell (inherited wholesale from not-found) ──────────────── */
+
+.page    { composes: page    from "./not-found.module.css"; }
+.grid    { composes: grid    from "./not-found.module.css"; }
+.content { composes: content from "./not-found.module.css"; }
+
+/* ── Hero mark ───────────────────────────────────────────────── */
+
+.heroIcon {
+  /* Tilted + error-red so the plain card glyph reads as a ref's red card
+     rather than a generic warning triangle. */
+  color: var(--color-error);
+  font-size: clamp(5rem, 18vw, 8rem);
+  line-height: 1;
+  transform: rotate(12deg);
+  animation: cardDrop 0.6s var(--ease-spring) both;
+  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.25));
+}
+
+/* ── Text ────────────────────────────────────────────────────── */
+
+.textBlock { composes: textBlock from "./not-found.module.css"; }
+.title     { composes: title     from "./not-found.module.css"; }
+.body      { composes: body      from "./not-found.module.css"; }
+
+/* Support handle for a production error. The digest is an opaque hash, not
+   internals, so it is safe to surface — it's the only thing that ties a user
+   report back to the server log line. */
+.digest {
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-muted);
+  word-break: break-all;
+  animation: fadeInUp 0.5s var(--ease-out) 250ms both;
+}
+
+/* Dev-only: rendered behind a NODE_ENV check in the component, so this never
+   ships to a user. Styled loud on purpose — it should look like a debug tool. */
+.devMessage {
+  max-width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* ── Actions ─────────────────────────────────────────────────── */
+
+.actions    { composes: actions    from "./not-found.module.css"; }
+.btnPrimary { composes: btnPrimary from "./not-found.module.css"; }
+.btnGhost   { composes: btnGhost   from "./not-found.module.css"; }

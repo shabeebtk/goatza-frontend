@@ -1,0 +1,94 @@
+/* ============================================================
+   GOATZA — Authenticated segment error boundary
+   Renders *inside* AppShell (top bar + bottom tab bar stay up), so this
+   is the one screen in the set that must not claim the full viewport.
+   Everything else composes from the 404 page.
+   ============================================================ */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes whistleBlow {
+  0%, 100% { transform: scale(1) rotate(-6deg); }
+  50%      { transform: scale(1.06) rotate(4deg); }
+}
+
+/* ── Shell ───────────────────────────────────────────────────── */
+
+/* Not composed from not-found: that .page is 100dvh, which here would run the
+   content underneath the fixed bottom tab bar. Subtract the chrome AppShell
+   already accounts for instead. */
+.page {
+  position: relative;
+  min-height: calc(
+    100dvh
+    - var(--top-nav-h) - var(--safe-top)
+    - var(--bottom-nav-h) - var(--safe-bottom)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  overflow: hidden;
+  padding: var(--space-8) var(--space-6);
+}
+
+/* Desktop drops the bottom tab bar and uses a 60px top bar (see AppShell). */
+@media (min-width: 768px) {
+  .page {
+    min-height: calc(100dvh - 60px);
+  }
+}
+
+.grid    { composes: grid    from "../not-found.module.css"; }
+.content { composes: content from "../not-found.module.css"; }
+
+/* ── Hero mark ───────────────────────────────────────────────── */
+
+.heroIcon {
+  color: var(--color-brand);
+  font-size: clamp(4rem, 15vw, 6.5rem);
+  line-height: 1;
+  animation: whistleBlow 2.4s var(--ease-in-out) infinite;
+  filter: drop-shadow(0 8px 24px var(--color-brand-glow));
+}
+
+/* ── Text ────────────────────────────────────────────────────── */
+
+.textBlock { composes: textBlock from "../not-found.module.css"; }
+.title     { composes: title     from "../not-found.module.css"; }
+.body      { composes: body      from "../not-found.module.css"; }
+
+.digest {
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-muted);
+  word-break: break-all;
+  animation: fadeInUp 0.5s var(--ease-out) 250ms both;
+}
+
+.devMessage {
+  max-width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  font-family: var(--font-geist-mono, ui-monospace), monospace;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* ── Actions ─────────────────────────────────────────────────── */
+
+.actions    { composes: actions    from "../not-found.module.css"; }
+.btnPrimary { composes: btnPrimary from "../not-found.module.css"; }
+.btnGhost   { composes: btnGhost   from "../not-found.module.css"; }
