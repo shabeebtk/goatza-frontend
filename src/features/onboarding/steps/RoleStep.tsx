@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Icon } from "@iconify/react"
 import { Button } from "@/shared/components/ui"
 import RoleSelect from "@/features/auth/components/RoleSelect/RoleSelect"
@@ -25,6 +26,19 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
   const setStoreRole = useOnboardingStore((s) => s.setRole)
 
   const [apiError, setApiError] = useState<string | null>(null)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+
+  /**
+   * A brand-new Google account, and the only kind of user who reaches this
+   * step without having agreed to anything.
+   *
+   * Email signups tick the box on the form and arrive with consent already on
+   * file; is_role_confirmed is true for them because they chose a role there.
+   * A Google account is created with is_role_confirmed FALSE and nothing
+   * accepted — the button they pressed was on Google's screen, not ours — so
+   * this step, which they cannot skip, is where they are actually asked.
+   */
+  const needsConsent = user?.is_role_confirmed === false
 
   const handleChange = (next: UserRole) => {
     setApiError(null)
@@ -45,7 +59,13 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
     }
 
     try {
-      await setRoleMutation.mutateAsync(role)
+      await setRoleMutation.mutateAsync({
+        role,
+        // Only sent when this user still owes consent. The backend requires it
+        // in exactly that case and ignores it otherwise, so an existing user
+        // changing role mid-onboarding is unaffected.
+        acceptedTerms: needsConsent ? acceptedTerms : undefined,
+      })
       onNext()
     } catch (err) {
       const msg =
@@ -65,7 +85,7 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
           variant="brand"
           size="lg"
           fullWidth
-          disabled={!role}
+          disabled={!role || (needsConsent && !acceptedTerms)}
           loading={setRoleMutation.isPending}
           onClick={handleContinue}
         >
@@ -78,6 +98,41 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
         onChange={handleChange}
         disabled={setRoleMutation.isPending}
       />
+
+      {needsConsent && (
+        <div className={styles.consentField}>
+          <label className={styles.consentLabel}>
+            <input
+              type="checkbox"
+              className={styles.consentBox}
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
+              disabled={setRoleMutation.isPending}
+            />
+            <span className={styles.consentText}>
+              I agree to the{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.consentLink}
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.consentLink}
+              >
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+        </div>
+      )}
 
       {apiError && (
         <p className={styles.apiError} role="alert">

@@ -252,3 +252,58 @@
 .authFooterLink:hover {
   color: var(--color-brand);
 }
+/* ── Consent checkbox (signup) ────────────────────────────────
+   An explicit act, so it gets a real checkbox and a real label —
+   not a line of fine print under the button. Sized for a thumb:
+   the box itself is below the 44px touch target, so the whole
+   label is the hit area.
+   ──────────────────────────────────────────────────────────── */
+
+.consentField {
+    margin-top: var(--space-1);
+}
+
+.consentLabel {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    cursor: pointer;
+    padding: var(--space-2) 0;
+}
+
+.consentBox {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    accent-color: var(--color-brand);
+    cursor: pointer;
+}
+
+.consentBox:disabled {
+    cursor: not-allowed;
+}
+
+.consentText {
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.consentLink {
+    color: var(--color-brand);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.consentLink:hover {
+    color: var(--color-brand-hover);
+}
+
+.consentError {
+    margin: var(--space-1) 0 0;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    color: var(--color-error);
+}

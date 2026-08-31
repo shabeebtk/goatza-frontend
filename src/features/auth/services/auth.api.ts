@@ -13,6 +13,16 @@ export type SignupPayload = {
   email: string
   password: string
   role: UserRole
+  /**
+   * The signup checkbox. Always literally `true` — the backend rejects
+   * anything else, including the string "false", which is truthy.
+   *
+   * This is the ONLY place the email flow records consent: the user has no
+   * token until the OTP is verified, so the client cannot call legal/accept on
+   * their behalf. The server files it in the same transaction that creates the
+   * account (accounts/views/user_auth_views.py).
+   */
+  accepted_terms: true
 }
 
 export type VerifyOtpPayload = {
@@ -121,8 +131,24 @@ export const googleCallbackApi = async (params: {
 }
 
 
-// One-time onboarding step: set the signed-in user's role (used after Google signup)
-export const setRoleApi = async (role: UserRole): Promise<AuthUser> => {
-  const res = await api.post("/user/role", { role })
+/**
+ * One-time onboarding step: set the signed-in user's role (used after Google
+ * signup).
+ *
+ * `acceptedTerms` is the Google half of consent. A Google account is created
+ * without anyone having agreed to anything — the button lives on Google's
+ * screen — so it is created with the documents PENDING, and this step, which a
+ * new Google user cannot skip, is where the agreement is made and recorded.
+ * The backend requires it whenever the user still has pending documents and
+ * ignores it otherwise, so an existing user changing role sends nothing.
+ */
+export const setRoleApi = async (
+  role: UserRole,
+  acceptedTerms?: boolean,
+): Promise<AuthUser> => {
+  const res = await api.post("/user/role", {
+    role,
+    ...(acceptedTerms ? { accepted_terms: true } : {}),
+  })
   return res.data.data
 }

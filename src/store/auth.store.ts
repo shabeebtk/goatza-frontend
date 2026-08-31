@@ -15,6 +15,16 @@ export type User = {
   role?: UserRole
   is_role_confirmed?: boolean
   is_onboarding_completed?: boolean
+  /**
+   * Present only on the user from GET /user/details. The login, OTP and Google
+   * responses serialise a user without it, so `undefined` means "not known
+   * yet" — never "nothing pending". See LegalConsentGate.
+   */
+  legal?: {
+    pending_documents: string[]
+    requires_acceptance: boolean
+    accepted_versions: Record<string, string | null>
+  }
 }
 
 export type OrganizationActor = OrganizationMini

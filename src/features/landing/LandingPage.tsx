@@ -818,8 +818,13 @@ function SiteFooter() {
       <div className={`container ${styles.footerInner}`}>
         <LogoLockup footer />
         <nav className={styles.footerLinks} aria-label="Footer navigation">
-          <a href="/privacy" className={styles.footerLink}>Privacy</a>
           <a href="/terms" className={styles.footerLink}>Terms</a>
+          <a href="/privacy" className={styles.footerLink}>Privacy</a>
+          <a href="/guidelines" className={styles.footerLink}>Guidelines</a>
+          <a href="/safety" className={styles.footerLink}>Youth Safety</a>
+          {/* NOTE: /contact has no route — it 404s today, and did before this
+              change. Left in place rather than silently dropped; it needs a
+              page or a mailto, which is a separate decision. */}
           <a href="/contact" className={styles.footerLink}>Contact</a>
         </nav>
         <p className={styles.footerCopy}>

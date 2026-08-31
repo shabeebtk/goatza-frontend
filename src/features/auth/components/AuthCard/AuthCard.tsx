@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { useSearchParams } from "next/navigation"
@@ -34,6 +35,11 @@ const signUpSchema = z.object({
         .min(8, "Password must be at least 8 characters")
         .regex(/[^a-zA-Z0-9]/, "Include at least one special character"),
     role: z.enum(USER_ROLES, { error: "Please select your role" }),
+    // z.literal(true), not z.boolean(): the only value that passes is a
+    // deliberate tick. Defaults to false below and is never pre-set.
+    acceptedTerms: z.literal(true, {
+        error: "Please accept the Terms of Service and Privacy Policy",
+    }),
 })
 
 const otpSchema = z.object({
@@ -118,8 +124,19 @@ function AuthCard() {
 
     const signUpForm = useForm<SignUpFields>({
         resolver: zodResolver(signUpSchema),
-        defaultValues: { Name: "", email: "", password: "", role: "player" },
+        // acceptedTerms starts FALSE and is never seeded from anywhere.
+        // A pre-ticked consent box is not consent.
+        defaultValues: {
+            Name: "",
+            email: "",
+            password: "",
+            role: "player",
+            acceptedTerms: false as unknown as true,
+        },
     })
+
+    // Watched so the submit button enables the moment the box is ticked.
+    const hasAcceptedTerms = signUpForm.watch("acceptedTerms") === true
 
     const otpForm = useForm<OtpFields>({
         resolver: zodResolver(otpSchema),
@@ -182,6 +199,9 @@ function AuthCard() {
                 email: values.email,
                 password: values.password,
                 role: values.role,
+                // The server record is the one that counts; this flag is what
+                // makes it. The backend refuses the signup without it.
+                accepted_terms: true,
             })
             if (result.verification_required) {
                 setPendingEmail(result.email)
@@ -427,11 +447,53 @@ function AuthCard() {
                                 />
                             </div>
 
+                            <div className={styles.consentField}>
+                                <label className={styles.consentLabel}>
+                                    <input
+                                        type="checkbox"
+                                        className={styles.consentBox}
+                                        disabled={isLoading}
+                                        {...signUpForm.register("acceptedTerms")}
+                                    />
+                                    <span className={styles.consentText}>
+                                        I agree to the{" "}
+                                        <Link
+                                            href="/terms"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.consentLink}
+                                        >
+                                            Terms of Service
+                                        </Link>{" "}
+                                        and{" "}
+                                        <Link
+                                            href="/privacy"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.consentLink}
+                                        >
+                                            Privacy Policy
+                                        </Link>
+                                        .
+                                    </span>
+                                </label>
+
+                                {signUpForm.formState.errors.acceptedTerms && (
+                                    <p className={styles.consentError} role="alert">
+                                        {signUpForm.formState.errors.acceptedTerms.message}
+                                    </p>
+                                )}
+                            </div>
+
                             <Button
                                 variant="brand"
                                 size="lg"
                                 fullWidth
                                 loading={isLoading}
+                                // Disabled until the box is ticked. The schema
+                                // refuses it too — this is the visible half of
+                                // the same rule, not the enforcement.
+                                disabled={!hasAcceptedTerms}
                                 type="submit"
                                 style={{ marginTop: "var(--space-2)" } as React.CSSProperties}
                             >
