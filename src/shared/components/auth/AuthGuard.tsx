@@ -4,6 +4,7 @@ import { useAuthStore } from "@/store/auth.store"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import OnboardingGate from "@/features/onboarding/components/OnboardingGate"
+import LegalConsentGate from "@/features/legal/components/LegalConsentGate"
 
 export default function AuthGuard({
   children,
@@ -31,10 +32,15 @@ export default function AuthGuard({
   // Onboarding (incl. the mandatory role step for new users) renders as a modal
   // over the app and follows the user everywhere, so no route-level gating is
   // needed — deep-linking around it does nothing.
+  // LegalConsentGate sits AFTER onboarding so its backdrop stacks on top (it
+  // owns the higher z-index too). If terms go stale mid-onboarding, agreeing
+  // is the only thing that can happen first — the server is already refusing
+  // every write the remaining steps would make.
   return (
     <>
       {children}
       <OnboardingGate />
+      <LegalConsentGate />
     </>
   )
 }

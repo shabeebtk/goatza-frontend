@@ -82,11 +82,20 @@ export default function AuthPageLayout() {
           <AuthCard />
         </div>
 
+        {/*
+          * Reference links, NOT a consent notice. The old copy here read "By
+          * continuing you agree to…", which is exactly the implied-consent
+          * wording this flow no longer relies on — agreement is the checkbox
+          * on the form now, and a second sentence claiming it happens merely
+          * by continuing would contradict it.
+          *
+          * The hrefs were also dead: they pointed at /legal/terms, which has
+          * never been a route. The pages live at /terms and /privacy.
+          */}
         <p className={styles.legalText}>
-          By continuing you agree to Goatza's{" "}
-          <Link href="/legal/terms" className={styles.legalLink}>Terms</Link>
-          {" & "}
-          <Link href="/legal/privacy" className={styles.legalLink}>Privacy Policy</Link>.
+          <Link href="/terms" className={styles.legalLink}>Terms of Service</Link>
+          {" · "}
+          <Link href="/privacy" className={styles.legalLink}>Privacy Policy</Link>
         </p>
 
       </div>

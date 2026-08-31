@@ -1,0 +1,193 @@
+/* ============================================================
+   Re-consent modal.
+
+   Follows OnboardingModal's backdrop/sheet pattern — same z-index
+   band, same blur, same bottom-sheet-on-mobile / centred-card-on-
+   desktop shape — so it reads as part of the app rather than as
+   something that has gone wrong.
+
+   Sized much smaller than onboarding on purpose: this is one
+   paragraph and two buttons, and a full-height sheet for that
+   would imply a process rather than a decision.
+   ============================================================ */
+
+@keyframes legalBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes legalSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above onboarding's 600: if a version bumps while a new user is
+     mid-onboarding, this is the one that has to be on top — the
+     server is refusing their writes, so finishing onboarding
+     underneath is not possible anyway. */
+  z-index: 700;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: legalBackdropIn 0.18s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--space-6);
+  }
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: var(--space-8) var(--space-6);
+  padding-bottom: calc(var(--space-8) + var(--safe-bottom));
+  animation: legalSlideUp 0.24s var(--ease-spring) both;
+  overscroll-behavior: contain;
+  max-height: 92dvh;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .modal {
+    border-radius: var(--radius-lg);
+    padding-bottom: var(--space-8);
+  }
+}
+
+/* ── Content ──────────────────────────────────────────────────── */
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-family: var(--font-ui);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3);
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-5);
+}
+
+/* ── The documents ────────────────────────────────────────────── */
+
+.docList {
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.docLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.docLink:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.docHint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ── Actions ──────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Quiet, but never hidden — the exit has to be findable without being the
+   thing the eye lands on. */
+.logoutBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: var(--space-3);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.logoutBtn:hover:not(:disabled) {
+  color: var(--color-error);
+  background: var(--color-surface-raised);
+}
+
+.logoutBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+}
+
+/* Visible to assistive tech only — the announcement, not a caption. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

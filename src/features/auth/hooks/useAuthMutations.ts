@@ -110,7 +110,13 @@ export const useSetRole = () => {
   const setUserRole = useAuthStore((s) => s.setUserRole)
 
   return useMutation({
-    mutationFn: (role: UserRole) => setRoleApi(role),
+    mutationFn: ({
+      role,
+      acceptedTerms,
+    }: {
+      role: UserRole
+      acceptedTerms?: boolean
+    }) => setRoleApi(role, acceptedTerms),
     onSuccess: (data) => {
       setUserRole(data.role)
     },

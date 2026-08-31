@@ -251,3 +251,12 @@
         padding-bottom: 0;
     }
 }
+
+/* Stand-in for PublicNav while its Suspense boundary resolves on a statically
+   prerendered legal page. Holds the exact band height so the document below
+   does not jump when the real nav arrives. */
+.navFallback {
+  height: calc(var(--top-nav-h) + var(--safe-top));
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}

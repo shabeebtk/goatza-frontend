@@ -17,6 +17,7 @@
  * before the move.
  */
 
+import { Suspense } from "react"
 import { usePathname } from "next/navigation"
 
 import ActorRouteSync from "@/shared/components/auth/ActorRouteSync"
@@ -114,6 +115,23 @@ function CVSkeleton() {
   )
 }
 
+/**
+ * Routes whose CONTENT must be on screen before the auth store resolves.
+ *
+ * The skeleton branch below is right for a profile — the page has nothing to
+ * show until it knows who is asking. It is wrong for a legal document, which
+ * is the same text for everybody and must be readable with JavaScript turned
+ * off entirely. `isLoading` starts true on every load, so the skeleton is what
+ * lands in the server-rendered HTML: leaving these routes in it would ship a
+ * /terms that shows a profile skeleton to crawlers and to anyone without JS,
+ * which defeats the point of the pages being public and indexable.
+ */
+const CONTENT_FIRST_ROUTES = ["/terms", "/privacy", "/guidelines", "/safety"]
+
+function isContentFirst(pathname: string | null): boolean {
+  return CONTENT_FIRST_ROUTES.includes(pathname ?? "")
+}
+
 export default function PublicShell({
   children,
 }: {
@@ -124,6 +142,31 @@ export default function PublicShell({
   const pathname = usePathname()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
+
+  if (isLoading && isContentFirst(pathname)) {
+    // The anonymous chrome, with the document already in it. A signed-in
+    // reader gets the nav swapped for AppShell a moment later; the text under
+    // it never moves, which is the half that matters.
+    //
+    // THE SUSPENSE BOUNDARY IS LOAD-BEARING. PublicNav calls useSearchParams,
+    // and on a statically prerendered route that bails the WHOLE page out to
+    // client-side rendering — the built HTML becomes a spinner and the
+    // document only appears once JS runs. Wrapping the nav keeps the bailout
+    // inside this boundary, so the prerender still contains the text. Verified
+    // by the build: /terms, /privacy, /guidelines and /safety are all ○ Static
+    // and their HTML carries the document.
+    return (
+      <>
+        <ThemeColorMeta />
+        <div className={styles.publicShell}>
+          <Suspense fallback={<div className={styles.navFallback} />}>
+            <PublicNav />
+          </Suspense>
+          <main className={styles.content}>{children}</main>
+        </div>
+      </>
+    )
+  }
 
   if (isLoading) {
     // The two public shapes are different enough that one skeleton cannot

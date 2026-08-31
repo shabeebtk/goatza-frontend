@@ -32,22 +32,39 @@ export function SettingsSection({
   )
 }
 
-/** A row that navigates. */
+/**
+ * A row that navigates.
+ *
+ * `description` is optional and reuses the toggle row's secondary line, so a
+ * navigation row that needs a subtitle (the Legal rows print which version you
+ * accepted) does not need a second row component to say it.
+ */
 export function SettingsRow({
   href,
   icon,
   label,
+  description,
 }: {
   href: string
   icon: string
   label: string
+  description?: string
 }) {
   return (
     <Link href={href} className={styles.row}>
       <span className={styles.rowIcon} aria-hidden="true">
         <Icon icon={icon} width={20} height={20} />
       </span>
-      <span className={styles.rowLabel}>{label}</span>
+
+      {description ? (
+        <span className={styles.rowToggleText}>
+          <span className={styles.rowLabel}>{label}</span>
+          <span className={styles.rowDescription}>{description}</span>
+        </span>
+      ) : (
+        <span className={styles.rowLabel}>{label}</span>
+      )}
+
       <span className={styles.rowChevron} aria-hidden="true">
         <Icon icon="mdi:chevron-right" width={20} height={20} />
       </span>

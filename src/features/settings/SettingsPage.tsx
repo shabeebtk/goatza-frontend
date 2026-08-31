@@ -14,6 +14,7 @@ import { useLogout } from "@/features/auth/hooks/useLogout"
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
 import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
+import LegalSettingsSection from "@/features/legal/components/LegalSettingsSection"
 import ProfileLinkRow from "./components/SettingsMenu/ProfileLinkRow"
 import {
   SettingsActionRow,
@@ -105,6 +106,10 @@ export default function SettingsPage() {
           label="Mentions"
         />
       </SettingsSection>
+
+      {/* Last section before the exit: the documents are reference material,
+          not something you come to Settings to change. */}
+      <LegalSettingsSection />
 
       <SettingsActionRow
         icon="mdi:logout"
