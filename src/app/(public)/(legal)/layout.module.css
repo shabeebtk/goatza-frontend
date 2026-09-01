@@ -245,3 +245,25 @@
   border-color: var(--color-brand);
   color: var(--color-brand);
 }
+
+/* The escape hatch to /report-problem. Deliberately plainer than
+   .footerLink above: those are the other three documents, this
+   is not a policy and should not look like one. */
+
+.footerNote {
+  margin: var(--space-5) 0 0;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.footerNoteLink {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.footerNoteLink:hover {
+  color: var(--color-brand);
+}

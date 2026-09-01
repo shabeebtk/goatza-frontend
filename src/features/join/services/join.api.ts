@@ -11,8 +11,9 @@
  * with no session at all.
  *
  * The two WRITE-side callers run in the BROWSER: the stats counter and the form
- * both live inside a client component. That makes `apiBase` the simpler half of
- * its counterpart — the server-side origin resolution (API_ORIGIN, siteOrigin,
+ * both live inside a client component. That makes `apiBase`
+ * (`shared/services/apiBase`, shared with the public problem-report form) the
+ * simpler half of its counterpart — the server-side origin resolution (API_ORIGIN, siteOrigin,
  * the Vercel rewrite made absolute) exists because a relative URL is not a URL
  * during SSR, and neither of those is rendered on the server.
  *
@@ -25,27 +26,9 @@
  */
 
 import { fetchPublic } from "@/features/profile/services/publicProfile.api"
+import { apiBase } from "@/shared/services/apiBase"
 
 import type { SignupPayload, SignupResult, WaitlistStats } from "../types"
-
-const stripSlash = (value: string) => value.replace(/\/+$/, "")
-
-/**
- * Where to send the request from the browser.
- *
- * A path-shaped NEXT_PUBLIC_API_URL ("/api") is exactly right here: it resolves
- * against the current origin, stays same-origin, and Vercel's rewrite proxies
- * it to Django. Local dev points the same var straight at Django's absolute
- * origin; both work unchanged.
- *
- * Never emit a trailing slash. `/api` is a rewrite, and `/api/public/…/`
- * round-trips through a Vercel 308 into Django's APPEND_SLASH 301, which drops
- * the `/api` prefix and 404s — in production only, which is the worst place to
- * find out.
- */
-function apiBase(): string {
-  return stripSlash(process.env.NEXT_PUBLIC_API_URL ?? "")
-}
 
 /**
  * The `?src=` tag off the current URL.

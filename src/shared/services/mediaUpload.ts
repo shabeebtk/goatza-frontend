@@ -39,6 +39,8 @@ export type MediaUploadType =
     | "chat"
     | "achievements"
     | "matches"
+    /** Problem-report screenshots — up to 3 images, no video, no thumbs. */
+    | "support"
 
 /**
  * What a file IS, not what it contains: the server pairs a "video" with exactly
