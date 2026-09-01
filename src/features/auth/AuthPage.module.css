@@ -309,3 +309,29 @@
 .legalLink:hover {
   color: var(--color-brand);
 }
+/* ── "Can't log in?" ──────────────────────────────────────────
+   The escape hatch to /report-problem, on both the login and the
+   forgot-password panels (they share this stylesheet).
+
+   Quieter than .legalText and placed under it: someone whose
+   password works has no reason to read this, and someone whose
+   login is broken has already run out of other things to try. */
+
+.helpText {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: var(--leading-loose);
+}
+
+.helpLink {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--duration-fast);
+}
+
+.helpLink:hover {
+  color: var(--color-brand);
+}

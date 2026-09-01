@@ -73,9 +73,25 @@ export function SettingsRow({
 }
 
 /**
+ * The card that rows sit in, without a section heading above it.
+ *
+ * SettingsSection already renders one around its children, so this exists for
+ * the rows that belong to NO section — log out, which is deliberately on its
+ * own below everything else. Without it a standalone row would either lose its
+ * card or, if the row drew its own, nest one card inside another the moment it
+ * was put in a section.
+ */
+export function SettingsRows({ children }: { children?: ReactNode }) {
+  return <div className={styles.rows}>{children}</div>
+}
+
+/**
  * A row that DOES something rather than navigating, so it carries no chevron.
  * `destructive` is for the one-way actions (log out) — same treatment the post
  * options sheet gives delete.
+ *
+ * Bare, like SettingsRow: the card comes from whatever contains it, so this
+ * works both inside a SettingsSection and inside a standalone SettingsRows.
  */
 export function SettingsActionRow({
   icon,
@@ -89,18 +105,16 @@ export function SettingsActionRow({
   destructive?: boolean
 }) {
   return (
-    <div className={styles.rows}>
-      <button
-        type="button"
-        className={`${styles.row} ${destructive ? styles.rowDestructive : ""}`}
-        onClick={onClick}
-      >
-        <span className={styles.rowIcon} aria-hidden="true">
-          <Icon icon={icon} width={20} height={20} />
-        </span>
-        <span className={styles.rowLabel}>{label}</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      className={`${styles.row} ${destructive ? styles.rowDestructive : ""}`}
+      onClick={onClick}
+    >
+      <span className={styles.rowIcon} aria-hidden="true">
+        <Icon icon={icon} width={20} height={20} />
+      </span>
+      <span className={styles.rowLabel}>{label}</span>
+    </button>
   )
 }
 

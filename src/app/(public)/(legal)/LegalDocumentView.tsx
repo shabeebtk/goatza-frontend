@@ -85,6 +85,17 @@ export default function LegalDocumentView({ slug }: { slug: LegalSlug }) {
             </li>
           ))}
         </ul>
+
+        {/* The other place a logged-out person already lands. Not a policy, so
+            not a chip — a quiet line under them. Someone reading Terms because
+            something went wrong is one of the few people who will ever need
+            this, and they have no session to report from. */}
+        <p className={styles.footerNote}>
+          Something on Goatza broken?{" "}
+          <Link className={styles.footerNoteLink} href="/report-problem">
+            Report a problem
+          </Link>
+        </p>
       </footer>
     </article>
   )

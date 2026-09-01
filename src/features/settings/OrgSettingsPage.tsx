@@ -12,12 +12,16 @@
  * org-admin shell sends, so these rows need no org id beyond the route.
  */
 
+import { useState } from "react"
+
 import { BackHeader } from "@/shared/components/ui"
 import { useOrgDetail } from "@/features/organization/hooks/useOrganizations"
 import { profileUrl } from "@/shared/services/profileUrl"
 import { useToggleOrgPublicProfile } from "./hooks/usePrivacySettings"
+import ProblemReportSheet from "@/features/support/components/ProblemReportSheet/ProblemReportSheet"
 import ProfileLinkRow from "./components/SettingsMenu/ProfileLinkRow"
 import {
+  SettingsActionRow,
   SettingsRow,
   SettingsSection,
   SettingsToggleRow,
@@ -32,6 +36,7 @@ export default function OrgSettingsPage({ orgId }: { orgId: string }) {
 
   const { data: org } = useOrgDetail(orgId, "id")
   const togglePublic = useToggleOrgPublicProfile(orgId)
+  const [reportOpen, setReportOpen] = useState(false)
 
   const isPublic = org?.is_public_profile ?? true
 
@@ -73,6 +78,24 @@ export default function OrgSettingsPage({ orgId }: { orgId: string }) {
           label="Mentions"
         />
       </SettingsSection>
+
+      {/* The SAME row as the personal menu, deliberately. An org admin hits
+          bugs too — more of them, since posting and recruiting are where the
+          heavy screens are — and the two menus being the same shape is the
+          whole reason an admin does not have to learn a second layout. */}
+      <SettingsSection title="Support">
+        <SettingsActionRow
+          icon="mdi:flag-outline"
+          label="Report a problem"
+          onClick={() => setReportOpen(true)}
+        />
+      </SettingsSection>
+
+      {/* No `onReportAbuse` — same as the personal menu: there is no target
+          here that a moderation report could be about. */}
+      {reportOpen && (
+        <ProblemReportSheet onClose={() => setReportOpen(false)} />
+      )}
     </div>
   )
 }

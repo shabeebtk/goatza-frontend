@@ -65,6 +65,17 @@ export default function ForgotPasswordPageLayout() {
           <Link href="/legal/privacy" className={styles.legalLink}>Privacy Policy</Link>.
         </p>
 
+        {/* The way OUT of a broken login. Quiet and secondary — it is not what
+            most people came for — but present, because a public report form
+            nobody can find from the screen that failed them is the same as not
+            having built it. */}
+        <p className={styles.helpText}>
+          Can&apos;t log in?{" "}
+          <Link href="/report-problem" className={styles.helpLink}>
+            Report a problem
+          </Link>
+        </p>
+
       </div>
     </div>
   )

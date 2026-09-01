@@ -126,7 +126,20 @@ function CVSkeleton() {
  * /terms that shows a profile skeleton to crawlers and to anyone without JS,
  * which defeats the point of the pages being public and indexable.
  */
-const CONTENT_FIRST_ROUTES = ["/terms", "/privacy", "/guidelines", "/safety"]
+const CONTENT_FIRST_ROUTES = [
+  "/terms",
+  "/privacy",
+  "/guidelines",
+  "/safety",
+  /**
+   * The logged-out bug report. Here for a sharper version of the same reason:
+   * the people who reach it are the ones whose app is already misbehaving, and
+   * a profile skeleton on the way to a form — or worse, a skeleton that never
+   * resolves because the thing that broke is the session bootstrap — is the
+   * page failing in exactly the situation it exists for.
+   */
+  "/report-problem",
+]
 
 function isContentFirst(pathname: string | null): boolean {
   return CONTENT_FIRST_ROUTES.includes(pathname ?? "")

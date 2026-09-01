@@ -9,8 +9,11 @@
  * (OrgSettingsPage) is built from the same pieces.
  */
 
+import { useState } from "react"
+
 import { BackHeader } from "@/shared/components/ui"
 import { useLogout } from "@/features/auth/hooks/useLogout"
+import ProblemReportSheet from "@/features/support/components/ProblemReportSheet/ProblemReportSheet"
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
 import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
@@ -19,6 +22,7 @@ import ProfileLinkRow from "./components/SettingsMenu/ProfileLinkRow"
 import {
   SettingsActionRow,
   SettingsRow,
+  SettingsRows,
   SettingsSection,
   SettingsToggleRow,
 } from "./components/SettingsMenu/SettingsMenu"
@@ -28,6 +32,7 @@ export default function SettingsPage() {
   const logout = useLogout()
   const { data: profile } = useMyProfile()
   const togglePublic = useTogglePublicProfile()
+  const [reportOpen, setReportOpen] = useState(false)
 
   // Public by default, and that is also the right optimistic answer while the
   // profile is still loading — the row must not flicker "off" and back.
@@ -107,16 +112,40 @@ export default function SettingsPage() {
         />
       </SettingsSection>
 
+      {/* Above Legal because it is the one section somebody arrives here
+          NEEDING — a broken screen is why they opened Settings — while the
+          documents are reference material you go looking for. */}
+      <SettingsSection title="Support">
+        {/* An action row, not a navigation one: it opens a sheet rather than
+            going anywhere, so it carries no chevron to promise otherwise. */}
+        <SettingsActionRow
+          icon="mdi:flag-outline"
+          label="Report a problem"
+          onClick={() => setReportOpen(true)}
+        />
+      </SettingsSection>
+
       {/* Last section before the exit: the documents are reference material,
           not something you come to Settings to change. */}
       <LegalSettingsSection />
 
-      <SettingsActionRow
-        icon="mdi:logout"
-        label="Log out"
-        onClick={logout}
-        destructive
-      />
+      {/* Its own card, under everything and in no section — logging out is
+          not a setting. */}
+      <SettingsRows>
+        <SettingsActionRow
+          icon="mdi:logout"
+          label="Log out"
+          onClick={logout}
+          destructive
+        />
+      </SettingsRows>
+
+      {/* No `onReportAbuse`: Settings is reached from nothing in particular, so
+          there is no target a moderation report could be about. The sheet
+          falls back to pointing at the ⋯ menu, where there is one. */}
+      {reportOpen && (
+        <ProblemReportSheet onClose={() => setReportOpen(false)} />
+      )}
     </div>
   )
 }
