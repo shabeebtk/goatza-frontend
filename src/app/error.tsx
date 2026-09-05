@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
+import * as Sentry from "@sentry/nextjs"
 import styles from "./error.module.css"
 
 /**
@@ -26,13 +27,12 @@ export default function RootError({
     // log line, so it always goes in the log even when it looks redundant here.
     console.error("[error-boundary] root", { digest: error.digest, error })
 
-    // TODO(sentry): report once Sentry is installed —
-    //   Sentry.captureException(error, {
-    //     tags: { boundary: "root" },
-    //     extra: { digest: error.digest },
-    //   })
-    // Until then a production crash exists only in the console of the person who
-    // hit it, which means we hear about it only if they tell us.
+    // No-ops when NEXT_PUBLIC_SENTRY_DSN is unset — the SDK never called
+    // init(), so there is no client to report to and local dev stays silent.
+    Sentry.captureException(error, {
+      tags: { boundary: "root" },
+      extra: { digest: error.digest },
+    })
   }, [error])
 
   return (

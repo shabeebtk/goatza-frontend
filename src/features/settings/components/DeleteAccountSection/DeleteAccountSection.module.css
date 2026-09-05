@@ -1,0 +1,87 @@
+/* ============================================================
+   GOATZA — Settings danger zone
+
+   Deliberately the one card on the settings page that does not
+   look like the others: same geometry as SettingsMenu's rows so
+   it still belongs, but bordered and labelled in --color-error
+   so it reads as an edge rather than another setting.
+   ============================================================ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Matches SettingsMenu's .sectionTitle, in red. */
+.sectionTitle {
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-error);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 25%, transparent);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* ── The row ─────────────────────────────────────────────── */
+/* Same metrics as SettingsMenu's .row — a settings row is a settings
+   row, whatever colour it is. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  text-align: left;
+  color: var(--color-error);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+
+.rowIcon,
+.rowChevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-error);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── The consequence ─────────────────────────────────────── */
+/* Under the row, not beside the label: this is the sentence that
+   decides whether somebody presses the button, and it should be
+   read after the label rather than skimmed past it. */
+
+.note {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { Icon } from "@iconify/react"
+import * as Sentry from "@sentry/nextjs"
 // The root layout never renders when this boundary is active, so its
 // globals.css import doesn't run either — pull the design tokens in directly or
 // every var() below resolves to nothing.
@@ -29,13 +30,12 @@ export default function GlobalError({
     // it's the join key to the server log line.
     console.error("[error-boundary] global", { digest: error.digest, error })
 
-    // TODO(sentry): report once Sentry is installed —
-    //   Sentry.captureException(error, {
-    //     tags: { boundary: "global" },
-    //     extra: { digest: error.digest },
-    //   })
-    // This boundary means the whole app failed to mount, so it's the one we most
-    // need reported — nobody sees these until we're wired up.
+    // The whole app failed to mount, so this is the boundary we most need
+    // reported. No-ops when NEXT_PUBLIC_SENTRY_DSN is unset.
+    Sentry.captureException(error, {
+      tags: { boundary: "global" },
+      extra: { digest: error.digest },
+    })
   }, [error])
 
   return (
