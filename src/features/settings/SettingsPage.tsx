@@ -18,6 +18,7 @@ import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
 import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
 import LegalSettingsSection from "@/features/legal/components/LegalSettingsSection"
+import DeleteAccountSection from "./components/DeleteAccountSection/DeleteAccountSection"
 import ProfileLinkRow from "./components/SettingsMenu/ProfileLinkRow"
 import {
   SettingsActionRow,
@@ -139,6 +140,11 @@ export default function SettingsPage() {
           destructive
         />
       </SettingsRows>
+
+      {/* Below even log out. Both leave, but only one of them is permanent,
+          and putting the reversible exit first is what keeps somebody reaching
+          for "get me out of here" from landing on the wrong one. */}
+      <DeleteAccountSection />
 
       {/* No `onReportAbuse`: Settings is reached from nothing in particular, so
           there is no target a moderation report could be about. The sheet

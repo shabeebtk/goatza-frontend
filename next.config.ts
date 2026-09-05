@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+// v10 moved this off the main entry point; importing it from "@sentry/nextjs"
+// still works but is deprecated and is removed in v11.
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const isProd = process.env.NODE_ENV === "production"
 
@@ -53,4 +56,22 @@ const nextConfig = {
     "/api/card/profile/[username]": ["./public/fonts/**"],
   },
 }
-export default nextConfig;
+
+/**
+ * Sentry wraps the finished config rather than replacing any of it.
+ *
+ * Order matters and is safe: mediaHost() runs while the object literal above
+ * is being built, so a missing NEXT_PUBLIC_MEDIA_BASE_URL still throws before
+ * this wrapper is ever called — the build-time check is untouched.
+ */
+export default withSentryConfig(nextConfig, {
+  // No SENTRY_AUTH_TOKEN yet, so there is nothing to upload to. Turning this
+  // off is what stops the plugin warning about the missing token on every
+  // build; `silent` then keeps the rest of its build chatter out of CI logs.
+  sourcemaps: { disable: true },
+  silent: true,
+
+  // Nothing here is wired to a Sentry org yet, so the plugin has no reason to
+  // make its own network calls during a build.
+  telemetry: false,
+});

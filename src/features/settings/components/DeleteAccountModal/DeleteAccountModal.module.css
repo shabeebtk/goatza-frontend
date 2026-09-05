@@ -1,0 +1,278 @@
+/* ============================================================
+   GOATZA — Delete account modal
+
+   Follows LegalConsentModal's backdrop/sheet pattern — same
+   z-index band, same blur, same bottom-sheet-on-mobile /
+   centred-card-on-desktop shape — so the most serious dialog in
+   the app is still recognisably one of ours.
+
+   The one departure is colour: the mark, the org list and the
+   confirm button are red, because this is the only modal here
+   whose outcome cannot be walked back.
+   ============================================================ */
+
+@keyframes deleteBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes deleteSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  /* Below the re-consent modal's 700: if terms go stale mid-flow, agreeing
+     comes first — the server is already refusing this user's writes, and the
+     delete confirm is one of them. */
+  z-index: 650;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: deleteBackdropIn 0.18s var(--ease-out) both;
+}
+
+@media (min-width: 640px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--space-6);
+  }
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: var(--space-8) var(--space-6);
+  padding-bottom: calc(var(--space-8) + var(--safe-bottom));
+  animation: deleteSlideUp 0.24s var(--ease-spring) both;
+  overscroll-behavior: contain;
+  max-height: 92dvh;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .modal {
+    border-radius: var(--radius-lg);
+    padding-bottom: var(--space-8);
+  }
+}
+
+/* ── Content ──────────────────────────────────────────────── */
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  /* The red equivalent of the brand-subtle chip the other modals use. */
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-family: var(--font-ui);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3);
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-5);
+}
+
+.sentTo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.sentTo strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* ── Sole-owner block ─────────────────────────────────────── */
+/* The names are the answer to the only question the user has here
+   ("which ones?"), so they get a list rather than a sentence. */
+
+.orgList {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.orgItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-error) 25%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.orgItem svg {
+  flex: 0 0 auto;
+  color: var(--color-error);
+}
+
+.hint {
+  margin: 0 0 var(--space-5);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* ── Error ────────────────────────────────────────────────── */
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-error);
+}
+
+.error svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* ── Form ─────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Lifted from the signup consent box: an explicit act gets a real checkbox
+   and a real label, and the whole label is the hit area. */
+
+.consentField {
+  margin-top: calc(var(--space-1) * -1);
+}
+
+.consentLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  padding: var(--space-2) 0;
+}
+
+.consentBox {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  /* Red, not brand green: ticking this is agreeing to the destructive thing,
+     not opting into a feature. */
+  accent-color: var(--color-error);
+  cursor: pointer;
+}
+
+.consentBox:disabled {
+  cursor: not-allowed;
+}
+
+.consentText {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.consentError {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--color-error);
+}
+
+/* ── Actions ──────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Quiet, but never hidden — the way out of a destructive dialog has to be
+   findable without being the thing the eye lands on. */
+.cancelBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: var(--space-3);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.cancelBtn:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: var(--color-surface-raised);
+}
+
+.cancelBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Initiate spinner ─────────────────────────────────────── */
+
+@keyframes deleteSpin { to { transform: rotate(360deg); } }
+
+.spinner {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: var(--space-2) auto 0;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-error);
+  border-radius: var(--radius-full);
+  animation: deleteSpin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .modal { animation: none; }
+  .spinner { animation-duration: 2s; }
+}
