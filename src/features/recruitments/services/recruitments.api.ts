@@ -298,6 +298,13 @@ export type RecruitmentDetail = {
   contacts: RecruitmentContact[]
   my_application: MyApplication | null
   can_apply: boolean
+  /**
+   * The server's single source of truth for status + deadline + the
+   * max-applications cap. PUBLIC, unlike `status`/`max_applications`, so it is
+   * what a non-owner viewer's closed/open treatment must be driven from.
+   * Optional only for older cached payloads.
+   */
+  is_accepting_applications?: boolean
   created_at: string
   /** The bookmark, same flag the card carries. Optional: older cached detail. */
   is_saved?: boolean
@@ -308,6 +315,12 @@ export type RecruitmentDetail = {
   shortlisted_count?: number
   selected_count?: number
   views_count?: number
+  /**
+   * How many actors shortlisted this posting. Owner-only and an AGGREGATE:
+   * the server never says WHO saved it — the shortlist stays private to the
+   * saver. Absent (not zero) on a non-owner payload.
+   */
+  saves_count?: number
   published_at?: string | null
   updated_at?: string
 }

@@ -792,11 +792,44 @@
   animation: fadeIn 0.25s var(--ease-out) both;
 }
 
+/* Shape switcher — 4:5 portrait (default) or 1:1 square, for the whole set. */
+.aspectRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.aspectBtn {
+  flex: 1;
+  padding: var(--space-2);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.aspectBtn:hover:not(:disabled) { border-color: var(--color-brand); }
+
+.aspectBtnOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-text-primary);
+}
+
+.aspectBtn:disabled { opacity: 0.5; cursor: default; }
+
 .previewSlide {
   position: relative;
   width: 100%;
-  /* aspect-ratio is set inline (BANNER_ASPECT) so the preview matches the
-     16:9 banner the photos are cropped to — WYSIWYG. */
+  /* aspect-ratio is set inline from the chosen ratio (MEDIA_ASPECT_OPTIONS) so
+     the preview is the frame the photo will actually be shown in — WYSIWYG.
+     The media below is `cover`, which is also what makes a pre-4:5 landscape
+     upload render centre-cropped here instead of letterboxed. */
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-surface-raised);

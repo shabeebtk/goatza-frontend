@@ -1,0 +1,242 @@
+/* ============================================================
+   GOATZA — RecruitmentHeroCarousel
+   The recruitment's media as a 4:5 poster stage.
+
+   The chrome (segments, counter, play button, dark treatment) is drawn from
+   the recruitment poster mockup. The 4:5 frame is the standard: every
+   recruitment image is cropped to it on upload, and anything uploaded before
+   that is centre-cropped into it here.
+   ============================================================ */
+
+.stage {
+  position: relative;
+  /* 4:5 portrait — the recruitment media standard. Set as a ratio rather than
+     a height so the box is reserved before the image loads → zero layout
+     shift, and so a caller's className can override it with one line. */
+  aspect-ratio: 4 / 5;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+/* The tap-to-fullscreen layer. Fills the stage and holds ONLY the track, so
+   the chrome stacked over it stays outside this button's subtree. */
+.tap {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  /* Vertical panning stays with the page; horizontal is the swipe. */
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tap:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.32s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track { transition: none; }
+}
+
+.slide {
+  position: relative;
+  flex: 0 0 100%;
+  height: 100%;
+  overflow: hidden;
+  /* The brand dark treatment from the mockup. It is the BACKGROUND of every
+     slide, not a fallback element: a video with no poster frame shows it
+     through, and a portrait image simply covers it. */
+  background:
+    radial-gradient(120% 90% at 70% 12%, rgba(0, 201, 110, 0.28), transparent 55%),
+    linear-gradient(200deg, #12291a 0%, #0a1a10 45%, #060d08 100%);
+}
+
+.skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: -300px 0; }
+  to { background-position: 300px 0; }
+}
+
+/* `cover` is the backward-compatibility contract: an old landscape upload is
+   centre-cropped into the 4:5 frame — never stretched, never sizing the box. */
+.asset {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.assetLoaded { opacity: 1; }
+
+/* ── Overlay slot ───────────────────────────────────────────── */
+
+/* Above the media, below the chrome. Transparent to pointers so a scrim can
+   never swallow the tap that opens fullscreen; anything interactive dropped in
+   here re-enables them on its own nodes. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Chrome (multi-media only) ──────────────────────────────── */
+
+.segments {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 5px;
+}
+
+.segment {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+}
+
+/* The hit area is taller than the 3px bar so the segments are tappable
+   without drawing a thicker line. */
+.segment::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+}
+
+.segmentDone { background: var(--color-brand); }
+
+.segmentCurrent {
+  background: linear-gradient(
+    90deg,
+    var(--color-brand) 60%,
+    rgba(255, 255, 255, 0.22) 60%
+  );
+}
+
+.counter {
+  position: absolute;
+  top: 22px;
+  right: 12px;
+  z-index: 3;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  color: #fff;
+  background: rgba(8, 15, 9, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  backdrop-filter: blur(4px);
+}
+
+/* Click zones — pointer only. Touch pages with the swipe, and a 30%-wide
+   invisible button over a phone screen would eat the tap-to-fullscreen. */
+.zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-out);
+}
+
+.zonePrev { left: 0; justify-content: flex-start; padding-left: 10px; }
+.zoneNext { right: 0; justify-content: flex-end; padding-right: 10px; }
+
+.stage:hover .zone { opacity: 1; }
+.zone:focus-visible { opacity: 1; }
+
+.zoneIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: rgba(8, 15, 9, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zone { display: flex; }
+}
+
+/* ── Video slide ────────────────────────────────────────────── */
+
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: rgba(8, 15, 9, 0.55);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.duration {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  color: #fff;
+  background: rgba(8, 15, 9, 0.7);
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+}

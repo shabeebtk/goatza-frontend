@@ -104,9 +104,30 @@ type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 const TOTAL_STEPS = 5
 const STEP_LABELS = ["Basics", "Eligibility & Venue", "Positions", "Media", "Review"]
 
-// Banner photos are cropped to a fixed landscape ratio so every recruitment
-// header reads as a clean banner (the detail carousel renders them cover-fit).
-const BANNER_ASPECT = 16 / 9
+/**
+ * The recruitment media standard: 4:5 PORTRAIT, with 1:1 as the alternate.
+ *
+ * Was a fixed 16:9 banner. The poster stage this feeds
+ * (RecruitmentHeroCarousel) is a 4:5 frame, so a 16:9 crop arrived there only
+ * to be centre-cropped again — the recruiter framed a banner and the app threw
+ * away a third of it. Cropping to the shape it will be shown in makes the
+ * preview honest.
+ *
+ * Square stays available because a crest, a squad photo or a flyer is often
+ * genuinely square and 4:5 clips it. Both ratios are portrait-or-taller than
+ * the frame is wide, so neither leaves bars.
+ *
+ * One choice per recruitment, not per photo: the gallery is swiped through as
+ * a run, and a set that changes shape between slides makes the stage jump.
+ */
+const MEDIA_ASPECT_OPTIONS = [
+    { key: "portrait", label: "4:5 Portrait", value: 4 / 5 },
+    { key: "square", label: "1:1 Square", value: 1 },
+] as const
+
+type MediaAspectKey = (typeof MEDIA_ASPECT_OPTIONS)[number]["key"]
+
+const DEFAULT_MEDIA_ASPECT: MediaAspectKey = "portrait"
 
 // Mirror the posts image pipeline: compress to WebP before upload so recruitment
 // photos use the same sizes/formats as feed photos.
@@ -1093,6 +1114,14 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     // Crop editor — cropSrc is a temp object URL of the ORIGINAL image.
     const [cropId, setCropId] = useState<string | null>(null)
     const [cropSrc, setCropSrc] = useState<string | null>(null)
+    // Applies to the whole set — see MEDIA_ASPECT_OPTIONS. Switching it after a
+    // crop does not re-cut anything: the frame changes and `cover` centre-crops
+    // what is already there, which is the same treatment old landscape media
+    // gets. Adjust re-opens at the new ratio for anyone who wants to reframe.
+    const [aspectKey, setAspectKey] = useState<MediaAspectKey>(DEFAULT_MEDIA_ASPECT)
+    const aspect =
+        MEDIA_ASPECT_OPTIONS.find(o => o.key === aspectKey)?.value ??
+        MEDIA_ASPECT_OPTIONS[0].value
 
     useEffect(() => {
         if (idx >= entries.length && entries.length > 0) setIdx(entries.length - 1)
@@ -1130,7 +1159,25 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     return (
         <>
         <div className={styles.previewCarousel}>
-            <div className={styles.previewSlide} style={{ aspectRatio: String(BANNER_ASPECT) }}>
+            {/* Shape switcher. Above the frame rather than inside the cropper:
+                PostImageCropper is a posts component reused verbatim here, and
+                the choice applies to the whole set, not to the photo currently
+                being cut. */}
+            <div className={styles.aspectRow} role="group" aria-label="Photo shape">
+                {MEDIA_ASPECT_OPTIONS.map(opt => (
+                    <button
+                        key={opt.key}
+                        type="button"
+                        className={`${styles.aspectBtn} ${aspectKey === opt.key ? styles.aspectBtnOn : ""}`}
+                        onClick={() => setAspectKey(opt.key)}
+                        aria-pressed={aspectKey === opt.key}
+                        disabled={disabled}
+                    >
+                        {opt.label}
+                    </button>
+                ))}
+            </div>
+            <div className={styles.previewSlide} style={{ aspectRatio: String(aspect) }}>
                 <img src={cur.preview} className={styles.previewMedia} alt={`Media ${idx + 1}`} />
                 {cur.status === "uploading" && <div className={styles.previewOverlay}><span className={styles.uploadPct}>{cur.progress}%</span></div>}
                 {cur.status === "done" && <div className={styles.previewOverlay}><Icon icon="mdi:check-circle" width={28} height={28} style={{ color: "var(--color-brand)" }} /></div>}
@@ -1160,7 +1207,7 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
         {cropId && cropSrc && (
             <PostImageCropper
                 src={cropSrc}
-                aspect={BANNER_ASPECT}
+                aspect={aspect}
                 initialCrop={cropEntry?.crop}
                 initialZoom={cropEntry?.zoom}
                 onCancel={closeCropper}
@@ -2165,7 +2212,7 @@ export default function CreateRecruitmentModal({
                     <div className={styles.stepContent}>
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabel}>Banner / Photos</label>
-                            <p className={styles.fieldSubLabel}>Up to 5 photos. Tap Adjust to reframe each one — they’re cropped to a clean banner shape.</p>
+                            <p className={styles.fieldSubLabel}>Up to 5 photos. Photos display in 4:5 portrait — anything wider is centred and cropped to fit. Tap Adjust to reframe each one, or switch the whole set to square.</p>
                             <MediaPreview entries={mediaEntries} onRemove={removeMedia} onCropEntry={cropMedia} disabled={isSubmitting} />
                             {renderFieldError("media")}
                             {mediaEntries.length < 5 && (

@@ -1,0 +1,93 @@
+/* ============================================================
+   GOATZA — MediaLightbox
+   A run of media, fullscreen, on a dark backdrop.
+
+   The backdrop, the close button and the contain/centre treatment match
+   ImageLightbox exactly: the two viewers open from the same app and must not
+   look like two different products. What is added here is only the chrome a
+   RUN needs — counter and prev/next.
+   ============================================================ */
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  padding: var(--space-4);
+}
+
+/* Focus is taken programmatically on open so Esc and the arrows work without a
+   click first. It is never a Tab landing, so the ring would only ever read as a
+   stray box around the whole screen. */
+.viewer:focus { outline: none; }
+
+/* `contain`: the viewer's job is the UNCROPPED original. The 4:5 frame is the
+   browse surface — this is where a landscape photo is finally seen whole. */
+.media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+}
+
+.counter {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+}
+
+.navPrev { left: 12px; }
+.navNext { right: 12px; }
+
+/* Touch has the swipe; the arrows are the pointer affordance and would only
+   sit on top of the media on a phone. */
+@media (max-width: 640px) {
+  .nav { display: none; }
+}
