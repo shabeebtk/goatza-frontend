@@ -26,7 +26,11 @@ import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
-import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
+import {
+  useRecruitmentDetail,
+  useToggleSaveRecruitment,
+  useWithdrawApplication,
+} from "../../hooks/useRecruitments"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
 import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
@@ -547,6 +551,7 @@ export default function RecruitmentDetail({
   onEdit,
 }: RecruitmentDetailProps) {
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
+  const toggleSave = useToggleSaveRecruitment()
   const { toProfile } = useNavigation()
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [applyOpen, setApplyOpen] = useState(false)
@@ -565,6 +570,9 @@ export default function RecruitmentDetail({
   }
 
   const r = data
+  // Straight off the detail payload — the mutation flips it in this very cache
+  // entry, so no local state can drift from it.
+  const isSaved = r.is_saved === true
   const typeMeta   = TYPE_META[r.recruitment_type]   ?? TYPE_META.open_trial
   const statusMeta = r.status ? (STATUS_META[r.status] ?? STATUS_META.draft) : null
   const deadlinePast = isDeadlinePast(r.application_deadline)
@@ -639,6 +647,22 @@ export default function RecruitmentDetail({
 
           <div className={styles.titleHeadRow}>
             <h1 className={styles.title}>{r.title}</h1>
+            {/* Bookmark — same control as the card's, first in the icon row
+                because it is the only one of the three that changes state. */}
+            <button
+              className={`${styles.shareIconBtn} ${isSaved ? styles.saveIconBtnOn : ""}`}
+              type="button"
+              onClick={() => toggleSave.mutate(r.id)}
+              aria-pressed={isSaved}
+              aria-label={isSaved ? "Remove from saved" : "Save recruitment"}
+              title={isSaved ? "Saved" : "Save"}
+            >
+              <Icon
+                icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"}
+                width={18}
+                height={18}
+              />
+            </button>
             <button
               className={styles.shareIconBtn}
               type="button"

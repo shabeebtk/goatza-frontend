@@ -130,6 +130,13 @@ export type Recruitment = {
   venue_name?: string
   /** Available to callers, deliberately not rendered on the card (§4). */
   gender?: RecruitmentGender | ""
+  /**
+   * Whether the ACTIVE ACTOR shortlisted this one. Optional for the same
+   * reason as the fields above — a payload cached before the bookmark shipped
+   * must still type-check — and the card reads a missing value as "not
+   * saved", which is what an empty bookmark already means.
+   */
+  is_saved?: boolean
   // Match context (§5). Present on /discover and on the ranked "All" tab;
   // absent on the org-scoped mounts, which stay newest-first and unscored.
   // Every field is optional for exactly that reason — a card must render fine
@@ -292,6 +299,8 @@ export type RecruitmentDetail = {
   my_application: MyApplication | null
   can_apply: boolean
   created_at: string
+  /** The bookmark, same flag the card carries. Optional: older cached detail. */
+  is_saved?: boolean
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
