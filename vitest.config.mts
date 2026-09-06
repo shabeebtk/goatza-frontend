@@ -26,6 +26,12 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
     /**
+     * Raises the 1s default Testing Library gives `findBy` and `waitFor`,
+     * which the suite cannot meet under its own parallel load. The reasoning
+     * is the same as the testTimeout below; see vitest.setup.ts.
+     */
+    setupFiles: ["./vitest.setup.ts"],
+    /**
      * The render tests rasterise real 1080×1920 PNGs through Satori — roughly a
      * second and a half each on a warm machine, and several suites do it at
      * once, so the binding cost is CPU contention rather than any one render.

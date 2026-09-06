@@ -265,7 +265,16 @@ export type PublicFetchResult<T> =
  * instance reads a Zustand store that is a module-level singleton on the
  * server, so every anonymous, server-rendered fetch has to come through here.
  */
-export async function fetchPublic<T>(path: string): Promise<PublicFetchResult<T>> {
+export async function fetchPublic<T>(
+  path: string,
+  /**
+   * ISR window for this request, in seconds. Defaults to the 60s the profile
+   * pages use. Callers whose data is not user-facing-fresh pass their own —
+   * the sitemap feed is read by crawlers on an hourly build step, and paying a
+   * database round trip every minute for it would be waste.
+   */
+  options: { revalidate?: number } = {}
+): Promise<PublicFetchResult<T>> {
   const base = apiBase()
 
   if (!base) {
@@ -284,7 +293,7 @@ export async function fetchPublic<T>(path: string): Promise<PublicFetchResult<T>
       headers: { Accept: "application/json" },
       // Matches `export const revalidate = 60` on the pages. ISR is what makes
       // a viral link cheap: thousands of opens, one origin hit a minute.
-      next: { revalidate: 60 },
+      next: { revalidate: options.revalidate ?? 60 },
     })
 
     // A 404 is the backend deliberately refusing to distinguish hidden,
