@@ -1,116 +1,151 @@
 "use client"
 
 /**
- * RecruitmentDetail — Production-ready
+ * RecruitmentDetail — the "Matchday Poster" page, in three states.
  *
- * Changes from previous version:
- * - Age categories shown as visual cards with birth year ranges + reporting time
- * - Apply method routing: goatza → in-app, external → redirect, contact → show contacts
- * - Empty positions → "All positions welcome" fallback
- * - Benefits + Requirements rendered as visual grids
- * - Contacts rendered as tappable links (tel / mailto)
- * - Venue shown with map link
- * - Age category section replaces generic age range
- * - Org-view: stats panel, timestamps, full status + meta
- * - All API fields from both response shapes handled
+ * ONE component, three states, chosen from data the page already had:
+ *
+ *   organiser → `isOrgView` (RecruitmentAdminView passes it; the server picked
+ *               the owner serializer for the same request)
+ *   applied   → `my_application` is non-null
+ *   viewer    → neither
+ *
+ * The organiser can flip to `previewAsPlayer`, which renders the VIEWER state
+ * read-only. That is client-only state and deliberately not a URL param: it is
+ * a glance, not a place, and a shared link landing someone in a fake preview
+ * would be worse than useless.
+ *
+ * Structure follows the approved poster mockup: a 4:5 poster hero carrying the
+ * title scrim, a bordered facts strip, a countdown row, then FLAT sections —
+ * label plus fading rule, no boxed cards — and a sticky action bar whose
+ * contents are the state switch. On desktop (≥960px, the app's wide
+ * breakpoint) the poster becomes a sticky left column and the sticky bar is
+ * replaced by a state card at the top of the right column.
+ *
+ * Redesign, not a rewrite of logic: apply, withdraw, reapply, status changes,
+ * share, report, bookmark and every admin action are the same calls they were,
+ * moved. Withdraw/reapply now live in ApplicationSheet — see its header for
+ * why there is no application route to send people to.
  */
 
-import { useState, useCallback, useRef } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { Icon } from "@iconify/react"
+
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
-import { useToast } from "@/shared/components/ui/Toast/Toast"
-import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useNavigation } from "@/shared/services/navigation.service"
-import { useVideoSound } from "@/shared/hooks/useVideoSound"
-import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
-import { useRecruitmentDetail, useWithdrawApplication } from "../../hooks/useRecruitments"
+import MediaLightbox from "@/shared/components/ImageLightbox/MediaLightbox"
+import RecruitmentHeroCarousel from "../RecruitmentHeroCarousel/RecruitmentHeroCarousel"
+import HeroThumbs from "../RecruitmentHeroCarousel/HeroThumbs"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
+import StatusBadge from "../StatusBadge/StatusBadge"
 import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
+import ApplicationSheet from "./ApplicationSheet"
+import LatestApplicants from "./LatestApplicants"
+import {
+  useRecruitmentDetail,
+  useToggleSaveRecruitment,
+} from "../../hooks/useRecruitments"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
+import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
   RecruitmentMedia,
-  RecruitmentAgeCategory,
-  ApplicationStatus,
 } from "../../services/recruitments.api"
 import styles from "./RecruitmentDetail.module.css"
 
 dayjs.extend(relativeTime)
 
-// ── Helpers ────────────────────────────────────────────────────
+// ── Presentation maps ──────────────────────────────────────────
 
-const TYPE_META: Record<string, { label: string; icon: string; colorClass: string }> = {
-  open_trial:         { label: "Open Trial",          icon: "mdi:whistle-outline",             colorClass: "typeTrial"       },
-  player_looking:     { label: "Player Looking",       icon: "mdi:account-search-outline",      colorClass: "typePlayer"      },
-  direct_recruitment: { label: "Direct Recruitment",   icon: "mdi:account-arrow-right-outline", colorClass: "typeDirect"      },
-  scholarship:        { label: "Scholarship",           icon: "mdi:school-outline",              colorClass: "typeScholarship" },
-}
-
-const STATUS_META: Record<string, { label: string; colorClass: string; icon: string }> = {
-  active:    { label: "Active",    colorClass: "statusActive",    icon: "mdi:check-circle-outline" },
-  draft:     { label: "Draft",     colorClass: "statusDraft",     icon: "mdi:pencil-outline"        },
-  closed:    { label: "Closed",    colorClass: "statusClosed",    icon: "mdi:close-circle-outline"  },
-  cancelled: { label: "Cancelled", colorClass: "statusCancelled", icon: "mdi:cancel"                },
-}
-
-const APP_STATUS_META: Record<ApplicationStatus, { label: string; icon: string; colorClass: string }> = {
-  applied:     { label: "Application Submitted", icon: "mdi:check-circle-outline",  colorClass: "appApplied"     },
-  reviewing:   { label: "Under Review",          icon: "mdi:eye-outline",            colorClass: "appReviewing"   },
-  shortlisted: { label: "Shortlisted ⚡",         icon: "mdi:star-outline",           colorClass: "appShortlisted" },
-  invited:     { label: "Invited to Trial",       icon: "mdi:email-check-outline",   colorClass: "appInvited"     },
-  selected:    { label: "Selected 🏆",            icon: "mdi:trophy-outline",         colorClass: "appSelected"    },
-  rejected:    { label: "Not Shortlisted",        icon: "mdi:close-circle-outline",  colorClass: "appRejected"    },
-  withdrawn:   { label: "Withdrawn",              icon: "mdi:undo-variant",           colorClass: "appWithdrawn"   },
-}
-
-const BENEFIT_ICONS: Record<string, string> = {
-  coach:      "mdi:whistle-outline",
-  trophy:     "mdi:trophy-outline",
-  award:      "mdi:medal-outline",
-  scholarship:"mdi:school-outline",
-  fitness:    "mdi:run-fast",
-  travel:     "mdi:airplane-outline",
-  kit:        "mdi:tshirt-crew-outline",
-  certificate:"mdi:certificate-outline",
+const TYPE_LABEL: Record<string, string> = {
+  open_trial: "Open trial",
+  player_looking: "Player looking",
+  private_trial: "Private trial",
+  direct_recruitment: "Direct recruitment",
+  scholarship: "Scholarship",
 }
 
 const GENDER_LABEL: Record<string, string> = {
-  male: "Male Only", female: "Female Only", all: "Open to All",
+  male: "Male only",
+  female: "Female only",
+  all: "Open to all",
 }
 
 const VISIBILITY_LABEL: Record<string, string> = {
-  public: "Public", followers_only: "Followers Only", private: "Private",
+  public: "Public",
+  followers_only: "Followers only",
+  private: "Private",
 }
 
 const EXPERIENCE_LABEL: Record<string, string> = {
-  district:  "District Level",
-  state:     "State Level",
-  national:  "National Level",
-  beginner:  "Beginner",
-  inter:     "Intermediate",
-  advanced:  "Advanced",
+  district: "District level",
+  state: "State level",
+  national: "National level",
+  beginner: "Beginner",
+  inter: "Intermediate",
+  advanced: "Advanced",
 }
 
-function fmtDate(iso: string | null | undefined, fallback = "—") {
+const APPLY_METHOD_LABEL: Record<string, string> = {
+  goatza: "Goatza app",
+  external: "External link",
+  contact: "Contact",
+}
+
+const BENEFIT_ICONS: Record<string, string> = {
+  coach: "mdi:whistle-outline",
+  trophy: "mdi:trophy-outline",
+  award: "mdi:medal-outline",
+  scholarship: "mdi:school-outline",
+  fitness: "mdi:run-fast",
+  travel: "mdi:airplane-outline",
+  kit: "mdi:tshirt-crew-outline",
+  certificate: "mdi:certificate-outline",
+}
+
+const ORG_STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  draft: "Draft",
+  closed: "Closed",
+  cancelled: "Cancelled",
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+
+/** The one cell placeholder. A missing fact reads as "—", never as a zero. */
+const EMPTY = "—"
+
+function fmtDate(iso: string | null | undefined, fallback = EMPTY) {
   if (!iso) return fallback
+  return dayjs(iso).format("D MMM YYYY")
+}
+
+/**
+ * The time, or null when none was set.
+ *
+ * A "no time" date is stored at end-of-day (23:59); older rows used midnight
+ * (00:00). Both mean "no time given" and must not render as a real 11:59 PM
+ * kick-off.
+ */
+function fmtTimeOrNull(iso: string | null | undefined): string | null {
+  if (!iso) return null
   const d = dayjs(iso)
-  // Time is only shown when one was actually set. A "no time" date is stored at
-  // end-of-day (23:59); older rows used midnight (00:00). Both hide the time.
   const noTime =
     (d.hour() === 0 && d.minute() === 0) || (d.hour() === 23 && d.minute() === 59)
-  return noTime ? d.format("DD MMM YYYY") : d.format("DD MMM YYYY, h:mm A")
+  return noTime ? null : d.format("h:mm A")
 }
 
-function fmtDateShort(iso: string | null | undefined, fallback = "—") {
+function fmtDateTime(iso: string | null | undefined, fallback = EMPTY) {
   if (!iso) return fallback
-  return dayjs(iso).format("DD MMM YYYY")
+  const time = fmtTimeOrNull(iso)
+  return time ? `${fmtDate(iso)}, ${time}` : fmtDate(iso)
 }
 
 function fmtCount(n: number): string {
@@ -123,392 +158,286 @@ function isDeadlinePast(iso: string | null | undefined): boolean {
   return dayjs(iso).isBefore(dayjs())
 }
 
-// ── Media carousel ─────────────────────────────────────────────
-
-function DetailMediaCarousel({ media }: { media: RecruitmentMedia[] }) {
-  const sorted = [...media].sort((a, b) => a.order - b.order)
-  const [idx, setIdx] = useState(0)
-  const [loaded, setLoaded] = useState(false)
-  const touchStartX = useRef(0)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  // Sound is GLOBAL (src/store/sound.store.ts) instead of hardcoded muted, so
-  // arriving here from an unmuted feed plays with sound. This player renders
-  // native `controls`, so onVolumeChange feeds the browser's own mute button
-  // back into the store — otherwise it would be a second source of truth.
-  const { muted, applyMuted, onVolumeChange } = useVideoSound(videoRef)
-  const total = sorted.length
-  const current = sorted[idx]
-
-  const goTo = useCallback((i: number) => {
-    setLoaded(false)
-    setIdx(Math.max(0, Math.min(i, total - 1)))
-  }, [total])
-
-  if (total === 0) return null
-
-  return (
-    <div className={styles.mediaCarousel}>
-      <div
-        className={styles.mediaSlide}
-        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
-        onTouchEnd={(e) => {
-          const diff = touchStartX.current - e.changedTouches[0].clientX
-          if (Math.abs(diff) > 40) goTo(idx + (diff > 0 ? 1 : -1))
-        }}
-      >
-        {!loaded && <div className={styles.mediaSkeleton} />}
-        {current.media_type === "video" ? (
-          <video
-            key={current.id}
-            ref={videoRef}
-            src={videoSrc(current)}
-            className={`${styles.mediaAsset} ${loaded ? styles.mediaLoaded : ""}`}
-            controls
-            playsInline
-            // BARE `muted`, never muted={muted}: the server-rendered markup and
-            // first client paint must always be muted, and useVideoSound sets
-            // the property after mount.
-            muted
-            onVolumeChange={onVolumeChange}
-            poster={posterSrc(current) || undefined}
-            // Not `canplay`: it can fire before a frame is composited, which
-            // fades the element in over black. This player doesn't autoplay, so
-            // `playing` alone would keep it hidden until the user hits play —
-            // `loadeddata` (first frame decoded, fires earlier than canplay)
-            // reveals it with something real to show.
-            onLoadedData={() => {
-              setLoaded(true)
-              // key={current.id} remounts the ELEMENT without remounting this
-              // component, so the hook's mount effect does not re-run for the
-              // new one — re-apply the store's state to it here.
-              applyMuted(muted)
-            }}
-            onPlaying={() => setLoaded(true)}
-          />
-        ) : (
-          <img
-            key={current.id}
-            src={current.file_url}
-            alt={`Media ${idx + 1}`}
-            className={`${styles.mediaAsset} ${loaded ? styles.mediaLoaded : ""}`}
-            onLoad={() => setLoaded(true)}
-            loading="lazy"
-          />
-        )}
-        {total > 1 && <span className={styles.mediaCounter}>{idx + 1}/{total}</span>}
-        {total > 1 && idx > 0 && (
-          <button className={`${styles.mediaNav} ${styles.mediaNavPrev}`} onClick={() => goTo(idx - 1)} type="button" aria-label="Previous">
-            <Icon icon="mdi:chevron-left" width={22} height={22} />
-          </button>
-        )}
-        {total > 1 && idx < total - 1 && (
-          <button className={`${styles.mediaNav} ${styles.mediaNavNext}`} onClick={() => goTo(idx + 1)} type="button" aria-label="Next">
-            <Icon icon="mdi:chevron-right" width={22} height={22} />
-          </button>
-        )}
-      </div>
-      {total > 1 && (
-        <div className={styles.mediaDots}>
-          {sorted.map((_, i) => (
-            <button
-              key={i}
-              className={`${styles.mediaDot} ${i === idx ? styles.mediaDotActive : ""}`}
-              onClick={() => goTo(i)}
-              type="button"
-              aria-label={`Slide ${i + 1}`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Info row ───────────────────────────────────────────────────
-
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
-  return (
-    <div className={styles.infoRow}>
-      <span className={styles.infoIcon}><Icon icon={icon} width={15} height={15} /></span>
-      <span className={styles.infoLabel}>{label}</span>
-      <span className={styles.infoValue}>{value}</span>
-    </div>
-  )
-}
-
-// ── Stat card ──────────────────────────────────────────────────
-
-function StatCard({ icon, value, label, accent }: { icon: string; value: string | number; label: string; accent?: boolean }) {
-  return (
-    <div className={`${styles.statCard} ${accent ? styles.statCardAccent : ""}`}>
-      <span className={styles.statIcon}><Icon icon={icon} width={18} height={18} /></span>
-      <span className={styles.statValue}>{typeof value === "number" ? fmtCount(value) : value}</span>
-      <span className={styles.statLabel}>{label}</span>
-    </div>
-  )
-}
-
-// ── Application banner ─────────────────────────────────────────
-
-function ApplicationBanner({
-  r,
-  onReapply,
-}: {
-  r: TRecruitmentDetail
-  onReapply: () => void
-}) {
-  const app = r.my_application!
-  const meta = APP_STATUS_META[app.status] ?? APP_STATUS_META.applied
-  const toast = useToast()
-  const [confirming, setConfirming] = useState(false)
-  const { mutate: withdraw, isPending } = useWithdrawApplication()
-
-  const isWithdrawn = app.status === "withdrawn"
-  // LinkedIn-style: withdraw is allowed from ANY status except withdrawn.
-  const canWithdraw = !isWithdrawn
-  // Once the outcome is final, keep withdraw available but de-emphasized.
-  const isTerminal = app.status === "selected" || app.status === "rejected"
-  // Resilient reapply: offer it whenever the app is withdrawn + in-app apply,
-  // driven by status/apply_method (not can_apply) so it can't silently vanish
-  // if can_apply is momentarily stale. can_apply only gates enabled vs disabled
-  // — the server stays the real gate on submit.
-  const showReapply = isWithdrawn && r.apply_method === "goatza"
-  const reapplyEnabled = showReapply && r.can_apply
-
-  const doWithdraw = () => {
-    withdraw(
-      { applicationId: app.id, recruitmentId: r.id },
-      {
-        onSuccess: () => {
-          setConfirming(false)
-          toast.show({ title: "Application withdrawn", variant: "success" })
-        },
-        onError: (err) => {
-          toast.show({
-            title: getApiErrorMessage(err, "Couldn't withdraw. Please try again."),
-            variant: "error",
-          })
-        },
-      }
-    )
+/**
+ * "Free" / "₹200", never a hard-coded symbol: the currency is the recruiter's,
+ * and an org posting in AED must not read as rupees.
+ */
+function formatFee(r: TRecruitmentDetail): string | null {
+  if (r.is_paid === false) return "Free"
+  if (!r.is_paid || !r.fee_amount) return null
+  const amount = Number(r.fee_amount)
+  if (!Number.isFinite(amount)) return null
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: r.fee_currency || "INR",
+      // Trial fees are whole numbers; ".00" is two characters of noise.
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    return String(amount)
   }
+}
 
+// ── Countdown chip ─────────────────────────────────────────────
+
+/**
+ * Green and pulsing while open, red and still once closed.
+ *
+ * The clock is state rather than a render-time `Date.now()` so the chip stays
+ * honest on a page left open — but it only ticks as fast as the label can
+ * change (see `countdownTickMs`), so a posting two days out is not re-rendering
+ * every second for a string that moves once an hour.
+ */
+function useCountdown(
+  deadline: string | null | undefined,
+  status: string | null | undefined
+): Countdown | null {
+  const [now, setNow] = useState(() => Date.now())
+  const countdown = formatCountdown(deadline, status, now)
+  const tick = countdownTickMs(countdown)
+
+  useEffect(() => {
+    if (tick == null) return
+    const id = window.setInterval(() => setNow(Date.now()), tick)
+    return () => window.clearInterval(id)
+  }, [tick])
+
+  return countdown
+}
+
+/** Must match the `min-width: 960px` block in the stylesheet. */
+const DESKTOP_QUERY = "(min-width: 960px)"
+
+/**
+ * Which layout is actually on screen.
+ *
+ * Needed because two controls exist in ONE place each, not two: the bookmark
+ * and the organiser's status chip belong to the poster scrim on a phone and to
+ * the state card on a desktop. CSS could hide the spare copy, but
+ * StatusChangeMenu's desktop dropdown is `position: absolute` against its
+ * anchor and its mobile sheet portals to <body> — so a copy hidden with
+ * `display: none` between 768px and 960px would open a dropdown inside a
+ * hidden ancestor and show the organiser nothing at all.
+ *
+ * Starts false so the server render and the first client paint agree
+ * (mobile-first); the effect corrects it before paint on a wide screen.
+ */
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    // jsdom ships no matchMedia, and neither does any non-browser renderer.
+    // Staying on the mobile arrangement is the right answer there: it is the
+    // one that renders every control in a reachable place.
+    if (typeof window.matchMedia !== "function") return
+
+    const mq = window.matchMedia(DESKTOP_QUERY)
+    const sync = () => setIsDesktop(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [])
+
+  return isDesktop
+}
+
+function CountdownChip({ countdown }: { countdown: Countdown | null }) {
+  if (!countdown) return null
+  const closed = countdown.tone === "closed"
   return (
-    <div className={`${styles.appBanner} ${styles[meta.colorClass]}`}>
-      <span className={styles.appBannerIcon}><Icon icon={meta.icon} width={22} height={22} /></span>
-      <div className={styles.appBannerText}>
-        <span className={styles.appBannerLabel}>Your Application</span>
-        <span className={styles.appBannerStatus}>{meta.label}</span>
-        {app.applied_at && !isWithdrawn && (
-          <span className={styles.appBannerDate}>Applied {dayjs(app.applied_at).fromNow()}</span>
-        )}
-      </div>
+    <span className={`${styles.cd} ${closed ? styles.cdClosed : ""}`}>
+      {/* The pulse is the "still open" signal; it stops dead when closed, and
+          prefers-reduced-motion turns it off entirely (see the CSS). */}
+      {!closed && <i className={styles.cdDot} aria-hidden="true" />}
+      {countdown.label}
+    </span>
+  )
+}
 
-      <div className={styles.appBannerActions}>
-        {showReapply && (
-          <button
-            className={`${styles.appReapplyBtn} ${reapplyEnabled ? "" : styles.appReapplyDisabled}`}
-            onClick={reapplyEnabled ? onReapply : undefined}
-            disabled={!reapplyEnabled}
-            type="button"
-          >
-            <Icon icon="mdi:send-outline" width={15} height={15} />
-            Reapply
-          </button>
-        )}
+// ── Section heading ────────────────────────────────────────────
 
-        {canWithdraw && !confirming && (
-          <button
-            className={`${styles.appWithdrawBtn} ${isTerminal ? styles.appWithdrawMuted : ""}`}
-            onClick={() => setConfirming(true)}
-            type="button"
-          >
-            <Icon icon="mdi:undo-variant" width={15} height={15} />
-            Withdraw
-          </button>
-        )}
-      </div>
+/** The mockup's `sect`: an uppercase label trailed by a fading rule. */
+function Sect({ children }: { children: React.ReactNode }) {
+  return <h2 className={styles.sect}>{children}</h2>
+}
 
-      {showReapply && !reapplyEnabled && (
-        <p className={styles.appReapplyHint}>
-          <Icon icon="mdi:information-outline" width={12} height={12} />
-          Recruitment is no longer accepting applications
-        </p>
-      )}
+// ── Facts strip ────────────────────────────────────────────────
 
-      {canWithdraw && confirming && (
-        <div className={styles.appConfirm} role="alertdialog" aria-label="Confirm withdraw">
-          <p className={styles.appConfirmText}>
-            Withdraw your application? The organization will no longer consider it.
-            You can reapply while the recruitment is open.
-          </p>
-          <div className={styles.appConfirmActions}>
-            <button
-              className={styles.appConfirmCancel}
-              onClick={() => setConfirming(false)}
-              disabled={isPending}
-              type="button"
-            >
-              Keep
-            </button>
-            <button
-              className={styles.appConfirmConfirm}
-              onClick={doWithdraw}
-              disabled={isPending}
-              type="button"
-            >
-              {isPending
-                ? <span className={styles.appConfirmSpinner} aria-hidden="true" />
-                : <Icon icon="mdi:undo-variant" width={15} height={15} />}
-              Withdraw
-            </button>
+type Fact = {
+  label: string
+  value: string
+  sub?: string | null
+  href?: string | null
+}
+
+/**
+ * The bordered 3-up strip under the poster.
+ *
+ * Absent facts are dropped by the CALLER, not rendered empty — the grid is
+ * sized from however many survive, so a free trial with no venue yet collapses
+ * to a clean 1-up rather than leaving two dashes behind.
+ */
+function FactsStrip({ facts }: { facts: Fact[] }) {
+  if (facts.length === 0) return null
+  return (
+    <div
+      className={styles.factRow}
+      style={{ gridTemplateColumns: `repeat(${facts.length}, 1fr)` }}
+    >
+      {facts.map((f) => (
+        <div key={f.label} className={styles.fact}>
+          <div className={styles.factLabel}>{f.label}</div>
+          <div className={styles.factValue}>
+            {f.value}
+            {f.sub &&
+              (f.href ? (
+                <a
+                  className={styles.factSubLink}
+                  href={f.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {f.sub}
+                  <Icon icon="mdi:open-in-new" width={10} height={10} />
+                </a>
+              ) : (
+                <small className={styles.factSub}>{f.sub}</small>
+              ))}
           </div>
         </div>
-      )}
+      ))}
     </div>
   )
 }
 
-// ── Age group chip ─────────────────────────────────────────────
+// ── Poster hero ────────────────────────────────────────────────
 
-// Purely informational. Deliberately says nothing about whether the person
-// reading it qualifies — eligibility is verified at the venue, never here.
-function AgeGroupChip({ category }: { category: RecruitmentAgeCategory }) {
-  const range = formatBirthYears(category.min_birth_year, category.max_birth_year)
+/**
+ * The 4:5 poster: carousel, scrim overlay, thumb strip, fullscreen viewer.
+ *
+ * The overlay slot is `pointer-events: none` by default (see the carousel's
+ * CSS), so the scrim cannot swallow the tap that opens fullscreen — only the
+ * controls inside it re-enable pointers. That is the whole reason the title
+ * treatment can sit on top of a tappable image at all.
+ */
+function PosterHero({
+  media,
+  overlay,
+}: {
+  media: RecruitmentMedia[]
+  overlay: React.ReactNode
+}) {
+  const sorted = useMemo(
+    () => [...media].sort((a, b) => a.order - b.order),
+    [media]
+  )
+  const [idx, setIdx] = useState(0)
+  // ONE viewer for both the stage and the thumbs — the carousel would open its
+  // own if left uncontrolled, and two lightboxes racing the same tap is exactly
+  // what `onSlideActivate` exists to prevent.
+  const [viewerIdx, setViewerIdx] = useState<number | null>(null)
+
+  if (sorted.length === 0) return null
+
   return (
-    <div className={styles.eligChip}>
-      <span className={styles.eligChipTitle}>{category.title}</span>
-      {range && <span className={styles.eligChipDetail}>{range}</span>}
-      {category.reporting_time && (
-        <span className={styles.eligChipTime}>
-          <Icon icon="mdi:clock-outline" width={11} height={11} />
-          Report by {formatReportingTime(category.reporting_time)}
-        </span>
+    <div className={styles.poster}>
+      <RecruitmentHeroCarousel
+        media={sorted}
+        index={idx}
+        onIndexChange={setIdx}
+        onSlideActivate={setViewerIdx}
+        overlay={overlay}
+        className={styles.posterStage}
+      />
+      <HeroThumbs
+        media={sorted}
+        index={idx}
+        onSelect={setIdx}
+        onActivate={setViewerIdx}
+        className={styles.posterThumbs}
+      />
+      {viewerIdx !== null && (
+        <MediaLightbox
+          media={sorted}
+          startIndex={viewerIdx}
+          label="Recruitment media viewer"
+          onClose={() => setViewerIdx(null)}
+        />
       )}
     </div>
   )
 }
 
-// ── Apply CTA block ────────────────────────────────────────────
+// ── Hero scrim ─────────────────────────────────────────────────
 
-function ApplyCTA({
+/**
+ * What sits on the poster: chips, the Bebas title, the org row, and ONE
+ * trailing control — the bookmark for a viewer, the status control for the
+ * organiser.
+ */
+function HeroScrim({
   r,
-  deadlinePast,
-  compact = false,
-  onApply,
+  chips,
+  orgTagline,
+  trailing,
+  toProfile,
 }: {
   r: TRecruitmentDetail
-  deadlinePast: boolean
-  compact?: boolean
-  onApply?: () => void
+  chips: { label: string; accent?: boolean }[]
+  orgTagline: string
+  trailing: React.ReactNode
+  toProfile: (username: string, kind: "organization") => string
 }) {
-  const method = r.apply_method
-
-  // External apply
-  if (method === "external") {
-    const url = r.external_apply_url
-    if (url) {
-      return (
-        <div className={`${styles.applyCta} ${compact ? styles.applyCtaCompact : ""}`}>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.btnApply}
-          >
-            <Icon icon="mdi:open-in-new" width={16} height={16} />
-            Apply on External Site
-          </a>
-          {r.application_deadline && (
-            <span className={`${styles.deadlineNote} ${deadlinePast ? styles.deadlinePast : ""}`}>
-              <Icon icon="mdi:calendar-clock" width={13} height={13} />
-              Deadline: {fmtDateShort(r.application_deadline)}{deadlinePast ? " (Closed)" : ""}
-            </span>
-          )}
-        </div>
-      )
-    }
-    // Fallback: no external URL
-    return (
-      <div className={`${styles.applyCta} ${compact ? styles.applyCtaCompact : ""}`}>
-        <div className={styles.applyClosedMsg}>
-          <Icon icon="mdi:link-off" width={16} height={16} />
-          External application link unavailable
-        </div>
-      </div>
-    )
-  }
-
-  // Contact-based apply
-  if (method === "contact") {
-    const contacts = r.contacts ?? []
-    if (contacts.length > 0) {
-      return (
-        <div className={`${styles.applyContactCta} ${compact ? styles.applyCtaCompact : ""}`}>
-          <span className={styles.applyContactLabel}>
-            <Icon icon="mdi:phone-outline" width={14} height={14} />
-            Apply via Contact
-          </span>
-          <div className={styles.applyContactList}>
-            {contacts.map((c) => (
-              <a
-                key={c.id}
-                href={c.contact_type === "phone" ? `tel:${c.value}` : `mailto:${c.value}`}
-                className={styles.applyContactItem}
+  return (
+    <div className={styles.scrim}>
+      <div className={styles.scrimInner}>
+        {chips.length > 0 && (
+          <div className={styles.chipRow}>
+            {chips.map((c) => (
+              <span
+                key={c.label}
+                className={`${styles.chip} ${c.accent ? styles.chipAccent : ""}`}
               >
-                <Icon
-                  icon={c.contact_type === "phone" ? "mdi:phone" : "mdi:email-outline"}
-                  width={15}
-                  height={15}
-                />
-                <span>{c.name ? `${c.name}: ` : ""}{c.value}</span>
-              </a>
+                {c.label}
+              </span>
             ))}
           </div>
-          {r.application_deadline && (
-            <span className={`${styles.deadlineNote} ${deadlinePast ? styles.deadlinePast : ""}`}>
-              <Icon icon="mdi:calendar-clock" width={13} height={13} />
-              Deadline: {fmtDateShort(r.application_deadline)}{deadlinePast ? " (Closed)" : ""}
+        )}
+
+        {/* Clamped to two lines so a long title can never push the org row off
+            the scrim; the Bebas size steps down at the same time (CSS). */}
+        <h1 className={styles.title}>{r.title}</h1>
+
+        <div className={styles.orgLine}>
+          <Link
+            href={toProfile(r.organization.username, "organization")}
+            className={styles.orgLink}
+          >
+            <Avatar
+              src={r.organization.logo}
+              initials={r.organization.name?.slice(0, 2).toUpperCase()}
+              size="sm"
+            />
+            <span className={styles.orgText}>
+              <span className={styles.orgName}>
+                {r.organization.name}
+                {r.organization.is_verified && (
+                  <Icon
+                    icon="mdi:check-decagram"
+                    width={13}
+                    height={13}
+                    className={styles.verified}
+                  />
+                )}
+              </span>
+              <span className={styles.orgTagline}>{orgTagline}</span>
             </span>
-          )}
-        </div>
-      )
-    }
-    return (
-      <div className={`${styles.applyCta} ${compact ? styles.applyCtaCompact : ""}`}>
-        <div className={styles.applyClosedMsg}>
-          <Icon icon="mdi:phone-off" width={16} height={16} />
-          Contact details unavailable
+            <Icon icon="mdi:chevron-right" width={16} height={16} />
+          </Link>
+          {trailing}
         </div>
       </div>
-    )
-  }
-
-  // Goatza in-app apply (default)
-  return (
-    <div className={`${styles.applyCta} ${compact ? styles.applyCtaCompact : ""}`}>
-      {r.can_apply ? (
-        <button className={styles.btnApply} type="button" onClick={onApply}>
-          <Icon icon="mdi:send-outline" width={16} height={16} />
-          Apply Now
-        </button>
-      ) : deadlinePast ? (
-        <div className={styles.applyClosedMsg}>
-          <Icon icon="mdi:clock-alert-outline" width={16} height={16} />
-          Application deadline has passed
-        </div>
-      ) : (
-        <div className={styles.applyClosedMsg}>
-          <Icon icon="mdi:lock-outline" width={16} height={16} />
-          Applications are not open
-        </div>
-      )}
-      {r.application_deadline && (
-        <span className={`${styles.deadlineNote} ${deadlinePast ? styles.deadlinePast : ""}`}>
-          <Icon icon="mdi:calendar-clock" width={13} height={13} />
-          Deadline: {fmtDateShort(r.application_deadline)}{deadlinePast ? " (Closed)" : ""}
-        </span>
-      )}
     </div>
   )
 }
@@ -523,20 +452,17 @@ function DetailSkeleton() {
         <div className={`${styles.skShimmer} ${styles.skTitle}`} />
         <div className={`${styles.skShimmer} ${styles.skLine}`} />
         <div className={`${styles.skShimmer} ${styles.skLine} ${styles.skLineShort}`} />
-        <div className={styles.skGrid}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`${styles.skShimmer} ${styles.skCard}`} />
-          ))}
-        </div>
       </div>
     </div>
   )
 }
 
-// ── Main component ─────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────
 
 interface RecruitmentDetailProps {
   recruitmentId: string
+  /** True when the viewer is the owning org — the server agreed, and sent the
+   *  owner payload (status, views_count, saves_count, max_applications). */
   isOrgView?: boolean
   onEdit?: () => void
 }
@@ -547,11 +473,33 @@ export default function RecruitmentDetail({
   onEdit,
 }: RecruitmentDetailProps) {
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
+  const toggleSave = useToggleSaveRecruitment()
   const { toProfile } = useNavigation()
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+
   const [applyOpen, setApplyOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
+  const [appSheetOpen, setAppSheetOpen] = useState(false)
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [previewAsPlayer, setPreviewAsPlayer] = useState(false)
+
+  /**
+   * `status` is OWNER-ONLY. A viewer looking at a posting the org closed early
+   * would otherwise see a green "Closes in 2d" beside a dead "Applications
+   * closed" button, because the deadline is still in the future and the chip
+   * had no other way to know. `is_accepting_applications` is the server's
+   * public verdict, so it stands in for the status the viewer cannot see.
+   */
+  const effectiveStatus =
+    data?.status ?? (data?.is_accepting_applications === false ? "closed" : undefined)
+  const countdown = useCountdown(data?.application_deadline, effectiveStatus)
+  const isDesktop = useIsDesktop()
+
+  const onReapply = useCallback(() => {
+    setAppSheetOpen(false)
+    setApplyOpen(true)
+  }, [])
 
   if (isLoading) return <DetailSkeleton />
 
@@ -565,507 +513,922 @@ export default function RecruitmentDetail({
   }
 
   const r = data
-  const typeMeta   = TYPE_META[r.recruitment_type]   ?? TYPE_META.open_trial
-  const statusMeta = r.status ? (STATUS_META[r.status] ?? STATUS_META.draft) : null
-  const deadlinePast = isDeadlinePast(r.application_deadline)
 
-  // Owner status control: only offer transitions valid for the current status.
-  const orgStatus = r.status ?? "draft"
+  // ── State selection ──────────────────────────────────────────
+  const isOwner = isOrgView
+  // The organiser's preview borrows the VIEWER layout but never its powers.
+  const asOrganiser = isOwner && !previewAsPlayer
+  const hasApplied = !!r.my_application && !previewAsPlayer && !isOwner
+  const isPreview = isOwner && previewAsPlayer
+
+  // ── Open / closed ────────────────────────────────────────────
+  const deadlinePast = isDeadlinePast(r.application_deadline)
+  const orgStatus = r.status ?? "active"
+  const statusClosed = orgStatus === "closed" || orgStatus === "cancelled"
+  // `max_applications` is OWNER-ONLY, so a plain viewer cannot tell "full" from
+  // "closed" — and must not have to. `is_accepting_applications` is the
+  // server's single public verdict over status + deadline + cap, so it drives
+  // the viewer's treatment, and the cap is only used to WORD it when we have it.
+  const capacityFull =
+    r.max_applications != null && (r.applications_count ?? 0) >= r.max_applications
+  const accepting = r.is_accepting_applications ?? (!deadlinePast && !statusClosed)
+  const closed = !accepting || deadlinePast || statusClosed || capacityFull
+
+  const isSaved = r.is_saved === true
+  const fee = formatFee(r)
   const canChangeStatus = (STATUS_TRANSITIONS[orgStatus] ?? []).length > 0
+  const applicantsHref = `/organization/admin/${r.organization.id}/recruitments/${r.id}?tab=applicants`
 
   const allPositions = r.positions ?? []
-  const hasPositions = allPositions.length > 0
-
-  const ageCategories   = r.age_categories  ?? []
-  const contacts        = r.contacts        ?? []
-  const benefits        = r.benefits        ?? []
-  const requirements    = r.requirements    ?? []
+  const ageCategories = r.age_categories ?? []
+  const contacts = r.contacts ?? []
+  const benefits = r.benefits ?? []
+  const requirements = r.requirements ?? []
   const eligibilityCriteria = r.eligibility_criteria ?? []
 
-  return (
-    <div className={styles.wrapper}>
+  const venuePrimary = r.venue_name?.trim() || r.city?.trim() || ""
 
-      {/* ── Media ── */}
-      {(r.media?.length ?? 0) > 0 && <DetailMediaCarousel media={r.media} />}
+  // ── Facts strip ──────────────────────────────────────────────
+  // Built as a list and filtered, so an absent fact collapses the grid rather
+  // than leaving an empty cell (Part 1 §2).
+  const facts: Fact[] = []
+  if (r.event_date) {
+    facts.push({
+      label: "Trial",
+      value: dayjs(r.event_date).format("D MMM").toUpperCase(),
+      sub: fmtTimeOrNull(r.event_date),
+    })
+  }
+  if (asOrganiser && r.application_deadline) {
+    // The organiser's variant swaps Venue for Closes — their question is "how
+    // long is this live", not "where do I go".
+    facts.push({
+      label: "Closes",
+      value: dayjs(r.application_deadline).format("D MMM").toUpperCase(),
+      sub: countdown?.label.replace(/^Closes /, "") ?? null,
+    })
+  } else if (venuePrimary) {
+    facts.push({
+      label: "Venue",
+      value: venuePrimary.toUpperCase(),
+      sub: r.venue_link ? "map" : r.city && r.venue_name ? r.city : null,
+      href: r.venue_link || null,
+    })
+  }
+  if (fee) {
+    facts.push({
+      label: "Fee",
+      value: fee,
+      sub: r.is_paid ? r.payment_note?.trim() || "pay at venue" : null,
+    })
+  }
 
-      {/* ── Header card ── */}
-      <div className={styles.headerCard}>
+  const chips: { label: string; accent?: boolean }[] = [
+    { label: TYPE_LABEL[r.recruitment_type] ?? r.recruitment_type, accent: true },
+  ]
+  if (asOrganiser) {
+    chips.push({ label: "Organiser view", accent: true })
+  } else {
+    chips.push({ label: r.sport.name })
+    if (r.gender && r.gender !== "all") {
+      chips.push({ label: GENDER_LABEL[r.gender] ?? r.gender })
+    }
+    if (isPreview) chips.push({ label: "Preview" })
+  }
 
-        {/* Org row */}
-        <Link href={toProfile(r.organization.username, "organization")} className={styles.orgRow}>
-          <Avatar
-            src={r.organization.logo}
-            initials={r.organization.name?.slice(0, 2).toUpperCase()}
-            size="md"
-          />
-          <div className={styles.orgInfo}>
-            <span className={styles.orgName}>
-              {r.organization.name}
-              {r.organization.is_verified && (
-                <Icon icon="mdi:check-decagram" width={14} height={14} className={styles.verified} />
-              )}
-            </span>
-            {r.organization.headline && (
-              <span className={styles.orgHeadline}>{r.organization.headline}</span>
-            )}
-          </div>
-          <Icon icon="mdi:chevron-right" width={18} height={18} className={styles.orgChevron} />
-        </Link>
+  const orgTagline = asOrganiser
+    ? `Posted by you · ${fmtDate(r.published_at ?? r.created_at)}`
+    : [r.city?.trim(), EXPERIENCE_LABEL[r.experience_level]]
+        .filter(Boolean)
+        .join(" · ") ||
+      r.organization.headline ||
+      ""
 
-        {/* Title + badges */}
-        <div className={styles.titleSection}>
-          <div className={styles.titleBadgeRow}>
-            <span className={`${styles.typePill} ${styles[typeMeta.colorClass]}`}>
-              <Icon icon={typeMeta.icon} width={12} height={12} />
-              {typeMeta.label}
-            </span>
-            {isOrgView && statusMeta && (
-              <span className={`${styles.statusPill} ${styles[statusMeta.colorClass]}`}>
-                <Icon icon={statusMeta.icon} width={12} height={12} />
-                {statusMeta.label}
+  const bookmarkBtn = (
+    <button
+      className={`${styles.scrimIconBtn} ${isSaved ? styles.scrimIconBtnOn : ""}`}
+      type="button"
+      onClick={() => toggleSave.mutate(r.id)}
+      aria-pressed={isSaved}
+      aria-label={isSaved ? "Remove from saved" : "Save recruitment"}
+      title={isSaved ? "Saved" : "Save"}
+    >
+      <Icon icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"} width={18} height={18} />
+    </button>
+  )
+
+  /**
+   * The ACTIVE ▾ chip, and the menu it opens. Rendered ONCE — into the poster
+   * scrim on a phone, into the card head on a desktop (see `useIsDesktop`).
+   * Two copies would install two sets of Esc / click-outside listeners and,
+   * worse, could anchor the open dropdown inside a hidden element.
+   */
+  const statusChip = () => (
+    <div className={styles.scrimStatusWrap}>
+      <button
+        className={styles.statusChip}
+        type="button"
+        onClick={() => setStatusMenuOpen((o) => !o)}
+        onMouseDown={(e) => e.stopPropagation()}
+        disabled={!canChangeStatus}
+        title={canChangeStatus ? "Change status" : "This recruitment is cancelled"}
+        aria-haspopup="menu"
+        aria-expanded={statusMenuOpen}
+      >
+        {ORG_STATUS_LABEL[orgStatus] ?? orgStatus}
+        {canChangeStatus && <Icon icon="mdi:chevron-down" width={14} height={14} />}
+      </button>
+      {canChangeStatus && statusMenuOpen && (
+        <StatusChangeMenu
+          open
+          onClose={() => setStatusMenuOpen(false)}
+          recruitmentId={recruitmentId}
+          currentStatus={orgStatus}
+        />
+      )}
+    </div>
+  )
+
+  // ── Shared section blocks ────────────────────────────────────
+
+  const aboutSection = (r.description || r.short_description) && (
+    <section className={styles.section}>
+      <Sect>About</Sect>
+      <p className={styles.aboutP}>{r.description || r.short_description}</p>
+    </section>
+  )
+
+  const whoSection = (
+    <section className={styles.section}>
+      <Sect>Who can attend</Sect>
+      <div className={styles.chipWrap}>
+        {ageCategories.length > 0 ? (
+          ageCategories.map((cat) => {
+            const range = formatBirthYears(cat.min_birth_year, cat.max_birth_year)
+            const reporting = cat.reporting_time
+              ? `report ${formatReportingTime(cat.reporting_time)}`
+              : null
+            const detail = [range, reporting].filter(Boolean).join(" · ")
+            return (
+              <span key={cat.id} className={styles.chipLg} title={detail || undefined}>
+                {cat.title}
+                {detail && <small>{detail}</small>}
               </span>
-            )}
-            <span className={styles.sportPill}>
-              <Icon icon={r.sport.icon_name || "mdi:trophy-outline"} width={12} height={12} />
-              {r.sport.name}
+            )
+          })
+        ) : (
+          <span className={styles.chipLg}>All ages</span>
+        )}
+        <span className={styles.chipLg}>
+          {r.gender && r.gender !== "all" ? GENDER_LABEL[r.gender] ?? r.gender : "Open to all"}
+        </span>
+        {allPositions.length > 0 ? (
+          allPositions.map((p) => (
+            <span key={p.position.id} className={styles.chipLg}>
+              {p.position.name}
             </span>
-            {r.gender && r.gender !== "all" && (
-              <span className={styles.genderPill}>
-                <Icon icon={r.gender === "male" ? "mdi:gender-male" : "mdi:gender-female"} width={12} height={12} />
-                {GENDER_LABEL[r.gender]}
-              </span>
-            )}
-          </div>
+          ))
+        ) : (
+          // "All positions" is the welcoming answer, so it gets the green chip.
+          <span className={`${styles.chipLg} ${styles.chipLgAccent}`}>All positions</span>
+        )}
+      </div>
+      {eligibilityCriteria.length > 0 && (
+        <ul className={styles.critList}>
+          {eligibilityCriteria.map((c) => (
+            <li key={c.id} className={styles.critItem}>
+              <Icon icon="mdi:check-circle-outline" width={14} height={14} />
+              {c.title}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className={styles.eligNote}>
+        <Icon icon="mdi:information-outline" width={12} height={12} />
+        Set by the organiser and verified at the venue.
+      </p>
+    </section>
+  )
 
-          <div className={styles.titleHeadRow}>
-            <h1 className={styles.title}>{r.title}</h1>
-            <button
-              className={styles.shareIconBtn}
-              type="button"
-              onClick={() => setShareOpen(true)}
-              aria-label="Share recruitment"
-              title="Share"
+  const benefitsSection = benefits.length > 0 && (
+    <section className={styles.section}>
+      <Sect>What you get</Sect>
+      <div className={styles.bringList}>
+        {benefits.map((b) => (
+          <div key={b.id} className={styles.bringRow}>
+            <span className={styles.tick}>
+              <Icon icon={BENEFIT_ICONS[b.icon_name] ?? "mdi:star-outline"} width={12} height={12} />
+            </span>
+            {b.title}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+
+  const requirementsSection = requirements.length > 0 && (
+    <section className={styles.section}>
+      <Sect>{hasApplied ? "Bring on trial day" : "Bring with you"}</Sect>
+      <div className={styles.bringList}>
+        {requirements.map((req, i) => (
+          <div key={req.id} className={styles.bringRow}>
+            <span className={styles.tick}>{i + 1}</span>
+            {req.title}
+            <span
+              className={`${styles.req} ${req.is_mandatory ? "" : styles.reqOptional}`}
             >
-              <Icon icon="mdi:share-variant-outline" width={18} height={18} />
-            </button>
-            {/* Report — a sibling icon button rather than a ⋯ menu, because
-                Share is the only other action here and a two-item overflow is
-                one more tap than the actions are worth. Never in the ORG view:
-                that is the club looking at its own listing. */}
-            {!isOrgView && (
-              <button
-                className={styles.shareIconBtn}
-                type="button"
-                onClick={() => setReportOpen(true)}
-                aria-label="Report recruitment"
-                title="Report"
-              >
-                <Icon icon="mdi:flag-outline" width={18} height={18} />
-              </button>
-            )}
+              {req.is_mandatory ? "Required" : "Optional"}
+            </span>
           </div>
-          {r.short_description && (
-            <p className={styles.shortDesc}>{r.short_description}</p>
+        ))}
+      </div>
+    </section>
+  )
+
+  const contactSection = contacts.length > 0 && (
+    <section className={styles.section}>
+      <Sect>Contact</Sect>
+      <div className={styles.kvList}>
+        {contacts.map((c) => (
+          <a
+            key={c.id}
+            className={styles.kvRow}
+            href={c.contact_type === "phone" ? `tel:${c.value}` : `mailto:${c.value}`}
+          >
+            <span className={styles.k}>
+              <Icon
+                icon={c.contact_type === "phone" ? "mdi:phone-outline" : "mdi:email-outline"}
+                width={13}
+                height={13}
+              />
+              {c.name || (c.contact_type === "phone" ? "Phone" : "Email")}
+            </span>
+            <span className={`${styles.v} ${styles.vLink}`}>{c.value}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  )
+
+  const detailsSection = (
+    <section className={styles.section}>
+      <Sect>Details</Sect>
+      <div className={styles.kvList}>
+        {r.experience_level && (
+          <div className={styles.kvRow}>
+            <span className={styles.k}>Level</span>
+            <span className={styles.v}>
+              {EXPERIENCE_LABEL[r.experience_level] ?? r.experience_level}
+            </span>
+          </div>
+        )}
+        {(r.city || r.location_name) && (
+          <div className={styles.kvRow}>
+            <span className={styles.k}>Location</span>
+            <span className={styles.v}>
+              {[r.location_name, r.city, r.country_code].filter(Boolean).join(", ")}
+            </span>
+          </div>
+        )}
+        {r.is_remote && (
+          <div className={styles.kvRow}>
+            <span className={styles.k}>Format</span>
+            <span className={styles.v}>Remote / online</span>
+          </div>
+        )}
+        <div className={styles.kvRow}>
+          <span className={styles.k}>Apply via</span>
+          <span className={styles.v}>
+            {APPLY_METHOD_LABEL[r.apply_method] ?? r.apply_method}
+          </span>
+        </div>
+        <div className={styles.kvRow}>
+          <span className={styles.k}>Visibility</span>
+          <span className={styles.v}>{VISIBILITY_LABEL[r.visibility] ?? r.visibility}</span>
+        </div>
+        {r.application_deadline && (
+          <div className={styles.kvRow}>
+            <span className={styles.k}>Applications close</span>
+            <span className={styles.v}>{fmtDateTime(r.application_deadline)}</span>
+          </div>
+        )}
+        {(r.applications_count ?? 0) > 0 && !asOrganiser && (
+          <div className={styles.kvRow}>
+            <span className={styles.k}>Applicants</span>
+            <span className={styles.v}>{fmtCount(r.applications_count)} registered</span>
+          </div>
+        )}
+        {r.is_paid && r.payment_note && (
+          <div className={styles.kvRow}>
+            <span className={styles.k}>Payment</span>
+            <span className={styles.v}>{r.payment_note}</span>
+          </div>
+        )}
+        {/* Owner-only provenance — the old page's Timestamps section, folded in
+            rather than dropped. */}
+        {asOrganiser && (
+          <>
+            <div className={styles.kvRow}>
+              <span className={styles.k}>Created</span>
+              <span className={styles.v}>{fmtDateTime(r.created_at)}</span>
+            </div>
+            {r.published_at && (
+              <div className={styles.kvRow}>
+                <span className={styles.k}>Published</span>
+                <span className={styles.v}>{fmtDateTime(r.published_at)}</span>
+              </div>
+            )}
+            {r.updated_at && (
+              <div className={styles.kvRow}>
+                <span className={styles.k}>Updated</span>
+                <span className={styles.v}>{fmtDateTime(r.updated_at)}</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  )
+
+  // ── Apply control (viewer + preview) ─────────────────────────
+
+  /** The single Apply affordance, in whatever shape this apply_method takes. */
+  function applyControl(compact: boolean) {
+    const cls = compact ? styles.btnPrimaryCompact : styles.btnPrimary
+
+    if (isPreview) {
+      return (
+        <button className={cls} type="button" disabled title="Organiser preview">
+          <Icon icon="mdi:eye-outline" width={16} height={16} />
+          Apply now
+        </button>
+      )
+    }
+
+    if (r.apply_method === "external") {
+      return r.external_apply_url && !closed ? (
+        <a
+          className={cls}
+          href={r.external_apply_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon icon="mdi:open-in-new" width={16} height={16} />
+          Apply on site
+        </a>
+      ) : (
+        <button className={cls} type="button" disabled>
+          <Icon icon="mdi:link-off" width={16} height={16} />
+          {closed ? "Applications closed" : "Link unavailable"}
+        </button>
+      )
+    }
+
+    if (r.apply_method === "contact") {
+      const first = contacts[0]
+      return first && !closed ? (
+        <a
+          className={cls}
+          href={first.contact_type === "phone" ? `tel:${first.value}` : `mailto:${first.value}`}
+        >
+          <Icon
+            icon={first.contact_type === "phone" ? "mdi:phone" : "mdi:email-outline"}
+            width={16}
+            height={16}
+          />
+          Contact to apply
+        </a>
+      ) : (
+        <button className={cls} type="button" disabled>
+          <Icon icon="mdi:phone-off" width={16} height={16} />
+          {closed ? "Applications closed" : "Contact unavailable"}
+        </button>
+      )
+    }
+
+    if (closed || !r.can_apply) {
+      return (
+        <button className={cls} type="button" disabled>
+          <Icon icon="mdi:lock-outline" width={16} height={16} />
+          {capacityFull ? "Applications full" : closed ? "Applications closed" : "Not open"}
+        </button>
+      )
+    }
+
+    return (
+      <button className={cls} type="button" onClick={() => setApplyOpen(true)}>
+        <Icon icon="mdi:send-outline" width={16} height={16} />
+        Apply now
+      </button>
+    )
+  }
+
+  /** Closed → the bookmark stops being a nicety and becomes the next action. */
+  const saveNudge = closed && !hasApplied && !asOrganiser && (
+    <button
+      className={styles.saveNudge}
+      type="button"
+      onClick={() => toggleSave.mutate(r.id)}
+      aria-pressed={isSaved}
+    >
+      <Icon icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"} width={15} height={15} />
+      {isSaved ? "Saved for next season" : "Save it for next season"}
+    </button>
+  )
+
+  const shareBtn = (
+    <button
+      className={styles.iconBtn}
+      type="button"
+      onClick={() => setShareOpen(true)}
+      aria-label="Share recruitment"
+      title="Share"
+    >
+      <Icon icon="mdi:share-variant-outline" width={18} height={18} />
+    </button>
+  )
+
+  const capacityPct =
+    r.max_applications && r.max_applications > 0
+      ? Math.min(100, Math.round(((r.applications_count ?? 0) / r.max_applications) * 100))
+      : null
+
+  const statRow = (
+    <div className={styles.statRow}>
+      <div className={styles.stat}>
+        <b>{fmtCount(r.views_count ?? 0)}</b>
+        <span>views</span>
+      </div>
+      <div className={styles.stat}>
+        <b>{fmtCount(r.applications_count ?? 0)}</b>
+        <span>applied</span>
+      </div>
+      <div className={styles.stat}>
+        <b>{fmtCount(r.saves_count ?? 0)}</b>
+        <span>saves</span>
+      </div>
+      {capacityPct != null && (
+        <div className={`${styles.stat} ${styles.statWide}`}>
+          <b>{capacityPct}%</b>
+          <span>of {r.max_applications} cap</span>
+        </div>
+      )}
+    </div>
+  )
+
+  const capacityBar = r.max_applications != null && r.max_applications > 0 && (
+    <div className={styles.cap}>
+      <div className={styles.capHead}>
+        <span>Capacity</span>
+        <span>
+          <b>{r.applications_count ?? 0}</b> / {r.max_applications} applications
+        </span>
+      </div>
+      <div className={styles.capBar}>
+        <i style={{ width: `${capacityPct}%` }} />
+      </div>
+    </div>
+  )
+
+  return (
+    <div className={styles.page}>
+      {/* ── Left column on desktop: the sticky poster ── */}
+      <div className={styles.posterCol}>
+        {(r.media?.length ?? 0) > 0 ? (
+          <PosterHero
+            media={r.media}
+            overlay={
+              <HeroScrim
+                r={r}
+                chips={chips}
+                orgTagline={orgTagline}
+                toProfile={toProfile}
+                trailing={isDesktop ? null : asOrganiser ? statusChip() : bookmarkBtn}
+              />
+            }
+          />
+        ) : (
+          // No media at all: the scrim still has to carry the identity, so it
+          // gets the brand treatment on its own rather than a blank box.
+          <div className={`${styles.poster} ${styles.posterEmpty}`}>
+            <HeroScrim
+              r={r}
+              chips={chips}
+              orgTagline={orgTagline}
+              toProfile={toProfile}
+              trailing={isDesktop ? null : asOrganiser ? statusChip() : bookmarkBtn}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ── Right column on desktop ── */}
+      <div className={styles.mainCol}>
+        {/* The desktop state card. Mobile gets the sticky bar instead — the
+            same actions, in the shape each viewport can carry. */}
+        <div className={styles.stateCard}>
+          {asOrganiser ? (
+            <>
+              <div className={styles.cardHead}>
+                {isDesktop && statusChip()}
+                <span className={styles.cardHint}>draft · active · closed · cancelled</span>
+                <CountdownChip countdown={countdown} />
+              </div>
+              {statRow}
+              {capacityBar}
+              <div className={styles.cardActions}>
+                <Link href={applicantsHref} className={styles.btnPrimary}>
+                  <Icon icon="mdi:account-multiple-outline" width={16} height={16} />
+                  View applicants · {fmtCount(r.applications_count ?? 0)}
+                </Link>
+                <button className={styles.btnSecondary} type="button" onClick={onEdit}>
+                  <Icon icon="mdi:pencil-outline" width={15} height={15} />
+                  Edit recruitment
+                </button>
+              </div>
+              <div className={styles.cardMeta}>
+                <button
+                  className={styles.metaBtn}
+                  type="button"
+                  onClick={() => setPreviewAsPlayer(true)}
+                >
+                  <Icon icon="mdi:eye-outline" width={13} height={13} />
+                  Preview as player
+                </button>
+                <button className={styles.metaBtn} type="button" onClick={() => setShareOpen(true)}>
+                  <Icon icon="mdi:share-variant-outline" width={13} height={13} />
+                  Share
+                </button>
+                {canChangeStatus && (
+                  <button
+                    className={`${styles.metaBtn} ${styles.metaBtnDanger}`}
+                    type="button"
+                    onClick={() => setStatusMenuOpen(true)}
+                  >
+                    Close applications
+                  </button>
+                )}
+              </div>
+            </>
+          ) : hasApplied ? (
+            <>
+              <div className={styles.appliedHead}>
+                <span className={styles.appliedTile}>
+                  <Icon icon="mdi:check" width={22} height={22} />
+                </span>
+                <span className={styles.appliedText}>
+                  <span className={styles.appliedT1}>
+                    Application sent
+                    {r.my_application?.applied_at &&
+                      ` · ${fmtDate(r.my_application.applied_at)}`}
+                  </span>
+                  <span className={styles.appliedT2}>
+                    Current status: <StatusBadge status={r.my_application!.status} /> — you&apos;ll
+                    be notified on any change
+                  </span>
+                </span>
+                <button
+                  className={styles.btnSecondary}
+                  type="button"
+                  onClick={() => setAppSheetOpen(true)}
+                >
+                  View application
+                </button>
+              </div>
+              <div className={styles.cardMeta}>
+                {r.event_date && (
+                  <span>
+                    <Icon icon="mdi:calendar" width={13} height={13} />
+                    Trial {fmtDateTime(r.event_date)}
+                  </span>
+                )}
+                {venuePrimary &&
+                  (r.venue_link ? (
+                    <a href={r.venue_link} target="_blank" rel="noopener noreferrer">
+                      <Icon icon="mdi:map-marker" width={13} height={13} />
+                      {venuePrimary}
+                      <Icon icon="mdi:open-in-new" width={10} height={10} />
+                    </a>
+                  ) : (
+                    <span>
+                      <Icon icon="mdi:map-marker" width={13} height={13} />
+                      {venuePrimary}
+                    </span>
+                  ))}
+                <button
+                  className={`${styles.metaBtn} ${styles.metaBtnDanger}`}
+                  type="button"
+                  onClick={() => setAppSheetOpen(true)}
+                >
+                  Withdraw
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.cardHead}>
+                {fee && (
+                  <span className={styles.feeBlock}>
+                    <b>{fee}</b>
+                    <span>
+                      entry fee
+                      {r.is_paid && (
+                        <>
+                          <br />
+                          {r.payment_note?.trim() || "pay at venue"}
+                        </>
+                      )}
+                    </span>
+                  </span>
+                )}
+                <CountdownChip countdown={countdown} />
+              </div>
+              <div className={styles.cardActions}>
+                {applyControl(false)}
+                {bookmarkBtn}
+                {shareBtn}
+                {!isPreview && (
+                  <button
+                    className={styles.iconBtn}
+                    type="button"
+                    onClick={() => setReportOpen(true)}
+                    aria-label="Report recruitment"
+                    title="Report"
+                  >
+                    <Icon icon="mdi:flag-outline" width={18} height={18} />
+                  </button>
+                )}
+              </div>
+              {saveNudge}
+              {isPreview && (
+                <p className={styles.previewHint}>
+                  <Icon icon="mdi:information-outline" width={13} height={13} />
+                  Organiser preview — this is what applicants see. Apply is disabled.
+                  <button
+                    className={styles.metaBtn}
+                    type="button"
+                    onClick={() => setPreviewAsPlayer(false)}
+                  >
+                    Exit preview
+                  </button>
+                </p>
+              )}
+              <div className={styles.cardMeta}>
+                {r.event_date && (
+                  <span>
+                    <Icon icon="mdi:calendar" width={13} height={13} />
+                    Trial {fmtDateTime(r.event_date)}
+                  </span>
+                )}
+                {venuePrimary &&
+                  (r.venue_link ? (
+                    <a href={r.venue_link} target="_blank" rel="noopener noreferrer">
+                      <Icon icon="mdi:map-marker" width={13} height={13} />
+                      {venuePrimary}
+                      <Icon icon="mdi:open-in-new" width={10} height={10} />
+                    </a>
+                  ) : (
+                    <span>
+                      <Icon icon="mdi:map-marker" width={13} height={13} />
+                      {venuePrimary}
+                    </span>
+                  ))}
+                {(r.applications_count ?? 0) > 0 && (
+                  <span>
+                    <Icon icon="mdi:account-multiple-outline" width={13} height={13} />
+                    {fmtCount(r.applications_count)} applied
+                  </span>
+                )}
+              </div>
+            </>
           )}
         </div>
 
-        {/* Org-view action row */}
-        {isOrgView && (
-          <div className={styles.orgActions}>
+        {/* ── Facts strip + status row: MOBILE only. On desktop the state card
+            above already carries the fee, the countdown and the trial/venue
+            meta, and the mockup's desktop frames show no strip. ── */}
+        <FactsStrip facts={facts} />
+
+        <div className={styles.statusRow}>
+          <CountdownChip countdown={countdown} />
+          {hasApplied ? (
+            <>
+              <StatusBadge status={r.my_application!.status} />
+              {r.my_application?.applied_at && (
+                <span className={styles.statusNote}>
+                  You applied {fmtDate(r.my_application.applied_at)}
+                </span>
+              )}
+            </>
+          ) : (
+            (r.applications_count ?? 0) > 0 && (
+              <span className={styles.statusNote}>
+                {fmtCount(r.applications_count)} applied
+              </span>
+            )
+          )}
+        </div>
+
+        {/* Organiser's stats live above the sections on mobile too. */}
+        {asOrganiser && (
+          <div className={styles.orgStats}>
+            {statRow}
+            {capacityBar}
+          </div>
+        )}
+
+        {aboutSection}
+
+        {asOrganiser && (
+          <LatestApplicants
+            recruitmentId={r.id}
+            total={r.applications_count ?? 0}
+            applicantsHref={applicantsHref}
+          />
+        )}
+
+        {asOrganiser && (
+          <section className={styles.section}>
+            <Sect>Preview as player</Sect>
+            <button
+              className={styles.previewBtn}
+              type="button"
+              onClick={() => setPreviewAsPlayer(true)}
+            >
+              <Icon icon="mdi:eye-outline" width={16} height={16} />
+              See exactly what applicants see
+              <Icon icon="mdi:arrow-right" width={14} height={14} />
+            </button>
+          </section>
+        )}
+
+        <div className={styles.twoCols}>
+          {whoSection}
+          {requirementsSection}
+          {benefitsSection}
+          {detailsSection}
+          {contactSection}
+        </div>
+
+        {/* Report lives at the foot of the page, not in the sticky bar.
+            The mockup's mobile bar has exactly three slots and none of them is
+            this — but report has to stay reachable at EVERY width, and the
+            desktop card's flag icon is invisible on a phone. Never in the org
+            view: that is the club looking at its own listing. */}
+        {!isOwner && (
+          <button
+            className={styles.reportLink}
+            type="button"
+            onClick={() => setReportOpen(true)}
+          >
+            <Icon icon="mdi:flag-outline" width={14} height={14} />
+            Report this recruitment
+          </button>
+        )}
+      </div>
+
+      {/* ── Sticky bar (mobile) — the state switch ── */}
+      <div className={styles.stickyBar}>
+        {asOrganiser ? (
+          <>
+            <Link href={applicantsHref} className={styles.btnPrimaryCompact}>
+              View applicants · {fmtCount(r.applications_count ?? 0)}
+            </Link>
+            <button
+              className={styles.iconBtn}
+              type="button"
+              onClick={onEdit}
+              aria-label="Edit recruitment"
+              title="Edit"
+            >
+              <Icon icon="mdi:pencil-outline" width={18} height={18} />
+            </button>
+            <div className={styles.moreWrap}>
+              <button
+                className={styles.iconBtn}
+                type="button"
+                onClick={() => setMoreOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={moreOpen}
+                aria-label="More actions"
+                title="More"
+              >
+                <Icon icon="mdi:dots-horizontal" width={18} height={18} />
+              </button>
+              {moreOpen && (
+                <>
+                  {/* Click-away layer: a bare menu over a scrolling page is a
+                      menu you cannot dismiss without picking something. */}
+                  <div
+                    className={styles.moreScrim}
+                    onClick={() => setMoreOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div className={styles.moreMenu} role="menu">
+                    <button
+                      className={styles.moreItem}
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        setPreviewAsPlayer(true)
+                      }}
+                    >
+                      <Icon icon="mdi:eye-outline" width={15} height={15} />
+                      Preview as player
+                    </button>
+                    <button
+                      className={styles.moreItem}
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        setShareOpen(true)
+                      }}
+                    >
+                      <Icon icon="mdi:share-variant-outline" width={15} height={15} />
+                      Share
+                    </button>
+                    {canChangeStatus && (
+                      <button
+                        className={styles.moreItem}
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          setStatusMenuOpen(true)
+                        }}
+                      >
+                        <Icon icon="mdi:swap-horizontal" width={15} height={15} />
+                        Change status
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        ) : hasApplied ? (
+          <>
+            <div className={styles.appliedBox}>
+              <span className={styles.appliedTile}>
+                <Icon icon="mdi:check" width={20} height={20} />
+              </span>
+              <span className={styles.appliedText}>
+                <span className={styles.appliedT1}>Applied</span>
+                <span className={styles.appliedT2}>
+                  Status: {r.my_application!.status}
+                </span>
+              </span>
+            </div>
             <button
               className={styles.btnSecondary}
               type="button"
-              onClick={onEdit}
+              onClick={() => setAppSheetOpen(true)}
             >
-              <Icon icon="mdi:pencil-outline" width={15} height={15} />
-              Edit
+              View application
             </button>
-            <div className={styles.statusChangeWrap}>
-              <button
-                className={styles.btnSecondary}
-                type="button"
-                onClick={() => setStatusMenuOpen((o) => !o)}
-                onMouseDown={(e) => e.stopPropagation()}
-                disabled={!canChangeStatus}
-                title={canChangeStatus ? undefined : "This recruitment is cancelled"}
-                aria-haspopup="menu"
-                aria-expanded={statusMenuOpen}
-              >
-                <Icon icon="mdi:swap-horizontal" width={15} height={15} />
-                Change Status
-              </button>
-              {canChangeStatus && statusMenuOpen && (
-                <StatusChangeMenu
-                  open
-                  onClose={() => setStatusMenuOpen(false)}
-                  recruitmentId={recruitmentId}
-                  currentStatus={orgStatus}
-                />
-              )}
-            </div>
-            <Link
-              href={`/organization/admin/${r.organization.id}/recruitments/${r.id}?tab=applicants`}
-              className={styles.btnPrimary}
-            >
-              <Icon icon="mdi:account-multiple-outline" width={15} height={15} />
-              View Applications
-            </Link>
-          </div>
-        )}
-
-        {/* User: application status banner (withdraw / reapply live here) */}
-        {!isOrgView && r.my_application && (
-          <ApplicationBanner r={r} onReapply={() => setApplyOpen(true)} />
-        )}
-
-        {/* User: apply CTA */}
-        {!isOrgView && !r.my_application && (
-          <ApplyCTA r={r} deadlinePast={deadlinePast} onApply={() => setApplyOpen(true)} />
-        )}
-      </div>
-
-      {/* ── Org stats panel ── */}
-      {isOrgView && (
-        <div className={styles.statsPanel}>
-          <StatCard icon="mdi:account-multiple-outline" value={r.applications_count ?? 0} label="Applied" />
-          <StatCard icon="mdi:star-outline"              value={r.shortlisted_count  ?? 0} label="Shortlisted" accent />
-          <StatCard icon="mdi:trophy-outline"            value={r.selected_count     ?? 0} label="Selected" accent />
-          <StatCard icon="mdi:eye-outline"               value={r.views_count        ?? 0} label="Views" />
-        </div>
-      )}
-
-      {/* ── Key info strip ── */}
-      <div className={styles.keyInfoStrip}>
-        {r.event_date && (
-          <div className={styles.keyInfoItem}>
-            <Icon icon="mdi:calendar" width={18} height={18} className={styles.keyInfoIcon} />
-            <div className={styles.keyInfoText}>
-              <span className={styles.keyInfoLabel}>Trial Date</span>
-              <span className={styles.keyInfoValue}>{fmtDate(r.event_date)}</span>
-            </div>
-          </div>
-        )}
-        {r.application_deadline && (
-          <div className={styles.keyInfoItem}>
-            <Icon icon="mdi:calendar-clock" width={18} height={18} className={`${styles.keyInfoIcon} ${deadlinePast ? styles.keyInfoIconError : ""}`} />
-            <div className={styles.keyInfoText}>
-              <span className={styles.keyInfoLabel}>Apply Before</span>
-              <span className={`${styles.keyInfoValue} ${deadlinePast ? styles.textError : ""}`}>
-                {fmtDate(r.application_deadline)}{deadlinePast ? " · Closed" : ""}
-              </span>
-            </div>
-          </div>
-        )}
-        {(r.venue_name || r.city) && (
-          <div className={styles.keyInfoItem}>
-            {r.venue_link ? (
-              <a href={r.venue_link} target="_blank" rel="noopener noreferrer" className={styles.keyInfoVenueLink}>
-                <Icon icon="mdi:map-marker" width={18} height={18} className={styles.keyInfoIcon} />
-                <div className={styles.keyInfoText}>
-                  <span className={styles.keyInfoLabel}>Venue</span>
-                  <span className={styles.keyInfoValue}>
-                    {r.venue_name || r.city}
-                    <Icon icon="mdi:open-in-new" width={11} height={11} className={styles.externalIcon} />
-                  </span>
-                </div>
-              </a>
-            ) : (
-              <>
-                <Icon icon="mdi:map-marker" width={18} height={18} className={styles.keyInfoIcon} />
-                <div className={styles.keyInfoText}>
-                  <span className={styles.keyInfoLabel}>Venue</span>
-                  <span className={styles.keyInfoValue}>{r.venue_name || r.city}</span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {r.is_paid && r.fee_amount && (
-          <div className={styles.keyInfoItem}>
-            <Icon icon="mdi:currency-inr" width={18} height={18} className={styles.keyInfoIcon} />
-            <div className={styles.keyInfoText}>
-              <span className={styles.keyInfoLabel}>Entry Fee</span>
-              <span className={styles.keyInfoValue}>
-                {r.fee_currency} {parseFloat(r.fee_amount).toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Description ── */}
-      {r.description && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:information-outline" width={16} height={16} />
-            About This Recruitment
-          </h2>
-          <p className={styles.descText}>{r.description}</p>
-        </section>
-      )}
-
-      {/* ── Who can attend ──
-          Eligibility exactly as the organiser wrote it. Nothing here is
-          compared against the viewer — no "you qualify" / "you don't". */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>
-          <Icon icon="mdi:account-check-outline" width={16} height={16} />
-          Who Can Attend
-        </h2>
-
-        <div className={styles.eligBlock}>
-          <div className={styles.eligRow}>
-            <span className={styles.eligRowLabel}>Age</span>
-            <div className={styles.eligChips}>
-              {ageCategories.length > 0 ? (
-                ageCategories.map((cat) => (
-                  <AgeGroupChip key={cat.id} category={cat} />
-                ))
-              ) : (
-                <div className={styles.eligChip}>
-                  <span className={styles.eligChipTitle}>All ages</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className={styles.eligRow}>
-            <span className={styles.eligRowLabel}>Gender</span>
-            <div className={styles.eligChips}>
-              <div className={styles.eligChip}>
-                <span className={styles.eligChipTitle}>
-                  {r.gender && r.gender !== "all"
-                    ? (GENDER_LABEL[r.gender] ?? r.gender)
-                    : "Open"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {eligibilityCriteria.length > 0 && (
-            <div className={styles.eligRow}>
-              <span className={styles.eligRowLabel}>Also</span>
-              <ul className={styles.eligCriteriaList}>
-                {eligibilityCriteria.map((c) => (
-                  <li key={c.id} className={styles.eligCriteriaItem}>
-                    <Icon icon="mdi:check-circle-outline" width={14} height={14} />
-                    {c.title}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <p className={styles.eligNote}>
-          <Icon icon="mdi:information-outline" width={13} height={13} />
-          Set by the organiser and verified at the venue.
-        </p>
-      </section>
-
-      {/* ── Positions ── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>
-          <Icon icon="mdi:account-star-outline" width={16} height={16} />
-          Positions
-        </h2>
-        {hasPositions ? (
-          <div className={styles.positionsList}>
-            {allPositions.map((p) => (
-              <span key={p.position.id} className={styles.posTag}>
-                {p.position.name}
-              </span>
-            ))}
-          </div>
+          </>
         ) : (
-          <div className={styles.allPositionsNote}>
-            <Icon icon="mdi:check-all" width={18} height={18} />
-            All positions are welcome to apply
-          </div>
+          <>
+            {fee && (
+              <span className={styles.feeBlock}>
+                <b>{fee}</b>
+                <span>entry fee</span>
+              </span>
+            )}
+            {applyControl(true)}
+            {shareBtn}
+          </>
         )}
-      </section>
+      </div>
 
-      {/* ── Benefits ── */}
-      {benefits.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:gift-outline" width={16} height={16} />
-            What You Get
-          </h2>
-          <div className={styles.benefitsGrid}>
-            {benefits.map((b) => (
-              <div key={b.id} className={styles.benefitCard}>
-                <span className={styles.benefitIcon}>
-                  <Icon icon={BENEFIT_ICONS[b.icon_name] ?? "mdi:star-outline"} width={20} height={20} />
-                </span>
-                <span className={styles.benefitTitle}>{b.title}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+      {/* Preview banner: the one thing a preview must never hide is the way
+          back out of it. */}
+      {isPreview && (
+        <button
+          className={styles.previewExit}
+          type="button"
+          onClick={() => setPreviewAsPlayer(false)}
+        >
+          <Icon icon="mdi:eye-off-outline" width={15} height={15} />
+          Exit player preview
+        </button>
       )}
 
-      {/* ── Requirements ── */}
-      {requirements.length > 0 && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:clipboard-list-outline" width={16} height={16} />
-            What to Bring
-          </h2>
-          <div className={styles.requirementsList}>
-            {requirements.map((req) => (
-              <div key={req.id} className={styles.requirementItem}>
-                <span className={`${styles.reqIndicator} ${req.is_mandatory ? styles.reqMandatory : styles.reqOptional}`}>
-                  <Icon
-                    icon={req.is_mandatory ? "mdi:asterisk" : "mdi:plus-circle-outline"}
-                    width={12}
-                    height={12}
-                  />
-                </span>
-                <span className={styles.reqTitle}>{req.title}</span>
-                <span className={`${styles.reqBadge} ${req.is_mandatory ? styles.reqBadgeMandatory : styles.reqBadgeOptional}`}>
-                  {req.is_mandatory ? "Required" : "Optional"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Application questions are intentionally NOT shown here — they're only
-          surfaced in the apply modal (ApplyRecruitmentModal) at apply time. */}
-
-      {/* ── Contacts (always shown; primary CTA if apply_method=contact) ── */}
-      {contacts.length > 0 && r.apply_method !== "contact" && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:contacts-outline" width={16} height={16} />
-            Contacts
-          </h2>
-          <div className={styles.contactsList}>
-            {contacts.map((c) => (
-              <a
-                key={c.id}
-                href={c.contact_type === "phone" ? `tel:${c.value}` : `mailto:${c.value}`}
-                className={styles.contactItem}
-              >
-                <span className={styles.contactIconWrap}>
-                  <Icon
-                    icon={c.contact_type === "phone" ? "mdi:phone-outline" : "mdi:email-outline"}
-                    width={16}
-                    height={16}
-                  />
-                </span>
-                <div className={styles.contactInfo}>
-                  {c.name && <span className={styles.contactName}>{c.name}</span>}
-                  <span className={styles.contactValue}>{c.value}</span>
-                </div>
-                <Icon icon="mdi:chevron-right" width={16} height={16} className={styles.contactChevron} />
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ── Details ── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>
-          <Icon icon="mdi:format-list-bulleted" width={16} height={16} />
-          Details
-        </h2>
-        <div className={styles.infoGrid}>
-          {r.experience_level && (
-            <InfoRow
-              icon="mdi:medal-outline"
-              label="Level"
-              value={EXPERIENCE_LABEL[r.experience_level] ?? r.experience_level}
-            />
-          )}
-          {/* Gender lives in "Who Can Attend" — it is eligibility, not a
-              loose detail, and showing it twice reads as two rules. */}
-          {(r.city || r.location_name) && (
-            <InfoRow
-              icon="mdi:map-marker-outline"
-              label="Location"
-              value={[r.location_name, r.city, r.country_code].filter(Boolean).join(", ")}
-            />
-          )}
-          {r.is_remote && (
-            <InfoRow icon="mdi:laptop" label="Format" value="Remote / Online" />
-          )}
-          <InfoRow
-            icon="mdi:eye-outline"
-            label="Visibility"
-            value={VISIBILITY_LABEL[r.visibility] ?? r.visibility}
-          />
-          <InfoRow
-            icon="mdi:send-outline"
-            label="Apply Via"
-            value={
-              r.apply_method === "goatza"   ? "Goatza App"    :
-              r.apply_method === "external" ? "External Link" :
-              r.apply_method === "contact"  ? "Contact"       :
-              r.apply_method
-            }
-          />
-          {(r.applications_count ?? 0) > 0 && !isOrgView && (
-            <InfoRow
-              icon="mdi:account-multiple-outline"
-              label="Applicants"
-              value={`${fmtCount(r.applications_count)} registered`}
-            />
-          )}
-        </div>
-      </section>
-
-      {/* ── Fee ── */}
-      {r.is_paid && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:currency-inr" width={16} height={16} />
-            Registration Fee
-          </h2>
-          <div className={styles.feeCard}>
-            <span className={styles.feeAmount}>
-              {r.fee_currency} {parseFloat(r.fee_amount ?? "0").toLocaleString()}
-            </span>
-            {r.payment_note && <p className={styles.feeNote}>{r.payment_note}</p>}
-          </div>
-        </section>
-      )}
-
-      {/* ── Org-view timestamps ── */}
-      {isOrgView && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            <Icon icon="mdi:clock-outline" width={16} height={16} />
-            Timestamps
-          </h2>
-          <div className={styles.infoGrid}>
-            <InfoRow icon="mdi:plus-circle-outline"    label="Created"   value={fmtDate(r.created_at)} />
-            {r.published_at && (
-              <InfoRow icon="mdi:publish"              label="Published" value={fmtDate(r.published_at)} />
-            )}
-            {r.updated_at && (
-              <InfoRow icon="mdi:pencil-circle-outline" label="Updated"  value={fmtDate(r.updated_at)} />
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ── Bottom sticky apply CTA (user, no application yet, can_apply or external) ── */}
-      {!isOrgView && !r.my_application && (r.can_apply || r.apply_method === "external" || r.apply_method === "contact") && (
-        <div className={styles.bottomCta}>
-          <ApplyCTA r={r} deadlinePast={deadlinePast} compact onApply={() => setApplyOpen(true)} />
-        </div>
-      )}
-
-      {/* ── Apply modal (goatza in-app apply only) ── */}
+      {/* ── Overlays ── */}
       {applyOpen && (
         <ApplyRecruitmentModal recruitment={r} onClose={() => setApplyOpen(false)} />
       )}
 
-      {/* ── Report sheet ── */}
+      {appSheetOpen && r.my_application && (
+        <ApplicationSheet
+          r={r}
+          onClose={() => setAppSheetOpen(false)}
+          onReapply={onReapply}
+        />
+      )}
+
       {reportOpen && (
         <ReportSheet
           targetType="recruitment"
@@ -1083,7 +1446,6 @@ export default function RecruitmentDetail({
         />
       )}
 
-      {/* ── Share sheet ── */}
       <ShareSheet
         open={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -1098,7 +1460,6 @@ export default function RecruitmentDetail({
           />
         }
       />
-
     </div>
   )
 }

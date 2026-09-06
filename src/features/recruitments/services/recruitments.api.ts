@@ -130,6 +130,13 @@ export type Recruitment = {
   venue_name?: string
   /** Available to callers, deliberately not rendered on the card (§4). */
   gender?: RecruitmentGender | ""
+  /**
+   * Whether the ACTIVE ACTOR shortlisted this one. Optional for the same
+   * reason as the fields above — a payload cached before the bookmark shipped
+   * must still type-check — and the card reads a missing value as "not
+   * saved", which is what an empty bookmark already means.
+   */
+  is_saved?: boolean
   // Match context (§5). Present on /discover and on the ranked "All" tab;
   // absent on the org-scoped mounts, which stay newest-first and unscored.
   // Every field is optional for exactly that reason — a card must render fine
@@ -291,7 +298,16 @@ export type RecruitmentDetail = {
   contacts: RecruitmentContact[]
   my_application: MyApplication | null
   can_apply: boolean
+  /**
+   * The server's single source of truth for status + deadline + the
+   * max-applications cap. PUBLIC, unlike `status`/`max_applications`, so it is
+   * what a non-owner viewer's closed/open treatment must be driven from.
+   * Optional only for older cached payloads.
+   */
+  is_accepting_applications?: boolean
   created_at: string
+  /** The bookmark, same flag the card carries. Optional: older cached detail. */
+  is_saved?: boolean
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
@@ -299,6 +315,12 @@ export type RecruitmentDetail = {
   shortlisted_count?: number
   selected_count?: number
   views_count?: number
+  /**
+   * How many actors shortlisted this posting. Owner-only and an AGGREGATE:
+   * the server never says WHO saved it — the shortlist stays private to the
+   * saver. Absent (not zero) on a non-owner payload.
+   */
+  saves_count?: number
   published_at?: string | null
   updated_at?: string
 }

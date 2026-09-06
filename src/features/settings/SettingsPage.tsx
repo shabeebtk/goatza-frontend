@@ -44,6 +44,20 @@ export default function SettingsPage() {
       <BackHeader title="Settings" fallback="/home" />
 
       <SettingsSection title="Account">
+        {/* Email first: it is the sign-in identifier, so it is the row people
+            come to this section looking for. The subtitle is what they need to
+            recognise the account, and it is already on the profile payload. */}
+        <SettingsRow
+          href="/settings/email"
+          icon="mdi:email-outline"
+          label="Email address"
+          description={profile?.email}
+        />
+        <SettingsRow
+          href="/settings/phone"
+          icon="mdi:phone-outline"
+          label="Phone number"
+        />
         <SettingsRow
           href="/settings/password"
           icon="mdi:lock-outline"

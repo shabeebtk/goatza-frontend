@@ -481,6 +481,15 @@
   background: var(--color-brand-active);
 }
 
+/* Saved state for the bookmark — it borrows .shareBtn's box (same 34px pill,
+   same 44px touch target) and only changes colour, so the two icon buttons
+   stay one control size. */
+.saveBtnOn {
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
 /* ── Focus ────────────────────────────────────────────────────
    Tab order reads org → title → share → View, matching DOM order. */
 

@@ -18,7 +18,10 @@ export default function OrgRecruitmentDetailPage({ params }: OrgRecruitmentDetai
 
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "var(--space-4)" }}>
+    // 1180px, not 720: the detail page is now a two-column poster layout at
+    // >=960px (430px poster + content), and a 720px cap would never let the
+    // grid engage. Narrow screens are unaffected — the page is fluid below it.
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "var(--space-4)" }}>
       <RecruitmentDetail
         recruitmentId={recruitmentId}
       />

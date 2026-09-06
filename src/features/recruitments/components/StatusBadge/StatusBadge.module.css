@@ -1,4 +1,15 @@
-/* Application status pill — colours mirror the RecruitmentDetail app banner. */
+/* Application status pill.
+
+   Colours follow the approved recruitment-poster mockup's legend, which is now
+   the app's one colour language for this enum: applied green, reviewing amber,
+   shortlisted blue, invited violet, selected solid green, rejected red,
+   withdrawn muted. They used to be a different set here (applied blue,
+   reviewing cyan, shortlisted violet, invited amber) — recoloured rather than
+   forked so the detail page, the applicants list and the applicant drawer
+   cannot disagree about what "reviewing" looks like.
+
+   `selected` is the only SOLID pill. It is the terminal good outcome and the
+   one status that should read as an award rather than a stage. */
 
 .badge {
   display: inline-flex;
@@ -18,10 +29,23 @@
 
 .badge svg { flex-shrink: 0 }
 
-.applied     { color: #2563eb; background: rgba(37, 99, 235, 0.07);  border-color: rgba(37, 99, 235, 0.18); }
-.reviewing   { color: #0891b2; background: rgba(8, 145, 178, 0.07);  border-color: rgba(8, 145, 178, 0.18); }
-.shortlisted { color: #7c3aed; background: rgba(124, 58, 237, 0.07); border-color: rgba(124, 58, 237, 0.18); }
-.invited     { color: #b45309; background: rgba(180, 83, 9, 0.07);   border-color: rgba(180, 83, 9, 0.18); }
-.selected    { color: var(--color-success); background: rgba(0, 181, 98, 0.10); border-color: rgba(0, 181, 98, 0.22); }
-.rejected    { color: var(--color-error);   background: rgba(232, 70, 42, 0.08); border-color: rgba(232, 70, 42, 0.18); }
+.applied     { color: var(--color-success); background: rgba(0, 181, 98, 0.10);  border-color: rgba(0, 181, 98, 0.35); }
+.reviewing   { color: #b45309; background: rgba(245, 184, 61, 0.12); border-color: rgba(245, 184, 61, 0.40); }
+.shortlisted { color: #0284c7; background: rgba(111, 211, 255, 0.12); border-color: rgba(56, 170, 226, 0.40); }
+.invited     { color: #7c3aed; background: rgba(201, 166, 255, 0.14); border-color: rgba(146, 96, 233, 0.40); }
+.selected    { color: #04120a; background: var(--color-success); border-color: var(--color-success); }
+.rejected    { color: var(--color-error);   background: rgba(232, 70, 42, 0.08); border-color: rgba(232, 70, 42, 0.30); }
 .withdrawn   { color: var(--color-text-muted); background: var(--color-surface-raised); border-color: var(--color-border); }
+
+/* The mockup is a dark-only sheet; on the light theme its literal amber/blue/
+   violet inks fail against a pale pill, so the hues are kept and the INK is
+   darkened. Dark theme takes the mockup's values as drawn. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .reviewing   { color: #f5b83d; }
+  :root:not([data-theme="light"]) .shortlisted { color: #6fd3ff; }
+  :root:not([data-theme="light"]) .invited     { color: #c9a6ff; }
+}
+
+:root[data-theme="dark"] .reviewing   { color: #f5b83d; }
+:root[data-theme="dark"] .shortlisted { color: #6fd3ff; }
+:root[data-theme="dark"] .invited     { color: #c9a6ff; }

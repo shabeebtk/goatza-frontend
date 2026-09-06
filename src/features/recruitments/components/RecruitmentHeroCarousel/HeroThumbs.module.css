@@ -1,0 +1,74 @@
+/* ============================================================
+   GOATZA — HeroThumbs
+   The desktop thumbnail strip under the recruitment poster.
+
+   Thumb proportions follow the mockup's 76×95 — the same 4:5 as the stage,
+   so a thumb is a small copy of the slide rather than a differently-cropped
+   view of it.
+   ============================================================ */
+
+.thumbs {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.thumb {
+  position: relative;
+  width: 76px;
+  aspect-ratio: 4 / 5;
+  flex: none;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  /* Same brand treatment as the stage, so a video with no poster frame reads
+     as the same object in both places. */
+  background:
+    radial-gradient(110% 80% at 30% 20%, rgba(0, 201, 110, 0.2), transparent 55%),
+    linear-gradient(160deg, #0e2415 0%, #071009 60%);
+  cursor: pointer;
+}
+
+.thumbActive { border-color: var(--color-brand); }
+
+.thumb:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Same centre-crop as the stage — an old landscape upload is cropped, not
+   letterboxed into a 4:5 box with bars. */
+.thumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.thumbPlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(8, 15, 9, 0.35);
+}
+
+.thumbDuration {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  font-family: var(--font-ui);
+  font-size: 8.5px;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  color: #fff;
+  background: rgba(8, 15, 9, 0.7);
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+}

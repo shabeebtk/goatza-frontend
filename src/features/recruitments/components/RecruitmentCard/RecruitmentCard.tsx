@@ -16,6 +16,7 @@ import {
   formatUrgency,
   type UrgencyTone,
 } from "../../matchContext"
+import { useToggleSaveRecruitment } from "../../hooks/useRecruitments"
 import { Recruitment } from "../../services/recruitments.api"
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -94,6 +95,12 @@ export default function RecruitmentCard({
 }: RecruitmentCardProps) {
   const { toRecruitment, toProfile } = useNavigation()
   const [shareOpen, setShareOpen] = useState(false)
+  const toggleSave = useToggleSaveRecruitment()
+
+  // Read straight off the payload — list, discover and detail all carry
+  // `is_saved`, and the mutation flips it in the cache, so there is nothing to
+  // fetch and nothing to hold in local state that could drift from it.
+  const isSaved = recruitment.is_saved === true
 
   const match = recruitment.match
   const titleId = `rec-title-${recruitment.id}`
@@ -315,6 +322,25 @@ export default function RecruitmentCard({
         </div>
 
         <div className={styles.cta}>
+          {/* Bookmark. Lives in the action row beside Share rather than
+              floating over the card: the card's own tap targets are the title
+              link and View, and an overlay button would sit on top of one of
+              them. */}
+          <button
+            type="button"
+            className={`${styles.shareBtn} ${isSaved ? styles.saveBtnOn : ""}`}
+            onClick={() => toggleSave.mutate(recruitment.id)}
+            aria-pressed={isSaved}
+            aria-label={isSaved ? "Remove from saved" : "Save recruitment"}
+            title={isSaved ? "Saved" : "Save"}
+          >
+            <Icon
+              icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"}
+              width={16}
+              height={16}
+            />
+          </button>
+
           <button
             type="button"
             className={styles.shareBtn}
