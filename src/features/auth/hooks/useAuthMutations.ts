@@ -10,6 +10,7 @@ import {
   type ForgotPasswordPayload,
   type LoginPayload,
   type ResetPasswordPayload,
+  type SetRoleExtras,
   type SignupPayload,
   type VerifyOtpPayload,
 } from "../services/auth.api"
@@ -110,13 +111,8 @@ export const useSetRole = () => {
   const setUserRole = useAuthStore((s) => s.setUserRole)
 
   return useMutation({
-    mutationFn: ({
-      role,
-      acceptedTerms,
-    }: {
-      role: UserRole
-      acceptedTerms?: boolean
-    }) => setRoleApi(role, acceptedTerms),
+    mutationFn: ({ role, ...extras }: { role: UserRole } & SetRoleExtras) =>
+      setRoleApi(role, extras),
     onSuccess: (data) => {
       setUserRole(data.role)
     },

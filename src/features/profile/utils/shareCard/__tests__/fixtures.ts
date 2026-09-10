@@ -44,6 +44,11 @@ export function profile(overrides: Partial<PublicUserProfile> = {}): PublicUserP
         { name: "Preferred foot", data_type: "select", value: "Right" },
       ],
     },
+    // An ADULT by default, so every existing card test keeps exercising the
+    // full card. `profile({ is_limited_view: true })` is how a test asks for a
+    // minor's — the card then draws no photo, no measurables and no age band.
+    is_minor: false,
+    is_limited_view: false,
     ...overrides,
   }
 }

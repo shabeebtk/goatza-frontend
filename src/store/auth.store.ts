@@ -16,6 +16,25 @@ export type User = {
   is_role_confirmed?: boolean
   is_onboarding_completed?: boolean
   /**
+   * ISO-3166-1 alpha-2 LEGAL jurisdiction — which country's child-protection
+   * rules this account is held to. Not the profile's location country: a
+   * player living in Dubai may still be Indian, and it is the second fact that
+   * decides the consent age.
+   *
+   * "" (or undefined on responses that predate it) means the account has never
+   * been asked. Both this and the birthdate are written together, on every
+   * path that captures either, so an empty value here also means "no age on
+   * file" — which is what the onboarding role step branches on.
+   */
+  country_code?: string
+  /**
+   * Whether this user is a minor under their own jurisdiction's rules —
+   * computed server-side, because the age of digital consent differs per
+   * country (18 in India, 13 in the UK) and a client-side table would get it
+   * wrong. True when the birthdate is unknown. Nothing consumes it yet.
+   */
+  is_minor?: boolean
+  /**
    * Present only on the user from GET /user/details. The login, OTP and Google
    * responses serialise a user without it, so `undefined` means "not known
    * yet" — never "nothing pending". See LegalConsentGate.

@@ -23,6 +23,20 @@ export type SignupPayload = {
    * account (accounts/views/user_auth_views.py).
    */
   accepted_terms: true
+  /**
+   * ISO "YYYY-MM-DD". Required — the backend refuses a signup without it, for
+   * the same reason it refuses one without consent: the user is anonymous
+   * until the OTP is verified, so there is no later moment at which the client
+   * could supply it. An account with no birthdate reads as a minor forever.
+   */
+  birthdate: string
+  /**
+   * ISO-3166-1 alpha-2. The LEGAL jurisdiction, which the backend cross-checks
+   * against the phone's dialling code and may override with a stricter one —
+   * so the value that comes back on the user is not always the one sent here.
+   * Unrelated to the profile's location country.
+   */
+  country_code: string
 }
 
 export type VerifyOtpPayload = {
@@ -50,6 +64,16 @@ export type AuthUser = {
   name: string
   profile_photo: string
   is_email_verified: boolean
+  /** ISO-3166-1 alpha-2 legal jurisdiction, "" for accounts predating the gate. */
+  country_code: string
+  /**
+   * Whether this user is a minor under THEIR OWN country's rules — the consent
+   * age differs per jurisdiction, so this is computed server-side and the
+   * client branches on the boolean rather than reimplementing the table.
+   *
+   * True when the birthdate is unknown. Nothing consumes it yet.
+   */
+  is_minor: boolean
 }
 
 export type AuthTokenResponse = {
@@ -141,14 +165,33 @@ export const googleCallbackApi = async (params: {
  * new Google user cannot skip, is where the agreement is made and recorded.
  * The backend requires it whenever the user still has pending documents and
  * ignores it otherwise, so an existing user changing role sends nothing.
+ *
+ * `birthdate` and `country_code` are the Google half of the AGE GATE, and they
+ * are here for exactly the same reason as consent: a Google account is created
+ * without anyone being asked anything, so this step — the one a new Google user
+ * cannot skip — is where both are collected. The backend requires them only
+ * when the user does not already have them on file, so an email signup passing
+ * through, or a role change later in onboarding, sends nothing.
  */
+export type SetRoleExtras = {
+  acceptedTerms?: boolean
+  /** ISO "YYYY-MM-DD". */
+  birthdate?: string
+  /** ISO-3166-1 alpha-2. */
+  countryCode?: string
+}
+
 export const setRoleApi = async (
   role: UserRole,
-  acceptedTerms?: boolean,
+  extras: SetRoleExtras = {},
 ): Promise<AuthUser> => {
+  const { acceptedTerms, birthdate, countryCode } = extras
+
   const res = await api.post("/user/role", {
     role,
     ...(acceptedTerms ? { accepted_terms: true } : {}),
+    ...(birthdate ? { birthdate } : {}),
+    ...(countryCode ? { country_code: countryCode } : {}),
   })
   return res.data.data
 }

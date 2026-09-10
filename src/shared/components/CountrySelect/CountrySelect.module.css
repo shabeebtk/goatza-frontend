@@ -1,0 +1,177 @@
+/* Searchable country picker. Trigger matches ui/Input's field styling so it
+   sits level with the rest of the form; the panel floats above it. */
+
+.field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+}
+
+.label {
+    font-family: var(--font-ui);
+    font-weight: var(--weight-semi);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 48px;
+    padding: 13px var(--space-4);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    transition:
+        border-color var(--duration-base) var(--ease-out),
+        box-shadow var(--duration-base) var(--ease-out);
+}
+
+.trigger:focus-visible {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.trigger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.triggerError {
+    border-color: var(--color-error);
+}
+
+.triggerValue {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chevron {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+/* Absolutely positioned rather than portalled: this only ever renders inside a
+   form card, and staying in flow keeps it correct inside the onboarding modal
+   without a second scroll-position problem to solve. */
+.panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg, 0 12px 32px rgba(0, 0, 0, 0.18));
+    overflow: hidden;
+}
+
+.searchWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.searchIcon {
+    position: absolute;
+    left: var(--space-3);
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.search {
+    width: 100%;
+    padding: 11px var(--space-3) 11px calc(var(--space-3) + 22px);
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+}
+
+.search::placeholder {
+    color: var(--color-text-muted);
+}
+
+.list {
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+}
+
+.option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 9px var(--space-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+}
+
+.optionActive {
+    background: var(--color-surface-hover, var(--color-brand-subtle));
+}
+
+.optionSelected .optionName {
+    font-weight: var(--weight-semi);
+    color: var(--color-brand);
+}
+
+.optionName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.optionDial {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.empty {
+    padding: var(--space-3);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.error {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    color: var(--color-error);
+}
+
+.error svg {
+    flex-shrink: 0;
+}

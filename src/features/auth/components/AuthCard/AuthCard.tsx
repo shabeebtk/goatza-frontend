@@ -18,6 +18,17 @@ import {
     postAuthPath,
     rememberOAuthNext,
 } from "@/shared/services/authRedirect"
+import DateOfBirthInput, {
+    dateOfBirthSchema,
+} from "@/shared/components/DateOfBirthInput"
+import CountrySelect, {
+    defaultCountryCode,
+} from "@/shared/components/CountrySelect"
+import {
+    ageRefusalMessage,
+    isUnderAgeError,
+    rememberAgeRefusal,
+} from "../../services/ageGate"
 
 
 // ── Zod schemas ──────────────────────────────────────────────
@@ -35,6 +46,15 @@ const signUpSchema = z.object({
         .min(8, "Password must be at least 8 characters")
         .regex(/[^a-zA-Z0-9]/, "Include at least one special character"),
     role: z.enum(USER_ROLES, { error: "Please select your role" }),
+    // ISO "YYYY-MM-DD". Checked for being a real, past calendar date and
+    // nothing else — deliberately NOT for a minimum age. The server refuses an
+    // under-13 signup with a message that never names the limit, and a client
+    // rule saying "you must be 13 or older" would undo that in one line.
+    birthdate: dateOfBirthSchema,
+    countryCode: z
+        .string()
+        .length(2, "Please select your country")
+        .regex(/^[A-Za-z]{2}$/, "Please select your country"),
     // z.literal(true), not z.boolean(): the only value that passes is a
     // deliberate tick. Defaults to false below and is never pre-set.
     acceptedTerms: z.literal(true, {
@@ -97,6 +117,21 @@ function AuthCard() {
     // API-level error (separate from field errors)
     const [apiError, setApiError] = useState<string | null>(null)
 
+    /**
+     * Set when this device has already been refused on age, which blocks the
+     * submit until the cool-off passes (see services/ageGate).
+     *
+     * Read in an effect rather than in the useState initialiser because
+     * localStorage does not exist during the server render — reading it there
+     * would either throw or hydrate to a different value than the server
+     * produced. Null until mounted, which is also the correct starting state.
+     */
+    const [ageBlocked, setAgeBlocked] = useState<string | null>(null)
+
+    useEffect(() => {
+        setAgeBlocked(ageRefusalMessage())
+    }, [])
+
     const login = useLogin()
     const signup = useSignup()
     const verifyOtp = useVerifyOtp()
@@ -131,6 +166,11 @@ function AuthCard() {
             email: "",
             password: "",
             role: "player",
+            birthdate: "",
+            // Prefilled, unlike everything else on this form. Nobody should
+            // hunt through 190 entries for an answer they already know — see
+            // the note in CountrySelect. Always changeable.
+            countryCode: defaultCountryCode(),
             acceptedTerms: false as unknown as true,
         },
     })
@@ -193,6 +233,16 @@ function AuthCard() {
 
     const handleSignUp = signUpForm.handleSubmit(async (values) => {
         setApiError(null)
+
+        // A device inside its cool-off does not get to submit at all. Checked
+        // again here, not just on mount, because the tab may have been open
+        // since before the refusal.
+        const blocked = ageRefusalMessage()
+        if (blocked) {
+            setAgeBlocked(blocked)
+            return
+        }
+
         try {
             const result = await signup.mutateAsync({
                 name: `${values.Name}`.trim(),
@@ -202,12 +252,29 @@ function AuthCard() {
                 // The server record is the one that counts; this flag is what
                 // makes it. The backend refuses the signup without it.
                 accepted_terms: true,
+                birthdate: values.birthdate,
+                country_code: values.countryCode.toUpperCase(),
             })
             if (result.verification_required) {
                 setPendingEmail(result.email)
                 setOtpPending(true)
             }
         } catch (err) {
+            // An under-13 refusal is remembered, so the obvious next move —
+            // change the year, press it again — is not one click away. The
+            // message shown is the server's own, unchanged: it deliberately
+            // does not name the age limit, and rewording it here would be the
+            // one place that leak could reappear.
+            if (isUnderAgeError(err)) {
+                const message = extractErrorMessage(err)
+                rememberAgeRefusal(message)
+                // Shown by the block below the form rather than through
+                // apiError, so it survives a tab switch — apiError is cleared
+                // on every mode change, and this refusal outlives the form.
+                setAgeBlocked(message)
+                return
+            }
+
             setApiError(extractErrorMessage(err))
         }
     })
@@ -431,6 +498,45 @@ function AuthCard() {
                                 error={signUpForm.formState.errors.password?.message}
                             />
 
+                            <Controller
+                                control={signUpForm.control}
+                                name="birthdate"
+                                render={({ field, fieldState }) => (
+                                    <DateOfBirthInput
+                                        value={field.value ?? ""}
+                                        onChange={field.onChange}
+                                        onBlur={field.onBlur}
+                                        disabled={isLoading}
+                                        error={fieldState.error?.message}
+                                        /*
+                                          ONE line, and this is the one.
+
+                                          It says why the field helps the user,
+                                          not what it decides. "To check if
+                                          you're a minor" would tell somebody
+                                          exactly what to lie about and which
+                                          direction to lie in — the field would
+                                          then collect a fiction, and a fiction
+                                          is worse than no answer, because it
+                                          looks like an answer.
+                                        */
+                                    />
+                                )}
+                            />
+
+                            <Controller
+                                control={signUpForm.control}
+                                name="countryCode"
+                                render={({ field, fieldState }) => (
+                                    <CountrySelect
+                                        value={field.value ?? ""}
+                                        onChange={field.onChange}
+                                        disabled={isLoading}
+                                        error={fieldState.error?.message}
+                                    />
+                                )}
+                            />
+
                             <div className={styles.roleField}>
                                 <span className={styles.roleFieldLabel}>I am a…</span>
                                 <Controller
@@ -485,6 +591,20 @@ function AuthCard() {
                                 )}
                             </div>
 
+                            {/*
+                              The age refusal, shown for as long as it lasts —
+                              on mount as well as after the failing submit, so
+                              a returning visitor sees why the button is off
+                              rather than a dead control. The wording is the
+                              server's own and says nothing about age limits.
+                            */}
+                            {ageBlocked && (
+                                <p className={styles.authApiError} role="alert">
+                                    <Icon icon="mdi:alert-circle-outline" width={15} height={15} />
+                                    {ageBlocked}
+                                </p>
+                            )}
+
                             <Button
                                 variant="brand"
                                 size="lg"
@@ -493,7 +613,13 @@ function AuthCard() {
                                 // Disabled until the box is ticked. The schema
                                 // refuses it too — this is the visible half of
                                 // the same rule, not the enforcement.
-                                disabled={!hasAcceptedTerms}
+                                //
+                                // Also disabled while this device is inside an
+                                // age-refusal cool-off. Not enforcement either
+                                // (the backend refuses regardless, and clearing
+                                // site data clears this) — it just stops the
+                                // instant retry being one click.
+                                disabled={!hasAcceptedTerms || ageBlocked !== null}
                                 type="submit"
                                 style={{ marginTop: "var(--space-2)" } as React.CSSProperties}
                             >
