@@ -82,6 +82,8 @@ const RESERVED = new Set([
   "organization",
   "posts",
   "profile",
+  // The shareable recruitment link, /r/<id>. See shared/services/recruitmentUrl.
+  "r",
   "recruitments",
   "scouting",
   "search",

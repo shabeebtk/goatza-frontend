@@ -44,6 +44,7 @@ import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
+import RecruitmentShareMenu from "../RecruitmentShareMenu/RecruitmentShareMenu"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import ApplicationSheet from "./ApplicationSheet"
 import LatestApplicants from "./LatestApplicants"
@@ -51,7 +52,15 @@ import {
   useRecruitmentDetail,
   useToggleSaveRecruitment,
 } from "../../hooks/useRecruitments"
+import { useShareRecruitment } from "../../hooks/useShareRecruitment"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
+import {
+  APPLY_METHOD_LABEL,
+  BENEFIT_ICONS,
+  EXPERIENCE_LABEL,
+  GENDER_LABEL,
+  TYPE_LABEL,
+} from "../../recruitmentCopy"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
 import type {
@@ -63,51 +72,18 @@ import styles from "./RecruitmentDetail.module.css"
 dayjs.extend(relativeTime)
 
 // ── Presentation maps ──────────────────────────────────────────
-
-const TYPE_LABEL: Record<string, string> = {
-  open_trial: "Open trial",
-  player_looking: "Player looking",
-  private_trial: "Private trial",
-  direct_recruitment: "Direct recruitment",
-  scholarship: "Scholarship",
-}
-
-const GENDER_LABEL: Record<string, string> = {
-  male: "Male only",
-  female: "Female only",
-  all: "Open to all",
-}
+//
+// TYPE / GENDER / EXPERIENCE / APPLY_METHOD / BENEFIT_ICONS moved to
+// ../../recruitmentCopy when the public page started rendering the same facts.
+// Two detail surfaces reading one posting must not name it two different ways.
+//
+// The two below stay here on purpose: they describe `visibility` and `status`,
+// which are OWNER-ONLY fields and never reach the public payload.
 
 const VISIBILITY_LABEL: Record<string, string> = {
   public: "Public",
   followers_only: "Followers only",
   private: "Private",
-}
-
-const EXPERIENCE_LABEL: Record<string, string> = {
-  district: "District level",
-  state: "State level",
-  national: "National level",
-  beginner: "Beginner",
-  inter: "Intermediate",
-  advanced: "Advanced",
-}
-
-const APPLY_METHOD_LABEL: Record<string, string> = {
-  goatza: "Goatza app",
-  external: "External link",
-  contact: "Contact",
-}
-
-const BENEFIT_ICONS: Record<string, string> = {
-  coach: "mdi:whistle-outline",
-  trophy: "mdi:trophy-outline",
-  award: "mdi:medal-outline",
-  scholarship: "mdi:school-outline",
-  fitness: "mdi:run-fast",
-  travel: "mdi:airplane-outline",
-  kit: "mdi:tshirt-crew-outline",
-  certificate: "mdi:certificate-outline",
 }
 
 const ORG_STATUS_LABEL: Record<string, string> = {
@@ -475,6 +451,12 @@ export default function RecruitmentDetail({
   const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
   const toggleSave = useToggleSaveRecruitment()
   const { toProfile } = useNavigation()
+
+  // Copy-link / native-share, for the ORGANISER'S mobile "More" sheet, which is
+  // already a popup and cannot hold a second one. Every other surface renders
+  // <RecruitmentShareMenu>, which calls the same hook itself. Read here — above
+  // the loading and error returns — because hooks cannot run after them.
+  const share = useShareRecruitment(recruitmentId)
 
   const [applyOpen, setApplyOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -936,16 +918,29 @@ export default function RecruitmentDetail({
     </button>
   )
 
-  const shareBtn = (
-    <button
-      className={styles.iconBtn}
-      type="button"
-      onClick={() => setShareOpen(true)}
-      aria-label="Share recruitment"
-      title="Share"
-    >
-      <Icon icon="mdi:share-variant-outline" width={18} height={18} />
-    </button>
+  /**
+   * Share, for the viewer states. A MENU rather than the bare button it used to
+   * be: "Copy link" and "Share via…" both hand out the public /r/<id> url,
+   * which is how a trial reaches the people who have no account yet, and
+   * neither of them belongs behind the in-app ShareSheet.
+   *
+   * Rendered twice — the desktop state card and the mobile sticky bar — and
+   * only one is ever on screen (`useIsDesktop` switches the layout), so the two
+   * cannot both install their scrim at once. The sticky bar's copy opens
+   * upward; it sits on the bottom edge of the viewport.
+   *
+   * The organiser preview keeps it: previewing what a player sees includes
+   * seeing that they can share it.
+   */
+  const shareMenu = (placement: "down" | "up") => (
+    <RecruitmentShareMenu
+      recruitmentId={r.id}
+      title={r.title}
+      orgName={r.organization.name}
+      onSendInMessage={() => setShareOpen(true)}
+      triggerClassName={styles.iconBtn}
+      placement={placement}
+    />
   )
 
   const capacityPct =
@@ -1055,10 +1050,19 @@ export default function RecruitmentDetail({
                   <Icon icon="mdi:eye-outline" width={13} height={13} />
                   Preview as player
                 </button>
-                <button className={styles.metaBtn} type="button" onClick={() => setShareOpen(true)}>
-                  <Icon icon="mdi:share-variant-outline" width={13} height={13} />
-                  Share
-                </button>
+                {/* The organiser shares the SAME public link a player would.
+                    A club pasting its own trial into a WhatsApp group is the
+                    single most common share on the product, and until now the
+                    only thing this button could do was forward it to somebody
+                    already on Goatza. */}
+                <RecruitmentShareMenu
+                  recruitmentId={r.id}
+                  title={r.title}
+                  orgName={r.organization.name}
+                  onSendInMessage={() => setShareOpen(true)}
+                  triggerClassName={styles.metaBtn}
+                  variant="text"
+                />
                 {canChangeStatus && (
                   <button
                     className={`${styles.metaBtn} ${styles.metaBtnDanger}`}
@@ -1146,7 +1150,7 @@ export default function RecruitmentDetail({
               <div className={styles.cardActions}>
                 {applyControl(false)}
                 {bookmarkBtn}
-                {shareBtn}
+                {shareMenu("down")}
                 {!isPreview && (
                   <button
                     className={styles.iconBtn}
@@ -1337,6 +1341,10 @@ export default function RecruitmentDetail({
                       <Icon icon="mdi:eye-outline" width={15} height={15} />
                       Preview as player
                     </button>
+                    {/* Share, spelled out. This sheet is already a popup, so
+                        it cannot host <RecruitmentShareMenu>; the two extra
+                        rows come off the same useShareRecruitment hook the
+                        menu uses, which is why that hook exists. */}
                     <button
                       className={styles.moreItem}
                       role="menuitem"
@@ -1346,9 +1354,38 @@ export default function RecruitmentDetail({
                         setShareOpen(true)
                       }}
                     >
-                      <Icon icon="mdi:share-variant-outline" width={15} height={15} />
-                      Share
+                      <Icon icon="mdi:send-outline" width={15} height={15} />
+                      Send in a message
                     </button>
+                    <button
+                      className={styles.moreItem}
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        void share.copyLink()
+                      }}
+                    >
+                      <Icon icon="mdi:link-variant" width={15} height={15} />
+                      Copy link
+                    </button>
+                    {share.canNativeShare && (
+                      <button
+                        className={styles.moreItem}
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          void share.nativeShare({
+                            title: r.title,
+                            orgName: r.organization.name,
+                          })
+                        }}
+                      >
+                        <Icon icon="mdi:export-variant" width={15} height={15} />
+                        Share via…
+                      </button>
+                    )}
                     {canChangeStatus && (
                       <button
                         className={styles.moreItem}
@@ -1398,7 +1435,7 @@ export default function RecruitmentDetail({
               </span>
             )}
             {applyControl(true)}
-            {shareBtn}
+            {shareMenu("up")}
           </>
         )}
       </div>
@@ -1450,6 +1487,9 @@ export default function RecruitmentDetail({
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         target={{ type: "recruitment", id: r.id }}
+        // Already recruitmentUrl(recruitmentId) — the hook above builds it, and
+        // a second call here is how the two would drift.
+        shareUrl={share.url}
         previewNode={
           <RecruitmentSharePreview
             title={r.title}

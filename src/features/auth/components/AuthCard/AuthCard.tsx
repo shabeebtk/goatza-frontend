@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
 import { Button, Input, Divider } from "@/shared/components/ui"
-import { useLogin, useSignup, useVerifyOtp } from "@/features/auth/hooks/useAuthMutations"
+import { useLogin, useResendOtp, useSignup, useVerifyOtp } from "@/features/auth/hooks/useAuthMutations"
 import { USER_ROLES } from "@/shared/constants/roles"
 import RoleDropdown from "../RoleDropdown/RoleDropdown"
 import styles from "./AuthCard.module.css"
@@ -80,6 +80,16 @@ type OtpFields = z.infer<typeof otpSchema>
 
 type AuthMode = "signin" | "signup"
 
+/**
+ * How long the resend button stays disabled, in seconds.
+ *
+ * The same 30 the server enforces per address, and the client's copy of it is
+ * only the polite half — a countdown so nobody presses a button that was always
+ * going to answer 429. The server is what actually refuses, so the two drifting
+ * apart costs a wasted request and a message, not a hole.
+ */
+const RESEND_COOLDOWN_SECONDS = 30
+
 // ── Helpers ──────────────────────────────────────────────────
 
 /** Extract a human-readable message from an Axios error or unknown throw */
@@ -98,6 +108,26 @@ function extractErrorMessage(err: unknown): string {
         if (anyErr.message) return anyErr.message
     }
     return "Something went wrong. Please try again."
+}
+
+/** True when the server refused because something is still cooling down. */
+function isRateLimited(err: unknown): boolean {
+    return (err as { response?: { status?: number } })?.response?.status === 429
+}
+
+/**
+ * Seconds the server says are left, or null.
+ *
+ * Only the resend view sends `retry_after`; DRF's own throttle 429 carries a
+ * `Retry-After` header and no body field, which is why the caller falls back to
+ * the full window rather than treating null as "no wait".
+ */
+function retryAfterSeconds(err: unknown): number | null {
+    const value = (
+        err as { response?: { data?: { data?: { retry_after?: number } } } }
+    )?.response?.data?.data?.retry_after
+
+    return typeof value === "number" && value > 0 ? Math.ceil(value) : null
 }
 
 // ── Component ────────────────────────────────────────────────
@@ -122,6 +152,17 @@ function AuthCard() {
     const [apiError, setApiError] = useState<string | null>(null)
 
     /**
+     * Seconds left before the code can be sent again; 0 means the button is
+     * live. Counted DOWN from a number rather than compared against a stored
+     * deadline because nothing here has to survive anything — the OTP step is
+     * one render away from the send that started it, and a reload drops the
+     * step entirely.
+     */
+    const [resendIn, setResendIn] = useState(0)
+    /** "OTP sent" — success is a note, not an error, so it is its own state. */
+    const [resendNote, setResendNote] = useState<string | null>(null)
+
+    /**
      * Set when this device has already been refused on age, which blocks the
      * submit until the cool-off passes (see services/ageGate).
      *
@@ -139,6 +180,7 @@ function AuthCard() {
     const login = useLogin()
     const signup = useSignup()
     const verifyOtp = useVerifyOtp()
+    const resendOtp = useResendOtp()
 
     /*
       THE GUARDIAN FLOW, read from the store rather than from local state.
@@ -183,6 +225,46 @@ function AuthCard() {
         }
     }, [guardianRequired, guardianMode, router])
 
+    /*
+      THE RESEND COOLDOWN, started by ARRIVING at the OTP step.
+
+      Getting here means a code has just gone out — signup sent one, or the
+      login path found an unverified account and sent one — so the wait starts
+      full, not at zero. Leaving the step (the Back button, a tab switch) winds
+      it back down, so returning later starts a fresh wait rather than resuming
+      a stale one, and the note from the last visit does not reappear.
+    */
+    useEffect(() => {
+        if (otpPending) {
+            setResendIn(RESEND_COOLDOWN_SECONDS)
+            return
+        }
+
+        setResendIn(0)
+        setResendNote(null)
+    }, [otpPending])
+
+    /*
+      The tick. Keyed on WHETHER it is counting rather than on the number, so
+      one interval runs for the whole countdown instead of being torn down and
+      rebuilt every second — which is also what keeps each second a second
+      rather than a second plus a render.
+
+      The cleanup covers both ways this ends: hitting zero, and the component
+      going away with time still on the clock.
+    */
+    const isCountingDown = resendIn > 0
+
+    useEffect(() => {
+        if (!isCountingDown) return
+
+        const id = window.setInterval(() => {
+            setResendIn((seconds) => (seconds <= 1 ? 0 : seconds - 1))
+        }, 1000)
+
+        return () => window.clearInterval(id)
+    }, [isCountingDown])
+
     // ── Forms ──────────────────────────────────────────────────
 
     const signInForm = useForm<SignInFields>({
@@ -222,6 +304,7 @@ function AuthCard() {
         setMode(next)
         setOtpPending(false)
         setApiError(null)
+        setResendNote(null)
         signInForm.reset()
         signUpForm.reset()
         otpForm.reset()
@@ -316,6 +399,7 @@ function AuthCard() {
 
     const handleOtp = otpForm.handleSubmit(async (values) => {
         setApiError(null)
+        setResendNote(null)
         try {
             const res = await verifyOtp.mutateAsync({
                 email: pendingEmail,
@@ -341,6 +425,45 @@ function AuthCard() {
         }
     })
 
+
+    // ── Resend OTP ─────────────────────────────────────────────
+
+    /**
+     * Ask for a new code for the address the OTP step is waiting on.
+     *
+     * Works for the login-triggered OTP as well as the signup one, and needs no
+     * branch to do so: the endpoint acts only on accounts that have not
+     * verified yet, which is the only way either path lands on this step.
+     *
+     * The reply says nothing about whether a mail actually went out — it
+     * cannot, or it would answer "is this address registered" for anyone who
+     * asked — so "OTP sent" is what the user is told either way. There is no
+     * case here in which they typed their own address and did not get one.
+     */
+    const handleResend = async () => {
+        if (resendIn > 0 || resendOtp.isPending) return
+
+        setApiError(null)
+        setResendNote(null)
+
+        try {
+            await resendOtp.mutateAsync({ email: pendingEmail })
+            setResendNote("OTP sent")
+            setResendIn(RESEND_COOLDOWN_SECONDS)
+        } catch (err) {
+            setApiError(extractErrorMessage(err))
+
+            // A 429 means a cooldown is running that this tab did not know
+            // about — a second tab, or a clock that drifted. Restart from the
+            // server's own number where it gave one, so the button comes back
+            // when it will actually work. Any OTHER failure leaves the button
+            // live: retrying immediately is the right move for a dropped
+            // request, and the server would refuse a genuine early one anyway.
+            if (isRateLimited(err)) {
+                setResendIn(retryAfterSeconds(err) ?? RESEND_COOLDOWN_SECONDS)
+            }
+        }
+    }
 
     // ── Guardian flow ──────────────────────────────────────────
 
@@ -427,7 +550,7 @@ function AuthCard() {
                 <>
                     <button
                         className={styles.authBack}
-                        onClick={() => { setOtpPending(false); setApiError(null); otpForm.reset() }}
+                        onClick={() => { setOtpPending(false); setApiError(null); setResendNote(null); otpForm.reset() }}
                         type="button"
                         aria-label="Back"
                     >
@@ -452,6 +575,37 @@ function AuthCard() {
                             {...otpForm.register("otp")}
                             error={otpForm.formState.errors.otp?.message}
                         />
+
+                        {/* ── Resend ──
+                            A text button, not a second brand button: the code
+                            is already on its way and the only thing to press
+                            here is Verify. `type="button"` matters — inside a
+                            form a bare button submits it, which would fire the
+                            OTP check on an empty field. */}
+                        <div className={styles.otpResendRow}>
+                            <span className={styles.otpResendPrompt}>
+                                Didn&apos;t get the code?
+                            </span>
+                            <button
+                                type="button"
+                                className={styles.otpResendBtn}
+                                onClick={handleResend}
+                                disabled={resendIn > 0 || resendOtp.isPending}
+                            >
+                                {resendOtp.isPending
+                                    ? "Sending…"
+                                    : resendIn > 0
+                                        ? `Resend in ${resendIn}s`
+                                        : "Resend OTP"}
+                            </button>
+                        </div>
+
+                        {resendNote && (
+                            <p className={styles.otpResendNote} role="status">
+                                <Icon icon="mdi:check-circle-outline" width={15} height={15} />
+                                {resendNote}
+                            </p>
+                        )}
 
                         {apiError && (
                             <p className={styles.authApiError} role="alert">

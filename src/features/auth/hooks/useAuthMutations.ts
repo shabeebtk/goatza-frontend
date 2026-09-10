@@ -3,12 +3,14 @@ import {
   forgotPasswordApi,
   googleCallbackApi,
   loginApi,
+  resendSignupOtpApi,
   resetPasswordApi,
   setRoleApi,
   signupApi,
   verifyOtpApi,
   type ForgotPasswordPayload,
   type LoginPayload,
+  type ResendOtpPayload,
   type ResetPasswordPayload,
   type SetRoleExtras,
   type SignupPayload,
@@ -75,6 +77,19 @@ export const useVerifyOtp = () => {
       // parent screen from ever appearing.
       startGuardianFlow(data.guardian_required)
     },
+  })
+}
+
+// ── Resend OTP ───────────────────────────────────────────────
+// A new signup code for an address that has not verified yet. Sets no auth and
+// touches no store: the account still does not exist as far as this tab is
+// concerned, and the only thing that changes on success is the countdown in
+// the component. Errors are left to the caller — a 429 here carries the
+// server's cooldown message, which is worth showing as-is.
+
+export const useResendOtp = () => {
+  return useMutation({
+    mutationFn: (data: ResendOtpPayload) => resendSignupOtpApi(data),
   })
 }
 

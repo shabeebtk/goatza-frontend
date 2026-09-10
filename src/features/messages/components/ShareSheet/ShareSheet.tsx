@@ -26,6 +26,7 @@ import type {
   MessageTargetSource,
   ShareFailure,
   ShareTarget,
+  ShareTargetType,
 } from "../../services/conversations.api"
 import styles from "./ShareSheet.module.css"
 
@@ -68,6 +69,17 @@ interface ShareSheetProps {
   target: ShareTarget
   /** Small preview of what's being shared, rendered at the top of the sheet. */
   previewNode?: ReactNode
+  /**
+   * The canonical absolute URL of what's being shared. Supplied, the preview
+   * row grows a Copy link button and — where the OS offers one — Share via…,
+   * so the sheet is a way OUT of Goatza as well as a way across it. Omitted,
+   * the sheet is exactly what it was: send-to-a-chat only.
+   *
+   * Built by the call site, from profileUrl / recruitmentUrl / postUrl. The
+   * sheet is given the finished string rather than the id, because "the public
+   * URL of this thing" is a per-kind question those three already answer.
+   */
+  shareUrl?: string
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -143,6 +155,28 @@ function describeFailures(
     .join(" · ")
 }
 
+/**
+ * Headline and body handed to the OS share sheet, per kind of thing.
+ *
+ * Deliberately name-free. The sheet knows the target's TYPE and its preview
+ * node; it does not know that the post is Riya's or that the trial is Dream
+ * FC's, and adding a title/subtitle prop pair to carry that would put the same
+ * three strings at every call site for a line most OS sheets truncate anyway.
+ * The link unfurls with the real title once it is pasted.
+ */
+const NATIVE_SHARE_COPY: Record<ShareTargetType, { title: string; text: string }> = {
+  post: { title: "Post on Goatza", text: "Have a look at this post on Goatza" },
+  recruitment: {
+    title: "Trial on Goatza",
+    text: "Have a look at this trial on Goatza",
+  },
+  user: { title: "Profile on Goatza", text: "Have a look at this profile on Goatza" },
+  organization: {
+    title: "Club on Goatza",
+    text: "Have a look at this club on Goatza",
+  },
+}
+
 // ── Row ──────────────────────────────────────────────────────
 
 function CandidateRow({
@@ -213,6 +247,7 @@ function ShareSheetInner({
   onClose,
   target,
   previewNode,
+  shareUrl,
 }: Omit<ShareSheetProps, "open">) {
   const toast = useToast()
   const titleId = useId()
@@ -353,6 +388,51 @@ function ShareSheetInner({
     },
     [selected, toast]
   )
+
+  // ── Link out: copy, and hand to the OS ─────────────────────
+
+  // navigator.share exists on mobile Safari/Chrome and almost nowhere else.
+  // Read through useSyncExternalStore so SSR and the first client render agree
+  // (false), then flip — a bare `typeof navigator` check would hydrate-mismatch.
+  // Same reading ProfileShareMenu and useShareRecruitment take.
+  const canNativeShare = useSyncExternalStore(
+    subscribeToNothing,
+    () => typeof navigator !== "undefined" && typeof navigator.share === "function",
+    () => false
+  )
+
+  const handleCopyLink = useCallback(async () => {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      toast.show({
+        title: "Link copied",
+        variant: "success",
+        position: "top-center",
+        duration: 2000,
+      })
+    } catch {
+      // Clipboard is permission-gated and blocked outright in some in-app
+      // browsers. Show the URL so it can still be copied by hand.
+      toast.show({
+        title: "Couldn't copy automatically",
+        message: shareUrl,
+        variant: "warning",
+        position: "top-center",
+        duration: 5000,
+      })
+    }
+  }, [shareUrl, toast])
+
+  const handleNativeShare = useCallback(async () => {
+    if (!shareUrl) return
+    const copy = NATIVE_SHARE_COPY[target.type]
+    try {
+      await navigator.share({ title: copy.title, text: copy.text, url: shareUrl })
+    } catch {
+      // AbortError when the user dismisses the OS sheet. Nothing to report.
+    }
+  }, [shareUrl, target.type])
 
   const count = selected.size
   const hasSelection = count > 0
@@ -513,8 +593,47 @@ function ShareSheetInner({
           </button>
         </div>
 
-        {/* ── What's being shared ── */}
-        {previewNode && <div className={styles.preview}>{previewNode}</div>}
+        {/* ── What's being shared ──
+            Preview on the left, the two link-out actions on the right. Without
+            a shareUrl the row stays a plain block holding only the preview,
+            which is what it has always been. */}
+        {(previewNode || shareUrl) && (
+          <div
+            className={`${styles.preview} ${shareUrl ? styles.previewWithActions : ""}`}
+          >
+            {previewNode && (
+              <div className={styles.previewMain}>{previewNode}</div>
+            )}
+
+            {shareUrl && (
+              <div className={styles.previewActions}>
+                <button
+                  type="button"
+                  className={styles.previewAction}
+                  onClick={() => void handleCopyLink()}
+                  aria-label="Copy link"
+                  title="Copy link"
+                >
+                  <Icon icon="mdi:link-variant" width={17} height={17} />
+                  <span className={styles.previewActionLabel}>Copy</span>
+                </button>
+
+                {canNativeShare && (
+                  <button
+                    type="button"
+                    className={styles.previewAction}
+                    onClick={() => void handleNativeShare()}
+                    aria-label="Share via another app"
+                    title="Share via…"
+                  >
+                    <Icon icon="mdi:export-variant" width={17} height={17} />
+                    <span className={styles.previewActionLabel}>Share</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Search ── */}
         <div className={styles.searchWrap}>

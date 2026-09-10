@@ -307,3 +307,71 @@
     font-size: 0.75rem;
     color: var(--color-error);
 }
+
+/* ── Resend OTP (OTP step) ────────────────────────────────────
+   Sits under the OTP input, below the primary action in weight
+   as well as in the DOM: the code is already on its way, and
+   this is the escape hatch for the times it wasn't. The
+   countdown reuses the disabled state rather than swapping in a
+   plain <span>, so the label changes underneath a control that
+   never moves.
+   ──────────────────────────────────────────────────────────── */
+
+.otpResendRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: calc(var(--space-1) * -1);
+}
+
+.otpResendPrompt {
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.otpResendBtn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semi);
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-brand-hover);
+    transition: color var(--duration-fast);
+}
+
+.otpResendBtn:hover:not(:disabled) {
+    color: var(--color-brand);
+}
+
+/* Muted rather than faded out: the countdown is the button's own
+   text and has to stay readable while it is disabled. */
+.otpResendBtn:disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+    /* Tabular figures, so the label doesn't jitter as 9s becomes 8s. */
+    font-variant-numeric: tabular-nums;
+}
+
+.otpResendNote {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-success) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-success) 25%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--color-success);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+}
+
+.otpResendNote svg {
+    flex-shrink: 0;
+}
