@@ -35,6 +35,7 @@ We are the **Data Fiduciary** for your personal data under the Digital Personal 
 | Career and achievements | Clubs, roles, dates, honours, statistics, CV entries | To display your sporting history |
 | Content | Posts, images, videos, highlights, comments, likes | To publish what you choose to share |
 | Messages | Message content and conversation participants | To deliver your messages |
+| Parent or guardian | If the account holder is under 18: the parent or guardian's name and their email address or phone number | To ask for permission to open the account, to record the answer, and to contact them about the child's account |
 | Applications | Name, email and phone you submit with an application, attached media, and your answers to the Organization's questions | To pass your application to the Organization |
 | Organization data | Organization name, description, logo, location, member roles | To operate Organization pages |
 | Reports and blocks | The report you submit and the account it concerns | To investigate and enforce our rules |
@@ -63,6 +64,7 @@ We use your data to:
 - Create and operate your account, and authenticate you.
 - Display your profile and content to the audience you choose.
 - Deliver messages, notifications and emails.
+- Ask a parent or guardian for permission when the account holder is under 18, and keep a record of their answer.
 - Show you relevant recruitments and let you apply to them.
 - Pass your applications to the Organizations you apply to.
 - Detect, investigate and prevent abuse, fraud, impersonation and harm to minors.
@@ -77,12 +79,31 @@ You may withdraw consent at any time by closing your account. Withdrawal does no
 
 Under the DPDP Act, anyone under 18 is a **child**. Different rules apply.
 
-**What we require**
+**Permission before the account can be used**
 
 - The minimum age to hold a Goatza account is 13.
-- If you are under 18, you must have your parent or legal guardian's permission to use Goatza.
-- Before you apply to any recruitment, you must give us your parent or guardian's name and contact number, and confirm they consent.
-- We may contact your guardian to confirm.
+- If you are under 18, a parent or guardian has to give permission before the account can be used. This happens when the account is created, not later.
+- We ask the young person for their parent or guardian's name, and either an email address or a phone number.
+- If that contact is one the parent already uses, we ask them on the spot — the phone is handed over and the parent answers there.
+- Otherwise we send the parent a link. Until they open it and approve, the account cannot be used.
+- Before you apply to any recruitment, you must also give us your parent or guardian's name and contact number.
+
+**What we do with a parent or guardian's details**
+
+- We use their name and contact **only** to ask for permission, to record their answer, and to contact them about the child's account.
+- We never use them for marketing. We do not add them to a mailing list, and we do not send them anything about Goatza that is not about their child's account.
+- We do not create an account for the parent, and they do not need one to answer.
+
+**Removing permission**
+
+- A parent or guardian can remove their permission at any time, using the same link we emailed them. They do not need to log in.
+- When permission is removed, the account is locked. The young person cannot use Goatza until permission is given again.
+- We suggest parents keep the email. It is how they get back to the remove button.
+
+**How long we keep a parent or guardian's details**
+
+- We keep them for as long as they have at least one linked child account.
+- When the last linked account is closed, or their permission is removed and not given again, we delete their details.
 
 **What we do not do**
 
@@ -99,7 +120,7 @@ Full details are in our [Youth Safety Policy](https://goatza.com/safety).
 
 **Parents and guardians:** you may ask us to access, correct or delete your child's data, or to close their account, by writing to goatza.official@gmail.com. We will ask you to verify your identity and your relationship to the child before we act.
 
-We are working towards the verifiable parental consent mechanism required by the DPDP Rules, 2025, ahead of the compliance date of 13 May 2027.
+The permission flow described above is in place today. We are still working towards the stronger identity check required by the DPDP Rules, 2025, ahead of the compliance date of 13 May 2027.
 
 ## 5. Who we share your data with
 
@@ -144,6 +165,7 @@ We want to be precise here, because "delete" means different things in different
 | --- | --- |
 | You delete a post, comment or message | It is immediately hidden from all users and removed from feeds. The record is retained internally in a deleted state and is permanently erased during periodic cleanup. |
 | You close your account | Your profile stops being visible immediately. Your personal data is permanently erased within **30 days**. |
+| A parent or guardian's details | Kept while they have at least one linked child account. Erased once they have none — because the last linked account was closed, or because permission was removed and not given again. |
 | Backups | Encrypted database backups are retained for a limited period and then overwritten. Data you have deleted may persist in a backup until it expires. |
 | Content others hold | Messages you sent remain visible to the recipient. Applications already delivered remain with the Organization. |
 | Legal holds | Where we are required to retain data for a legal claim, investigation or statutory obligation, we retain only what is necessary, for as long as necessary. |

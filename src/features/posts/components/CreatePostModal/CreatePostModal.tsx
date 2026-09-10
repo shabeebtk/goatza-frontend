@@ -139,7 +139,12 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
   onCropEntry: (id: string, file: File, crop: CropState, zoom: number) => void
   disabled: boolean
 }) {
-  const [idx, setIdx] = useState(0)
+  // Clamped during render, not corrected afterwards in an effect.
+  // `entries` shrinks when the author removes an item, and an index past the
+  // end reads `undefined`. Doing it here means the broken frame is never
+  // painted; the effect that used to fix it rendered it once first.
+  const [rawIdx, setIdx] = useState(0)
+  const idx = entries.length > 0 ? Math.min(rawIdx, entries.length - 1) : 0
   const touchStartX   = useRef(0)
 
   // Crop editor state — `cropSrc` is a temp object URL of the ORIGINAL image.
@@ -151,10 +156,6 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
   // crop after publishing).
   const [firstRatio, setFirstRatio] = useState(POST_RATIO_FALLBACK)
   const firstEntry = entries[0]
-
-  useEffect(() => {
-    if (idx >= entries.length && entries.length > 0) setIdx(entries.length - 1)
-  }, [entries.length, idx])
 
   useEffect(() => {
     if (!firstEntry) return

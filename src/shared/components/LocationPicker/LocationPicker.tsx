@@ -3,16 +3,30 @@
 /**
  * LocationPicker
  *
- * Reusable city-search input backed by the Goatza places proxy (Google Places
- * New, server-side). Shows a dropdown of matching cities; selecting one fetches
+ * Reusable town-search input backed by the Goatza places proxy (Google Places
+ * New, server-side). Shows a dropdown of matching towns; selecting one fetches
  * its details and calls onChange with a full PlaceResult.
  * Never exposes lat/lng to the user — only the human-readable label.
+ *
+ * ── ADMINISTRATIVE PLACES ONLY, BY DESIGN ─────────────────────
+ *
+ * This picker searches in `city` mode, which applies the backend's
+ * `includedPrimaryTypes` filter: localities, taluks, panchayats, sublocalities
+ * and postal towns. It goes all the way down to panchayat level — Panoor and
+ * Kadavathoor are findable, not just Kannur and Thalassery — and it stops
+ * there. Street addresses, buildings and named premises are filtered out
+ * SERVER-SIDE, and the profile endpoint refuses a precise place on top of
+ * that, so a request that skips this component gets the same answer. A sports
+ * profile needs the town somebody plays in and has never needed the doorstep.
+ *
+ * Venue search — a recruitment naming its actual ground — is a DIFFERENT
+ * component (features/posts/.../PostLocationPicker), and deliberately so.
  *
  * Usage:
  *   <LocationPicker
  *     value={selectedCity}     // PlaceResult | null
  *     onChange={setSelectedCity}
- *     placeholder="Search city…"
+ *     placeholder="Search your town or city"
  *   />
  *
  * To use in post context, just mount it in any form — it's stateless.
@@ -92,7 +106,7 @@ interface LocationPickerProps {
 export default function LocationPicker({
   value,
   onChange,
-  placeholder = "Search city…",
+  placeholder = "Search your town or city",
   disabled = false,
   clearable = true,
   error,
@@ -439,7 +453,7 @@ export default function LocationPicker({
       {open && !busy && query.trim().length >= MIN_QUERY_LENGTH && results.length === 0 && !fetchError && (
         <div className={styles.dropdownEmpty}>
           <Icon icon="mdi:map-search-outline" width={16} height={16} />
-          No places found for &ldquo;{query}&rdquo;
+          No towns found for &ldquo;{query}&rdquo;. Try a nearby town.
         </div>
       )}
     </div>

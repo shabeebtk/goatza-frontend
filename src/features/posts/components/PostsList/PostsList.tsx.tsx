@@ -79,7 +79,7 @@ function EndOfList() {
     return (
         <div className={styles.endOfList}>
             <span className={styles.endDot} />
-            <span>You're all caught up</span>
+            <span>You&apos;re all caught up</span>
             <span className={styles.endDot} />
         </div>
     )

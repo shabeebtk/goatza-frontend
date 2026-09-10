@@ -76,7 +76,7 @@ export default function PreviewStep({ onNext }: { onNext: () => void }) {
       <div className={modal.stepScaffold}>
         <div className={`${modal.stepBody} ${styles.previewBody}`}>
           <p className={styles.previewHint}>
-            Here's how your profile will look. Tap a photo to add one.
+            Here&apos;s how your profile will look. Tap a photo to add one.
           </p>
 
           <ProfilePreviewCard profile={profile} onEditPhoto={openPhoto} />

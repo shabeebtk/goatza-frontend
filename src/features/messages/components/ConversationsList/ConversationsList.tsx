@@ -17,6 +17,7 @@ import { useConversationsSocket } from "../../hooks/useConversationsSocket"
 import { useAuthStore } from "@/store/auth.store"
 import type { Conversation, MessageTarget, MessageTargetSource } from "../../services/conversations.api"
 import { getMessagePreviewText } from "../../utils/messagePreview"
+import useIsMounted from "@/shared/hooks/useIsMounted"
 import styles from "./ConversationsList.module.css"
 
 dayjs.extend(relativeTime)
@@ -280,7 +281,7 @@ export default function ConversationsList() {
   const basePath = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
   const myActorId = isOrgAdminView && actorId ? actorId : user?.id
 
-  const [isMounted, setIsMounted] = useState(false)
+  const isMounted = useIsMounted()
 
   // Listen to realtime notifications to refresh list
   useConversationsSocket()
@@ -290,10 +291,6 @@ export default function ConversationsList() {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(t)
   }, [search])
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
 
   // Searching switches the panel from the tab list to a global people/org
   // search (existing chats → followings → everyone else).
@@ -419,7 +416,7 @@ export default function ConversationsList() {
           {isError ? (
             <div className={styles.errorState}>
               <Icon icon="mdi:alert-circle-outline" width={32} height={32} />
-              <p>Couldn't load conversations.</p>
+              <p>Couldn&apos;t load conversations.</p>
             </div>
           ) : isLoading ? (
             Array.from({ length: 7 }).map((_, i) => (

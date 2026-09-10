@@ -33,7 +33,7 @@ export default function MessageResolver({ username }: MessageResolverProps) {
         <div className={styles.errorIcon}>
           <Icon icon="mdi:message-off-outline" width={40} height={40} />
         </div>
-        <p className={styles.errorTitle}>Can't open conversation</p>
+        <p className={styles.errorTitle}>Can&apos;t open conversation</p>
         <p className={styles.errorBody}>
           This user may not exist or messaging is unavailable.
         </p>

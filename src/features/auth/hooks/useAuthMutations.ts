@@ -10,10 +10,15 @@ import {
   type ForgotPasswordPayload,
   type LoginPayload,
   type ResetPasswordPayload,
+  type SetRoleExtras,
   type SignupPayload,
   type VerifyOtpPayload,
 } from "../services/auth.api"
 import { useAuthStore } from "@/store/auth.store"
+import {
+  startGuardianFlow,
+  syncGuardianFromServer,
+} from "@/features/guardian/store/guardian.store"
 import { useOnboardingStore } from "@/features/onboarding/store/onboarding.store"
 import type { UserRole } from "@/shared/constants/roles"
 
@@ -64,6 +69,11 @@ export const useVerifyOtp = () => {
       })
       // New signup: start onboarding clean, ignoring any stale skip flag.
       useOnboardingStore.getState().resetSession()
+      // A minor's account needs a parent or guardian before it is usable.
+      // `guardian_required` is a bare boolean at the TOP LEVEL of the response
+      // — not a nested block. Reading it in the wrong place is what kept the
+      // parent screen from ever appearing.
+      startGuardianFlow(data.guardian_required)
     },
   })
 }
@@ -98,6 +108,18 @@ export const useGoogleAuth = () => {
       })
       // Fresh Google login re-evaluates onboarding (esp. forced role step).
       useOnboardingStore.getState().resetSession()
+      /*
+        DELIBERATELY NOT the guardian check. The Google callback does not know
+        yet — a Google account arrives with no birthdate at all, so there is
+        nothing to assess, and the response carries no `guardian_required`.
+
+        The Google path is assessed at the ROLE step (POST /user/role), which
+        is the first moment a birthdate is on file and the one step a new
+        Google user cannot skip. See useSetRole below.
+
+        `undefined` clears any stale flow left in the tab by a previous signup.
+      */
+      startGuardianFlow(undefined)
     },
   })
 }
@@ -110,17 +132,36 @@ export const useSetRole = () => {
   const setUserRole = useAuthStore((s) => s.setUserRole)
 
   return useMutation({
-    mutationFn: ({
-      role,
-      acceptedTerms,
-    }: {
-      role: UserRole
-      acceptedTerms?: boolean
-    }) => setRoleApi(role, acceptedTerms),
+    mutationFn: ({ role, ...extras }: { role: UserRole } & SetRoleExtras) =>
+      setRoleApi(role, extras),
     onSuccess: (data) => {
       setUserRole(data.role)
+
+      /*
+        THE GOOGLE PATH'S MINOR LOCK, and the twin of the one in useVerifyOtp.
+
+        This endpoint is the age gate for Google signups: it is where the
+        birthdate is first collected, so it is the first moment the server can
+        tell whether this account needs a parent. It answers on the same
+        response, in the same shape as the OTP one.
+
+        Which is why RoleStep has to act on it — an onboarding modal that
+        carried on to the next step here would walk the child into a wall of
+        403s from every endpoint the rest of onboarding writes to.
+      */
+      startGuardianFlow(data.guardian_required)
     },
   })
 }
+
+/**
+ * The `guardian` block from GET /user/details, pushed into the guardian store.
+ *
+ * Exported for the session bootstrap (core/auth/initAuth), which is not a
+ * component and calls this directly. It is what makes a locked account still
+ * locked in a brand-new tab — the store is per-tab sessionStorage, so without
+ * this a child could open a second tab and find the gate holding nothing.
+ */
+export { syncGuardianFromServer }
 
 // NOTE: logout lives in ./useLogout — one hook, used by AppNav and Settings.

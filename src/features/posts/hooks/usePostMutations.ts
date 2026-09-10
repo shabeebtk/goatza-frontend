@@ -117,11 +117,13 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
             await qc.cancelQueries({ queryKey: ["feed", "list"] })
             await qc.cancelQueries({ queryKey: ["explore", "posts"] })
 
-            const updatePages = (old: any) => {
+            const updatePages = (
+                old: InfiniteData<PostsListResponse> | undefined,
+            ): InfiniteData<PostsListResponse> | undefined => {
                 if (!old) return old
                 return {
                     ...old,
-                    pages: old.pages.map((page: any) => ({
+                    pages: old.pages.map((page) => ({
                         ...page,
                         results: page.results.map((p: Post) => {
                             if (p.id !== payload.post_id) return p
@@ -577,14 +579,16 @@ export const useDeletePost = (options: { mode?: "preview" }) => {
             await qc.cancelQueries({ queryKey: ["feed", "list"] })
             await qc.cancelQueries({ queryKey: ["explore", "posts"] })
 
-            const updatePages = (old: any) => {
+            const updatePages = (
+                old: InfiniteData<PostsListResponse> | undefined,
+            ): InfiniteData<PostsListResponse> | undefined => {
                 if (!old) return old
 
                 return {
                     ...old,
-                    pages: old.pages.map((page: any) => ({
+                    pages: old.pages.map((page) => ({
                         ...page,
-                        results: page.results.filter((p: any) => p.id !== postId),
+                        results: page.results.filter((p) => p.id !== postId),
                     })),
                 }
             }

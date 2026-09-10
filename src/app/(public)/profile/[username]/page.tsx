@@ -8,6 +8,28 @@
 //   * JSON-LD → rich results in search.
 //   * initialData → the bundle is already in hand when <UserProfile> mounts,
 //     so there is no fetch waterfall under the server-rendered markup.
+//
+// ─────────────────────────────────────────────────────────────
+// TWO TIERS, AND THE THIN ONE IS NOT A BUG
+//
+// This page renders two different things depending on `profile.is_limited_view`
+// and it is easy to mistake the limited one for a broken fetch. It is not.
+//
+// A MINOR's public profile is deliberately reachable and deliberately indexed,
+// and just as deliberately almost empty: a name, a headline, two counts, a
+// sport and a city, plus a prompt to sign in. Think of a private Instagram
+// account in search results. The server has already stripped the payload
+// (accounts/serializers/public_profile_serializers.py) — the photos come back
+// as "", the measurements as null, the posts list empty, the CV 404s — so
+// there is nothing here to "restore" and no client-side toggle that would.
+//
+// The two halves are a pair. Being findable is the product, especially for
+// young players; the stripped card is the price of staying listed. Removing
+// the strip publishes a scouting profile of a named child; removing the
+// indexing quietly builds a platform that works for adults only. Neither is a
+// tidy-up — both are product decisions.
+//
+// ADULTS ARE COMPLETELY UNAFFECTED. Every branch below is `is_limited_view`.
 // ─────────────────────────────────────────────────────────────
 
 import type { Metadata } from "next"
@@ -65,6 +87,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       .join(" · ")
       .concat(" on Goatza")
 
+  // NO `noindex` for a limited profile, on purpose. These pages are meant to
+  // be crawled — the stripped payload is what makes that acceptable, and it is
+  // already stripped by the time it gets here. Title and description come from
+  // the name, sport and city exactly as they do for an adult, because those
+  // are the fields a minor still publishes.
   const image = buildProfileOgImageUrl(profile, origin)
 
   return {
@@ -77,6 +104,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       title: `${profile.name} (@${profile.username})`,
       description,
       siteName: "Goatza",
+      // The OG image is the GENERATED card (/card/profile/<username>), never
+      // the photo itself — and the card renderer applies the same minor rule,
+      // drawing an initials medallion instead. That indirection is what keeps
+      // a child's photograph out of these tags, and it matters more here than
+      // anywhere else on the site: og:image is fetched, cached and re-hosted
+      // by every platform the link touches, so one leaked tag puts the image
+      // back into public circulation on servers nobody here controls.
       images: [
         { url: image, width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT, alt: profile.name },
       ],

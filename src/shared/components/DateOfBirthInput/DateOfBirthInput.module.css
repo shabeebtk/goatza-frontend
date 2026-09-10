@@ -1,0 +1,115 @@
+/* Day / Month / Year, typed. Matches ui/Input's field styling so the three
+   boxes read as one control alongside the rest of the form. */
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+}
+
+.label {
+    font-family: var(--font-ui);
+    font-weight: var(--weight-semi);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.input {
+    min-width: 0;
+    padding: 13px var(--space-2);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    /* Tabular figures, so the digits don't reflow as they're typed. */
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 48px;
+    transition:
+        border-color var(--duration-base) var(--ease-out),
+        box-shadow var(--duration-base) var(--ease-out);
+}
+
+/* Day and month hold two digits, the year four — sized by content rather than
+   split evenly, so "DD" isn't sitting in a box built for "YYYY". */
+.inputDay,
+.inputMonth {
+    flex: 1 1 0;
+}
+
+.inputYear {
+    flex: 1.6 1 0;
+}
+
+.input::placeholder {
+    color: var(--color-text-muted);
+    letter-spacing: var(--tracking-wide);
+}
+
+.input:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong, var(--color-border));
+}
+
+.input:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.rowError .input {
+    border-color: var(--color-error);
+}
+
+.separator {
+    color: var(--color-text-muted);
+    font-size: var(--text-base);
+    user-select: none;
+}
+
+/* The plain-words age echo. Quiet but not muted — it's the thing that catches
+   a mistyped year, so it has to be readable at a glance. */
+.age {
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-secondary);
+}
+
+.hint {
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    line-height: var(--leading-normal);
+}
+
+.error {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    color: var(--color-error);
+}
+
+.error svg {
+    flex-shrink: 0;
+}

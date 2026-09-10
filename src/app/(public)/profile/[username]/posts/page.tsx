@@ -47,6 +47,12 @@ export default async function PublicUserPostsPage({ params }: Params) {
       kind="user"
       displayName={bundle?.profile.name ?? username}
       posts={posts}
+      // A minor's posts are withheld from the anonymous surface, and the
+      // backend expresses that as an empty page rather than a 404 (the profile
+      // still resolves, so a 404 here would contradict it). The flag is what
+      // lets the view tell "withheld" from "hasn't posted yet" — those need
+      // different words, and only one of them is true.
+      isLimited={bundle?.profile.is_limited_view ?? false}
     />
   )
 }

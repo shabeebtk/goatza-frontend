@@ -1,0 +1,211 @@
+/* LimitedProfileCard — the stripped public view of a minor's profile.
+   Same family as ProfileUnavailable and PublicRouteWall: a centred column on a
+   narrow measure, so the sparse content reads as composed rather than as a
+   full-width page with most of it missing. */
+
+.wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+
+    max-width: 420px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-5) var(--space-8);
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+}
+
+/* The photo's replacement. Solid brand fill and a real glyph — NOT a grey
+   silhouette, which reads as a failed image and makes the page look broken.
+   See the component header. */
+.monogram {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 88px;
+    height: 88px;
+    margin-bottom: var(--space-2);
+    border-radius: var(--radius-full);
+
+    background: var(--color-brand);
+    color: var(--color-on-brand, #06120a);
+
+    font-family: var(--font-ui);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: var(--tracking-wide);
+    user-select: none;
+}
+
+.name {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.handle {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.headline {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+}
+
+.fact {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.fact svg {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.counts {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-6);
+    margin: var(--space-4) 0 0;
+}
+
+.count {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 2px;
+}
+
+.countValue {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+}
+
+.countLabel {
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.joined {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+/* ── The sign-in gate ─────────────────────────────────────── */
+
+.gate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+
+    padding: var(--space-5) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.gateMark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 44px;
+    height: 44px;
+    margin-bottom: var(--space-1);
+    border-radius: var(--radius-full);
+
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
+}
+
+.gateTitle {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.gateMessage {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+.gateActions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-3);
+}
+
+.primaryBtn,
+.secondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    height: 44px;
+    border-radius: var(--radius-full);
+
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-decoration: none;
+
+    transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.primaryBtn {
+    background: var(--color-brand);
+    color: var(--color-on-brand, #06120a);
+    border: 1px solid var(--color-brand);
+}
+
+.primaryBtn:hover {
+    background: var(--color-brand-hover);
+}
+
+.secondaryBtn {
+    background: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+
+.secondaryBtn:hover {
+    background: var(--color-surface-raised);
+}

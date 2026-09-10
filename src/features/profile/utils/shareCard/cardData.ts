@@ -83,15 +83,37 @@ export function toCardData(
   const { profile } = bundle
   const catalog = buildSlotCatalog(profile)
 
+  /**
+   * A MINOR's card carries no photograph, no measurements and no age band —
+   * name, sport, position and city only.
+   *
+   * This is belt AND braces, and deliberately so. The server already empties
+   * those fields (`profile_photo` is "", `height_cm` is null, `age_group` is
+   * null), so every expression below would resolve to nothing on its own and
+   * the slot catalog would skip the measurable slots for lack of a value. The
+   * explicit gate is here anyway because a card is the single most dangerous
+   * artifact this codebase produces: it is an IMAGE, it is fetched and
+   * re-hosted by every platform a link touches, and it cannot be recalled. If
+   * this adapter is ever pointed at a richer payload — an authenticated
+   * endpoint, a preview for the owner, a future card editor — the stripping
+   * must not silently depend on where the data came from.
+   */
+  const limited = profile.is_limited_view
+
   return {
     username: profile.username,
     name: profile.name || profile.username,
-    ageGroup: profile.age_group,
+    ageGroup: limited ? null : profile.age_group,
     sport: profile.primary_sport?.sport ?? null,
     position: profile.primary_sport?.primary_position ?? null,
-    avatarUrl: avatarDerivative(profile.profile_photo),
-    coverUrl: coverDerivative(profile.cover_photo, format),
+    // null → ProfileCard draws its initials medallion and its branded pattern,
+    // which is the same "designed, not broken" choice the web card makes.
+    avatarUrl: limited ? null : avatarDerivative(profile.profile_photo),
+    coverUrl: limited ? null : coverDerivative(profile.cover_photo, format),
     club: verifiedClub(bundle.career ?? []),
+    // Height and weight live in the slot catalog; for a limited profile the
+    // catalog is built from an already-emptied payload, so the resolver
+    // backfills with city, experience and joined date instead.
     slots: resolveSlots(catalog, requestedSlots),
     kindLabel: kindLabel(profile.role),
     // The link card is the crawler's, and a crawler cannot hold a phone up to

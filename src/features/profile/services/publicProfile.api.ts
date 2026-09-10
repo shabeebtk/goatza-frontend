@@ -65,6 +65,12 @@ export type PublicPrimarySport = {
  * A user's public header. Note what is NOT here and cannot be: email, phone,
  * verification flags, raw birthdate, latitude/longitude. `age_group` is the
  * server-derived badge ("U17" / "Senior") that replaces the birthdate.
+ *
+ * TWO TIERS. For a MINOR the server returns the same keys with the sensitive
+ * ones emptied — no photos, no height/weight, no age_group, no about, no sport
+ * attributes, and `location.name` coarsened to the city. Keys are never
+ * dropped, so nothing here becomes optional and no reader needs a presence
+ * check; `is_limited_view` is what the UI branches on.
  */
 export type PublicUserProfile = {
   id: string
@@ -92,6 +98,21 @@ export type PublicUserProfile = {
   sports: PublicSport[]
   positions: PublicPosition[]
   primary_sport: PublicPrimarySport | null
+  /**
+   * Whether this profile belongs to a minor under their own jurisdiction's
+   * rules. A fact about the PERSON — do not branch rendering on it; branch on
+   * `is_limited_view`, which is a fact about this payload.
+   */
+  is_minor: boolean
+  /**
+   * Whether the server stripped this payload. The single flag the UI reads to
+   * decide between the full profile and the limited card + sign-in prompt.
+   *
+   * Equal to `is_minor` today and deliberately separate: guardian consent will
+   * let a minor's photos back without making them an adult, and a future
+   * moderation state could limit an adult.
+   */
+  is_limited_view: boolean
 }
 
 export type PublicOrgSport = {

@@ -16,6 +16,17 @@
  *   anonymous  → seed the public context with the bundle and render the same
  *                component in public mode. Nothing re-fetches.
  *
+ * There is a THIRD branch inside the anonymous one: a bundle whose profile
+ * carries `is_limited_view` is a MINOR's stripped card, and it renders
+ * <LimitedProfileCard> instead of <UserProfile>. The server has already
+ * emptied every sensitive field, so this is a presentation choice, not the
+ * enforcement — <UserProfile> would render the same stripped payload, it would
+ * just render it as a full profile page with most of it blank, which looks
+ * broken rather than deliberate. Note the branch is on the SIGNED-OUT path
+ * only: a signed-in visitor goes to the authenticated endpoint above and is
+ * unaffected, which is the whole point of the tier being about the anonymous
+ * web rather than about the person.
+ *
  * `bundle` may be NULL, and this is the important case. The page used to call
  * notFound() when the public bundle was missing, which meant the ANONYMOUS
  * payload decided whether anyone could see the route at all — so a profile with
@@ -30,6 +41,7 @@
 
 import UserProfile from "@/features/profile/components/UserProfile/UserProfile"
 import ProfileUnavailable from "@/features/profile/components/ProfileUnavailable/ProfileUnavailable"
+import LimitedProfileCard from "@/features/profile/components/LimitedProfileCard/LimitedProfileCard"
 import PublicCtaBar from "@/features/profile/components/PublicCtaBar/PublicCtaBar"
 import {
   PublicProfileProvider,
@@ -67,6 +79,15 @@ export default function PublicProfileView({
   }
 
   const profilePath = `/profile/${bundle.profile.username}`
+
+  // A minor, seen by a stranger. The stripped card plus its own sign-in gate —
+  // and no PublicCtaBar, because the gate below the card already IS the call to
+  // action and two of them stacked is a nag, not a prompt.
+  if (bundle.profile.is_limited_view) {
+    return (
+      <LimitedProfileCard profile={bundle.profile} nextPath={profilePath} />
+    )
+  }
 
   return (
     <PublicProfileProvider

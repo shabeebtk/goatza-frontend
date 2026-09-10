@@ -109,6 +109,12 @@ function fillValidSignup() {
   fireEvent.change(screen.getByPlaceholderText("Create a strong password"), {
     target: { value: "password!123" },
   })
+  // Date of birth is required since the age gate landed. Three separate
+  // fields, not a picker — see shared/components/DateOfBirthInput. Country is
+  // prefilled by CountrySelect, so nothing to do for it here.
+  fireEvent.change(screen.getByLabelText("Day"), { target: { value: "20" } })
+  fireEvent.change(screen.getByLabelText("Month"), { target: { value: "05" } })
+  fireEvent.change(screen.getByLabelText("Year"), { target: { value: "1995" } })
 }
 
 beforeEach(() => {

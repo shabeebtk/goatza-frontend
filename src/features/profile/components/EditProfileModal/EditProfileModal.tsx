@@ -363,12 +363,12 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
 
               <Field
                 label="City"
-                hint="Search and select your city."
+                hint="Your town or city. We don't ask for your exact address."
               >
                 <LocationPicker
                   value={selectedCity}
                   onChange={setSelectedCity}
-                  placeholder="Search city, e.g. Kannur…"
+                  placeholder="Search your town or city"
                   disabled={isSubmitting}
                   bias={profileBias}
                 />

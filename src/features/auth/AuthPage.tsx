@@ -7,6 +7,7 @@ import AuthCard from "@/features/auth/components/AuthCard/AuthCard"
 import styles from "./AuthPage.module.css"
 import { LOGO_URL } from "@/constants"
 import { postAuthPath } from "@/shared/services/authRedirect"
+import { useGuardianStore } from "@/features/guardian/store/guardian.store"
 import { useAuthStore } from "@/store/auth.store"
 
 export default function AuthPageLayout() {
@@ -14,18 +15,31 @@ export default function AuthPageLayout() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  /*
+    A minor mid-guardian-flow IS authenticated — the OTP or the Google callback
+    handed back a real token — and without this they would be bounced into the
+    app by the redirect below the instant the step they are supposed to complete
+    rendered. This is the one authenticated state that belongs on this page.
+
+    It is not the gate. The server is what keeps a pending account out of
+    everything else; this only keeps the client from navigating away from the
+    screen that resolves it.
+  */
+  const guardianRequired = useGuardianStore((s) => s.required)
+
   // Already signed in (incl. a session recovered late by initAuth's retry) —
   // never leave the user staring at a login form they don't need. Honours
   // ?next= so someone who arrived from a login wall on a public profile and
   // turns out to already have a session lands back on that profile.
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading && isAuthenticated && !guardianRequired) {
       router.replace(postAuthPath(searchParams))
     }
-  }, [isAuthenticated, isLoading, router, searchParams])
+  }, [isAuthenticated, isLoading, guardianRequired, router, searchParams])
 
   if (isLoading) return null        // brief blank beats a login-form flash
-  if (isAuthenticated) return null  // redirecting
+  // Redirecting — unless the guardian step is why they are here.
+  if (isAuthenticated && !guardianRequired) return null
 
   return (
     <div className={styles.authPage}>

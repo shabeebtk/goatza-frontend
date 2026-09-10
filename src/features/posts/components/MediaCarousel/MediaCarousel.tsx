@@ -33,6 +33,7 @@ import {
     thumbSrc,
     videoSrc,
 } from "@/shared/services/mediaDelivery"
+import useIsMounted from "@/shared/hooks/useIsMounted"
 import styles from "./MediaCarousel.module.css"
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -471,7 +472,7 @@ function Lightbox({
   startIndex: number
   onClose: () => void
 }) {
-  const [mounted, setMounted] = useState(false)
+  const mounted = useIsMounted()
   const [idx, setIdx] = useState(startIndex)
 
   // ── Zoom state ──────────────────────────────────────────────
@@ -530,9 +531,21 @@ function Lightbox({
     setOffset({ x: 0, y: 0 })
   }, [])
 
-  useEffect(() => { resetZoom() }, [idx, resetZoom])
-
-  useEffect(() => { setMounted(true) }, [])
+  /**
+   * Change slide. Resets zoom, always.
+   *
+   * This used to be an effect watching `idx`, which meant every slide change
+   * rendered once at the new slide STILL ZOOMED before correcting itself — and
+   * meant the coupling was invisible at the five places that move the index.
+   * Going through one setter makes it impossible to move slides and forget.
+   */
+  const goToSlide = useCallback(
+    (next: number | ((i: number) => number)) => {
+      setIdx(next)
+      resetZoom()
+    },
+    [resetZoom],
+  )
 
   // Clamp offset so image doesn't pan beyond its edges
   const clampOffset = useCallback(
@@ -570,14 +583,14 @@ function Lightbox({
         if (e.key === "ArrowLeft") { e.preventDefault(); video.seekBy(-5); return }
       }
 
-      if (e.key === "ArrowRight" && !isZoomed) setIdx((i) => Math.min(i + 1, media.length - 1))
-      if (e.key === "ArrowLeft"  && !isZoomed) setIdx((i) => Math.max(i - 1, 0))
+      if (e.key === "ArrowRight" && !isZoomed) goToSlide((i) => Math.min(i + 1, media.length - 1))
+      if (e.key === "ArrowLeft"  && !isZoomed) goToSlide((i) => Math.max(i - 1, 0))
       if (e.key === "+" || e.key === "=") setScale((s) => Math.min(s + 0.5, 4))
       if (e.key === "-") setScale((s) => { const ns = Math.max(s - 0.5, 1); if (ns === 1) setOffset({ x: 0, y: 0 }); return ns })
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [media.length, requestClose, isZoomed, resetZoom])
+  }, [media.length, requestClose, isZoomed, resetZoom, goToSlide])
 
   useEffect(() => {
     document.body.style.overflow = "hidden"
@@ -790,7 +803,7 @@ function Lightbox({
       {!isZoomed && idx > 0 && (
         <button
           className={`${styles.lightboxNav} ${styles.lightboxNavPrev}`}
-          onClick={() => setIdx((i) => i - 1)}
+          onClick={() => goToSlide((i) => i - 1)}
           type="button"
           aria-label="Previous"
         >
@@ -800,7 +813,7 @@ function Lightbox({
       {!isZoomed && idx < media.length - 1 && (
         <button
           className={`${styles.lightboxNav} ${styles.lightboxNavNext}`}
-          onClick={() => setIdx((i) => i + 1)}
+          onClick={() => goToSlide((i) => i + 1)}
           type="button"
           aria-label="Next"
         >
@@ -815,7 +828,7 @@ function Lightbox({
             <button
               key={i}
               className={`${styles.lightboxDot} ${i === idx ? styles.lightboxDotActive : ""}`}
-              onClick={() => setIdx(i)}
+              onClick={() => goToSlide(i)}
               type="button"
               aria-label={`Go to ${i + 1}`}
             />
