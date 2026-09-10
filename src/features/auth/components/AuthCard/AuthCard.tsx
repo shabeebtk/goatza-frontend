@@ -29,6 +29,10 @@ import {
     isUnderAgeError,
     rememberAgeRefusal,
 } from "../../services/ageGate"
+import HandToParentStep from "@/features/guardian/components/HandToParentStep/HandToParentStep"
+import ParentDetailsStep from "@/features/guardian/components/ParentDetailsStep/ParentDetailsStep"
+import { useGuardianStore } from "@/features/guardian/store/guardian.store"
+import type { GuardianMode } from "@/features/guardian/types"
 
 
 // ── Zod schemas ──────────────────────────────────────────────
@@ -136,6 +140,22 @@ function AuthCard() {
     const signup = useSignup()
     const verifyOtp = useVerifyOtp()
 
+    /*
+      THE GUARDIAN FLOW, read from the store rather than from local state.
+
+      Local state would do for the email signup — the OTP response and the step
+      that follows it are two renders apart in this very component. It cannot do
+      for Google: that response arrives on /auth/google/callback, a different
+      route entirely, and the task is that BOTH paths land in the same step. The
+      store is what makes it the same step rather than a second copy of it, and
+      it is also what survives a refresh mid-flow (see the store's note).
+    */
+    const guardianRequired = useGuardianStore((s) => s.required)
+    const guardianMode = useGuardianStore((s) => s.mode)
+    const guardianStatus = useGuardianStore((s) => s.status)
+    const setGuardianMode = useGuardianStore((s) => s.setMode)
+    const clearGuardian = useGuardianStore((s) => s.clear)
+
     const isSignUp = mode === "signup"
     const isLoading = login.isPending || signup.isPending || verifyOtp.isPending
 
@@ -149,6 +169,19 @@ function AuthCard() {
         }
     }, [searchParams])
 
+
+    /*
+      A `link_sent` flow lives on its own route, so anyone who arrives back here
+      still holding that mode — a browser Back, a reopened tab, a Google login
+      on an account whose link is already out — is put back on it. `replace`,
+      not `push`: this card is not a place they chose to be and should not be a
+      stop on the way back.
+    */
+    useEffect(() => {
+        if (guardianRequired && guardianMode === "link_sent") {
+            router.replace("/auth/guardian/waiting")
+        }
+    }, [guardianRequired, guardianMode, router])
 
     // ── Forms ──────────────────────────────────────────────────
 
@@ -284,13 +317,60 @@ function AuthCard() {
     const handleOtp = otpForm.handleSubmit(async (values) => {
         setApiError(null)
         try {
-            await verifyOtp.mutateAsync({ email: pendingEmail, otp: values.otp })
+            const res = await verifyOtp.mutateAsync({
+                email: pendingEmail,
+                otp: values.otp,
+            })
+
+            /*
+              A verified minor does NOT go to nextPath. The mutation's onSuccess
+              has already recorded the requirement, so the branch below only has
+              to stop the navigation — the render picks the step up from the
+              store. Branching on the response rather than on the store keeps
+              this independent of when React Query's callbacks run relative to
+              this await.
+            */
+            if (res.guardian_required) {
+                setOtpPending(false)
+                return
+            }
+
             router.push(nextPath)
         } catch (err) {
             setApiError(extractErrorMessage(err))
         }
     })
 
+
+    // ── Guardian flow ──────────────────────────────────────────
+
+    /**
+     * The parent's details went in and the server chose how to reach them.
+     *
+     * `shared_contact` keeps the child on this card — the mode lands in the
+     * store and the render swaps to the hand-the-phone step. `link_sent` is a
+     * wait that can last days, so it gets a route of its own rather than a
+     * state inside a form component.
+     */
+    const handleGuardianDetails = (
+        mode: GuardianMode,
+        maskedContact: string | null,
+    ) => {
+        setGuardianMode(mode, maskedContact)
+
+        if (mode === "link_sent") {
+            router.push("/auth/guardian/waiting")
+        }
+    }
+
+    /**
+     * The parent approved on this device. The gate is down, so the flow is over
+     * and the child goes where any other new account would.
+     */
+    const handleGuardianApproved = () => {
+        clearGuardian()
+        router.push(nextPath)
+    }
 
     // ___ google oauth ____________
 
@@ -308,6 +388,36 @@ function AuthCard() {
     }
 
     // ── Render ─────────────────────────────────────────────────
+
+    /*
+      THE GUARDIAN FLOW OUTRANKS EVERYTHING ELSE ON THIS CARD.
+
+      By the time it is on, the account exists and the child is signed in — the
+      tabs, the social button and both forms below are all about getting an
+      account, which is a question that has already been answered. Returning
+      early rather than adding a fourth branch to the tree below also means
+      there is exactly one way to leave this state, and it is the flow finishing.
+
+      `link_sent` renders nothing: the effect above is already navigating, and a
+      blank beat is better than a flash of the details form the child has just
+      filled in.
+    */
+    if (guardianRequired) {
+        return (
+            <div className={styles.heroAuthCard}>
+                {guardianMode === "shared_contact" && (
+                    <HandToParentStep onApproved={handleGuardianApproved} />
+                )}
+
+                {guardianMode === null && (
+                    <ParentDetailsStep
+                        onSubmitted={handleGuardianDetails}
+                        status={guardianStatus}
+                    />
+                )}
+            </div>
+        )
+    }
 
     return (
         <div className={styles.heroAuthCard}>
@@ -442,13 +552,13 @@ function AuthCard() {
                             />
 
                             <div style={{ textAlign: "right", marginTop: "calc(-1 * var(--space-2))" }}>
-                                <a
+                                <Link
                                     href="/auth/forgot-password"
                                     className={styles.authFooterLink}
                                     style={{ fontSize: "var(--text-xs)" }}
                                 >
                                     Forgot password?
-                                </a>
+                                </Link>
                             </div>
 
                             <Button
@@ -641,7 +751,7 @@ function AuthCard() {
                                 </button>
                             </>
                         ) : (
-                            <>Don't have an account?{" "}
+                            <>Don&apos;t have an account?{" "}
                                 <button
                                     className={styles.authFooterLink}
                                     onClick={() => switchMode("signup")}

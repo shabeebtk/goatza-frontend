@@ -1,0 +1,55 @@
+/* ============================================================
+   Hand the phone over.
+
+   Inside AuthCard's card, like ParentDetailsStep — so no card
+   of its own. The one piece of structure it does add is the
+   divider, which marks the point where the reader changes from
+   the child to the adult.
+   ============================================================ */
+
+.step {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── To the child ─────────────────────────────────────────── */
+
+.handoff {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.handoffIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-brand);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* The handover line. Everything below it is addressed to the
+   adult now holding the phone. */
+.divider {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-5) 0;
+}
+
+.formWrap {
+  margin-top: var(--space-5);
+}

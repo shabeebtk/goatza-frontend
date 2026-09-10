@@ -141,8 +141,25 @@ const CONTENT_FIRST_ROUTES = [
   "/report-problem",
 ]
 
+/**
+ * Same rule, for routes whose path carries an id.
+ *
+ * `/guardian/<token>` is the parent's consent page. The people who open it have
+ * no session at all, so the auth bootstrap they would be waiting on can only
+ * ever resolve to "anonymous" — and until it does, the branch below would hand
+ * them a PROFILE SKELETON: a fake cover photo and a fake avatar, on a page a
+ * stranger opened from an email about their child. It has to be content-first,
+ * and it cannot be listed above because the token is part of the path.
+ */
+const CONTENT_FIRST_PREFIXES = ["/guardian/"]
+
 function isContentFirst(pathname: string | null): boolean {
-  return CONTENT_FIRST_ROUTES.includes(pathname ?? "")
+  const path = pathname ?? ""
+
+  return (
+    CONTENT_FIRST_ROUTES.includes(path) ||
+    CONTENT_FIRST_PREFIXES.some((prefix) => path.startsWith(prefix))
+  )
 }
 
 export default function PublicShell({

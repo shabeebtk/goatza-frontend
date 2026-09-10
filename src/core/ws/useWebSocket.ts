@@ -104,6 +104,9 @@ export function useWebSocket({
         }
     }, [])
 
+    /** Always the latest `connect`. See the reconnect timer above. */
+    const connectRef = useRef<(() => (() => void) | undefined) | null>(null)
+
     const connect = useCallback(() => {
         if (!url) return
 
@@ -144,7 +147,16 @@ export function useWebSocket({
                     maxReconnectDelay
                 )
                 attemptsRef.current++
-                reconnectTimerRef.current = setTimeout(connect, delay)
+                // Through a ref, not `connect` directly: `connect` is a
+                // useCallback that would otherwise reference itself before it
+                // is declared. The ref always holds the latest one (see the
+                // effect below), which is also what a reconnect wants — a
+                // reconnect fired after `url` changed should use the NEW
+                // connect, not the closure that scheduled it.
+                reconnectTimerRef.current = setTimeout(
+                    () => connectRef.current?.(),
+                    delay,
+                )
             }
         }
 
@@ -168,13 +180,37 @@ export function useWebSocket({
             socket.removeEventListener("close", handleClose)
             socket.removeEventListener("error", handleError)
         }
-    }, [url, reconnect, reconnectDelay, maxReconnectDelay, maxAttempts]) // eslint-disable-line
+    }, [url, reconnect, reconnectDelay, maxReconnectDelay, maxAttempts])
 
-    // Mount / url-change
+    // Kept before the mount effect so the ref is populated by the time the
+    // first connection can possibly close and ask to reconnect.
+    useEffect(() => {
+        connectRef.current = connect
+    }, [connect])
+
+    /*
+      Mount / url-change.
+
+      KNOWN, AND DELIBERATELY SUPPRESSED. `connect()` reads the socket's
+      readyState and writes it into `status` synchronously, which React Compiler
+      flags as a cascading render — correctly. `status` is external state (the
+      socket's), and the shape that expresses that properly is
+      useSyncExternalStore over the socket rather than useState plus an effect.
+
+      That is a real change to this hook, not a tidy-up: the subscribe/snapshot
+      pair has to sit on top of wsManager's shared-socket reuse, the backoff
+      reconnect and the token rotation, all of which this file currently owns
+      and none of which has a test. It powers chat and conversations. It is
+      worth doing on its own, with tests, rather than as a lint cleanup.
+
+      The diagnostic is about render cost, not correctness — one extra render
+      per socket open.
+    */
     useEffect(() => {
         if (!url) return
         intentionalCloseRef.current = false
         attemptsRef.current = 0
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
         const cleanup = connect()
         return () => {
             clearReconnectTimer()

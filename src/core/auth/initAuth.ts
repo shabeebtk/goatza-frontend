@@ -1,5 +1,6 @@
 import { getUserApi } from "@/features/auth/services/auth.api"
 import { useAuthStore } from "@/store/auth.store"
+import { syncGuardianFromServer } from "@/features/guardian/store/guardian.store"
 import { getFreshAccessToken, SessionExpiredError } from "@/core/auth/refreshManager"
 
 const RETRY_DELAYS_MS = [1_000, 3_000]
@@ -13,6 +14,18 @@ export const initAuth = async (attempt = 0): Promise<void> => {
     const token = await getFreshAccessToken()
     const user = await getUserApi()
     setSession({ token, user })
+
+    /*
+      THE GUARDIAN LOCK, re-established from the server on every boot.
+
+      The guardian store is per-tab sessionStorage, so without this a locked
+      child could open a second tab — or just reload after it expired — and
+      arrive with the gate holding nothing. /user/details is exempt from the
+      server's own gate precisely so this call still works while the account is
+      locked; the block it returns is the authority, and it also clears the
+      flow the moment a parent approves.
+    */
+    syncGuardianFromServer(user?.guardian)
   } catch (err) {
     if (err instanceof SessionExpiredError) {
       clearAuth() // definitive — show login

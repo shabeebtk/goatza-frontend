@@ -28,10 +28,19 @@ export default function ClientGoogleCallback() {
     googleAuth.mutate(
       { code, state },
       {
-        // Onboarding (incl. the mandatory role step for new Google users) is a
-        // modal that follows the user everywhere, so landing somewhere other
-        // than /home does not skip it. takeOAuthNext returns /home unless the
-        // flow was started from a login wall that recorded a destination.
+        /*
+          NO GUARDIAN BRANCH HERE, deliberately.
+
+          A Google account is created without anyone being asked anything — no
+          birthdate — so at this moment the server cannot tell whether it
+          belongs to a minor, and the callback response carries no
+          `guardian_required`. The assessment happens one step later, at the
+          role step (POST /user/role), which is the first time a birthdate is
+          on file and the one step a new Google user cannot skip.
+
+          Onboarding is a modal that follows the user everywhere, so landing on
+          /home does not skip it; RoleStep is what raises the parent screen.
+        */
         onSuccess: () => router.replace(takeOAuthNext()),
         onError: () => router.replace("/auth"),
       }

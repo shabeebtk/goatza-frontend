@@ -2,15 +2,26 @@
 
 import { useEffect, useState } from "react"
 
-let deferredPrompt: any = null
+/**
+ * `beforeinstallprompt` is Chromium-only and is NOT in TypeScript's DOM lib, so
+ * there is nothing to import — this declares the two members we actually touch.
+ * Deliberately minimal: a fuller copy of the spec would be a second source of
+ * truth for an event we only ever `preventDefault()` and re-fire.
+ */
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>
+}
+
+let deferredPrompt: BeforeInstallPromptEvent | null = null
 
 export const usePWAInstall = () => {
   const [isInstallable, setIsInstallable] = useState(false)
 
   useEffect(() => {
-    const handler = (e: any) => {
+    const handler = (e: Event) => {
       e.preventDefault()
-      deferredPrompt = e
+      deferredPrompt = e as BeforeInstallPromptEvent
       setIsInstallable(true)
     }
 

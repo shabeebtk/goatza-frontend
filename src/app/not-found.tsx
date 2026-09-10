@@ -39,7 +39,7 @@ export default function NotFound() {
         <div className={styles.textBlock}>
           <h1 className={styles.title}>Out of Bounds</h1>
           <p className={styles.body}>
-            This page doesn't exist or was moved. You'll be redirected to the home feed.
+            This page doesn&apos;t exist or was moved. You&apos;ll be redirected to the home feed.
           </p>
         </div>
 

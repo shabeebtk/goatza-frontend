@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import OnboardingGate from "@/features/onboarding/components/OnboardingGate"
 import LegalConsentGate from "@/features/legal/components/LegalConsentGate"
+import GuardianGate from "@/features/guardian/components/GuardianGate"
 
 export default function AuthGuard({
   children,
@@ -36,8 +37,12 @@ export default function AuthGuard({
   // owns the higher z-index too). If terms go stale mid-onboarding, agreeing
   // is the only thing that can happen first — the server is already refusing
   // every write the remaining steps would make.
+  // GuardianGate is FIRST because it is the only one that redirects rather than
+  // overlaying: a minor waiting on a parent should be moved off the page before
+  // the other two start asking them to pick a role or agree to anything.
   return (
     <>
+      <GuardianGate />
       {children}
       <OnboardingGate />
       <LegalConsentGate />

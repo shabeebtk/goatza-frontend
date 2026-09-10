@@ -109,6 +109,7 @@ describe("reserved names", () => {
     "chat",
     "coaching",
     "explore",
+    "guardian",
     "highlights",
     "home",
     "messages",

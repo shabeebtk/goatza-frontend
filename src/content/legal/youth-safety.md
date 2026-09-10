@@ -35,9 +35,14 @@ We ask for date of birth when an account is created. Once set, it cannot be chan
 **Safer defaults**
 - Posts by users under 18 default to a followers-only audience, not public.
 
+**Permission before the account can be used**
+- A user under 18 cannot use Goatza until a parent or guardian approves the account. We ask when the account is created, not later.
+- If the contact we are given is one the parent already uses, we ask them there and then. Otherwise we email them a link.
+- A parent or guardian can remove their permission at any time from that same link, without logging in. The account is then locked.
+
 **Guardian involvement in recruitment**
 - A user under 18 cannot apply to any trial or recruitment without providing a parent or guardian's name and contact number.
-- They must confirm their guardian has consented.
+- They must confirm their guardian has agreed.
 - We may contact the guardian to verify.
 
 **No profiling**
@@ -136,6 +141,8 @@ You may ask us to:
 
 Write to **goatza.official@gmail.com**. We will verify your identity and your relationship to the child before acting. We respond within 90 days and usually far sooner.
 
+You do not need to write to us to withdraw your permission. The link in the email we sent you does that yourself, at any time, and locks the account.
+
 ---
 
 ## What we're still building
@@ -144,7 +151,7 @@ We're honest about where we are.
 
 India's DPDP Rules, 2025 require platforms to obtain **verifiable parental consent** before processing a child's data, using methods such as DigiLocker-based identity verification. The compliance date is **13 May 2027**.
 
-Today, we collect guardian contact details and consent confirmation at the point of application. We are building full verifiable consent ahead of that deadline, and this page will be updated when it ships.
+Today, a parent or guardian has to approve the account before a young person can use it, and can withdraw that approval at any time. What we do **not** yet have is the identity check that proves the adult who tapped Approve is who they say they are. That is the part still to build, and this page will be updated when it ships.
 
 ---
 

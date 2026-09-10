@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import { Button } from "@/shared/components/ui"
 import RoleSelect from "@/features/auth/components/RoleSelect/RoleSelect"
@@ -42,6 +43,10 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
 
   const role = useOnboardingStore((s) => s.role)
   const setStoreRole = useOnboardingStore((s) => s.setRole)
+  // Closes the modal WITHOUT setting the "skip for now" flag — the child is not
+  // skipping onboarding, it is being put on hold until a parent answers.
+  const finishOnboarding = useOnboardingStore((s) => s.finish)
+  const router = useRouter()
 
   const [apiError, setApiError] = useState<string | null>(null)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
@@ -122,7 +127,7 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
     }
 
     try {
-      await setRoleMutation.mutateAsync({
+      const result = await setRoleMutation.mutateAsync({
         role,
         // Only sent when this user still owes consent. The backend requires it
         // in exactly that case and ignores it otherwise, so an existing user
@@ -132,6 +137,25 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
         birthdate: needsAge ? birthdate : undefined,
         countryCode: needsAge ? countryCode.toUpperCase() : undefined,
       })
+
+      /*
+        THIS STEP IS THE GOOGLE PATH'S AGE GATE, so it is also where a Google
+        minor is first locked. The birthdate just sent is the first one on file
+        for them, and the response says whether it made them a minor.
+
+        Going to the next step here would be walking the child into a wall: the
+        rest of onboarding writes to /user/update/profile/data and
+        /user/onboarding/complete, and the server refuses every one of those
+        with a 403 while consent is pending. So the onboarding modal closes and
+        GuardianGate takes over — the mutation's onSuccess has already recorded
+        the lock (see useSetRole).
+      */
+      if (result.guardian_required) {
+        finishOnboarding()
+        router.replace("/auth")
+        return
+      }
+
       onNext()
     } catch (err) {
       const msg =

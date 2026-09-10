@@ -1110,7 +1110,12 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     onCropEntry: (id: string, file: File, crop: CropState, zoom: number) => void
     disabled: boolean
 }) {
-    const [idx, setIdx] = useState(0)
+    // Clamped during render, not corrected afterwards in an effect.
+    // `entries` shrinks when the author removes an item, and an index past the
+    // end reads `undefined`. Doing it here means the broken frame is never
+    // painted; the effect that used to fix it rendered it once first.
+    const [rawIdx, setIdx] = useState(0)
+    const idx = entries.length > 0 ? Math.min(rawIdx, entries.length - 1) : 0
     // Crop editor — cropSrc is a temp object URL of the ORIGINAL image.
     const [cropId, setCropId] = useState<string | null>(null)
     const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -1122,10 +1127,6 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     const aspect =
         MEDIA_ASPECT_OPTIONS.find(o => o.key === aspectKey)?.value ??
         MEDIA_ASPECT_OPTIONS[0].value
-
-    useEffect(() => {
-        if (idx >= entries.length && entries.length > 0) setIdx(entries.length - 1)
-    }, [entries.length, idx])
 
     if (entries.length === 0) return null
     const total = entries.length

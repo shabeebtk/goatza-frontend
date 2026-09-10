@@ -44,6 +44,19 @@ export type User = {
     requires_acceptance: boolean
     accepted_versions: Record<string, string | null>
   }
+  /**
+   * Present only on the user from GET /user/details, exactly like `legal`
+   * above and for the same reason — the login, OTP and Google responses
+   * serialise a user without it.
+   *
+   * `status` is what the server's gate branches on; `masked_contact` is
+   * non-null only while a link is actually out to a named parent. See
+   * GuardianGate.
+   */
+  guardian?: {
+    status: "not_needed" | "pending" | "approved" | "withdrawn"
+    masked_contact: string | null
+  }
 }
 
 export type OrganizationActor = OrganizationMini

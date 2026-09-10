@@ -73,6 +73,8 @@ const RESERVED = new Set([
   "coaching",
   "cv",
   "explore",
+  // The parent consent page, /guardian/<token>.
+  "guardian",
   "highlights",
   "home",
   "messages",

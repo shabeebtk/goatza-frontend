@@ -1,0 +1,90 @@
+/* ============================================================
+   The approval fields.
+
+   Container-agnostic on purpose: no card, no width, no
+   background. It is dropped into AuthCard on one surface and
+   into a full page on the other, and both of those own the box
+   it sits in.
+   ============================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── The 18-or-older tick ─────────────────────────────────── */
+
+.confirmField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The whole row is the target, not just the 16px box — this is
+   read on a phone, often one-handed, often by someone who does
+   not want to be doing it. */
+.confirmLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.confirmBox {
+  flex-shrink: 0;
+  /* 20px rather than the browser default 13px: this is the one
+     control on the screen that must not be missed or mis-hit. */
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-brand);
+  cursor: pointer;
+}
+
+.confirmBox:disabled {
+  cursor: not-allowed;
+}
+
+.confirmText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+/* ── Messages ─────────────────────────────────────────────── */
+
+.fieldError,
+.apiError {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-error);
+}
+
+.apiError {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.apiError svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* What Approve does, directly above Approve. Muted because it
+   is a reassurance, not a warning. */
+.meaning {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}

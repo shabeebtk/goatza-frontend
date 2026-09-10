@@ -1,4 +1,10 @@
-import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging"
+import {
+  getMessaging,
+  getToken,
+  onMessage,
+  isSupported,
+  type MessagePayload,
+} from "firebase/messaging"
 import { app } from "./firebase"
 
 let messagingInstance: ReturnType<typeof getMessaging> | null = null
@@ -40,7 +46,7 @@ export const getFCMToken = async () => {
 
 // Foreground listener
 export const onForegroundMessage = async (
-  callback: (payload: any) => void
+  callback: (payload: MessagePayload) => void
 ) => {
   const messaging = await getMessagingInstance()
   if (!messaging) return () => {}

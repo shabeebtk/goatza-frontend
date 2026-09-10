@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createRef, useRef } from "react"
+import { createRef, useEffect, useRef } from "react"
 import { act, cleanup, render } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -17,7 +17,13 @@ import { useVideoSound, type VideoSound } from "./useVideoSound"
 function Harness({ apiRef }: { apiRef: { current: VideoSound | null } }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const sound = useVideoSound(videoRef)
-  apiRef.current = sound
+
+  // Published in an effect, not during render. Writing to a ref mid-render is
+  // the thing React Compiler refuses, and the tests read this after `render()`
+  // has committed anyway — so the timing is unchanged.
+  useEffect(() => {
+    apiRef.current = sound
+  })
 
   return (
     <video

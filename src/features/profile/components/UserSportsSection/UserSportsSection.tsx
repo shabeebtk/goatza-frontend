@@ -236,7 +236,7 @@ export default function UserSportsSection({ username, isOwn }: UserSportsSection
         {showSportPicker && isOwn && (
           <div className={styles.sportPicker}>
             {availableSports.length === 0 ? (
-              <p className={styles.pickerEmpty}>You've added all available sports.</p>
+              <p className={styles.pickerEmpty}>You&apos;ve added all available sports.</p>
             ) : (
               availableSports.map((sport) => (
                 <button

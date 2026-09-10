@@ -2,9 +2,14 @@ import axios from "axios"
 import { useAuthStore } from "@/store/auth.store"
 import { getFreshAccessToken, SessionExpiredError } from "@/core/auth/refreshManager"
 import { requireLegalConsent } from "@/features/legal/store/legalConsent.store"
+import { lockGuardian } from "@/features/guardian/store/guardian.store"
+import type { GuardianConsentStatus } from "@/features/guardian/types"
 
 /** The backend's machine-readable marker (legal/permissions.py). */
 const TERMS_REQUIRED_CODE = "TERMS_ACCEPTANCE_REQUIRED"
+
+/** The other gate's marker (guardians/permissions.py). */
+const GUARDIAN_REQUIRED_CODE = "GUARDIAN_CONSENT_REQUIRED"
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -52,11 +57,37 @@ api.interceptors.response.use(
         their behalf. */
     if (error.response?.status === 403) {
       const body = error.response.data as
-        | { code?: string; pending_documents?: string[] }
+        | {
+            code?: string
+            pending_documents?: string[]
+            guardian_consent_status?: GuardianConsentStatus
+          }
         | undefined
 
       if (body?.code === TERMS_REQUIRED_CODE) {
         requireLegalConsent(body.pending_documents ?? [])
+      }
+
+      /*
+        THE GUARDIAN GATE, and the reason it has to be handled here.
+
+        The server refuses EVERY request from a locked minor except a short
+        exempt list (guardians/permissions.py) — reads included, because under
+        the DPDP rules reading a child's feed is processing their data. So a
+        client that does not recognise this code does not fail in one place: it
+        fails everywhere at once, as a wall of generic "something went wrong"
+        toasts, with no screen ever explaining why. That is exactly what
+        onboarding looked like before this branch existed.
+
+        Recording it here means any request can raise the parent screen, which
+        is the safety net under the two paths that are supposed to catch it
+        first (the OTP/role responses, and the guardian block on /user/details).
+
+        The error is still rejected — the request genuinely failed and the
+        caller's own handling should run.
+      */
+      if (body?.code === GUARDIAN_REQUIRED_CODE) {
+        lockGuardian(body.guardian_consent_status ?? "pending")
       }
     }
 

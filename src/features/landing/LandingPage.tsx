@@ -5,6 +5,7 @@
  * Design system + hooks unchanged; all copy speaks football.
  */
 import { useState, useEffect, useRef, Fragment } from "react";
+import Link from "next/link";
 import { Icon } from "@iconify/react";
 import { Button, Badge } from "@/shared/components/ui";
 import styles from "./LandingPage.module.css";
@@ -57,21 +58,21 @@ function TiltCard({
 function LogoLockup({ footer = false }: { footer?: boolean }) {
   if (footer) {
     return (
-      <a href="/" aria-label="Goatza home" className={styles.footerLogoLockup}>
+      <Link href="/" aria-label="Goatza home" className={styles.footerLogoLockup}>
         <div className={styles.footerLogoImgWrap}>
           <img src={LOGO_URL} alt="" aria-hidden="true" className={styles.footerLogoImg} />
         </div>
         <span className={styles.footerWordmark}>Goatza</span>
-      </a>
+      </Link>
     );
   }
   return (
-    <a href="/" aria-label="Goatza home" className={styles.logoLockup}>
+    <Link href="/" aria-label="Goatza home" className={styles.logoLockup}>
       <div className={styles.logoImgWrap}>
         <img src={LOGO_URL} alt="" aria-hidden="true" className={styles.logoImg} />
       </div>
       <span className={styles.logoWordmark}>Goatza</span>
-    </a>
+    </Link>
   );
 }
 
@@ -818,14 +819,14 @@ function SiteFooter() {
       <div className={`container ${styles.footerInner}`}>
         <LogoLockup footer />
         <nav className={styles.footerLinks} aria-label="Footer navigation">
-          <a href="/terms" className={styles.footerLink}>Terms</a>
-          <a href="/privacy" className={styles.footerLink}>Privacy</a>
-          <a href="/guidelines" className={styles.footerLink}>Guidelines</a>
-          <a href="/safety" className={styles.footerLink}>Youth Safety</a>
+          <Link href="/terms" className={styles.footerLink}>Terms</Link>
+          <Link href="/privacy" className={styles.footerLink}>Privacy</Link>
+          <Link href="/guidelines" className={styles.footerLink}>Guidelines</Link>
+          <Link href="/safety" className={styles.footerLink}>Youth Safety</Link>
           {/* NOTE: /contact has no route — it 404s today, and did before this
               change. Left in place rather than silently dropped; it needs a
               page or a mailto, which is a separate decision. */}
-          <a href="/contact" className={styles.footerLink}>Contact</a>
+          <Link href="/contact" className={styles.footerLink}>Contact</Link>
         </nav>
         <p className={styles.footerCopy}>
           © {new Date().getFullYear()} Goatza. All rights reserved.

@@ -33,14 +33,16 @@ You must be at least **13 years old** to create an account. There are no excepti
 
 If you are under 18, you are a "child" under Indian law and additional rules apply to you:
 
-- You must have permission from a parent or legal guardian to use the Platform.
+- **A parent or guardian must give permission before your account can be used.** We ask for this when the account is created, not later. Until it is given, the account is not usable.
+- To ask for it, we need your parent or guardian's name and either their email address or their phone number.
+- Your parent or guardian can remove their permission at any time. If they do, the account is locked until permission is given again.
 - You must provide guardian contact details before applying to any recruitment.
 - Your account is subject to the restrictions set out in our [Youth Safety Policy](https://goatza.com/safety).
 - We do not profile you, track your behaviour, or serve you targeted advertising.
 
-We collect your date of birth at registration and use it to apply these rules. **Providing a false date of birth is a breach of these Terms** and we may suspend or remove your account.
+We collect your date of birth at registration and use it to apply these rules. **Providing a false date of birth is a breach of these Terms** and we may suspend or remove your account. This includes giving contact details for a parent or guardian that are not theirs.
 
-If you are a parent or guardian and believe your child has created an account without your permission, contact us at goatza.official@gmail.com and we will remove it.
+If you are a parent or guardian and believe your child has created an account without your permission, you can remove permission yourself using the link in the email we sent you, which locks the account. You can also contact us at goatza.official@gmail.com and we will remove it.
 
 ## 4. Your account
 

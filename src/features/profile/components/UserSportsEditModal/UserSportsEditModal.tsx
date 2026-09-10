@@ -23,6 +23,7 @@ import type {
   SportAttributePayload,
 } from "@/features/profile/services/sports.api"
 import styles from "./SportEditModal.module.css"
+import useIsMounted from "@/shared/hooks/useIsMounted"
 import { Input } from "@/shared/components/ui"
 
 // ── Experience level options ──────────────────────────────────
@@ -207,9 +208,10 @@ export default function SportEditModal({
   const isSaving = addSport.isPending || updateSport.isPending
 
   // SSR-safe portal: wait for client mount before accessing document
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { 
-    setMounted(true) 
+  const mounted = useIsMounted()
+  // Body scroll lock only — the mount flag above is no longer state, so this
+  // effect no longer sets any.
+  useEffect(() => {
     const originalStyle = document.body.style.overflow
     document.body.style.overflow = "hidden"
     return () => { document.body.style.overflow = originalStyle }

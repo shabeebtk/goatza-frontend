@@ -276,6 +276,10 @@ export default function OrganizationSetup() {
   const [level, setLevel]             = useState<OrgLevel | "">("")
   const [website, setWebsite]         = useState("")
 
+  // Declared HERE, above the callbacks that write to it — handleLogoSelect
+  // below reaches for setErrors, and it used to sit thirty lines further down.
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
   // ── Logo — local file only, nothing uploaded yet ─────────────────
   const [logoFile, setLogoFile]           = useState<File | null>(null)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
@@ -317,7 +321,6 @@ export default function OrganizationSetup() {
   const [selectedSports, setSelectedSports] = useState<string[]>([])
 
   // Errors
-  const [errors, setErrors] = useState<Record<string, string>>({})
 
   // ── City auto-fill ────────────────────────────────────────────
   const handleCityChange = (selected: PlaceResult | null) => {

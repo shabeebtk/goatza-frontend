@@ -1,4 +1,5 @@
 import api from "@/core/api/axios"
+import type { GuardianStatusBlock } from "@/features/guardian/types"
 import type { UserRole } from "@/shared/constants/roles"
 
 // ── Types ────────────────────────────────────────────────────
@@ -74,11 +75,36 @@ export type AuthUser = {
    * True when the birthdate is unknown. Nothing consumes it yet.
    */
   is_minor: boolean
+  /**
+   * Present on the user from GET /user/details only — the login, OTP and
+   * Google responses serialise a user without it. That call is the one the
+   * client makes at every session start, which is what lets a locked child's
+   * screen render on a cold boot rather than only in the tab that signed up.
+   */
+  guardian?: GuardianStatusBlock
 }
 
 export type AuthTokenResponse = {
   access: string
   user: AuthUser
+  /**
+   * True when the account cannot be used until a parent or guardian says so.
+   *
+   * A BARE BOOLEAN, sitting beside `user` rather than inside it — that is the
+   * server's shape (`accounts/views/user_auth_views.py`), and it is deliberate
+   * on their side: "is this account a minor" and "does it still need a
+   * guardian" are different questions, and an approved minor answers True to
+   * the first and False to this.
+   *
+   * It carries no `mode`. Nobody has named a parent at this point, so there is
+   * nothing to report — the mode comes back from POST /guardian/details.
+   *
+   * The token above is still real: the child IS signed in, which is what lets
+   * the guardian steps call the API on their behalf. It is the SERVER that
+   * keeps them out of everything else (guardians/permissions.py); this flag
+   * only tells the client which screen to open.
+   */
+  guardian_required?: boolean
 }
 
 type LoginResponse =
@@ -147,7 +173,7 @@ export const getGoogleLoginUrl = async () => {
 export const googleCallbackApi = async (params: {
   code: string
   state: string
-}) => {
+}): Promise<AuthTokenResponse> => {
   const res = await api.get("/user/auth/google/callback", {
     params,
   })
@@ -181,10 +207,19 @@ export type SetRoleExtras = {
   countryCode?: string
 }
 
+/**
+ * The role response is the user payload PLUS the Google path's minor lock.
+ *
+ * `guardian_required` sits alongside the user rather than inside it, exactly as
+ * it does on the OTP response — it says what the client should DO next, which
+ * is not a property of the account.
+ */
+export type SetRoleResponse = AuthUser & { guardian_required?: boolean }
+
 export const setRoleApi = async (
   role: UserRole,
   extras: SetRoleExtras = {},
-): Promise<AuthUser> => {
+): Promise<SetRoleResponse> => {
   const { acceptedTerms, birthdate, countryCode } = extras
 
   const res = await api.post("/user/role", {
