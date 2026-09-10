@@ -1,0 +1,96 @@
+/* RecruitmentShareMenu — the anchored action sheet behind the share trigger.
+   Mirrors ProfileShareMenu.module.css so a share menu looks the same wherever
+   it is opened from. The trigger itself belongs to the host and is not styled
+   here. */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+/* Full-viewport catcher so a tap anywhere else closes the menu. Below the
+   menu, above everything else on the page. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 201;
+
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.28));
+
+  animation: shareMenuIn var(--duration-fast) var(--ease-out);
+}
+
+/* The sticky action bar sits on the bottom edge of the viewport, so its menu
+   has to grow upward or it opens off-screen. */
+.menuUp {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  width: 100%;
+  padding: var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+
+  background: transparent;
+  /* --color-text-primary, not the --color-text ProfileShareMenu reaches for:
+     that token is not defined in globals.css, so the declaration is dropped
+     and the row silently inherits. Same colour, actually applied. */
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition: background var(--duration-fast);
+}
+
+.item:hover {
+  background: var(--color-surface-raised);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+@keyframes shareMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu {
+    animation: none;
+  }
+}

@@ -17,6 +17,7 @@ import type { Post, ReactionType, FetchPostsParams } from "@/features/posts/serv
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import PostSharePreview from "@/features/posts/components/PostSharePreview/PostSharePreview"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
+import { postUrl } from "@/shared/services/postUrl"
 import styles from "./PostActions.module.css"
 
 // ── Reaction definitions ──────────────────────────────────────
@@ -316,6 +317,7 @@ export default function PostActions({
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         target={{ type: "post", id: post.id }}
+        shareUrl={postUrl(post.id)}
         previewNode={
           <PostSharePreview
             authorName={post.author.name}

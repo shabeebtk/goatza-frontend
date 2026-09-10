@@ -45,6 +45,24 @@ export type VerifyOtpPayload = {
   otp: string
 }
 
+export type ResendOtpPayload = {
+  email: string
+}
+
+/**
+ * The reply to a resend request, and it deliberately says almost nothing.
+ *
+ * The server answers the SAME generic success whether the address has an
+ * unverified account, is already verified, or has never been seen — telling
+ * them apart would turn this endpoint into a "does this person have a Goatza
+ * account" oracle for anyone typing addresses at it. So there is no "sent"
+ * boolean to branch on here: the client shows "OTP sent" and restarts its
+ * timer either way, which is the whole contract.
+ */
+export type ResendOtpResponse = {
+  email: string
+}
+
 export type ForgotPasswordPayload = {
   email: string
 }
@@ -136,6 +154,22 @@ export const signupApi = async (data: SignupPayload): Promise<SignupResponse> =>
 
 export const verifyOtpApi = async (data: VerifyOtpPayload): Promise<AuthTokenResponse> => {
   const res = await api.post("/user/verify/otp", data)
+  return res.data.data
+}
+
+/**
+ * Send the signup verification code again.
+ *
+ * Two limits sit behind this and the client sees them differently. A 429 with
+ * the server's own message is the 30s per-ADDRESS cooldown, which is normal
+ * impatience and worth showing verbatim; the per-caller throttle is the abuse
+ * limit and shows up the same way. Neither is an error the user can fix by
+ * retrying immediately, so the caller keeps the countdown running on both.
+ */
+export const resendSignupOtpApi = async (
+  data: ResendOtpPayload
+): Promise<ResendOtpResponse> => {
+  const res = await api.post("/user/resend/otp", data)
   return res.data.data
 }
 

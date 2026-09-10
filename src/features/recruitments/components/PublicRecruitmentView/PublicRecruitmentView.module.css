@@ -1,0 +1,568 @@
+/* ============================================================
+   GOATZA — PublicRecruitmentView · the shareable poster (/r/<id>)
+
+   A single centred column, never the two-column poster layout: this page is
+   read by a stranger who arrived from a link, usually on a phone, and it ends
+   at a sign-up prompt rather than at an apply flow. It shares the authenticated
+   detail's TOKENS and its section rhythm — flat sections, a label plus a fading
+   rule, dashed key/value rows — so the two read as one product, and none of its
+   classes, because the layouts are genuinely different shapes.
+
+   Tokens only, with the mockup's literal hex values appearing ONLY on the
+   poster scrim, which sits over a photograph and is dark in both themes.
+   ============================================================ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) 120px;
+}
+
+/* ── Poster ─────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 280px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+}
+
+.heroImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* No media: the scrim still has to carry the identity, so it gets the poster's
+   own brand treatment instead of sitting on a blank box. Same gradient the
+   authenticated poster falls back to. */
+.heroEmpty {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 70% 12%, rgba(0, 201, 110, 0.28), transparent 55%),
+    linear-gradient(200deg, #12291a 0%, #0a1a10 45%, #060d08 100%);
+}
+
+.scrim {
+  position: relative;
+  width: 100%;
+  padding: 18px;
+  /* Always dark, in both themes — it sits on a photo. */
+  color: #eef2ee;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 15, 9, 0) 0%,
+    rgba(8, 15, 9, 0.55) 42%,
+    rgba(8, 15, 9, 0.96) 100%
+  );
+}
+
+.chips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 0.69rem;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(238, 242, 238, 0.86);
+  background: rgba(8, 15, 9, 0.4);
+}
+
+.chipAccent {
+  background: rgba(0, 181, 98, 0.18);
+  border-color: rgba(0, 201, 110, 0.45);
+  color: #4dd68c;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 9vw, 2.9rem);
+  line-height: 0.95;
+  letter-spacing: 0.015em;
+  margin: 10px 0 12px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.org {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-md);
+}
+
+.org:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
+.orgText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.orgName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: 0.86rem;
+  letter-spacing: 0.03em;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orgSub {
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  color: rgba(238, 242, 238, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Facts strip ────────────────────────────────────────────── */
+
+.facts {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.facts:empty {
+  display: none;
+}
+
+.fact {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 10px 15px;
+  text-align: center;
+  border-right: 1px solid var(--color-border);
+}
+
+.fact:last-child {
+  border-right: none;
+}
+
+.factK {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.factV {
+  display: block;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: 0.92rem;
+  margin-top: 5px;
+  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.factSub {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: var(--weight-regular);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* ── Countdown ──────────────────────────────────────────────── */
+
+.countdown {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  border: 1px solid rgba(0, 201, 110, 0.35);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.countdownClosed {
+  color: var(--color-error);
+  background: rgba(232, 70, 42, 0.08);
+  border-color: rgba(232, 70, 42, 0.35);
+}
+
+/* ── Sections ───────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+.sectHead::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, var(--color-border), transparent);
+}
+
+.about {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+}
+
+.chipWrap {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chipLg {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  padding: 7px 13px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.chipLg small {
+  font-family: var(--font-body);
+  font-size: 0.66rem;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+}
+
+.chipLgAccent {
+  background: var(--color-brand-subtle);
+  border-color: rgba(0, 201, 110, 0.45);
+  color: var(--color-brand);
+}
+
+.critList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.critItem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.rowList {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 0;
+  border-bottom: 1px dashed var(--color-border);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.tick {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 7px;
+  background: var(--color-brand-subtle);
+  border: 1px solid rgba(0, 201, 110, 0.4);
+  color: var(--color-brand);
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: var(--weight-semi);
+}
+
+.req {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-error);
+  background: rgba(232, 70, 42, 0.08);
+  border: 1px solid rgba(232, 70, 42, 0.3);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.reqOptional {
+  color: var(--color-text-muted);
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+}
+
+/* ── Key/value rows ─────────────────────────────────────────── */
+
+.kvList {
+  display: flex;
+  flex-direction: column;
+}
+
+.kvRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.v {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* ── Action bar ─────────────────────────────────────────────── */
+
+/* Sticky to the bottom of the viewport, where the signed-in app puts its tab
+   bar — PublicShell reserves the same space for its sign-up bar, so nothing
+   here is trapped underneath. */
+.actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-bg) 0%, transparent) 0%,
+    var(--color-bg) 28%
+  );
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: 15px 22px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-brand);
+  color: #04120a;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btnDisabled {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  cursor: default;
+}
+
+.btnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  padding: 13px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.btnPrimary:focus-visible,
+.btnSecondary:focus-visible,
+.iconBtn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.footNote {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.footNote a {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+/* ── Unavailable panel ──────────────────────────────────────── */
+
+.panel {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 64px var(--space-4);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.panelMark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.panelTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
+}
+
+.panelText {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.panelActions {
+  display: flex;
+  gap: 10px;
+  margin-top: var(--space-2);
+}
+
+.panelActions .btnPrimary {
+  flex: none;
+}

@@ -6,17 +6,27 @@
  * Four ways out, in the order people reach for them:
  *   1. Share card       → the generated image of this profile. First, because
  *      it is the one that ends up on an Instagram Story, which is the reason
- *      anyone opens this menu on a player. Individual profiles only —
- *      organizations have no card.
+ *      anyone opens this menu on their OWN profile. Individual profiles only
+ *      (organizations have no card) and OWNERS only — see below.
  *   2. Send in a message → the existing ShareSheet, targeting this profile.
  *   3. Copy link        → the canonical absolute URL. Works logged out.
  *   4. Share via…       → navigator.share, hidden entirely when unavailable.
  *      Feature-detected rather than try/caught: an option that does nothing on
  *      desktop Chrome is worse than an option that isn't there.
  *
- * For an anonymous visitor, 1, 3 and 4 work as-is — a card and a link are both
- * public artifacts — and only "Send in a message" hits the login wall, because
- * that one genuinely needs an account.
+ * ── Why the card is the owner's alone ────────────────────────
+ *
+ * A card is a composed image of somebody's measurables, and publishing it is a
+ * decision about their own profile that only they get to make. The menu used to
+ * offer it to anyone looking at a player, on the reading that a scout forwarding
+ * a card is free promotion. It is not: the viewer picks nothing, the subject
+ * consented to nothing, and a stranger walks away holding a shareable asset made
+ * of another person's data. So the entry — and the sheet behind it — render for
+ * the owner only, signed in as themselves.
+ *
+ * For an anonymous visitor 3 and 4 work as-is (a link is a public artifact),
+ * "Send in a message" hits the login wall because it genuinely needs an account,
+ * and the card is not offered at all.
  */
 
 import { useEffect, useState, useSyncExternalStore } from "react"
@@ -48,9 +58,10 @@ interface ProfileShareMenuProps {
   subtitle?: string
   isVerified?: boolean
   /**
-   * Whether the viewer owns this profile. Only the owner gets the slot picker
-   * (§5.3): a scout can forward a player's card, but nobody else gets to decide
-   * which of that player's measurables it emphasises.
+   * Whether the viewer owns this profile. It gates the card outright — not just
+   * the slot picker (§5.3), which is what it used to do. Nobody but the subject
+   * gets to publish an image of that subject's measurables, let alone decide
+   * which of them it emphasises.
    */
   isOwnProfile?: boolean
   /**
@@ -97,9 +108,14 @@ export default function ProfileShareMenu({
 
   const reportTargetType = target.type === "organization" ? "organization" : "user"
 
-  // Organizations have no generated card — a different composition and a
-  // deliberately later build — so the entry simply is not offered for one.
-  const hasCard = target.type === "user"
+  // The OWNER's action, and nobody else's — see the header note. Three
+  // conditions, each ruling out a different viewer:
+  //   isOwnProfile        — someone else's player profile offers no card
+  //   target.type "user"  — organizations have no generated card at all, a
+  //                         different composition and a deliberately later build
+  //   !publicView         — the logged-out rendering, where there is no owner
+  //                         present to be the one asking
+  const hasCard = isOwnProfile && target.type === "user" && !publicView
 
   // "Share CV" is the OWNER's action and nobody else's: a CV is a document its
   // subject chose to publish, and offering a scout a "share their CV" button
@@ -364,6 +380,8 @@ export default function ProfileShareMenu({
         open={shareSheetOpen}
         onClose={() => setShareSheetOpen(false)}
         target={target}
+        // The same profileUrl the menu's own Copy link row uses.
+        shareUrl={url}
         previewNode={
           <ProfileSharePreview
             name={name}

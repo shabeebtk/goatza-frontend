@@ -31,6 +31,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 import RecruitmentDetail from "./RecruitmentDetail"
+import { ToastProvider } from "@/shared/components/ui/Toast/Toast"
 import type { RecruitmentDetail as TRecruitmentDetail } from "../../services/recruitments.api"
 
 vi.mock("@iconify/react", () => ({
@@ -169,7 +170,16 @@ function renderDetail(
         isLoading: false,
         isError: false,
     })
-    return render(<RecruitmentDetail recruitmentId="rec-1" {...props} />)
+    // The share menu's Copy link reports through useToast, which throws
+    // outside a provider. Mounted for real rather than mocked: it is the same
+    // provider the root layout wraps every page in, it renders nothing until a
+    // toast is shown, and a stub would let a real "no provider above this"
+    // regression through.
+    return render(
+        <ToastProvider>
+            <RecruitmentDetail recruitmentId="rec-1" {...props} />
+        </ToastProvider>
+    )
 }
 
 /** The apply button in whatever enabled/disabled shape it currently takes. */

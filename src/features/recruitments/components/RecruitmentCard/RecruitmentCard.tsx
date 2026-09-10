@@ -6,6 +6,7 @@ import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { recruitmentUrl } from "@/shared/services/recruitmentUrl"
 import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import styles from "./RecruitmentCard.module.css"
@@ -362,6 +363,7 @@ export default function RecruitmentCard({
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         target={{ type: "recruitment", id: recruitment.id }}
+        shareUrl={recruitmentUrl(recruitment.id)}
         previewNode={
           <RecruitmentSharePreview
             title={recruitment.title}
