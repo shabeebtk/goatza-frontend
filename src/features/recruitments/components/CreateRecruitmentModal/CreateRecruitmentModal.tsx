@@ -33,6 +33,7 @@ import {
     validateAgeGroups,
     type AgeGroupDraft,
 } from "../../eligibility"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -1415,11 +1416,7 @@ export default function CreateRecruitmentModal({
     }
 
     // ── Scroll lock ───────────────────────────────────────────────
-    useEffect(() => {
-        const orig = document.body.style.overflow
-        document.body.style.overflow = "hidden"
-        return () => { document.body.style.overflow = orig }
-    }, [])
+    useBodyScrollLock()
 
     // ── Scroll position per step ─────────────────────────────────
     // Every step change (Next / Back / step bar / a server error jumping to

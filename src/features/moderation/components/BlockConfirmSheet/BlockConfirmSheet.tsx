@@ -21,6 +21,7 @@ import { Icon } from "@iconify/react"
 import { useBlock } from "../../hooks/useModerationQueries"
 import type { BlockTargetType } from "../../services/moderation.api"
 import styles from "./BlockConfirmSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 export interface BlockConfirmSheetProps {
   targetType: BlockTargetType
@@ -49,13 +50,7 @@ export default function BlockConfirmSheet({
   const backdropRef = useRef<HTMLDivElement>(null)
 
   // Lock body scroll while open — same as PostOptionsSheet.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useBodyScrollLock()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

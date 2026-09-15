@@ -58,7 +58,11 @@ export const MAX_VIDEO_DIMENSION = 1280
  */
 const VIDEO_BITRATE = 2_000_000
 
-/** Audio is preserved, not re-imagined. 128kbps AAC is transparent for speech. */
+/**
+ * Audio bitrate for the ONE case audio is re-encoded (a source codec that
+ * cannot ship in MP4 — see {@link COPYABLE_AUDIO_CODECS}). 128kbps AAC is
+ * transparent for speech. Everything else keeps its original packets.
+ */
 const AUDIO_BITRATE = 128_000
 
 /**
@@ -92,6 +96,52 @@ export const VIDEO_UNSUPPORTED_MESSAGE =
  */
 const PASSTHROUGH_CONTENT_TYPES = new Set(["video/mp4", "video/webm"])
 
+// ── Audio ─────────────────────────────────────────────────────
+
+/**
+ * Audio codecs whose packets are COPIED into the MP4 rather than re-encoded.
+ *
+ * Copying is what keeps the sound on a phone. Re-encoding needs WebCodecs to
+ * decode the source AND encode AAC, and a browser that can do neither (iOS
+ * Safari, for most of its life) makes mediabunny drop the audio track — while
+ * `isValid` stays true because the video track survived. An iPhone .mov is
+ * AAC already, so its packets go across untouched and never meet a codec.
+ *
+ * MP4 can technically hold Opus, FLAC, AC-3 and more, but the object that is
+ * uploaded is the object every viewer plays, and only AAC and MP3 play in
+ * every browser the app targets. Anything else is re-encoded to AAC.
+ */
+const COPYABLE_AUDIO_CODECS: ReadonlySet<string> = new Set(["aac", "mp3"])
+
+/** `code` of {@link VideoAudioLostError}, for callers that match on it. */
+export const VIDEO_AUDIO_LOST = "VIDEO_AUDIO_LOST"
+
+/**
+ * What highlights and chat show when the sound could not be kept. The post
+ * composer has its own dialog with the same guidance.
+ */
+export const VIDEO_AUDIO_LOST_MESSAGE =
+    "This browser can't keep the sound on this video. Try again from a computer, or update your phone's software."
+
+/**
+ * Thrown when the source has sound, this browser cannot carry it into the
+ * output, and the original cannot be uploaded as-is. A video never loses its
+ * sound silently: the caller asks the user and retries with
+ * `allowSilentAudio: true` if they agree.
+ */
+export class VideoAudioLostError extends Error {
+    readonly code = VIDEO_AUDIO_LOST
+
+    constructor() {
+        super(VIDEO_AUDIO_LOST_MESSAGE)
+        this.name = "VideoAudioLostError"
+    }
+}
+
+export const isVideoAudioLostError = (err: unknown): err is VideoAudioLostError =>
+    err instanceof VideoAudioLostError ||
+    (err instanceof Error && (err as { code?: unknown }).code === VIDEO_AUDIO_LOST)
+
 // ── Types ─────────────────────────────────────────────────────
 
 export type EncodeProgress = (progress: number) => void
@@ -106,6 +156,12 @@ export type EncodeVideoOptions = {
     /** 0 → 1. Called throughout decode/encode. */
     onProgress?: EncodeProgress
     signal?: AbortSignal
+    /**
+     * Go ahead without the audio track when this browser cannot keep it.
+     * Off by default — the caller must ask the user first, then retry with
+     * this set. See {@link VideoAudioLostError}.
+     */
+    allowSilentAudio?: boolean
 }
 
 export type EncodedVideo = {
@@ -119,6 +175,11 @@ export type EncodedVideo = {
      * (already compliant) or the failure path (already a safe container).
      */
     wasReencoded: boolean
+    /**
+     * True when the source had sound and the output has none. Only ever true
+     * with `allowSilentAudio` — the user agreed to it.
+     */
+    audioDropped: boolean
 }
 
 /** Thrown when the user aborts. Callers already treat this as silent. */
@@ -128,6 +189,25 @@ const cancelled = () => new Error(ENCODE_CANCELLED)
 
 function throwIfAborted(signal?: AbortSignal) {
     if (signal?.aborted) throw cancelled()
+}
+
+/**
+ * Which branch an encode took. Logged in development only — the path a phone
+ * takes is invisible in the result, and "the sound is gone" is exactly the
+ * kind of bug that needs the branch, not the stack trace.
+ */
+type EncodePath =
+    | "fast path"
+    | "audio copied"
+    | "audio re-encoded"
+    | "AAC WASM fallback"
+    | "original passed through"
+    | "silent by choice"
+    | "no audio track"
+
+function logPath(path: EncodePath, detail?: string) {
+    if (process.env.NODE_ENV !== "development") return
+    console.info(`[videoEncode] ${path}${detail ? ` — ${detail}` : ""}`)
 }
 
 // ── Capability probe ──────────────────────────────────────────
@@ -146,6 +226,30 @@ export function canEncodeInBrowser(): boolean {
     )
 }
 
+// ── AAC encoder extension ─────────────────────────────────────
+
+/**
+ * `@mediabunny/aac-encoder` is a ~1MB WASM build of libavcodec's AAC encoder.
+ * It is loaded ONLY when a browser has decoded the audio and then has no AAC
+ * encoder to hand it to (Firefox, older Safari), and only once per page — the
+ * package warns loudly, and rightly, if it is registered twice.
+ */
+let aacEncoderReady: Promise<void> | null = null
+
+function loadAacEncoder(): Promise<void> {
+    aacEncoderReady ??= import("@mediabunny/aac-encoder").then(
+        ({ registerAacEncoder }) => {
+            registerAacEncoder()
+        },
+        (err) => {
+            // Let the next attempt try the download again.
+            aacEncoderReady = null
+            throw err
+        }
+    )
+    return aacEncoderReady
+}
+
 // ── Main entry ────────────────────────────────────────────────
 
 /**
@@ -157,7 +261,11 @@ export function canEncodeInBrowser(): boolean {
  *   1. FAST PATH — already H.264-in-MP4, already within 1280, already under
  *      `maxBytes`. Returned untouched, `wasReencoded: false`. No decode, no
  *      encode, no progress beyond an immediate 1.
- *   2. ENCODE — the normal path.
+ *   2. ENCODE — the normal path. Audio packets are copied when they can be
+ *      (see {@link COPYABLE_AUDIO_CODECS}); when the browser drops the audio
+ *      track anyway, the AAC WASM encoder is tried, then the original is
+ *      passed through if it is a safe container, and otherwise the encode
+ *      REFUSES with {@link VideoAudioLostError} unless `allowSilentAudio`.
  *   3. FAILURE — WebCodecs missing, or the encode threw. An mp4/webm original
  *      under the cap is passed through (`wasReencoded: false`); anything else
  *      (notably a .mov) rejects with {@link VIDEO_UNSUPPORTED_MESSAGE}.
@@ -169,7 +277,7 @@ export async function encodeVideo(
     file: File,
     opts: EncodeVideoOptions
 ): Promise<EncodedVideo> {
-    const { maxBytes, onProgress, signal } = opts
+    const { maxBytes, onProgress, signal, allowSilentAudio = false } = opts
 
     throwIfAborted(signal)
 
@@ -190,19 +298,25 @@ export async function encodeVideo(
     const {
         ALL_FORMATS,
         BlobSource,
+        BufferSource,
         BufferTarget,
         Conversion,
+        EncodedAudioPacketSource,
         Input,
+        MP4,
         Mp4OutputFormat,
         Output,
         Quality,
         canEncodeVideo,
     } = mediabunny
 
-    let input: InstanceType<typeof Input> | null = null
+    type MbInput = InstanceType<typeof Input>
     // Awaited<ReturnType<...>>, not InstanceType<>: Conversion's constructor is
     // private, so it has no public construct signature to instantiate a type from.
-    let conversion: Awaited<ReturnType<typeof Conversion.init>> | null = null
+    type MbConversion = Awaited<ReturnType<typeof Conversion.init>>
+
+    let input: MbInput | null = null
+    let conversion: MbConversion | null = null
     const onAbort = () => {
         // Fire-and-forget: cancel() makes the in-flight execute() reject, which
         // is what actually unwinds the encode.
@@ -224,6 +338,10 @@ export async function encodeVideo(
 
         throwIfAborted(signal)
 
+        // Known BEFORE the conversion is built, so a conversion that quietly
+        // drops the sound can be told apart from a clip that never had any.
+        const hasAudio = (await input.getPrimaryAudioTrack()) !== null
+
         // `displayWidth/Height` already account for rotation metadata, so a
         // portrait clip recorded as 1920×1080-plus-90° reads as 1080×1920 here.
         const srcWidth = track.displayWidth
@@ -234,12 +352,13 @@ export async function encodeVideo(
 
         // ── 1. Fast path ──
         const isCompliantContainer = file.type === "video/mp4"
-        const isH264 = track.codec === "avc"
+        const isH264 = (await track.getCodec()) === "avc"
         const withinBounds =
             Math.max(srcWidth, srcHeight) <= MAX_VIDEO_DIMENSION
         const withinSize = file.size <= maxBytes
 
         if (isCompliantContainer && isH264 && withinBounds && withinSize) {
+            logPath("fast path")
             onProgress?.(1)
             return {
                 blob: file,
@@ -247,6 +366,7 @@ export async function encodeVideo(
                 height: srcHeight,
                 duration: Math.round(duration),
                 wasReencoded: false,
+                audioDropped: false,
             }
         }
 
@@ -268,42 +388,133 @@ export async function encodeVideo(
 
         throwIfAborted(signal)
 
-        const output = new Output({
-            // 'in-memory' buffers the whole file so the moov atom can be written
-            // at the FRONT. That is what faststart means, and it is what lets a
-            // viewer start playing before the download finishes. Safe here
-            // because output is bounded by maxBytes (≤80MB).
-            format: new Mp4OutputFormat({ fastStart: "in-memory" }),
-            target: new BufferTarget(),
-        })
+        // Mediabunny copies audio packets only when no track starts BEFORE the
+        // conversion does, and its default start is max(earliest packet, 0).
+        // AAC priming — the edit list every iPhone recording carries — puts the
+        // first audio packet a few ms before 0, so the audio "needs trimming"
+        // and is decoded and re-encoded instead of copied; on a browser without
+        // an AAC codec that is where the sound goes. Starting the conversion at
+        // that negative timestamp keeps the copy path open. Every track is then
+        // shifted later by those few ms, which nobody can hear.
+        const earliest = await input.getFirstTimestamp()
+        const trim = earliest < 0 ? { start: earliest } : undefined
 
-        conversion = await Conversion.init({
-            input,
-            output,
-            video: {
-                width,
-                height,
-                fit: "contain",
-                codec: "avc",
-                quality: new Quality({ bitrate: VIDEO_BITRATE }),
-                keyFrameInterval: KEYFRAME_INTERVAL,
-                // Bake rotation into the frames instead of leaving it in
-                // metadata. Rotation metadata is honoured inconsistently —
-                // Android Chrome and several in-app browsers ignore it — which
-                // is how a portrait clip ends up sideways for half its viewers.
-                allowRotationMetadata: false,
-            },
-            audio: {
-                codec: "aac",
-                quality: new Quality({ bitrate: AUDIO_BITRATE }),
-            },
-            // Discarded tracks are handled below; no need for console noise.
-            showWarnings: false,
-        })
+        const source = input
+
+        /**
+         * Build a fresh conversion. A non-composable conversion owns its output,
+         * so a rebuild (after registering the AAC encoder) needs a new one.
+         *
+         * `copy` asks for the source codec — with no `quality`, `bitrate`,
+         * `sampleRate` or `numberOfChannels`, which are the options that force
+         * a re-encode — for anything MP4 can carry, and AAC for the rest.
+         * `aac` re-targets everything at AAC, for the rebuild.
+         */
+        const build = async (audioMode: "copy" | "aac") => {
+            const output = new Output({
+                // 'in-memory' buffers the whole file so the moov atom can be
+                // written at the FRONT. That is what faststart means, and it is
+                // what lets a viewer start playing before the download
+                // finishes. Safe here because output is bounded by maxBytes
+                // (≤80MB).
+                format: new Mp4OutputFormat({ fastStart: "in-memory" }),
+                target: new BufferTarget(),
+            })
+
+            const built = await Conversion.init({
+                input: source,
+                output,
+                trim,
+                video: {
+                    width,
+                    height,
+                    fit: "contain",
+                    codec: "avc",
+                    quality: new Quality({ bitrate: VIDEO_BITRATE }),
+                    keyFrameInterval: KEYFRAME_INTERVAL,
+                    // Bake rotation into the frames instead of leaving it in
+                    // metadata. Rotation metadata is honoured inconsistently —
+                    // Android Chrome and several in-app browsers ignore it —
+                    // which is how a portrait clip ends up sideways for half
+                    // its viewers.
+                    allowRotationMetadata: false,
+                },
+                audio: async (audioTrack) => {
+                    const codec = await audioTrack.getCodec()
+                    if (audioMode === "copy" && codec && COPYABLE_AUDIO_CODECS.has(codec)) {
+                        return { codec }
+                    }
+                    return {
+                        codec: "aac",
+                        quality: new Quality({ bitrate: AUDIO_BITRATE }),
+                    }
+                },
+                // Discarded tracks are handled below; no need for console noise.
+                showWarnings: false,
+            })
+
+            return { output, conversion: built }
+        }
+
+        let { output, conversion: built } = await build("copy")
+        conversion = built
+
+        let audioDropped = false
+        let path: EncodePath = "no audio track"
+
+        if (hasAudio) {
+            const audioKept = () => output.tracks.some((t) => t.type === "audio")
+            const discardedFor = (reason: string) =>
+                built.discardedTracks.some(
+                    (d) => d.track.type === "audio" && d.reason === reason
+                )
+
+            // The browser decoded the audio but has nothing to encode it with
+            // (Firefox has no AAC encoder; older Safari has none at all). The
+            // WASM encoder fills exactly that gap, so load it — this path only —
+            // and build the conversion again with everything aimed at AAC.
+            if (!audioKept() && discardedFor("no_encodable_target_codec")) {
+                try {
+                    await loadAacEncoder()
+                    throwIfAborted(signal)
+                    ;({ output, conversion: built } = await build("aac"))
+                    conversion = built
+                    if (audioKept()) path = "AAC WASM fallback"
+                } catch (err) {
+                    if (signal?.aborted) throw cancelled()
+                    if (err instanceof Error && err.message === ENCODE_CANCELLED) throw err
+                    // The download failed or the encoder refused the track —
+                    // the conversion built first is still the one to fall back
+                    // from, and the checks below decide what happens to it.
+                }
+            }
+
+            if (!audioKept()) {
+                const original = passthroughIfSafe(file, maxBytes, duration)
+                if (original) {
+                    logPath("original passed through", "audio track could not be kept")
+                    onProgress?.(1)
+                    return original
+                }
+                if (!allowSilentAudio) throw new VideoAudioLostError()
+                audioDropped = true
+                path = "silent by choice"
+            } else if (path !== "AAC WASM fallback") {
+                const audioTrack = output.tracks.find((t) => t.type === "audio")
+                path =
+                    audioTrack?.source instanceof EncodedAudioPacketSource
+                        ? "audio copied"
+                        : "audio re-encoded"
+            }
+        }
 
         if (!conversion.isValid) {
             return passthroughOrFail(file, maxBytes)
         }
+
+        // An abort during init (or the AAC download) has no listener yet to
+        // cancel anything; catch it here rather than after a full encode.
+        throwIfAborted(signal)
 
         if (onProgress) {
             conversion.onProgress = (progress: number) => {
@@ -322,6 +533,33 @@ export async function encodeVideo(
         const buffer = (output.target as InstanceType<typeof BufferTarget>).buffer
         if (!buffer) throw new Error("Encoder produced no output")
 
+        // Belt and braces: the conversion said it kept the audio, so make sure
+        // the bytes agree before they are uploaded for good.
+        if (hasAudio && !audioDropped) {
+            const check = new Input({
+                source: new BufferSource(buffer),
+                formats: [MP4],
+            })
+            let outputHasAudio: boolean
+            try {
+                outputHasAudio = (await check.getPrimaryAudioTrack()) !== null
+            } finally {
+                check.dispose()
+            }
+
+            if (!outputHasAudio) {
+                const original = passthroughIfSafe(file, maxBytes, duration)
+                if (original) {
+                    logPath("original passed through", "encoded output had no audio")
+                    onProgress?.(1)
+                    return original
+                }
+                if (!allowSilentAudio) throw new VideoAudioLostError()
+                audioDropped = true
+                path = "silent by choice"
+            }
+        }
+
         const blob = new Blob([buffer], { type: "video/mp4" })
 
         // The encode can still overshoot the cap — a long, highly detailed clip
@@ -332,6 +570,7 @@ export async function encodeVideo(
             )
         }
 
+        logPath(path)
         onProgress?.(1)
 
         return {
@@ -340,10 +579,14 @@ export async function encodeVideo(
             height,
             duration: Math.round(duration),
             wasReencoded: true,
+            audioDropped,
         }
     } catch (err) {
         if (signal?.aborted) throw cancelled()
         if (err instanceof Error && err.message === ENCODE_CANCELLED) throw err
+        // Not a failure of the encoder: it is a decision for the user, and the
+        // failure path below would upload the file with its sound gone.
+        if (isVideoAudioLostError(err)) throw err
 
         // ── 3. Failure path ──
         return passthroughOrFail(file, maxBytes)
@@ -382,10 +625,36 @@ function passthroughOrFail(
             height: 0,
             duration: 0,
             wasReencoded: false,
+            audioDropped: false,
         }
     }
 
     throw new Error(VIDEO_UNSUPPORTED_MESSAGE)
+}
+
+/**
+ * The original, untouched, when its sound cannot be carried through an encode
+ * but the file itself is a container browsers play — or null when it is not
+ * (a .mov) or is over the cap. Sound intact beats a smaller, silent file; the
+ * dimensions stay unknown, as on every passthrough, but the duration was
+ * measured already so it is kept.
+ */
+function passthroughIfSafe(
+    file: File,
+    maxBytes: number,
+    duration: number
+): EncodedVideo | null {
+    if (!PASSTHROUGH_CONTENT_TYPES.has(file.type) || file.size > maxBytes) {
+        return null
+    }
+    return {
+        blob: file,
+        width: 0,
+        height: 0,
+        duration: Math.round(duration),
+        wasReencoded: false,
+        audioDropped: false,
+    }
 }
 
 // ── Poster frames ─────────────────────────────────────────────

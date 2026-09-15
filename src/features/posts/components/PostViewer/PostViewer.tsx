@@ -40,6 +40,7 @@ import type { FetchPostsParams, Post, PostMedia } from "@/features/posts/service
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { useBackToClose } from "@/shared/hooks/useBackToClose"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { posterSrc } from "@/shared/services/mediaDelivery"
 import { usePostViewerStore } from "@/store/postViewer.store"
@@ -253,6 +254,8 @@ export default function PostViewer({
   // back there closes only the sheet. URL never changes.
   const { requestClose, navigateAway } = useBackToClose(handleClose)
   useBodyScrollLock()
+  // Covers the mobile bars: the toasts stop offsetting themselves by them.
+  useHtmlFlag("chrome-covered")
 
   // Tell the inline carousels a viewer is up, so their videos pause.
   const setViewerOpen = usePostViewerStore((s) => s.setOpen)

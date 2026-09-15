@@ -17,7 +17,7 @@
  * because from the player's side it is.
  */
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Icon } from "@iconify/react"
 import { toast } from "sonner"
 
@@ -28,6 +28,7 @@ import { organizationInitials } from "../../careerMeta"
 import { toCalendarDate } from "../../utils/careerDates"
 import { useAddCareerFromApplication } from "../../hooks/useCareerQueries"
 import styles from "./CareerAddPromptSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 const DESCRIPTION_LIMIT = 500
 
@@ -62,12 +63,7 @@ export default function CareerAddPromptSheet({
 
     // Same lock the career modal uses — without it the notifications list
     // scrolls behind the sheet on mobile.
-    useEffect(() => {
-        document.body.style.overflow = "hidden"
-        return () => {
-            document.body.style.overflow = ""
-        }
-    }, [])
+    useBodyScrollLock()
 
     // One-shot prefill once the recruitment lands. Not an effect: this runs
     // during render off data that is already here, and the guard makes it

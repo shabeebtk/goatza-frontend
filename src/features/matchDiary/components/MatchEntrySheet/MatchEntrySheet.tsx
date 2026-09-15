@@ -95,6 +95,7 @@ import {
 import StatInputRow, { type StatInputChange } from "./StatInputRow"
 import { useMatchPhotoUpload } from "./useMatchPhotoUpload"
 import styles from "./MatchEntrySheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -288,13 +289,7 @@ export default function MatchEntrySheet({
     // no suggestions.
     const [hints] = useState(() => readDiaryHints(qc))
 
-    useEffect(() => {
-        const previous = document.body.style.overflow
-        document.body.style.overflow = "hidden"
-        return () => {
-            document.body.style.overflow = previous
-        }
-    }, [])
+    useBodyScrollLock()
 
     const ready = !sportsLoading && !mySportsLoading
 

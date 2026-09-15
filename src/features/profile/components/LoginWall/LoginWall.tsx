@@ -16,6 +16,7 @@ import { Icon } from "@iconify/react"
 
 import { authUrlWithNext } from "@/shared/services/authRedirect"
 import styles from "./LoginWall.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 /** Module-level so useSyncExternalStore doesn't resubscribe every render. */
 const subscribeToNothing = () => () => {}
@@ -55,13 +56,7 @@ function LoginWallInner({
     dialogRef.current?.focus()
   }, [])
 
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useBodyScrollLock()
 
   const headline = `Join Goatza to ${action} ${displayName}`
 

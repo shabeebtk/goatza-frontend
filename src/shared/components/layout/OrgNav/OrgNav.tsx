@@ -16,6 +16,7 @@ import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateR
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -117,6 +118,11 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   // screen. Drives `--chrome-progress` on <html> — no re-renders on scroll.
   const isChatPage = /\/organization\/admin\/[^/]+\/messages\/.+/.test(pathname)
   useScrollChrome({ enabled: !isChatPage })
+
+  // The toasts offset themselves by the mobile bars only while a bar is
+  // there to offset by — ChatWindow covers both on a chat page.
+  useHtmlFlag("top-bar", !isChatPage)
+  useHtmlFlag("bottom-bar", !isChatPage)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)

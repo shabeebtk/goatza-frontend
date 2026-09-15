@@ -327,7 +327,16 @@ export async function uploadChatVideo(
     file: File,
     onProgress?: ChatUploadProgress,
     localDurationSec?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: {
+        /**
+         * Send without the sound when this browser cannot keep it. Only set
+         * after the sender has chosen "Send without sound" — the encoder
+         * otherwise rejects with `VideoAudioLostError` rather than sending a
+         * mute clip on the quiet.
+         */
+        allowSilentAudio?: boolean
+    }
 ): Promise<ChatVideoUploadResult> {
     // One bar: encode 0→70%, upload 70→100% — same split as posts and highlights.
     const { onEncode, onUpload } = videoProgressSplit((fraction, phase) =>
@@ -338,6 +347,7 @@ export async function uploadChatVideo(
         maxBytes: MAX_CHAT_VIDEO_MB * 1024 * 1024,
         onProgress: onEncode,
         signal,
+        allowSilentAudio: options?.allowSilentAudio,
     })
 
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)

@@ -29,6 +29,8 @@ import { Icon } from "@iconify/react"
 
 import Portal from "../ui/Portal/Portal"
 import styles from "./MediaLightbox.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 
 /**
  * Structurally what `RecruitmentMedia` already is, declared here so this shared
@@ -113,20 +115,20 @@ export default function MediaLightbox({
     )
 
     // Scroll lock + focus, both tied to mount so neither can outlive the
-    // overlay. The previous overflow is restored rather than cleared: this can
-    // open from inside a modal that locked the body first, and blanking the
-    // value there would unlock a page that is still covered. Lifted verbatim
-    // from ImageLightbox — the two viewers must behave identically here.
+    // overlay. The lock is counted: this can open from inside a modal that
+    // locked the page first, and the page stays covered until both are gone.
+    // Same as ImageLightbox — the two viewers must behave identically here.
+    useBodyScrollLock()
+    // Covers the mobile bars: the toasts stop offsetting themselves by them.
+    useHtmlFlag("chrome-covered")
+
     useEffect(() => {
         const previouslyFocused = document.activeElement as HTMLElement | null
-        const prevOverflow = document.body.style.overflow
-        document.body.style.overflow = "hidden"
 
         // Move focus in so Esc and the arrow keys work without a click first.
         dialogRef.current?.focus()
 
         return () => {
-            document.body.style.overflow = prevOverflow
             // Back to the thumbnail that opened this, not to the top of the
             // page — closing a viewer should leave a keyboard user exactly
             // where they were.

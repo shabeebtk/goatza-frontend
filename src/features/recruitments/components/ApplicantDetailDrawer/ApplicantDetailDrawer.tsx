@@ -29,6 +29,7 @@ import type {
 } from "../../services/recruitments.api"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import styles from "./ApplicantDetailDrawer.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 dayjs.extend(relativeTime)
 
@@ -232,13 +233,12 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
   const { data, isLoading, isError } = useApplicationDetail(applicationId)
 
   // Scroll lock + Escape to close.
+  useBodyScrollLock()
+
   useEffect(() => {
-    const orig = document.body.style.overflow
-    document.body.style.overflow = "hidden"
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
     window.addEventListener("keydown", onKey)
     return () => {
-      document.body.style.overflow = orig
       window.removeEventListener("keydown", onKey)
     }
   }, [onClose])

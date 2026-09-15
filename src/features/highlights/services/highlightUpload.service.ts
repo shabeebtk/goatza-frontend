@@ -153,6 +153,13 @@ export async function uploadHighlightVideo(
         onProgress?: HighlightUploadProgress
         signal?: AbortSignal
         localMeta?: HighlightVideoMeta | null
+        /**
+         * Upload without the sound when this browser cannot keep it. Only set
+         * after the player has chosen "Add without sound" — the encoder
+         * otherwise rejects with `VideoAudioLostError` rather than uploading
+         * a mute clip on the quiet.
+         */
+        allowSilentAudio?: boolean
     }
 ): Promise<HighlightUploadResult> {
     const signal = options?.signal
@@ -166,6 +173,7 @@ export async function uploadHighlightVideo(
         maxBytes: MAX_HIGHLIGHT_MB * 1024 * 1024,
         onProgress: onEncode,
         signal,
+        allowSilentAudio: options?.allowSilentAudio,
     })
 
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)

@@ -27,6 +27,31 @@
   gap: var(--space-3);
 }
 
+.badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* The trial day has passed. Muted, beside the application's own status —
+   the club may still be deciding, and this is a fact about the calendar. */
+.endedBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .orgLink {
   display: flex;
   align-items: center;

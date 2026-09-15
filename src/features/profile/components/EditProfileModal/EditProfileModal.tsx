@@ -13,6 +13,7 @@ import { useAuthStore } from "@/store/auth.store"
 import type { UserProfile, LocationPayload } from "@/features/profile/services/profile.api"
 import type { PlaceResult } from "@/shared/services/places.service"
 import styles from "./EditProfileModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Zod schema ────────────────────────────────────────────────
 
@@ -165,10 +166,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   const birthdateChanged = birthdate !== (profile.birthdate ?? null)
 
   // Lock body scroll
-  useEffect(() => {
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = "" }
-  }, [])
+  useBodyScrollLock()
 
   const {
     register,

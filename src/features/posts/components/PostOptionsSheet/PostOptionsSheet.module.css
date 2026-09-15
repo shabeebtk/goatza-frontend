@@ -345,6 +345,7 @@
   display: flex;
   gap: var(--space-3);
   overflow-x: auto;
+  overscroll-behavior: contain;
   padding-bottom: var(--space-2);
   scrollbar-width: none;
 }

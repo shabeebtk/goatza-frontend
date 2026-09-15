@@ -29,6 +29,7 @@ import {
 } from "../services/highlightUpload.service"
 import type { Highlight, HighlightVisibility } from "../types"
 import { useCreateHighlight } from "./useHighlights"
+import { isVideoAudioLostError } from "@/shared/services/videoEncode"
 
 // ── State ─────────────────────────────────────────────────────
 
@@ -48,6 +49,11 @@ export type HighlightUploadState = {
     /** Whether re-running the same file could plausibly succeed. */
     retryable: boolean
     /**
+     * The browser could not keep the clip's sound. The clip is NOT uploaded;
+     * `retryWithoutSound` sends it mute, with the player's say-so.
+     */
+    audioLost: boolean
+    /**
      * True while the browser is re-encoding, before any bytes move. The encode
      * is the slower half on a phone, so the UI says so instead of showing a
      * stalled "uploading".
@@ -61,6 +67,7 @@ const IDLE_STATE: HighlightUploadState = {
     fileName: null,
     error: null,
     retryable: false,
+    audioLost: false,
     optimizing: false,
 }
 
@@ -80,6 +87,8 @@ type Job = StartHighlightUploadOptions & {
     file: File
     /** Cached across retries so a re-run doesn't re-probe the file. */
     meta: HighlightVideoMeta | null
+    /** Set by `retryWithoutSound`: the player agreed to a mute clip. */
+    allowSilentAudio?: boolean
 }
 
 export function useHighlightUpload(options?: {
@@ -131,17 +140,37 @@ export function useHighlightUpload(options?: {
         if (job) void runRef.current?.(job)
     }, [])
 
+    /** Re-run the last job with the sound dropped — the player chose to. */
+    const retryWithoutSound = useCallback(() => {
+        const job = jobRef.current
+        if (job) void runRef.current?.({ ...job, allowSilentAudio: true })
+    }, [])
+
     const fail = useCallback(
-        (message: string, retryable = false) => {
-            patch({ status: "failed", error: message, progress: 0, retryable, optimizing: false })
+        (
+            message: string,
+            retryable = false,
+            options?: { audioLost?: boolean }
+        ) => {
+            const audioLost = options?.audioLost ?? false
+            patch({
+                status: "failed",
+                error: message,
+                progress: 0,
+                retryable,
+                audioLost,
+                optimizing: false,
+            })
             toast.error(
                 message,
-                retryable
-                    ? { action: { label: "Retry", onClick: retry } }
-                    : undefined
+                audioLost
+                    ? { action: { label: "Add without sound", onClick: retryWithoutSound } }
+                    : retryable
+                      ? { action: { label: "Retry", onClick: retry } }
+                      : undefined
             )
         },
-        [patch, retry]
+        [patch, retry, retryWithoutSound]
     )
 
     // ── the pipeline for one job ───────────────────────────────
@@ -157,6 +186,7 @@ export function useHighlightUpload(options?: {
                 progress: 0,
                 fileName: job.file.name,
                 error: null,
+                audioLost: false,
                 optimizing: true,
             })
 
@@ -164,6 +194,7 @@ export function useHighlightUpload(options?: {
                 const uploaded = await uploadHighlightVideo(job.file, {
                     localMeta: job.meta,
                     signal: controller.signal,
+                    allowSilentAudio: job.allowSilentAudio,
                     onProgress: (loaded, total, phase) => {
                         // 5% steps — enough for a progress ring, few enough that
                         // a big file doesn't re-render the tile hundreds of times.
@@ -204,6 +235,14 @@ export function useHighlightUpload(options?: {
 
                 // A cancel already reset the UI — never resurrect it as an error.
                 if (isUploadCancelled(err)) return
+
+                // Nothing was uploaded: this browser cannot keep the sound, and
+                // a mute clip is the player's call, not the encoder's. The job
+                // stays so "Add without sound" can re-run it.
+                if (isVideoAudioLostError(err)) {
+                    fail(err.message, false, { audioLost: true })
+                    return
+                }
 
                 // The rail is full (or the clip was rejected server-side): the
                 // same bytes will fail again, so no Retry action.
@@ -302,9 +341,11 @@ export function useHighlightUpload(options?: {
             state.status === "uploading" ||
             state.status === "saving",
         canRetry: state.status === "failed" && state.retryable,
+        canRetryWithoutSound: state.status === "failed" && state.audioLost,
         start,
         cancel,
         retry,
+        retryWithoutSound,
         reset,
     }
 }

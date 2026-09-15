@@ -238,6 +238,7 @@ export default function RecruitmentsList({
                         key={item.id}
                         recruitment={item}
                         showOrg={showOrg}
+                        ownerView={isOwn}
                     />
                 ))}
             </div>

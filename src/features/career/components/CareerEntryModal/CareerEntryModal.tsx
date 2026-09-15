@@ -15,7 +15,7 @@
  *     warning appears before the press, not as a surprise after.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useForm, type Resolver, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
@@ -54,6 +54,7 @@ import OrganizationCombobox, {
     type SelectedOrganization,
 } from "../OrganizationCombobox/OrganizationCombobox"
 import styles from "./CareerEntryModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -285,12 +286,7 @@ export default function CareerEntryModal({
     const { data: sports, isLoading: sportsLoading } = useSportsList()
     const { data: mySports, isLoading: mySportsLoading } = useMyUserSports()
 
-    useEffect(() => {
-        document.body.style.overflow = "hidden"
-        return () => {
-            document.body.style.overflow = ""
-        }
-    }, [])
+    useBodyScrollLock()
 
     // An edit already carries its own sport, so it doesn't wait on the user's
     // sports list just to compute a default it will never use.

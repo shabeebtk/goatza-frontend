@@ -22,6 +22,8 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useHighlights } from "../../hooks/useHighlights"
 import { useHighlightsPrefetch } from "../../hooks/useHighlightsPrefetch"
 import HighlightViewer from "../HighlightViewer/HighlightViewer"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import styles from "./HighlightPipelineViewer.module.css"
 
 export type PipelinePlayer = {
@@ -66,6 +68,12 @@ export default function HighlightPipelineViewer({
 
     const { data, isLoading } = useHighlights(player?.username)
     const clips = data?.results ?? []
+
+    // The loading card and the "no clips" card cover the page just as the
+    // viewer does; counted, so it nests with HighlightViewer's own lock.
+    useBodyScrollLock()
+    // Covers the mobile bars: the toasts stop offsetting themselves by them.
+    useHtmlFlag("chrome-covered")
 
     // Stage the next applicant while this one is being watched.
     useEffect(() => {

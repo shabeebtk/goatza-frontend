@@ -18,6 +18,7 @@ import {
   type UrgencyTone,
 } from "../../matchContext"
 import { useToggleSaveRecruitment } from "../../hooks/useRecruitments"
+import { isTrialOver } from "../../trialEnded"
 import { Recruitment } from "../../services/recruitments.api"
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -86,6 +87,12 @@ interface RecruitmentCardProps {
   recruitment: Recruitment
   /** Show org branding — false when card is inside org's own profile */
   showOrg?: boolean
+  /**
+   * The org looking at its own listings. An ended trial reads "Ended" here —
+   * the club knows it was a trial — and "Trial ended" everywhere a player
+   * might have saved or applied to it.
+   */
+  ownerView?: boolean
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -93,6 +100,7 @@ interface RecruitmentCardProps {
 export default function RecruitmentCard({
   recruitment,
   showOrg = true,
+  ownerView = false,
 }: RecruitmentCardProps) {
   const { toRecruitment, toProfile } = useNavigation()
   const [shareOpen, setShareOpen] = useState(false)
@@ -110,6 +118,11 @@ export default function RecruitmentCard({
   // pure noise; "DRAFT" on the org's own row is the whole point.
   const statusMeta =
     recruitment.status !== "active" ? STATUS_META[recruitment.status] : null
+
+  // The trial day has passed. The player lists no longer carry these, but a
+  // shortlist keeps what was saved and the org keeps everything, so the card
+  // says so rather than counting down to a deadline that no longer matters.
+  const trialOver = isTrialOver(recruitment)
 
   // ── Cell 2: venue. The stadium locates a trial, the city only narrows it to
   // a district — so one wins outright and the other becomes the tooltip.
@@ -148,7 +161,9 @@ export default function RecruitmentCard({
     daysToDeadline(recruitment.application_deadline) ??
     match?.days_to_deadline ??
     null
-  const urgency = formatUrgency(days)
+  // An ended trial gets the badge above, not a deadline line: "Applications
+  // closed" under "Trial ended" says the same thing twice.
+  const urgency = trialOver ? null : formatUrgency(days)
 
   // The badge and the urgency line can land on the same words ("Applications
   // closed" from both sides). Say it once.
@@ -174,7 +189,7 @@ export default function RecruitmentCard({
       >
         {/* ── Head ── */}
         <div className={styles.head}>
-          {(showOrg || isBestMatch || statusMeta) && (
+          {(showOrg || isBestMatch || statusMeta || trialOver) && (
             <div className={styles.headTop}>
               {showOrg && (
                 <Link
@@ -219,6 +234,12 @@ export default function RecruitmentCard({
                   className={`${styles.statusBadge} ${styles[statusMeta.colorClass]}`}
                 >
                   {statusMeta.label}
+                </span>
+              )}
+
+              {trialOver && (
+                <span className={`${styles.statusBadge} ${styles.statusEnded}`}>
+                  {ownerView ? "Ended" : "Trial ended"}
                 </span>
               )}
             </div>

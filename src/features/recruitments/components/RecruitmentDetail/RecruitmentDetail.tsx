@@ -63,6 +63,7 @@ import {
 } from "../../recruitmentCopy"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
+import { isTrialOver } from "../../trialEnded"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
   RecruitmentMedia,
@@ -167,10 +168,11 @@ function formatFee(r: TRecruitmentDetail): string | null {
  */
 function useCountdown(
   deadline: string | null | undefined,
-  status: string | null | undefined
+  status: string | null | undefined,
+  trialOver = false
 ): Countdown | null {
   const [now, setNow] = useState(() => Date.now())
-  const countdown = formatCountdown(deadline, status, now)
+  const countdown = formatCountdown(deadline, status, now, { trialOver })
   const tick = countdownTickMs(countdown)
 
   useEffect(() => {
@@ -475,7 +477,10 @@ export default function RecruitmentDetail({
    */
   const effectiveStatus =
     data?.status ?? (data?.is_accepting_applications === false ? "closed" : undefined)
-  const countdown = useCountdown(data?.application_deadline, effectiveStatus)
+  // The trial day itself has passed: the server says so (`is_trial_over`), or
+  // the Kolkata calendar does. No countdown, no apply, a banner instead.
+  const trialOver = isTrialOver(data)
+  const countdown = useCountdown(data?.application_deadline, effectiveStatus, trialOver)
   const isDesktop = useIsDesktop()
 
   const onReapply = useCallback(() => {
@@ -514,7 +519,9 @@ export default function RecruitmentDetail({
   const capacityFull =
     r.max_applications != null && (r.applications_count ?? 0) >= r.max_applications
   const accepting = r.is_accepting_applications ?? (!deadlinePast && !statusClosed)
-  const closed = !accepting || deadlinePast || statusClosed || capacityFull
+  // An ended trial is closed whatever the flags say — the server refuses the
+  // application too, so a live Apply here would only fail later.
+  const closed = !accepting || deadlinePast || statusClosed || capacityFull || trialOver
 
   const isSaved = r.is_saved === true
   const fee = formatFee(r)
@@ -847,6 +854,16 @@ export default function RecruitmentDetail({
       )
     }
 
+    // The trial day is over: every apply method is the same dead button.
+    if (trialOver && !isPreview) {
+      return (
+        <button className={cls} type="button" disabled>
+          <Icon icon="mdi:calendar-remove-outline" width={16} height={16} />
+          Trial ended
+        </button>
+      )
+    }
+
     if (r.apply_method === "external") {
       return r.external_apply_url && !closed ? (
         <a
@@ -892,7 +909,13 @@ export default function RecruitmentDetail({
       return (
         <button className={cls} type="button" disabled>
           <Icon icon="mdi:lock-outline" width={16} height={16} />
-          {capacityFull ? "Applications full" : closed ? "Applications closed" : "Not open"}
+          {trialOver
+            ? "Trial ended"
+            : capacityFull
+              ? "Applications full"
+              : closed
+                ? "Applications closed"
+                : "Not open"}
         </button>
       )
     }
@@ -1019,6 +1042,20 @@ export default function RecruitmentDetail({
 
       {/* ── Right column on desktop ── */}
       <div className={styles.mainCol}>
+        {/* The trial day has passed. A player gets told plainly (the server
+            refuses an application either way); the organiser gets a badge and
+            keeps every control — the listing is theirs to review and close. */}
+        {trialOver && !asOrganiser && (
+          <div className={styles.endedBanner} role="status">
+            <Icon icon="mdi:calendar-remove-outline" width={18} height={18} />
+            <span>
+              <b>This trial has ended.</b> The trial day was{" "}
+              {r.event_date ? fmtDate(r.event_date) : "before today"}; applications
+              are no longer taken.
+            </span>
+          </div>
+        )}
+
         {/* The desktop state card. Mobile gets the sticky bar instead — the
             same actions, in the shape each viewport can carry. */}
         <div className={styles.stateCard}>
@@ -1026,6 +1063,7 @@ export default function RecruitmentDetail({
             <>
               <div className={styles.cardHead}>
                 {isDesktop && statusChip()}
+                {trialOver && <span className={styles.endedBadge}>Ended</span>}
                 <span className={styles.cardHint}>draft · active · closed · cancelled</span>
                 <CountdownChip countdown={countdown} />
               </div>
@@ -1214,6 +1252,7 @@ export default function RecruitmentDetail({
         <FactsStrip facts={facts} />
 
         <div className={styles.statusRow}>
+          {asOrganiser && trialOver && <span className={styles.endedBadge}>Ended</span>}
           <CountdownChip countdown={countdown} />
           {hasApplied ? (
             <>

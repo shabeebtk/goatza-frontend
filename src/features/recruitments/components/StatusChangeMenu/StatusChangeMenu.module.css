@@ -337,5 +337,6 @@
 .sheetContent {
   padding: var(--space-2) 0 calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }

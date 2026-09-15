@@ -12,7 +12,14 @@
 
 .backdrop {
   position: fixed;
-  inset: 0;
+  /* The VISIBLE area, not the layout viewport: with the keyboard up, iOS
+     keeps `inset: 0` / `vh` at the full screen and the footer with Send ends
+     up under the keys. useVisualViewport writes these while the sheet is
+     open; the fallbacks are the full screen when it is not. */
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
   z-index: 1000;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(4px);
@@ -30,9 +37,10 @@
 .sheet {
   width: 100%;
   /* Fixed height so the sheet never resizes as the list/composer changes —
-     only the body scrolls. */
-  height: 85vh;
-  max-height: 85vh;
+     only the body scrolls. Capped at the backdrop (= the visible area), so
+     the keyboard shortens the sheet rather than pushing its footer off. */
+  height: 85dvh;
+  max-height: 100%;
   background: var(--color-surface);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   display: flex;
@@ -49,7 +57,7 @@
     width: 460px;
     max-width: calc(100vw - var(--space-8));
     height: 640px;
-    max-height: calc(100vh - var(--space-16));
+    max-height: calc(100dvh - var(--space-16));
     border-radius: var(--radius-xl);
     animation: shPopIn 0.2s var(--ease-out) both;
   }
@@ -100,6 +108,7 @@
   border: none;
   color: var(--color-text-secondary);
   cursor: pointer;
+  touch-action: manipulation;
   transition: background var(--duration-fast), color var(--duration-fast);
 }
 
@@ -159,6 +168,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
+  touch-action: manipulation;
   transition: background var(--duration-fast), color var(--duration-fast);
 }
 
@@ -227,6 +237,7 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 /* ── Body (scroll) ── */
@@ -268,6 +279,8 @@
   cursor: pointer;
   text-align: left;
   transition: background var(--duration-fast);
+  /* No double-tap-to-zoom, so a tap is a click with no 300ms wait. */
+  touch-action: manipulation;
 }
 
 .row:hover { background: var(--color-surface-raised); }
@@ -385,6 +398,7 @@
   gap: var(--space-2);
   width: 100%;
   min-height: 46px;
+  touch-action: manipulation;
   border: none;
   border-radius: var(--radius-full);
   background: var(--color-brand);

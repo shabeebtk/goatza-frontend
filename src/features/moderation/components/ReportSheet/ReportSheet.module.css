@@ -35,7 +35,13 @@
 
 .backdrop {
   position: fixed;
-  inset: 0;
+  /* The visible area, not the layout viewport: the sheet has a text field,
+     and with the keyboard up `inset: 0` would leave Submit under the keys.
+     useVisualViewport writes these while the sheet is open. */
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
   z-index: 600;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
@@ -62,8 +68,8 @@
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   display: flex;
   flex-direction: column;
-  /* Never taller than the viewport — the option list scrolls inside. */
-  max-height: 88vh;
+  /* Never taller than the visible area — the option list scrolls inside. */
+  max-height: min(88dvh, 100%);
   padding: 0 var(--space-5) calc(var(--space-5) + var(--safe-bottom));
   animation: sheetUp 0.26s var(--ease-spring) both;
 }
@@ -357,6 +363,7 @@
   background: var(--color-brand);
   border: 1.5px solid var(--color-brand);
   color: var(--color-on-brand);
+  touch-action: manipulation;
 }
 
 .submitBtn:hover:not(:disabled) { background: var(--color-brand-hover);

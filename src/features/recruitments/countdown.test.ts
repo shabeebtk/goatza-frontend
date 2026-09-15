@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest"
 
-import { countdownTickMs, formatCountdown } from "./countdown"
+import { TRIAL_ENDED_LABEL, countdownTickMs, formatCountdown } from "./countdown"
 
 const NOW = new Date("2026-08-11T10:00:00Z").getTime()
 
@@ -19,6 +19,25 @@ function inHours(hours: number): string {
 }
 
 describe("formatCountdown", () => {
+    // ── An ended trial has nothing to count down to ─────────
+    it("never shows a countdown for an ended trial, whatever the deadline says", () => {
+        // Deadline still 2 days out, status active — the trial day is what ended.
+        expect(formatCountdown(inHours(54), "active", NOW, { trialOver: true })).toEqual({
+            label: TRIAL_ENDED_LABEL,
+            tone: "closed",
+        })
+        // And it outranks "Closed <date>" too: the date would name the wrong reason.
+        expect(formatCountdown(inHours(-30), "active", NOW, { trialOver: true })?.label).toBe(
+            TRIAL_ENDED_LABEL
+        )
+        // No deadline at all: still a chip, since there IS something to say.
+        expect(formatCountdown(null, "active", NOW, { trialOver: true })?.tone).toBe("closed")
+    })
+
+    it("does not tick once the trial has ended", () => {
+        expect(countdownTickMs(formatCountdown(inHours(54), "active", NOW, { trialOver: true }))).toBeNull()
+    })
+
     it("counts days and hours when more than a day remains", () => {
         // 2d 6h out — the mockup's headline case.
         expect(formatCountdown(inHours(54), "active", NOW)).toEqual({

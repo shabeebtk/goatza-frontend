@@ -18,7 +18,7 @@
  *     while both fields are on screen instead of by a 400.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useForm, type Resolver, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
@@ -65,6 +65,7 @@ import {
 import { todayForInput } from "../../utils/achievementDates"
 import AchievementImageField from "./AchievementImageField"
 import styles from "./AchievementModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -172,12 +173,7 @@ export default function AchievementModal({
     const { data: sports, isLoading: sportsLoading } = useSportsList()
     const { data: mySports, isLoading: mySportsLoading } = useMyUserSports()
 
-    useEffect(() => {
-        document.body.style.overflow = "hidden"
-        return () => {
-            document.body.style.overflow = ""
-        }
-    }, [])
+    useBodyScrollLock()
 
     // An edit already carries its own sport, so it doesn't wait on the user's
     // sports list just to compute a default it will never use.

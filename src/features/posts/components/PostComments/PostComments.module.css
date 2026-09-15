@@ -25,7 +25,14 @@
 
 .backdrop {
   position: fixed;
-  inset: 0;
+  /* The VISIBLE area, not the layout viewport: with the keyboard up, iOS
+     keeps `inset: 0` at the full screen and the composer ends up under the
+     keys. useVisualViewport writes these while the sheet is open; the
+     fallbacks are the full screen when it is not. */
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
   z-index: 600;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
@@ -48,7 +55,9 @@
 .sheet {
   width: 100%;
   height: 78dvh;            /* consistent, comfortable height even when empty */
-  max-height: 88dvh;
+  /* The backdrop is the visible area, so the keyboard shortens the sheet
+     rather than pushing the composer off the bottom. */
+  max-height: min(88dvh, 100%);
   background: var(--color-surface);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   display: flex;
@@ -218,6 +227,7 @@
   display: flex;
   align-items: center;
   margin-left: var(--space-2);
+  touch-action: manipulation;
 }
 
 .inputField {
@@ -249,6 +259,7 @@
   display: flex;
   align-items: center;
   transition: opacity var(--duration-fast);
+  touch-action: manipulation;
 }
 
 .sendBtn:disabled {

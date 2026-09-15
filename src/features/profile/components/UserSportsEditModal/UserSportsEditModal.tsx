@@ -10,7 +10,7 @@
  *   onClose      — close the modal
  */
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import {
@@ -25,6 +25,7 @@ import type {
 import styles from "./SportEditModal.module.css"
 import useIsMounted from "@/shared/hooks/useIsMounted"
 import { Input } from "@/shared/components/ui"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Experience level options ──────────────────────────────────
 
@@ -211,11 +212,8 @@ export default function SportEditModal({
   const mounted = useIsMounted()
   // Body scroll lock only — the mount flag above is no longer state, so this
   // effect no longer sets any.
-  useEffect(() => {
-    const originalStyle = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = originalStyle }
-  }, [])
+  useBodyScrollLock()
+
   if (!mounted) return null
 
   return createPortal(

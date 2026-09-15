@@ -137,6 +137,13 @@ export type Recruitment = {
    * saved", which is what an empty bookmark already means.
    */
   is_saved?: boolean
+  /**
+   * The trial day is over (its calendar day has ended in Asia/Kolkata). The
+   * server hides such trials from the player lists but the org, a shortlist
+   * and an application still carry them. Optional: older cached payloads
+   * predate it, and `isTrialOver` works it out from `event_date` then.
+   */
+  is_trial_over?: boolean
   // Match context (§5). Present on /discover and on the ranked "All" tab;
   // absent on the org-scoped mounts, which stay newest-first and unscored.
   // Every field is optional for exactly that reason — a card must render fine
@@ -308,6 +315,8 @@ export type RecruitmentDetail = {
   created_at: string
   /** The bookmark, same flag the card carries. Optional: older cached detail. */
   is_saved?: boolean
+  /** The trial day is over — same flag the card carries; see `isTrialOver`. */
+  is_trial_over?: boolean
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
@@ -581,6 +590,8 @@ export type MyApplicationRecruitment = {
   city: string
   event_date: string | null
   application_deadline: string | null
+  /** The trial day is over — see `isTrialOver`. Optional: older payloads. */
+  is_trial_over?: boolean
   organization: ApplicationOrgSummary
   sport: RecruitmentSport
 }

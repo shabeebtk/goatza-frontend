@@ -50,6 +50,9 @@ import type {
   ProblemScreenshot,
 } from "../../services/support.api"
 import styles from "./ProblemReportSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { blurActiveInput, keepFocusProps } from "@/shared/hooks/keepFocus"
 
 export interface ProblemReportSheetProps {
   /**
@@ -104,13 +107,11 @@ export default function ProblemReportSheet({
   const [reference, setReference] = useState("")
 
   // Lock body scroll while open — same as ReportSheet / PostOptionsSheet.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useBodyScrollLock()
+
+  // The description is a text input: keep the sheet inside the visible area
+  // while the keyboard is up (see ProblemReportSheet.module.css).
+  useVisualViewport()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -233,6 +234,11 @@ export default function ProblemReportSheet({
 
   const send = () => {
     const text = description.trim()
+
+    // Send keeps focus in the textarea while tapped (keepFocusProps), so the
+    // keyboard is closed here, deliberately. The inline validation below
+    // still shows under the field when there is too little to send.
+    blurActiveInput()
 
     // Validation is INLINE and the button stays enabled. A disabled Send with
     // no explanation is the version of this where somebody types four words,
@@ -501,6 +507,7 @@ export default function ProblemReportSheet({
                 type="button"
                 className={styles.submitBtn}
                 onClick={send}
+                {...keepFocusProps}
                 // Never disabled by validation — only while the request is in
                 // flight, where a second tap would file a second report.
                 disabled={busy}

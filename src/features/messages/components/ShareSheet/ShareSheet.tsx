@@ -15,6 +15,8 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { blurActiveInput, keepFocusProps } from "@/shared/hooks/keepFocus"
 import {
   useConversations,
   useMessageTargetSearch,
@@ -29,6 +31,7 @@ import type {
   ShareTargetType,
 } from "../../services/conversations.api"
 import styles from "./ShareSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // The backend caps conversation_ids and recipients at 10 each; capping the
 // whole selection at 10 keeps us inside both without splitting the call.
@@ -199,6 +202,9 @@ function CandidateRow({
         className={styles.row}
         onClick={() => onToggle(candidate)}
         aria-pressed={selected}
+        // A tap here must not close the keyboard: the sheet would move under
+        // the finger and the click would land on the next person down.
+        {...keepFocusProps}
       >
         <Avatar
           src={candidate.avatar || undefined}
@@ -306,13 +312,17 @@ function ShareSheetInner({
   )
 
   // ── Body scroll lock ───────────────────────────────────────
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useBodyScrollLock()
+
+  // ── Visible area ───────────────────────────────────────────
+  // The sheet has two text inputs; with the keyboard up, `inset: 0` and `vh`
+  // would leave its footer under the keyboard. The backdrop follows
+  // --vv-top / --vv-height instead (see ShareSheet.module.css).
+  useVisualViewport()
+
+  // Scrolling the list closes the keyboard on purpose, the way native apps
+  // do — rather than a tap doing it by accident later.
+  const blurOnScroll = useCallback(() => blurActiveInput(), [])
 
   // ── Focus: move into the sheet, restore on close ───────────
   useEffect(() => {
@@ -439,6 +449,10 @@ function ShareSheetInner({
 
   const handleSend = () => {
     if (!hasSelection || isPending) return
+
+    // Send keeps focus on the note input while it is tapped (keepFocusProps),
+    // so the keyboard goes away here, deliberately, once the send is on.
+    blurActiveInput()
 
     const chosen = [...selected.values()]
 
@@ -660,6 +674,7 @@ function ShareSheetInner({
                 setDebouncedSearch("")
               }}
               aria-label="Clear search"
+              {...keepFocusProps}
             >
               <Icon icon="mdi:close" width={14} height={14} />
             </button>
@@ -667,7 +682,11 @@ function ShareSheetInner({
         </div>
 
         {/* ── List ── */}
-        <div className={styles.body}>
+        <div
+          className={styles.body}
+          onScroll={blurOnScroll}
+          onTouchMove={blurOnScroll}
+        >
           {isSearching ? (
             (searchState ?? (
               <>
@@ -726,6 +745,7 @@ function ShareSheetInner({
             className={styles.sendBtn}
             onClick={handleSend}
             disabled={!hasSelection || isPending}
+            {...keepFocusProps}
           >
             {isPending ? (
               <>

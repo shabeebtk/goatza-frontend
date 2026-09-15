@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@mediabunny/aac-encoder": "^1.55.2",
     "@sentry/nextjs": "^10.73.0",
     "@tanstack/react-query": "^5.95.2",
     "axios": "^1.14.0",

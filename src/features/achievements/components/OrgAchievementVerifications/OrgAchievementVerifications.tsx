@@ -27,6 +27,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useNavigation } from "@/shared/services/navigation.service"
 import {
     ACHIEVEMENT_LEVEL_LABELS,
@@ -64,6 +65,8 @@ function ProofLightbox({
     alt: string
     onClose: () => void
 }) {
+    useBodyScrollLock()
+
     return (
         <div
             className={styles.lightbox}

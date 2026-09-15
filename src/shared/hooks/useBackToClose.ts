@@ -25,11 +25,12 @@
  * `history.scrollRestoration = "manual"` on the page's entry stops that.
  * It has to happen before the first pushState: a new entry inherits the mode
  * of the entry it is pushed from, and the browser consults the mode of the
- * entry it goes back TO. The previous value goes back a second after the
- * last overlay has closed — never inside the popstate handler (WebKit reads
- * the flag right after dispatching it) and not before landing has settled.
- * navigateAway restores it before pushing, so back from the new page still
- * puts the list where it was, the normal way.
+ * entry it goes back TO. The previous value goes back after the last
+ * overlay has closed — deferred to the reader's first pointer or key, or a
+ * second, whichever is first: never inside the popstate handler (WebKit
+ * reads the flag right after dispatching it) and not before landing has
+ * settled. navigateAway restores it before pushing, so back from the new
+ * page still puts the list where it was, the normal way.
  *
  * StrictMode: the push is guarded by a ref so the simulated mount→cleanup→mount
  * cycle pushes once, and the cleanup NEVER calls history.back() — on that same
@@ -79,11 +80,20 @@ const POP_FALLBACK_MS = 400
 
 /**
  * How long after the last overlay closes `history.scrollRestoration` gets its
- * previous value back. Long enough for landOnPost to settle and for its guard
- * to have watched a while; short enough that a link tapped on the landed
- * card still pushes from an entry in its normal mode.
+ * previous value back, at the latest: long enough for landOnPost to settle
+ * and for its guard to have watched a while.
  */
 export const SCROLL_RESTORATION_RESTORE_MS = 1000
+
+/**
+ * The reader's first pointer or key after the close restores the mode
+ * early. Landing is over once the reader is driving (landOnPost's guard
+ * stops on the same signal), and a link tapped on the landed card inside
+ * the second would otherwise push an entry that inherits "manual" and leave
+ * the page's entry in it — back from that page would then not restore the
+ * list's position.
+ */
+const RESTORE_ON_INTENT_EVENTS = ["pointerdown", "keydown"] as const
 
 // The mode the page's entry had before the first overlay took it over; null
 // while it is not ours to give back.
@@ -105,6 +115,9 @@ function currentDepth(): number {
 }
 
 function cancelScrollRestorationRestore() {
+  for (const type of RESTORE_ON_INTENT_EVENTS) {
+    window.removeEventListener(type, restoreScrollRestoration, true)
+  }
   if (scrollRestorationTimer === null) return
   window.clearTimeout(scrollRestorationTimer)
   scrollRestorationTimer = null
@@ -127,7 +140,10 @@ function restoreScrollRestoration() {
   scrollRestorationBefore = null
 }
 
-/** The last overlay is gone: give the mode back once landing has settled. */
+/**
+ * The last overlay is gone: give the mode back once landing has settled —
+ * on the reader's first pointer or key, or after the timeout.
+ */
 function scheduleScrollRestorationRestore() {
   if (scrollRestorationBefore === null) return
   cancelScrollRestorationRestore()
@@ -135,6 +151,9 @@ function scheduleScrollRestorationRestore() {
     scrollRestorationTimer = null
     restoreScrollRestoration()
   }, SCROLL_RESTORATION_RESTORE_MS)
+  for (const type of RESTORE_ON_INTENT_EVENTS) {
+    window.addEventListener(type, restoreScrollRestoration, { capture: true, passive: true })
+  }
 }
 
 /** Closes every overlay deeper than `depth`, top-most first. */

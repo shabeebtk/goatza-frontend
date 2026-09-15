@@ -192,6 +192,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-bottom: calc(var(--space-4) + var(--safe-bottom));
   padding-left: var(--safe-left);

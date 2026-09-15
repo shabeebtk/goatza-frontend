@@ -152,6 +152,7 @@
   background: var(--color-bg);
   flex-shrink: 0;
   overflow-x: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 

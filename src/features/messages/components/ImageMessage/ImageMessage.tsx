@@ -13,6 +13,7 @@ import { thumbSrc } from "@/shared/services/mediaDelivery"
 // shift while it loads. Shared with VideoMessage.
 import { displaySize } from "../../utils/mediaBox"
 import styles from "./ImageMessage.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Progress ring ─────────────────────────────────────────────
 
@@ -44,15 +45,14 @@ function CancelConfirm({
     onKeep: () => void
     onConfirm: () => void
 }) {
+    useBodyScrollLock()
+
     useEffect(() => {
-        const prev = document.body.style.overflow
-        document.body.style.overflow = "hidden"
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") onKeep()
         }
         document.addEventListener("keydown", onKey)
         return () => {
-            document.body.style.overflow = prev
             document.removeEventListener("keydown", onKey)
         }
     }, [onKeep])

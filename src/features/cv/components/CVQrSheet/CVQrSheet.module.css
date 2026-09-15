@@ -23,6 +23,7 @@
     max-width: 420px;
     max-height: 92vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
 
     /* The home indicator sits under the last button otherwise. */
     padding: var(--space-3) var(--space-5)

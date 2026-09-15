@@ -12,7 +12,7 @@
  * single bubble regardless of arrival order.
  */
 
-import { useCallback, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { InfiniteData, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@/store/auth.store"
 import {
@@ -34,6 +34,7 @@ import {
 } from "../services/chatUpload.service"
 import {
     VIDEO_UNSUPPORTED_MESSAGE,
+    isVideoAudioLostError,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
 import { isUploadCancelled } from "@/shared/services/mediaUpload"
@@ -51,6 +52,11 @@ type Job = {
     optimistic?: OptimisticMedia
     /** Aborts the in-flight upload when the user cancels. */
     controller?: AbortController
+    /**
+     * The sender chose "Send without sound" after this browser could not keep
+     * the clip's audio. Kept on the job so the bubble's own Retry honours it.
+     */
+    allowSilentAudio?: boolean
 }
 
 export function useChatMediaUpload(conversationId: string | null) {
@@ -65,6 +71,12 @@ export function useChatMediaUpload(conversationId: string | null) {
 
     // File + caption kept per temp id so a failed upload can be retried.
     const jobsRef = useRef<Map<string, Job>>(new Map())
+
+    /**
+     * The pipeline, so a toast action fired long after the failure can re-run
+     * it without `runUpload` referencing itself (and without going stale).
+     */
+    const runUploadRef = useRef<((tempId: string) => Promise<void>) | null>(null)
 
     // Memoised: conversationKeys.messages() returns a fresh array literal every
     // render, which would make every callback below unstable and defeat the
@@ -258,7 +270,8 @@ export function useChatMediaUpload(conversationId: string | null) {
                         job.file,
                         onProgress,
                         job.durationSec,
-                        controller.signal
+                        controller.signal,
+                        { allowSilentAudio: job.allowSilentAudio }
                     )
                     // Correlation key for the websocket echo — see below.
                     patchMessage(tempId, { pendingMediaUrl: uploaded.media_url })
@@ -319,6 +332,28 @@ export function useChatMediaUpload(conversationId: string | null) {
                 if (isUploadCancelled(err)) return
                 patchMessage(tempId, { failed: true, pending: false, optimizing: false })
 
+                // Nothing was sent: this browser cannot keep the sound, and a
+                // mute clip is the sender's call. The toast offers it; the job
+                // remembers the answer so the bubble's Retry sends it mute too.
+                if (isVideoAudioLostError(err)) {
+                    toast.show({
+                        title: "Couldn't keep the sound",
+                        message: err.message,
+                        variant: "error",
+                        duration: 8000,
+                        action: {
+                            label: "Send without sound",
+                            onClick: () => {
+                                const current = jobsRef.current.get(tempId)
+                                if (!current) return
+                                current.allowSilentAudio = true
+                                void runUploadRef.current?.(tempId)
+                            },
+                        },
+                    })
+                    return
+                }
+
                 // A failed bubble alone cannot say WHY. It matters most for the
                 // one case the user can act on: a video this device could not
                 // encode, where "try a different file" is the whole fix.
@@ -330,6 +365,10 @@ export function useChatMediaUpload(conversationId: string | null) {
         },
         [conversationId, cacheKey, patchMessage, reconcile, queryClient, toast]
     )
+
+    useEffect(() => {
+        runUploadRef.current = runUpload
+    }, [runUpload])
 
     // ── send photos ───────────────────────────────────────────
     const sendImages = useCallback(

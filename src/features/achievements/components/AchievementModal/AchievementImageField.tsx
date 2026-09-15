@@ -118,7 +118,9 @@ export default function AchievementImageField({
     if (cropping) {
         return (
             <div className={styles.imageField}>
-                <div className={styles.cropWrap}>
+                {/* data-allow-touchmove: the page scroll lock must not cancel
+                    the cropper's drag and pinch. */}
+                <div className={styles.cropWrap} data-allow-touchmove="">
                     <Cropper
                         image={imageSrc}
                         crop={crop}

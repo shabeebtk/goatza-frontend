@@ -206,6 +206,14 @@
   text-decoration: line-through;
 }
 
+/* The trial day has passed: a fact about the calendar, not a failure, so
+   muted rather than the error red a closed posting wears. */
+.statusEnded {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+}
+
 /* ── Spec grid ────────────────────────────────────────────────── */
 
 .body {

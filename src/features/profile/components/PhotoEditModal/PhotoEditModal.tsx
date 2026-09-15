@@ -18,13 +18,14 @@
  *   onDelete   — optional, called when user taps "Remove photo"
  */
 
-import { useCallback, useRef, useState, useEffect } from "react"
+import { useCallback, useRef, useState } from "react"
 import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
 import { usePhotoUpload } from "@/features/profile/hooks/usePhotoUpload"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
 import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./PhotoEditModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -75,13 +76,7 @@ export default function PhotoEditModal({
   const [croppedArea, setCroppedArea] = useState<PixelCrop | null>(null)
 
   // Manage body scroll lock
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = originalOverflow
-    }
-  }, [])
+  useBodyScrollLock()
 
   // ── File selection ────────────────────────────────────────
 
@@ -235,7 +230,9 @@ export default function PhotoEditModal({
         {/* ── Crop mode ── */}
         {(state === "crop" || state === "saving") && (
           <>
-            <div className={styles.cropArea}>
+            {/* data-allow-touchmove: the page scroll lock must not cancel
+                the cropper's drag and pinch. */}
+            <div className={styles.cropArea} data-allow-touchmove="">
               <Cropper
                 image={imageSrc}
                 crop={crop}

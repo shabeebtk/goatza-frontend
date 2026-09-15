@@ -11,6 +11,7 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import { useBackToClose } from "@/shared/hooks/useBackToClose"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
 import CommentsThread from "./CommentsThread"
 import styles from "./PostComments.module.css"
 
@@ -33,6 +34,11 @@ export default function PostComments({ postId, commentsCount, isPostOwner = fals
 
   // Lock body scroll while open
   useBodyScrollLock()
+
+  // The composer is a text input: with the keyboard up the backdrop follows
+  // the visible area (--vv-top / --vv-height) so the composer stays above
+  // the keys rather than under them. See PostComments.module.css.
+  useVisualViewport()
 
   // Close on Escape
   useEffect(() => {

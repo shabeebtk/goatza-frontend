@@ -13,7 +13,7 @@
  * so closing the modal reveals the application-status banner.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -34,6 +34,7 @@ import type {
   ApplyAnswerPayload,
 } from "../../services/recruitments.api"
 import styles from "./ApplyRecruitmentModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Config ────────────────────────────────────────────────────
 
@@ -129,11 +130,7 @@ export default function ApplyRecruitmentModal({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // Lock background scroll while open.
-  useEffect(() => {
-    const orig = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = orig }
-  }, [])
+  useBodyScrollLock()
 
   const clearFieldError = (key: string) =>
     setFieldErrors((prev) => {

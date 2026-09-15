@@ -22,6 +22,15 @@ export type UploadProgressCallback = (loaded: number, total: number) => void
 /** Re-exported so the modal can label the encode half of the bar. */
 export type { VideoUploadPhase }
 
+export type UploadMediaOptions = {
+    /**
+     * Post the video without its sound when this browser cannot keep it. Only
+     * ever set after the composer has asked the author — see
+     * `VideoAudioLostError` in videoEncode.ts.
+     */
+    allowSilentAudio?: boolean
+}
+
 export type MediaUploadResult = {
     file_url: string
     public_id: string
@@ -158,14 +167,15 @@ export async function uploadMediaFile(
         loaded: number,
         total: number,
         phase?: VideoUploadPhase
-    ) => void
+    ) => void,
+    options?: UploadMediaOptions
 ): Promise<MediaUploadResult[]> {
     if (!files.length) return []
 
     // `validateMediaFiles` has already refused a mixed batch, so a video here
     // means exactly one file and no images.
     if (files[0].type.startsWith("video/")) {
-        return [await uploadPostVideo(files[0], onProgress)]
+        return [await uploadPostVideo(files[0], onProgress, options)]
     }
 
     // ── 1. Compress + derive a thumb for every image, in order ──
@@ -248,7 +258,8 @@ async function uploadPostVideo(
         loaded: number,
         total: number,
         phase?: VideoUploadPhase
-    ) => void
+    ) => void,
+    options?: UploadMediaOptions
 ): Promise<MediaUploadResult> {
     // Duration first, on the ORIGINAL, so a 10-minute clip is refused in the
     // time it takes to read metadata rather than after a full encode.
@@ -262,9 +273,12 @@ async function uploadPostVideo(
         onProgress?.(0, fraction * 100, 100, phase)
     )
 
+    // Rejects with `VideoAudioLostError` when the sound cannot be kept and
+    // the author has not agreed to post without it — never uploads silently.
     const encoded = await encodeVideo(file, {
         maxBytes: MAX_VIDEO_MB * 1024 * 1024,
         onProgress: onEncode,
+        allowSilentAudio: options?.allowSilentAudio,
     })
 
     // Poster from the ENCODED blob, not the original: it is already H.264 in an

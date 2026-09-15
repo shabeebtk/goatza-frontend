@@ -15,6 +15,7 @@ import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountS
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import {
   getBottomNav,
   getDesktopNav,
@@ -113,6 +114,13 @@ export default function AppNav() {
 
   // Nav is driven entirely by the role config — no role branching in JSX.
   const navItems = getNavItems(user?.role)
+
+  // The toasts offset themselves by the mobile bars only while the bars are
+  // actually there: not on a public page, not on a chat page (bars hidden),
+  // and not while the role is still resolving.
+  const barsMounted = navItems !== null && !isChatPage
+  useHtmlFlag("top-bar", barsMounted)
+  useHtmlFlag("bottom-bar", barsMounted)
   const badgeCount = (badge: NavBadgeKey | undefined) =>
     badge === "messages" ? messageCount : badge === "notifications" ? notifCount : 0
 

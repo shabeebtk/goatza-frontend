@@ -29,6 +29,7 @@ import { Icon } from "@iconify/react"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { qrShape } from "@/features/profile/utils/shareCard/qr"
 import styles from "./CVQrSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 /** Module-level so useSyncExternalStore doesn't resubscribe every render. */
 const subscribeToNothing = () => () => {}
@@ -90,13 +91,7 @@ function CVQrSheetInner({ onClose, url, name }: Omit<CVQrSheetProps, "open">) {
 
   // ── Modal mechanics (mirrors ShareCardSheet) ───────────────
 
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [])
+  useBodyScrollLock()
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null

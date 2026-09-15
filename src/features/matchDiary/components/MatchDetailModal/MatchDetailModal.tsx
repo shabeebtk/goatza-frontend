@@ -57,6 +57,7 @@ import {
 import { getMatchDiaryErrorMessage } from "../../services/matches.api"
 import { SELF_RATING_MAX, type MatchEntry } from "../../types"
 import styles from "./MatchDetailModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 export type MatchDetailModalProps = {
     entry: MatchEntry
@@ -126,13 +127,7 @@ export default function MatchDetailModal({
         }
     }, [])
 
-    useEffect(() => {
-        const previous = document.body.style.overflow
-        document.body.style.overflow = "hidden"
-        return () => {
-            document.body.style.overflow = previous
-        }
-    }, [])
+    useBodyScrollLock()
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {

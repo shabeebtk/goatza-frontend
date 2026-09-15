@@ -33,6 +33,7 @@ import { useEffect, useRef, useState } from "react"
 import { Icon } from "@iconify/react"
 
 import { useShareRecruitment } from "../../hooks/useShareRecruitment"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import styles from "./RecruitmentShareMenu.module.css"
 
 interface RecruitmentShareMenuProps {
@@ -84,6 +85,10 @@ export default function RecruitmentShareMenu({
     document.addEventListener("keydown", close)
     return () => document.removeEventListener("keydown", close)
   }, [open])
+
+  // Anchored to the trigger: it closes when the page scrolls rather than
+  // locking the page, which a menu this small has no business doing.
+  useCloseOnScroll(open, () => setOpen(false))
 
   return (
     <span className={styles.wrap}>

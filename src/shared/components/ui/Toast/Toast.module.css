@@ -93,22 +93,61 @@
     padding-inline: 12px;
   }
 
-  /* All regions stack at top on mobile */
+  /* All regions stack at top on mobile. The base offset is the notch alone:
+     a public page has no top bar, and a full-screen overlay (the post
+     viewer, a lightbox — html[data-chrome-covered]) sits over it. */
   .region-top-left,
   .region-top-center,
   .region-top-right {
-    top: calc(var(--top-nav-h) + var(--safe-top) + 10px); /* below mobile top bar */
+    top: calc(var(--safe-top) + 10px);
     bottom: auto;
     flex-direction: column;
   }
 
-  /* Bottom regions sit above bottom tab bar */
+  /* A top bar is mounted (html[data-top-bar], set by AppNav / OrgNav):
+     sit under it, and FOLLOW it — `--chrome-progress` (0 shown → 1 hidden,
+     written by useScrollChrome) is the same value that slides the bar, so
+     the toast never floats over the gap the bar left behind. */
+  :global(html[data-top-bar]:not([data-chrome-covered])) .region-top-left,
+  :global(html[data-top-bar]:not([data-chrome-covered])) .region-top-center,
+  :global(html[data-top-bar]:not([data-chrome-covered])) .region-top-right {
+    top: calc(
+      var(--safe-top) +
+      var(--top-nav-h) * (1 - var(--chrome-progress, 0)) +
+      10px
+    );
+  }
+
+  /* Bottom regions: same idea with the tab bar. */
   .region-bottom-left,
   .region-bottom-center,
   .region-bottom-right {
-    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 10px);
+    bottom: calc(var(--safe-bottom) + 10px);
     top: auto;
     flex-direction: column-reverse;
+  }
+
+  :global(html[data-bottom-bar]:not([data-chrome-covered])) .region-bottom-left,
+  :global(html[data-bottom-bar]:not([data-chrome-covered])) .region-bottom-center,
+  :global(html[data-bottom-bar]:not([data-chrome-covered])) .region-bottom-right {
+    bottom: calc(
+      var(--safe-bottom) +
+      var(--bottom-nav-h) * (1 - var(--chrome-progress, 0)) +
+      10px
+    );
+  }
+
+  /* The bars follow the scroll 1:1 with no transition and ease only when
+     they settle (html[data-chrome-snap]); the toasts move the same way, or
+     they would lag the bar by a beat on every settle. */
+  :global(html[data-chrome-snap]) .region {
+    transition: top 280ms var(--ease-out), bottom 280ms var(--ease-out);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .region {
+    transition: none !important;
   }
 }
 

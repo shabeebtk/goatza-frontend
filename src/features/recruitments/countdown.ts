@@ -23,6 +23,19 @@ export interface Countdown {
 /** Statuses that mean "not taking applications", whatever the deadline says. */
 const CLOSED_STATUSES = new Set(["closed", "cancelled"])
 
+export interface CountdownOptions {
+    /**
+     * The trial day itself has passed (see `isTrialOver`). Outranks the
+     * deadline and the status: there is nothing left to count down TO, and
+     * "Closed 11 Aug" on a trial that was held on the 11th says the wrong
+     * thing about why.
+     */
+    trialOver?: boolean
+}
+
+/** What the chip says once the trial day is behind us. */
+export const TRIAL_ENDED_LABEL = "Trial ended"
+
 /**
  * The chip's text and tone, or null when there is nothing to say — an active
  * posting with no deadline has no countdown, and an empty red chip claiming
@@ -31,8 +44,14 @@ const CLOSED_STATUSES = new Set(["closed", "cancelled"])
 export function formatCountdown(
     deadline: string | null | undefined,
     status: string | null | undefined,
-    now: Date | number = Date.now()
+    now: Date | number = Date.now(),
+    options: CountdownOptions = {}
 ): Countdown | null {
+    // An ended trial never counts down, whatever the deadline still says.
+    if (options.trialOver) {
+        return { label: TRIAL_ENDED_LABEL, tone: "closed" }
+    }
+
     const closedByStatus = !!status && CLOSED_STATUSES.has(status)
     const end = deadline ? dayjs(deadline) : null
     const current = dayjs(now)

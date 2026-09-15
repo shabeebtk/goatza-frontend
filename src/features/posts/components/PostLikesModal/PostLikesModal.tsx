@@ -9,6 +9,7 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import { usePostLikes } from "@/features/posts/hooks/usePostLikes"
 import type { PostLike, ReactionType } from "@/features/posts/services/posts.api"
 import styles from "./PostLikesModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // Reaction icon + colour, keyed by type (mirrors PostCard / PostActions).
 const REACTION_META: Record<ReactionType, { icon: string; color: string; label: string }> = {
@@ -86,11 +87,7 @@ export default function PostLikesModal({ postId, totalCount, onClose }: PostLike
   const count = data?.pages[0]?.count ?? totalCount
 
   // Lock body scroll while open
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = prev }
-  }, [])
+  useBodyScrollLock()
 
   // Close on Escape
   useEffect(() => {

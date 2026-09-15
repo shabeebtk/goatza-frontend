@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import type { ActorType, OrganizationActor, User } from "@/store/auth.store"
 
 type ClassMap = Record<string, string>
@@ -232,6 +234,10 @@ function AccountDropdownMenu({
     return () => document.removeEventListener("mousedown", handler)
   }, [open, onClose])
 
+  // Anchored to the avatar: once that scrolls away the menu floats next to
+  // nothing, so it closes rather than locking the page.
+  useCloseOnScroll(open, onClose)
+
   if (!open) return null
 
   return (
@@ -252,6 +258,9 @@ function AccountBottomSheet({
   children: React.ReactNode
   styles: ClassMap
 }) {
+  // A bottom sheet over the page: the page must not move behind it.
+  useBodyScrollLock(open)
+
   if (!open) return null
 
   return (
