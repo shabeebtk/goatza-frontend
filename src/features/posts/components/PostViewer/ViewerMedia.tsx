@@ -5,22 +5,21 @@
  * slide) or a video (only ever mounted for the active slide, so exactly one
  * plays).
  *
- * Owns the tap: a single tap is held back ~250ms so a double-tap can be a
- * like without the first tap also pausing the video. Images show the 640px
- * copy immediately and swap to the full object once it has loaded — the
- * card already has the thumbnail cached, so the viewer opens on something.
+ * The tap comes from useDoubleTap: a single tap is held back ~250ms so a
+ * double-tap can be a like without the first tap also pausing the video.
+ * Images show the 640px copy immediately and swap to the full object once
+ * it has loaded — the card already has the thumbnail cached, so the viewer
+ * opens on something.
  */
 
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useState, type RefObject } from "react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
 import type { useZoomPan } from "@/features/posts/hooks/useZoomPan"
 import { posterSrc, thumbSrc } from "@/shared/services/mediaDelivery"
 import LikeBurst from "./LikeBurst"
+import { useDoubleTap } from "./useDoubleTap"
 import ViewerVideo, { type ViewerVideoApi } from "./ViewerVideo"
 import styles from "./ViewerMedia.module.css"
-
-/** A second tap inside this window is a double-tap, not two taps. */
-const DOUBLE_TAP_MS = 250
 
 export type ZoomPan = ReturnType<typeof useZoomPan>
 
@@ -65,26 +64,15 @@ export default function ViewerMedia({
 }: ViewerMediaProps) {
   const isVideo = item.media_type === "video"
   const src = useProgressiveSrc(item)
-  const tapTimer = useRef<number | null>(null)
   const { containerProps, attachMedia, mediaStyle, isZoomed, cursor } = zoom
 
-  useEffect(() => () => {
-    if (tapTimer.current) window.clearTimeout(tapTimer.current)
-  }, [])
-
-  const onClick = () => {
-    if (tapTimer.current) {
-      window.clearTimeout(tapTimer.current)
-      tapTimer.current = null
-      onDoubleTap()
-      return
-    }
-    tapTimer.current = window.setTimeout(() => {
-      tapTimer.current = null
-      // A single tap only means something on a video: play / pause.
+  const onClick = useDoubleTap({
+    onDoubleTap,
+    // A single tap only means something on a video: play / pause.
+    onSingleTap: () => {
       if (isVideo) videoApiRef.current?.togglePlay()
-    }, DOUBLE_TAP_MS)
-  }
+    },
+  })
 
   // Off-screen slides (phone scroller) are inert: a still, no listeners, no
   // video element — which is what keeps exactly one video playing.

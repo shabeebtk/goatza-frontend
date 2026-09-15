@@ -3,7 +3,8 @@
 /**
  * TailSlide — what comes after the last loaded post: a spinner while the
  * next page loads, "Try again" when it failed, a "Load more" button once the
- * auto-fetch has walked through five media-less pages, and the end of the
+ * auto-fetch has walked through five pages that added nothing (blank or
+ * already-shown posts — rare now that text posts count), and the end of the
  * list with a way back to it.
  *
  * On the phone it is a full page in the vertical track (nothing scrolls past
@@ -61,7 +62,7 @@ export default function TailSlide({
     return (
       <div className={className}>
         <p className={styles.title}>More posts ahead</p>
-        <p className={styles.body}>The next few pages had no photos or videos.</p>
+        <p className={styles.body}>The last few pages had nothing new to show.</p>
         <button type="button" className={styles.btn} onClick={onLoadMore}>
           Load more posts
         </button>

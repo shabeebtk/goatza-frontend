@@ -36,6 +36,16 @@
 
 .card:hover { box-shadow: var(--shadow-card); }
 
+/* landOnPost() focuses the card itself when it has no media tile to focus
+   (a text-only post closed in the viewer). Programmatic focus draws nothing;
+   only keyboard focus shows the ring. */
+.card:focus { outline: none; }
+
+.card:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
 /* ── Header ──────────────────────────────────────────────────── */
 
 .cardHeader {

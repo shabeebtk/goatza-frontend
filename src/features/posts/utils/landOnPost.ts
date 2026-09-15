@@ -10,6 +10,16 @@
  * search bar through --post-land-extra), so this needs to know nothing about
  * layouts. No smooth scrolling: the viewer is closing over it, and a jump that
  * happens under the fade reads as "already there".
+ *
+ * Once the card holds still, focus moves to its media tile (preventScroll),
+ * so a keyboard user carries on from the post they were reading, and a guard
+ * watches the window for a second: iOS Safari puts a history entry's saved
+ * scroll position back asynchronously, after the popstate that closed the
+ * viewer and after this has already landed. useBackToClose stops that at the
+ * source (scrollRestoration: manual); the guard is the safety net — a scroll
+ * the reader did not start, that leaves the card off its offset, is landed
+ * again, at most twice. The first touch, wheel or key ends the watch: from
+ * then on every scroll is the reader's.
  */
 
 /** Upper bound on the settle loop; the usual case stops after two frames. */
@@ -21,9 +31,26 @@ const SETTLE_TOLERANCE_PX = 1
 /** Brand outline on the card, fading out. */
 const HIGHLIGHT_MS = 1200
 
+/** How long after landing a scroll the reader did not start is corrected. */
+const GUARD_MS = 1000
+
+/** Re-landings the guard may do before it gives up. */
+const MAX_RELANDS = 2
+
+/** Any of these means the reader has taken over the scroll position. */
+const READER_INTENT_EVENTS = [
+  "touchstart",
+  "wheel",
+  "keydown",
+  "pointerdown",
+  "mousedown",
+] as const
+
 export interface LandOnPostOptions {
   /** Flash a brand-green outline on the card once it is in place. */
   highlight?: boolean
+  /** The slide the reader was on: its tile takes focus (the first, otherwise). */
+  slide?: number
 }
 
 function escapeId(id: string): string {
@@ -73,12 +100,79 @@ function highlightCard(el: HTMLElement) {
 }
 
 /**
+ * The card's media tile for `slide` — the carousel's slides are the only
+ * `role="button"` elements in a card, in slide order — or the card itself
+ * when it has none (made focusable on the spot; `focus()` on an element
+ * without a tabindex is a no-op).
+ */
+function focusTarget(card: HTMLElement, slide: number): HTMLElement {
+  const tiles = card.querySelectorAll<HTMLElement>('[role="button"][tabindex]')
+  const tile = tiles[slide] ?? tiles[0]
+  if (tile) return tile
+  if (!card.hasAttribute("tabindex")) card.tabIndex = -1
+  return card
+}
+
+function focusCard(el: HTMLElement, slide: number) {
+  try {
+    // preventScroll is the whole point: a focus that scrolled would undo the
+    // landing it follows.
+    focusTarget(el, slide).focus({ preventScroll: true })
+  } catch {
+    // An element that cannot take focus is not worth failing the landing over.
+  }
+}
+
+/** True when `el` sits within tolerance of its landing offset. */
+function isAtOffset(el: HTMLElement, offset: number): boolean {
+  return Math.abs(el.getBoundingClientRect().top - offset) <= SETTLE_TOLERANCE_PX
+}
+
+/**
+ * Watches for a scroll the reader did not start and lands again. The
+ * listeners come off at the first sign of the reader, after MAX_RELANDS, or
+ * when the guard's time is up — whichever is first.
+ */
+function guardLanding(el: HTMLElement, offset: number) {
+  let relands = 0
+
+  const stop = () => {
+    window.clearTimeout(timer)
+    window.removeEventListener("scroll", onScroll)
+    for (const type of READER_INTENT_EVENTS) {
+      window.removeEventListener(type, stop, true)
+    }
+  }
+
+  const onScroll = () => {
+    // The list re-rendered without the card: nothing left to hold in place.
+    if (!el.isConnected) {
+      stop()
+      return
+    }
+    // Our own jumps fire scroll events too; they leave the card in place.
+    if (isAtOffset(el, offset)) return
+    relands++
+    jumpTo(el, offset)
+    if (relands >= MAX_RELANDS) stop()
+  }
+
+  const timer = window.setTimeout(stop, GUARD_MS)
+  window.addEventListener("scroll", onScroll, { passive: true })
+  for (const type of READER_INTENT_EVENTS) {
+    // Capture, so a handler that stops propagation (the carousel's swipe)
+    // cannot hide the reader's intent from the guard.
+    window.addEventListener(type, stop, { capture: true, passive: true })
+  }
+}
+
+/**
  * Scrolls the first `[data-post-id="<postId>"]` into place. Returns false and
  * does nothing when no such element is on the page.
  */
 export function landOnPost(
   postId: string,
-  { highlight = false }: LandOnPostOptions = {}
+  { highlight = false, slide = 0 }: LandOnPostOptions = {}
 ): boolean {
   const el = findPostElement(postId)
   if (!el) return false
@@ -105,6 +199,8 @@ export function landOnPost(
 
     if ((landed && stable) || frames >= MAX_SETTLE_FRAMES) {
       if (highlight) highlightCard(el)
+      focusCard(el, slide)
+      guardLanding(el, offset)
       return
     }
     requestAnimationFrame(settle)

@@ -4,6 +4,7 @@ import {
     useMutation,
     useQueryClient,
     InfiniteData,
+    QueryClient,
     useQuery,
 } from "@tanstack/react-query"
 import {
@@ -16,6 +17,84 @@ import {
 } from "../services/posts.api"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+
+// ── Every cache that holds posts ─────────────────────────────
+
+/**
+ * Every infinite query that holds `Post[]` under `pages[].results`, by key
+ * prefix. A like, a comment count, an edit or a delete has to reach ALL of
+ * them: the same post can be on screen in the home feed, in Explore, on a
+ * profile, in Saved, in Mentions and in a search at once — and every one of
+ * those lists opens the full-screen viewer now, which renders the cache
+ * object it is handed. A list left out here shows a like that "didn't work"
+ * until it refetches. Add the key when adding a list.
+ */
+export const POST_CACHE_KEYS = [
+    ["posts", "list"],
+    ["posts", "feed"],
+    ["posts", "mentions"],
+    ["posts", "saved"],
+    ["feed", "list"],
+    ["explore", "posts"],
+    ["search", "posts"],
+] as const
+
+type PostPages = InfiniteData<{ results: Post[] }>
+
+/** Stop in-flight refetches of every post list overwriting an optimistic change. */
+export const cancelPostLists = (qc: QueryClient) =>
+    Promise.all(
+        POST_CACHE_KEYS.map((queryKey) => qc.cancelQueries({ queryKey: [...queryKey] }))
+    )
+
+/** Refetch the truth for every post list — the rollback after a failed mutation. */
+export const invalidatePostLists = (qc: QueryClient) => {
+    for (const queryKey of POST_CACHE_KEYS) {
+        qc.invalidateQueries({ queryKey: [...queryKey] })
+    }
+}
+
+/**
+ * Apply `update` to `postId` wherever it is cached. Pages keep their extra
+ * fields (cursor, count) through the spread; posts other than the target are
+ * returned by reference, so memoized cards for them do not re-render.
+ */
+export const updatePostInAllLists = (
+    qc: QueryClient,
+    postId: string,
+    update: (post: Post) => Post
+) => {
+    const updater = (old: PostPages | undefined): PostPages | undefined => {
+        if (!old?.pages) return old
+        return {
+            ...old,
+            pages: old.pages.map((page) => ({
+                ...page,
+                results: page.results.map((p) => (p.id === postId ? update(p) : p)),
+            })),
+        }
+    }
+    for (const queryKey of POST_CACHE_KEYS) {
+        qc.setQueriesData<PostPages>({ queryKey: [...queryKey] }, updater)
+    }
+}
+
+/** Drop `postId` from every cached list. */
+export const removePostFromAllLists = (qc: QueryClient, postId: string) => {
+    const remover = (old: PostPages | undefined): PostPages | undefined => {
+        if (!old?.pages) return old
+        return {
+            ...old,
+            pages: old.pages.map((page) => ({
+                ...page,
+                results: page.results.filter((p) => p.id !== postId),
+            })),
+        }
+    }
+    for (const queryKey of POST_CACHE_KEYS) {
+        qc.setQueriesData<PostPages>({ queryKey: [...queryKey] }, remover)
+    }
+}
 
 
 export const useCreatePost = () => {
@@ -41,20 +120,7 @@ export const useUpdatePost = () => {
     return useMutation({
         mutationFn: updatePostApi,
         onSuccess: (updated) => {
-            type PostInfinite = InfiniteData<{ results: Post[] }>
-            const replace = (old: PostInfinite | undefined): PostInfinite | undefined => {
-                if (!old) return old
-                return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                        ...page,
-                        results: page.results.map((p) => (p.id === updated.id ? updated : p)),
-                    })),
-                }
-            }
-            qc.setQueriesData<PostInfinite>({ queryKey: ["posts", "list"] }, replace)
-            qc.setQueriesData<PostInfinite>({ queryKey: ["feed", "list"] }, replace)
-            qc.setQueriesData<PostInfinite>({ queryKey: ["explore", "posts"] }, replace)
+            updatePostInAllLists(qc, updated.id, () => updated)
         },
     })
 }
@@ -113,62 +179,40 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
         mutationFn: toggleLikeApi,
         onMutate: async (payload) => {
             // Cancel any outgoing refetches so they don't overwrite our optimistic update
-            await qc.cancelQueries({ queryKey: ["posts", "list"] })
-            await qc.cancelQueries({ queryKey: ["feed", "list"] })
-            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
+            await cancelPostLists(qc)
 
-            const updatePages = (
-                old: InfiniteData<PostsListResponse> | undefined,
-            ): InfiniteData<PostsListResponse> | undefined => {
-                if (!old) return old
-                return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                        ...page,
-                        results: page.results.map((p: Post) => {
-                            if (p.id !== payload.post_id) return p
+            // Optimistic update on EVERY post list in the cache (POST_CACHE_KEYS):
+            // the feed, Explore, a profile, Saved, Mentions and a search can all
+            // show this post, and each opens a viewer that renders the cache.
+            updatePostInAllLists(qc, payload.post_id, (p) => {
+                const isChangingType = p.reaction.is_reacted && p.reaction.type !== payload.type
+                const newReacted = p.reaction.is_reacted && payload.type === p.reaction.type ? false : true
+                let newCount = p.likes_count
+                const newBreakdown = { ...(p.likes_breakdown || {}) }
 
-                            const isChangingType = p.reaction.is_reacted && p.reaction.type !== payload.type
-                            const newReacted = p.reaction.is_reacted && payload.type === p.reaction.type ? false : true
-                            let newCount = p.likes_count
-                            const newBreakdown = { ...(p.likes_breakdown || {}) }
-
-                            if (!p.reaction.is_reacted) {
-                                newCount += 1
-                                newBreakdown[payload.type] = (newBreakdown[payload.type] || 0) + 1
-                            } else if (isChangingType) {
-                                if (p.reaction.type) {
-                                    newBreakdown[p.reaction.type] = Math.max(0, (newBreakdown[p.reaction.type] || 0) - 1)
-                                }
-                                newBreakdown[payload.type] = (newBreakdown[payload.type] || 0) + 1
-                            } else {
-                                newCount = Math.max(0, p.likes_count - 1)
-                                newBreakdown[payload.type] = Math.max(0, (newBreakdown[payload.type] || 0) - 1)
-                            }
-
-                            return {
-                                ...p,
-                                likes_count: newCount,
-                                likes_breakdown: newBreakdown,
-                                reaction: {
-                                    is_reacted: newReacted,
-                                    type: newReacted ? payload.type : null,
-                                }
-                            }
-                        }),
-                    })),
+                if (!p.reaction.is_reacted) {
+                    newCount += 1
+                    newBreakdown[payload.type] = (newBreakdown[payload.type] || 0) + 1
+                } else if (isChangingType) {
+                    if (p.reaction.type) {
+                        newBreakdown[p.reaction.type] = Math.max(0, (newBreakdown[p.reaction.type] || 0) - 1)
+                    }
+                    newBreakdown[payload.type] = (newBreakdown[payload.type] || 0) + 1
+                } else {
+                    newCount = Math.max(0, p.likes_count - 1)
+                    newBreakdown[payload.type] = Math.max(0, (newBreakdown[payload.type] || 0) - 1)
                 }
-            }
 
-            // Optimistic update using fuzzy matching on ALL posts lists in the cache
-            qc.setQueriesData<InfiniteData<PostsListResponse>>({ queryKey: ["posts", "list"] }, updatePages)
-
-            // Also update the Home feed which runs on a different query key!
-            qc.setQueriesData({ queryKey: ["feed", "list"] }, updatePages)
-
-            // …and the Explore trending feed (yet another key) so a reaction on a
-            // post shown in Explore updates instantly too.
-            qc.setQueriesData({ queryKey: ["explore", "posts"] }, updatePages)
+                return {
+                    ...p,
+                    likes_count: newCount,
+                    likes_breakdown: newBreakdown,
+                    reaction: {
+                        is_reacted: newReacted,
+                        type: newReacted ? payload.type : null,
+                    }
+                }
+            })
 
             // we don't return previous context since we update multiple queries.
             // On error we will just invalidate everything.
@@ -176,9 +220,7 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
         },
         onError: () => {
             // Rollback on error by invalidating so it fetches the truth
-            qc.invalidateQueries({ queryKey: ["posts", "list"] })
-            qc.invalidateQueries({ queryKey: ["feed", "list"] })
-            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
+            invalidatePostLists(qc)
         },
         // We REMOVED onSettled invalidateQueries.
         // The optimistic update handles the UI instantly, and we trust it. 
@@ -188,18 +230,13 @@ export const useToggleLike = (params: FetchPostsParams = {}) => {
 
 // ── Save / unsave with optimistic update ─────────────────────
 
-// Every cache that holds `Post[]` under `pages[].results`. The bookmark shows
-// the same post in several of them at once, so a flip has to reach all of them
-// or the user sees two different truths on two screens.
+// POST_CACHE_KEYS minus the saved list. The bookmark shows the same post in
+// several of them at once, so a flip has to reach all of them or the user
+// sees two different truths on two screens.
 // `["posts","saved"]` is deliberately NOT here — see the remover below.
-const POST_LIST_CACHE_KEYS = [
-    ["posts", "list"],
-    ["posts", "feed"],
-    ["posts", "mentions"],
-    ["feed", "list"],
-    ["explore", "posts"],
-    ["search", "posts"],
-] as const
+const POST_LIST_CACHE_KEYS = POST_CACHE_KEYS.filter(
+    (queryKey) => !(queryKey[0] === "posts" && queryKey[1] === "saved")
+)
 
 /** The saved list is per-actor, exactly like the mentions list. */
 export const savedPostKeys = {
@@ -340,32 +377,12 @@ export const useCreateComment = () => {
             const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
             const createdAt = new Date().toISOString()
 
-            // 1. Bump the post's comment count across every feed/list cache.
-            await qc.cancelQueries({ queryKey: ["posts", "list"] })
-            await qc.cancelQueries({ queryKey: ["feed", "list"] })
-            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
-
-            // Feed / profile-list / explore caches all hold `Post[]` under `results`
-            // (with per-cache extra fields preserved via spread), so one typed
-            // updater bumps the count across every surface.
-            type PostPages = InfiniteData<{ results: Post[] }>
-            const bumpCount = (old: PostPages | undefined): PostPages | undefined => {
-                if (!old) return old
-                return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                        ...page,
-                        results: page.results.map((p) =>
-                            p.id === variables.post_id
-                                ? { ...p, comments_count: p.comments_count + 1 }
-                                : p
-                        ),
-                    })),
-                }
-            }
-            qc.setQueriesData<PostPages>({ queryKey: ["posts", "list"] }, bumpCount)
-            qc.setQueriesData<PostPages>({ queryKey: ["feed", "list"] }, bumpCount)
-            qc.setQueriesData<PostPages>({ queryKey: ["explore", "posts"] }, bumpCount)
+            // 1. Bump the post's comment count across every post list cache.
+            await cancelPostLists(qc)
+            updatePostInAllLists(qc, variables.post_id, (p) => ({
+                ...p,
+                comments_count: p.comments_count + 1,
+            }))
 
             // 2. Insert the optimistic comment/reply into the open thread.
             await qc.cancelQueries({ queryKey: commentKeys.list(variables.post_id) })
@@ -432,9 +449,7 @@ export const useCreateComment = () => {
 
         onError: (_e, variables) => {
             // Roll back every optimistic change by refetching the truth.
-            qc.invalidateQueries({ queryKey: ["posts", "list"] })
-            qc.invalidateQueries({ queryKey: ["feed", "list"] })
-            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
+            invalidatePostLists(qc)
             qc.invalidateQueries({ queryKey: commentKeys.list(variables.post_id) })
             if (variables.parent_id) {
                 qc.invalidateQueries({ queryKey: commentKeys.replies(variables.parent_id) })
@@ -481,28 +496,11 @@ export const useDeleteComment = () => {
             const removed = vars.parentId ? 1 : 1 + (vars.repliesCount ?? 0)
 
             // 1. Decrement the post's comment count everywhere.
-            await qc.cancelQueries({ queryKey: ["posts", "list"] })
-            await qc.cancelQueries({ queryKey: ["feed", "list"] })
-            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
-
-            type PostInfinite = InfiniteData<{ results: Post[] }>
-            const dec = (old: PostInfinite | undefined): PostInfinite | undefined => {
-                if (!old) return old
-                return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                        ...page,
-                        results: page.results.map((p) =>
-                            p.id === vars.postId
-                                ? { ...p, comments_count: Math.max(0, p.comments_count - removed) }
-                                : p
-                        ),
-                    })),
-                }
-            }
-            qc.setQueriesData<PostInfinite>({ queryKey: ["posts", "list"] }, dec)
-            qc.setQueriesData<PostInfinite>({ queryKey: ["feed", "list"] }, dec)
-            qc.setQueriesData<PostInfinite>({ queryKey: ["explore", "posts"] }, dec)
+            await cancelPostLists(qc)
+            updatePostInAllLists(qc, vars.postId, (p) => ({
+                ...p,
+                comments_count: Math.max(0, p.comments_count - removed),
+            }))
 
             // 2. Remove the comment / reply from the open thread.
             await qc.cancelQueries({ queryKey: commentKeys.list(vars.postId) })
@@ -555,9 +553,7 @@ export const useDeleteComment = () => {
         },
 
         onError: (_e, vars) => {
-            qc.invalidateQueries({ queryKey: ["posts", "list"] })
-            qc.invalidateQueries({ queryKey: ["feed", "list"] })
-            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
+            invalidatePostLists(qc)
             qc.invalidateQueries({ queryKey: commentKeys.list(vars.postId) })
         },
     })
@@ -574,30 +570,10 @@ export const useDeletePost = (options: { mode?: "preview" }) => {
             if (options?.mode === "preview") return
 
             // cancel ongoing queries
-            await qc.cancelQueries({ queryKey: ["posts", "list"] })
-            await qc.cancelQueries({ queryKey: ["posts", "feed"] })
-            await qc.cancelQueries({ queryKey: ["feed", "list"] })
-            await qc.cancelQueries({ queryKey: ["explore", "posts"] })
+            await cancelPostLists(qc)
 
-            const updatePages = (
-                old: InfiniteData<PostsListResponse> | undefined,
-            ): InfiniteData<PostsListResponse> | undefined => {
-                if (!old) return old
-
-                return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                        ...page,
-                        results: page.results.filter((p) => p.id !== postId),
-                    })),
-                }
-            }
-
-            // update ALL post lists (profile/list, feed, and explore)
-            qc.setQueriesData({ queryKey: ["posts", "list"] }, updatePages)
-            qc.setQueriesData({ queryKey: ["posts", "feed"] }, updatePages)
-            qc.setQueriesData({ queryKey: ["feed", "list"] }, updatePages)
-            qc.setQueriesData({ queryKey: ["explore", "posts"] }, updatePages)
+            // drop it from ALL post lists (POST_CACHE_KEYS)
+            removePostFromAllLists(qc, postId)
 
             return {}
         },
@@ -611,10 +587,7 @@ export const useDeletePost = (options: { mode?: "preview" }) => {
 
         onError: () => {
             // fallback → refetch truth
-            qc.invalidateQueries({ queryKey: ["posts", "list"] })
-            qc.invalidateQueries({ queryKey: ["posts", "feed"] })
-            qc.invalidateQueries({ queryKey: ["feed", "list"] })
-            qc.invalidateQueries({ queryKey: ["explore", "posts"] })
+            invalidatePostLists(qc)
         },
     })
 }

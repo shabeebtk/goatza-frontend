@@ -22,6 +22,7 @@ export default function LikeBurst() {
     <span
       className={styles.burst}
       aria-hidden="true"
+      data-like-burst=""
       onAnimationEnd={() => setDone(true)}
     >
       <Icon icon="mdi:lightning-bolt" width={96} height={96} />

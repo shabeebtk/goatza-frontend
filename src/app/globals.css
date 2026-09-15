@@ -138,6 +138,15 @@
 
   /* ── Header scrolled */
   --color-header-scrolled-bg: rgba(245, 247, 245, 0.94);
+
+  /* ── Full-screen post viewer (always dark)
+     The viewer paints over the page on its own dark surface in BOTH colour
+     schemes, so these two keep the same value in light and dark mode and
+     are deliberately not redefined in the dark block below: the text card
+     a text-only post is shown on, and the hashtag / mention colour that
+     reads on it (green-300 — the brand green itself is too dark on it). */
+  --color-viewer-card: var(--primitive-neutral-850);
+  --color-viewer-link: var(--primitive-green-300);
 }
 
 /* ── 2b. SEMANTIC TOKENS — DARK MODE ───────────────────────── */

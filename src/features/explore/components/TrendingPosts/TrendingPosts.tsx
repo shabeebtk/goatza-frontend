@@ -1,11 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useMemo } from "react"
 import { Icon } from "@iconify/react"
+import LoadMoreError from "@/features/posts/components/LoadMoreError/LoadMoreError"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
+import { useLoadMoreSentinel } from "@/features/posts/hooks/useLoadMoreSentinel"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
+import { dedupePosts } from "@/features/posts/utils/dedupePosts"
 import { useExplorePosts } from "../../hooks/useExploreQueries"
 import styles from "./TrendingPosts.module.css"
 
@@ -58,32 +61,25 @@ export default function TrendingPosts() {
     fetchNextPage,
   } = useExplorePosts()
 
-  const sentinelRef = useRef<HTMLDivElement>(null)
-
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [entry] = entries
-      if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage()
-      }
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  // The sentinel and the full-screen viewer both page this query. Without
+  // cancelRefetch: false the second caller cancels the request in flight and
+  // starts it again — the server does every page twice.
+  const loadMore = useCallback(
+    () => fetchNextPage({ cancelRefetch: false }),
+    [fetchNextPage]
   )
 
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(handleObserver, {
-      // Prefetch the next page ~600px early so the user never hits a wall.
-      rootMargin: "600px",
-      threshold: 0,
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [handleObserver])
+  const sentinelRef = useLoadMoreSentinel({
+    hasNextPage,
+    isFetchingNextPage,
+    isError: isFetchNextPageError,
+    fetchNextPage: loadMore,
+  })
 
+  // Deduped: the variety pattern can hand a post back twice across pages,
+  // and React must never see two children with one key.
   const posts = useMemo(
-    () => data?.pages.flatMap((p) => p.results) ?? [],
+    () => dedupePosts(data?.pages.flatMap((p) => p.results) ?? []),
     [data]
   )
 
@@ -101,7 +97,9 @@ export default function TrendingPosts() {
   }
 
   // Quiet inline error — a failing trending section must not break the page.
-  if (isError) {
+  // Only with nothing to show: a failed NEXT page sets isError too, and
+  // unmounting the list for that would take the open viewer down with it.
+  if (isError && !data) {
     return (
       <section className={styles.section}>
         <SectionHeader />
@@ -138,7 +136,7 @@ export default function TrendingPosts() {
         posts={posts}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        fetchNextPage={fetchNextPage}
+        fetchNextPage={loadMore}
         isError={isFetchNextPageError}
         endLabel="Back to explore"
         queryParams={EMPTY_QUERY_PARAMS}
@@ -154,6 +152,7 @@ export default function TrendingPosts() {
 
       <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
       {isFetchingNextPage && <LoadingMore />}
+      {isFetchNextPageError && !isFetchingNextPage && <LoadMoreError onRetry={loadMore} />}
       {!hasNextPage && <EndOfList />}
     </section>
   )

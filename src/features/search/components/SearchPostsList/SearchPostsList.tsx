@@ -1,11 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useMemo } from "react"
 import { Icon } from "@iconify/react"
+import LoadMoreError from "@/features/posts/components/LoadMoreError/LoadMoreError"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
+import { useLoadMoreSentinel } from "@/features/posts/hooks/useLoadMoreSentinel"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
+import { dedupePosts } from "@/features/posts/utils/dedupePosts"
 import { useSearchPosts } from "../../hooks/useSearchQueries"
 import styles from "./SearchPostsList.module.css"
 
@@ -48,9 +51,9 @@ function EndOfList() {
 
 /**
  * "Posts" search section — a vertical, infinitely-scrolling list of PostCard.
- * Mirrors explore's TrendingPosts: one IntersectionObserver drives pagination,
- * `fetchNextPage` is guarded by hasNextPage && !isFetchingNextPage, and the
- * section hides itself when it settles empty (the page owns the all-empty copy).
+ * Mirrors explore's TrendingPosts: useLoadMoreSentinel drives pagination, the
+ * full-screen viewer pages the same query, and the section hides itself when
+ * it settles empty (the page owns the all-empty copy).
  */
 export default function SearchPostsList({ q }: SearchPostsListProps) {
   const {
@@ -65,32 +68,25 @@ export default function SearchPostsList({ q }: SearchPostsListProps) {
     fetchNextPage,
   } = useSearchPosts(q)
 
-  const sentinelRef = useRef<HTMLDivElement>(null)
-
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [entry] = entries
-      if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage()
-      }
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  // The sentinel and the full-screen viewer both page this query. Without
+  // cancelRefetch: false the second caller cancels the request in flight and
+  // starts it again — the server does every page twice.
+  const loadMore = useCallback(
+    () => fetchNextPage({ cancelRefetch: false }),
+    [fetchNextPage]
   )
 
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(handleObserver, {
-      // Preload well ahead of the true end for a seamless scroll.
-      rootMargin: "600px",
-      threshold: 0,
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [handleObserver])
+  const sentinelRef = useLoadMoreSentinel({
+    hasNextPage,
+    isFetchingNextPage,
+    isError: isFetchNextPageError,
+    fetchNextPage: loadMore,
+  })
 
+  // Deduped: a cursor list can repeat a row across a page boundary, and
+  // React must never see two children with one key.
   const posts = useMemo(
-    () => data?.pages.flatMap((p) => p.results) ?? [],
+    () => dedupePosts(data?.pages.flatMap((p) => p.results) ?? []),
     [data]
   )
 
@@ -108,7 +104,9 @@ export default function SearchPostsList({ q }: SearchPostsListProps) {
   }
 
   // Quiet inline error — a failing posts section must not blank the rails.
-  if (isError) {
+  // Only with nothing to show: a failed NEXT page sets isError too, and
+  // unmounting the list for that would take the open viewer down with it.
+  if (isError && !data) {
     return (
       <section className={styles.section}>
         <SectionHeader />
@@ -143,7 +141,7 @@ export default function SearchPostsList({ q }: SearchPostsListProps) {
         posts={posts}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        fetchNextPage={fetchNextPage}
+        fetchNextPage={loadMore}
         isError={isFetchNextPageError}
         endLabel="Back to results"
         queryParams={EMPTY_QUERY_PARAMS}
@@ -159,6 +157,7 @@ export default function SearchPostsList({ q }: SearchPostsListProps) {
 
       <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
       {isFetchingNextPage && <LoadingMore />}
+      {isFetchNextPageError && !isFetchingNextPage && <LoadMoreError onRetry={loadMore} />}
       {!hasNextPage && <EndOfList />}
     </section>
   )
