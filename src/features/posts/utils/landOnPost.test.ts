@@ -6,7 +6,9 @@
  *
  * jsdom lays nothing out, so the card's position and the window's scroll
  * offset are stubbed; requestAnimationFrame runs synchronously so the settle
- * loop finishes inside the call.
+ * loop finishes inside the call. Timers are fake so the landing guard's
+ * one-second watch can be ended between tests rather than leaking into the
+ * next one.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -27,26 +29,42 @@ beforeEach(() => {
     cb(performance.now())
     return 0
   })
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
 })
 
 afterEach(() => {
+  // Ends any guard still watching (its timer is the last thing pending).
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   document.body.innerHTML = ""
 })
 
-function mountCard(id: string) {
+/** A card whose measured top can be moved between reads. */
+function mountCard(id: string, top = CARD_TOP) {
   const el = document.createElement("article")
   el.setAttribute("data-post-id", id)
+  const rect = { top }
   el.getBoundingClientRect = () =>
-    ({ top: CARD_TOP, left: 0, width: 600, height: 480, bottom: CARD_TOP + 480, right: 600 }) as DOMRect
+    ({ top: rect.top, left: 0, width: 600, height: 480, bottom: rect.top + 480, right: 600 }) as DOMRect
+  return Object.assign(el, { moveTo: (next: number) => { rect.top = next } }) as HTMLElement & {
+    moveTo: (top: number) => void
+  }
+}
+
+function mount<T extends HTMLElement>(el: T): T {
   document.body.appendChild(el)
   return el
 }
 
+function offsetOf(el: HTMLElement) {
+  return parseFloat(getComputedStyle(el).scrollMarginTop) || 0
+}
+
 describe("landOnPost", () => {
   it("scrolls the window to the matching card, without smooth scrolling", () => {
-    const el = mountCard("post-1")
-    const offset = parseFloat(getComputedStyle(el).scrollMarginTop) || 0
+    const el = mount(mountCard("post-1"))
+    const offset = offsetOf(el)
 
     expect(landOnPost("post-1")).toBe(true)
 
@@ -56,20 +74,18 @@ describe("landOnPost", () => {
   })
 
   it("finds the FIRST card when the id appears more than once", () => {
-    const first = mountCard("dup")
-    const second = mountCard("dup")
-    second.getBoundingClientRect = () =>
-      ({ top: 5000, left: 0, width: 600, height: 480, bottom: 5480, right: 600 }) as DOMRect
+    const first = mount(mountCard("dup"))
+    mount(mountCard("dup", 5000))
 
     landOnPost("dup")
 
     const [call] = scrollTo.mock.calls[0]
-    const offset = parseFloat(getComputedStyle(first).scrollMarginTop) || 0
+    const offset = offsetOf(first)
     expect(call.top).toBe(CARD_TOP + SCROLL_Y - offset)
   })
 
   it("is a no-op when the card is not on the page", () => {
-    mountCard("post-1")
+    mount(mountCard("post-1"))
 
     expect(landOnPost("post-2")).toBe(false)
     expect(scrollTo).not.toHaveBeenCalled()
@@ -78,9 +94,115 @@ describe("landOnPost", () => {
   // jsdom has no Element.animate; the highlight must degrade to nothing
   // rather than throw after the scroll already happened.
   it("tolerates a highlight request where animations are unavailable", () => {
-    mountCard("post-1")
+    mount(mountCard("post-1"))
 
     expect(() => landOnPost("post-1", { highlight: true })).not.toThrow()
     expect(scrollTo).toHaveBeenCalled()
+  })
+
+  describe("focus", () => {
+    it("moves focus to the tile of the slide the reader was on", () => {
+      const el = mount(mountCard("post-1"))
+      const tiles = [0, 1, 2].map((i) => {
+        const tile = document.createElement("div")
+        tile.setAttribute("role", "button")
+        tile.tabIndex = 0
+        tile.setAttribute("data-slide", String(i))
+        el.appendChild(tile)
+        return tile
+      })
+
+      landOnPost("post-1", { slide: 2 })
+
+      expect(document.activeElement).toBe(tiles[2])
+    })
+
+    it("falls back to the card itself when it has no tile", () => {
+      const el = mount(mountCard("post-1"))
+
+      landOnPost("post-1")
+
+      expect(document.activeElement).toBe(el)
+    })
+  })
+
+  // iOS Safari puts a history entry's saved scroll position back
+  // asynchronously, after the popstate — over a landing that has already
+  // happened. The guard catches a scroll the reader did not start.
+  describe("guard", () => {
+    it("lands again after a programmatic scroll moves the card off its offset", () => {
+      const el = mount(mountCard("post-1"))
+      const offset = offsetOf(el)
+      landOnPost("post-1")
+      // Landed: the card sits at its offset.
+      el.moveTo(offset)
+      const landedCalls = scrollTo.mock.calls.length
+
+      // Something else scrolls the window (the browser restoring an old position).
+      el.moveTo(offset + 640)
+      window.dispatchEvent(new Event("scroll"))
+
+      expect(scrollTo.mock.calls.length).toBe(landedCalls + 1)
+      expect(scrollTo.mock.calls[landedCalls][0]).toEqual({
+        top: offset + 640 + SCROLL_Y - offset,
+        behavior: "auto",
+      })
+    })
+
+    it("ignores a scroll that leaves the card where it should be", () => {
+      const el = mount(mountCard("post-1"))
+      landOnPost("post-1")
+      el.moveTo(offsetOf(el))
+      const landedCalls = scrollTo.mock.calls.length
+
+      window.dispatchEvent(new Event("scroll"))
+
+      expect(scrollTo.mock.calls.length).toBe(landedCalls)
+    })
+
+    it("does not fight a scroll the reader started", () => {
+      const el = mount(mountCard("post-1"))
+      const offset = offsetOf(el)
+      landOnPost("post-1")
+      el.moveTo(offset)
+      const landedCalls = scrollTo.mock.calls.length
+
+      // A finger on the screen: from here every scroll is the reader's.
+      window.dispatchEvent(new Event("touchstart"))
+      el.moveTo(offset + 640)
+      window.dispatchEvent(new Event("scroll"))
+
+      expect(scrollTo.mock.calls.length).toBe(landedCalls)
+    })
+
+    it("gives up after two re-landings", () => {
+      const el = mount(mountCard("post-1"))
+      const offset = offsetOf(el)
+      landOnPost("post-1")
+      el.moveTo(offset)
+      const landedCalls = scrollTo.mock.calls.length
+
+      // The card can never reach its offset (say, it is the last in the list).
+      el.moveTo(offset + 300)
+      window.dispatchEvent(new Event("scroll"))
+      window.dispatchEvent(new Event("scroll"))
+      window.dispatchEvent(new Event("scroll"))
+
+      expect(scrollTo.mock.calls.length).toBe(landedCalls + 2)
+    })
+
+    it("stops watching after a second", () => {
+      const el = mount(mountCard("post-1"))
+      const offset = offsetOf(el)
+      landOnPost("post-1")
+      el.moveTo(offset)
+      const landedCalls = scrollTo.mock.calls.length
+
+      vi.advanceTimersByTime(1000)
+      el.moveTo(offset + 640)
+      window.dispatchEvent(new Event("scroll"))
+
+      expect(scrollTo.mock.calls.length).toBe(landedCalls)
+    })
   })
 })

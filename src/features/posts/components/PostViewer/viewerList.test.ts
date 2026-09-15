@@ -9,15 +9,16 @@ import {
   MAX_EMPTY_PAGES,
   autoFetchExhausted,
   emptyPageStreak,
-  mediaPosts,
   nextActiveId,
   shouldFetchMore,
   tailSlide,
+  viewablePosts,
 } from "./viewerList"
 
-function post(id: string, mediaCount: number): Post {
+function post(id: string, mediaCount: number, content = ""): Post {
   return {
     id,
+    content,
     media: Array.from({ length: mediaCount }, (_, i) => ({
       id: `${id}-m${i}`,
       media_type: "image",
@@ -31,18 +32,25 @@ function post(id: string, mediaCount: number): Post {
   } as Post
 }
 
-describe("mediaPosts", () => {
-  it("keeps only posts with media, in order", () => {
-    const list = mediaPosts([post("a", 1), post("b", 0), post("c", 2)])
-    expect(list.map((p) => p.id)).toEqual(["a", "c"])
+describe("viewablePosts", () => {
+  it("keeps posts with media or text, in order, and skips blank ones", () => {
+    const list = viewablePosts([
+      post("a", 1),
+      post("b", 0, "Trials this Sunday"),
+      post("c", 0, "   \n  "),
+      post("d", 2),
+      post("e", 0),
+    ])
+    expect(list.map((p) => p.id)).toEqual(["a", "b", "d"])
   })
 
   // The feed's variety pattern can hand back a post twice across pages.
   it("dedupes by id, first occurrence wins", () => {
     const first = post("a", 1)
     const again = post("a", 3)
-    const list = mediaPosts([first, post("b", 1), again])
-    expect(list.map((p) => p.id)).toEqual(["a", "b"])
+    const text = post("t", 0, "Match day")
+    const list = viewablePosts([first, text, post("b", 1), again, text])
+    expect(list.map((p) => p.id)).toEqual(["a", "t", "b"])
     expect(list[0]).toBe(first)
   })
 })
@@ -88,7 +96,7 @@ describe("shouldFetchMore", () => {
     expect(shouldFetchMore({ index: 9, count: 10, hasNextPage: false, isFetchingNextPage: false })).toBe(false)
   })
 
-  it("fires on an empty list that has more (every post so far was text-only)", () => {
+  it("fires on an empty list that has more (every post so far was blank)", () => {
     expect(shouldFetchMore({ index: -1, count: 0, hasNextPage: true, isFetchingNextPage: false })).toBe(false)
     expect(shouldFetchMore({ index: 0, count: 1, hasNextPage: true, isFetchingNextPage: false })).toBe(true)
   })
@@ -105,7 +113,7 @@ describe("empty pages", () => {
     expect(autoFetchExhausted(streak)).toBe(true)
   })
 
-  it("resets the streak as soon as a page adds a media post", () => {
+  it("resets the streak as soon as a page adds a viewable post", () => {
     expect(emptyPageStreak(4, 2)).toBe(0)
   })
 })

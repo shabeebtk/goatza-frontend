@@ -3,23 +3,19 @@
  * can be pinned in a node test without a DOM.
  *
  * The viewer is handed the RAW list a feed renders (every post, in feed
- * order) and derives its own from it on every render: media posts only,
- * deduped, with the active post tracked by ID so a delete, a block or a
- * refetch under it never lands the reader on a different post by accident.
+ * order) and derives its own from it on every render: viewable posts only
+ * (media, or non-blank text — see isViewablePost), deduped, with the active
+ * post tracked by ID so a delete, a block or a refetch under it never lands
+ * the reader on a different post by accident.
  */
 
 import type { Post } from "@/features/posts/services/posts.api"
+import { dedupePosts } from "@/features/posts/utils/dedupePosts"
+import { isViewablePost } from "./textPost"
 
 /** Only posts with something to show full screen; first occurrence wins. */
-export function mediaPosts(posts: Post[]): Post[] {
-  const seen = new Set<string>()
-  const out: Post[] = []
-  for (const post of posts) {
-    if (post.media.length === 0 || seen.has(post.id)) continue
-    seen.add(post.id)
-    out.push(post)
-  }
-  return out
+export function viewablePosts(posts: Post[]): Post[] {
+  return dedupePosts(posts).filter(isViewablePost)
 }
 
 /**
@@ -50,7 +46,7 @@ export function nextActiveId(
   return currentIds[0]
 }
 
-/** Fetch when the reader is this close to the last loaded media post. */
+/** Fetch when the reader is this close to the last loaded viewable post. */
 export const NEAR_END = 3
 
 export function shouldFetchMore({
@@ -72,13 +68,15 @@ export function shouldFetchMore({
 }
 
 /**
- * The feed's page size is 15 and text-only posts are dropped, so a fetched
- * page can add nothing to the viewer. Fetching keeps going on its own for
- * this many empty pages in a row; after that the reader gets a button.
+ * A fetched page can add nothing to the viewer — every post on it blank, or
+ * already shown (the feed's variety pattern repeats posts across pages).
+ * Rare now that text posts count, but fetching still keeps going on its own
+ * for only this many empty pages in a row; after that the reader gets a
+ * button.
  */
 export const MAX_EMPTY_PAGES = 5
 
-/** The streak after a fetch that added `added` media posts. */
+/** The streak after a fetch that added `added` viewable posts. */
 export function emptyPageStreak(streak: number, added: number): number {
   return added > 0 ? 0 : streak + 1
 }

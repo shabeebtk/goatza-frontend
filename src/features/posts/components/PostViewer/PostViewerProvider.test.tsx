@@ -2,9 +2,10 @@
 
 /**
  * PostViewerProvider — the list contract: cards open the LIST's viewer at
- * their own post, the viewer walks the media posts of that list, the end of
- * it is shown, and closing lands the list on the last post viewed — unless
- * the close was a link tap, in which case the page is leaving anyway.
+ * their own post, the viewer walks the viewable posts of that list (media
+ * and text, blank ones skipped), the end of it is shown, and closing lands
+ * the list on the last post viewed — unless the close was a link tap, in
+ * which case the page is leaving anyway.
  *
  * Same conventions as PostViewer.test.tsx (mocks, matchMedia stub, awaited
  * closes); see there for why.
@@ -138,7 +139,7 @@ function makePost(id: string, author: string, withMedia = true): Post {
 
 const POSTS = [
     makePost("p1", "Riya"),
-    makePost("p2", "Arjun", false), // text-only: never in the viewer
+    makePost("p2", "Arjun", false), // text-only: swiped onto, never opened
     makePost("p3", "Meera"),
     makePost("p4", "Dev"),
 ]
@@ -206,9 +207,28 @@ describe("PostViewerProvider", () => {
         expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Meera")
     })
 
-    // Text-only posts have nothing to show full screen and are skipped over.
-    it("walks the media posts only", () => {
+    // A text-only post is a page of the viewer — its words on a dark card —
+    // reached by swiping, in both directions.
+    it("walks through text posts in list order", () => {
         renderList()
+        fireEvent.click(screen.getByRole("button", { name: "open p1" }))
+
+        fireEvent.keyDown(document, { key: "ArrowDown" })
+        expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Arjun")
+        expect(document.querySelector("[data-viewer-text][data-viewer-active]")).toBeTruthy()
+
+        fireEvent.keyDown(document, { key: "ArrowDown" })
+        expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Meera")
+
+        fireEvent.keyDown(document, { key: "ArrowUp" })
+        expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Arjun")
+    })
+
+    // Nothing to show: a blank post is not a page.
+    it("skips a blank text-only post", () => {
+        const posts = [makePost("p1", "Riya"), makePost("p2", "Arjun", false), makePost("p3", "Meera")]
+        posts[1].content = "   "
+        renderList({ posts })
         fireEvent.click(screen.getByRole("button", { name: "open p1" }))
 
         fireEvent.keyDown(document, { key: "ArrowDown" })
@@ -227,16 +247,32 @@ describe("PostViewerProvider", () => {
     it("lands the list on the last post viewed when the viewer closes", async () => {
         renderList()
         fireEvent.click(screen.getByRole("button", { name: "open p1" }))
+        fireEvent.keyDown(document, { key: "ArrowDown" })   // → p2 (text)
         fireEvent.keyDown(document, { key: "ArrowDown" })   // → p3
         expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Meera")
 
         fireEvent.keyDown(document, { key: "Escape" })
 
         await waitFor(() => expect(landOnPost).toHaveBeenCalledTimes(1))
-        expect(landOnPost).toHaveBeenCalledWith("p3", { highlight: true })
+        // The slide goes along: the landed tile is the one that takes focus.
+        expect(landOnPost).toHaveBeenCalledWith("p3", { highlight: true, slide: 0 })
         expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
         // The inline carousel of that post is told the slide too.
         expect(usePostViewerStore.getState().landings.p3).toEqual({ slide: 0 })
+    })
+
+    // A text post's card carries data-post-id like any other, so closing on
+    // one lands there too.
+    it("lands on a text post when the viewer closes on it", async () => {
+        renderList()
+        fireEvent.click(screen.getByRole("button", { name: "open p1" }))
+        fireEvent.keyDown(document, { key: "ArrowDown" })   // → p2 (text)
+        expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Arjun")
+
+        fireEvent.keyDown(document, { key: "Escape" })
+
+        await waitFor(() => expect(landOnPost).toHaveBeenCalledTimes(1))
+        expect(landOnPost).toHaveBeenCalledWith("p2", { highlight: true, slide: 0 })
     })
 
     it("closes from the end slide's button and lands", async () => {
@@ -245,7 +281,7 @@ describe("PostViewerProvider", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Back to feed" }))
 
-        await waitFor(() => expect(landOnPost).toHaveBeenCalledWith("p4", { highlight: true }))
+        await waitFor(() => expect(landOnPost).toHaveBeenCalledWith("p4", { highlight: true, slide: 0 }))
     })
 
     // A link tap navigates away: the list is about to be gone, and landing

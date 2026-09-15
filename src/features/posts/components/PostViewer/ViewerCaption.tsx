@@ -8,6 +8,9 @@
  * 220-character fold is switched off here) with a "more" that expands it in
  * place; a long caption then scrolls inside ~40% of the screen rather than
  * pushing the author off the top.
+ *
+ * A text-only post shows its words on the card itself (ViewerTextPost), so
+ * its overlay is the author row and the location only: `showText={false}`.
  */
 
 import { useLayoutEffect, useRef, useState } from "react"
@@ -19,7 +22,13 @@ import type { Post } from "@/features/posts/services/posts.api"
 import { useNavigation } from "@/shared/services/navigation.service"
 import styles from "./ViewerCaption.module.css"
 
-export default function ViewerCaption({ post }: { post: Post }) {
+interface ViewerCaptionProps {
+  post: Post
+  /** False on a text post: the words are already on the card. */
+  showText?: boolean
+}
+
+export default function ViewerCaption({ post, showText = true }: ViewerCaptionProps) {
   const { toProfile } = useNavigation()
   const [expanded, setExpanded] = useState(false)
   const [overflows, setOverflows] = useState(false)
@@ -54,7 +63,7 @@ export default function ViewerCaption({ post }: { post: Post }) {
         </span>
       </Link>
 
-      {post.content && (
+      {showText && post.content && (
         <div className={styles.captionRow}>
           <div
             ref={clampRef}

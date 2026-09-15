@@ -50,7 +50,7 @@ import type { ViewerVideoApi } from "./ViewerVideo"
 import {
   autoFetchExhausted,
   emptyPageStreak,
-  mediaPosts,
+  viewablePosts,
   nextActiveId,
   shouldFetchMore,
   tailSlide,
@@ -64,12 +64,20 @@ const DESKTOP_QUERY = "(min-width: 768px)"
 /** A post counts as read once it has been the active one this long. */
 const SEEN_MS = 1000
 
+/**
+ * Longest the fetch guard may hold a request open without hearing from the
+ * query — well past any real page fetch, so it only ever catches a request
+ * that went nowhere.
+ */
+const REQUEST_GUARD_MS = 10_000
+
 const EMPTY_QUERY_PARAMS: FetchPostsParams = {}
 
 export interface PostViewerPagination {
   hasNextPage: boolean
   isFetchingNextPage: boolean
-  fetchNextPage: () => void
+  /** May return the query's promise; the fetch guard clears when it settles. */
+  fetchNextPage: () => unknown
   isError?: boolean
 }
 
@@ -83,7 +91,7 @@ export interface PostViewerProps {
   initialSlide?: number
   /** Where the reader got to, so the caller can land the list there. */
   onClose: (lastPostId: string, lastSlide: number, reason: PostViewerCloseReason) => void
-  /** Fetched when the reader nears the end of the loaded media posts. */
+  /** Fetched when the reader nears the end of the loaded viewable posts. */
   pagination?: PostViewerPagination
   /** Fires once a post has been active for a second. */
   onPostSeen?: (postId: string) => void
@@ -97,11 +105,11 @@ export interface PostViewerProps {
 
 /** Everything a layout needs; both layouts take exactly this. */
 export interface ViewerLayoutProps {
-  /** The media posts of the list, in order. */
+  /** The viewable posts of the list (media or text), in order. */
   items: Post[]
   post: Post
   index: number
-  /** The active post's media, in display order. */
+  /** The active post's media, in display order. Empty for a text post. */
   media: PostMedia[]
   slide: number
   goToSlide: (next: number) => void
@@ -109,8 +117,12 @@ export interface ViewerLayoutProps {
   videoApiRef: RefObject<ViewerVideoApi | null>
   queryParams: FetchPostsParams
   isPostOwner: boolean
-  /** Bumped per double-tap; ViewerMedia replays the bolt on change. */
-  burstKey: number
+  /**
+   * The last double-tap, or null. Layouts hand the bolt only to the post
+   * AND slide it landed on (burstKeyFor) — a fresh key on every slide that
+   * mounted would replay it on posts nobody liked.
+   */
+  burst: LikeBurstTarget | null
   onDoubleTapLike: () => void
   openComments: () => void
   openOptions: () => void
@@ -159,6 +171,22 @@ function sameIds(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, i) => id === b[i])
 }
 
+/** Where the last double-tap landed; `key` changes per tap so the bolt replays. */
+export interface LikeBurstTarget {
+  key: number
+  postId: string
+  slide: number
+}
+
+/** The burst key a slide should mount with: the tap's key on the tapped slide, 0 elsewhere. */
+export function burstKeyFor(
+  burst: LikeBurstTarget | null,
+  postId: string,
+  slide: number
+): number {
+  return burst && burst.postId === postId && burst.slide === slide ? burst.key : 0
+}
+
 export default function PostViewer({
   posts,
   initialPostId,
@@ -173,7 +201,7 @@ export default function PostViewer({
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
 
   // ── The list, and where we are in it ────────────────────────
-  const items = useMemo(() => mediaPosts(posts), [posts])
+  const items = useMemo(() => viewablePosts(posts), [posts])
   const ids = useMemo(() => items.map((p) => p.id), [items])
 
   const [activePostId, setActivePostId] = useState(initialPostId)
@@ -249,12 +277,14 @@ export default function PostViewer({
     dialogRef.current?.focus()
     return () => {
       // Back to the tile that opened this — a keyboard user should land
-      // exactly where they were.
-      previouslyFocused?.focus?.()
+      // exactly where they were. preventScroll: the list is about to be
+      // landed on the post the reader got to, and a focus that scrolled
+      // would drag it back to the one they opened.
+      previouslyFocused?.focus?.({ preventScroll: true })
     }
   }, [])
 
-  // Nothing left to show (every media post deleted or blocked) — leave. In
+  // Nothing left to show (every post deleted or blocked) — leave. In
   // single-post mode the card unmounts this first.
   useEffect(() => {
     if (!post) requestClose()
@@ -276,7 +306,7 @@ export default function PostViewer({
   const isError = pagination?.isError ?? false
   const fetchNextPage = pagination?.fetchNextPage
 
-  // Pages that added no media post, in a row. Derived from the fetch flag
+  // Pages that added no viewable post, in a row. Derived from the fetch flag
   // flipping (during render again), so the tail can switch to "Load more"
   // without an effect setting state.
   const [wasFetching, setWasFetching] = useState(isFetchingNextPage)
@@ -294,31 +324,56 @@ export default function PostViewer({
 
   // One request per approach to the end: set when we ask, cleared once the
   // fetch is under way. Covers StrictMode's double effect and a run of fast
-  // swipes before the flag has flipped.
+  // swipes before the flag has flipped. It must never stay set: a fetch that
+  // starts AND settles between two renders never shows this component a
+  // `true` flag, and one that never starts (the query was paused, the list
+  // dropped the callback) flips nothing at all — either way the tail would
+  // say "Loading more…" forever. So it clears on every flip of the flag, on
+  // the fetch's own settling, and on a timer regardless.
   const requestedRef = useRef(false)
-  useEffect(() => {
-    if (isFetchingNextPage) requestedRef.current = false
-  }, [isFetchingNextPage])
+  const requestTimerRef = useRef<number | null>(null)
+  const clearRequested = useCallback(() => {
+    requestedRef.current = false
+    if (requestTimerRef.current !== null) {
+      window.clearTimeout(requestTimerRef.current)
+      requestTimerRef.current = null
+    }
+  }, [])
+  // Cleanup runs on each flip of the flag (a fetch starting or settling) and
+  // on unmount, which also stops the timer.
+  useEffect(() => clearRequested, [isFetchingNextPage, clearRequested])
+
+  /** fetchNextPage with the guard: set while a request of ours is on its way. */
+  const requestNextPage = useCallback(() => {
+    if (!fetchNextPage) return
+    requestedRef.current = true
+    if (requestTimerRef.current !== null) window.clearTimeout(requestTimerRef.current)
+    requestTimerRef.current = window.setTimeout(clearRequested, REQUEST_GUARD_MS)
+    // The list's fetchNextPage hands back the query's promise: the guard
+    // clears the moment it settles, success or error, even when no render
+    // ever saw the flag up.
+    const result = fetchNextPage() as { then?: unknown } | null | undefined
+    if (typeof result?.then === "function") {
+      ;(result as Promise<unknown>).then(clearRequested, clearRequested)
+    }
+  }, [fetchNextPage, clearRequested])
 
   useEffect(() => {
     // An error waits for "Try again"; five empty pages wait for "Load more".
     if (!fetchNextPage || isError || exhausted) return
     if (!shouldFetchMore({ index, count: items.length, hasNextPage, isFetchingNextPage })) return
     if (requestedRef.current) return
-    requestedRef.current = true
-    fetchNextPage()
-  }, [fetchNextPage, isError, exhausted, index, items.length, hasNextPage, isFetchingNextPage])
+    requestNextPage()
+  }, [fetchNextPage, requestNextPage, isError, exhausted, index, items.length, hasNextPage, isFetchingNextPage])
 
   const onRetry = useCallback(() => {
-    requestedRef.current = true
-    fetchNextPage?.()
-  }, [fetchNextPage])
+    requestNextPage()
+  }, [requestNextPage])
 
   const onLoadMore = useCallback(() => {
     setEmptyStreak(0)
-    requestedRef.current = true
-    fetchNextPage?.()
-  }, [fetchNextPage])
+    requestNextPage()
+  }, [requestNextPage])
 
   const tail = tailSlide({
     hasPagination: Boolean(pagination),
@@ -433,7 +488,7 @@ function PostViewerBody({
   onLoadMore,
 }: PostViewerBodyProps) {
   const [sheet, setSheet] = useState<Sheet>(null)
-  const [burstKey, setBurstKey] = useState(0)
+  const [burst, setBurst] = useState<LikeBurstTarget | null>(null)
 
   const media = useMemo(
     () => [...post.media].sort((a, b) => a.order - b.order),
@@ -491,18 +546,19 @@ function PostViewerBody({
     [items, index, activatePost]
   )
 
-  // Double-tap / double-click on the media. The like API is a toggle, so it
-  // is only called when the post is NOT already reacted; otherwise just the
-  // burst, which is what every double-tap in every app does.
+  // Double-tap / double-click on the media or the text card. The like API is
+  // a toggle, so it is only called when the post is NOT already reacted;
+  // otherwise just the burst, which is what every double-tap in every app
+  // does. The burst is pinned to this post and slide — see LikeBurstTarget.
   const onDoubleTapLike = useCallback(() => {
     if (publicView) {
       publicView.openLoginWall("react to posts from")
       return
     }
-    setBurstKey((k) => k + 1)
+    setBurst((b) => ({ key: (b?.key ?? 0) + 1, postId: post.id, slide: safeSlide }))
     if (post.reaction?.is_reacted || like.isPending) return
     like.mutate({ post_id: post.id, type: "like" })
-  }, [publicView, post.id, post.reaction?.is_reacted, like])
+  }, [publicView, post.id, post.reaction?.is_reacted, like, safeSlide])
 
   const openComments = useCallback(() => setSheet("comments"), [])
   const openOptions = useCallback(() => setSheet("options"), [])
@@ -580,7 +636,7 @@ function PostViewerBody({
     videoApiRef,
     queryParams,
     isPostOwner: isOwn,
-    burstKey,
+    burst,
     onDoubleTapLike,
     openComments,
     openOptions,

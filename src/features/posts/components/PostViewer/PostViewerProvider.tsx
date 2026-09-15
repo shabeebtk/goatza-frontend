@@ -28,7 +28,7 @@ import type { FetchPostsParams, Post } from "@/features/posts/services/posts.api
 import { landOnPost } from "@/features/posts/utils/landOnPost"
 import { usePostViewerStore } from "@/store/postViewer.store"
 import PostViewer, { type PostViewerCloseReason } from "./PostViewer"
-import { mediaPosts, nextActiveId } from "./viewerList"
+import { viewablePosts, nextActiveId } from "./viewerList"
 
 export interface PostViewerActions {
   /** Open the viewer on `postId`, at its `slideIndex`-th media item. */
@@ -46,7 +46,13 @@ interface PostViewerProviderProps {
   posts: Post[]
   hasNextPage: boolean
   isFetchingNextPage: boolean
-  fetchNextPage: () => void
+  /**
+   * The list's own fetchNextPage, wrapped with `{ cancelRefetch: false }`:
+   * the list's sentinel and the viewer both ask, and the default would cancel
+   * the request in flight and start it over. Returning the query's promise
+   * lets the viewer's fetch guard clear when it settles.
+   */
+  fetchNextPage: () => unknown
   isError?: boolean
   /** Impressions for posts read full screen (the feed's markSeen). */
   onPostSeen?: (postId: string) => void
@@ -81,7 +87,7 @@ export default function PostViewerProvider({
   const [open, setOpen] = useState<OpenState>(null)
   // Set by the close callback, consumed by the effect once the viewer has
   // actually unmounted — landing must not race the scroll lock's release.
-  const pendingLandRef = useRef<string | null>(null)
+  const pendingLandRef = useRef<{ postId: string; slide: number } | null>(null)
   const land = usePostViewerStore((s) => s.land)
 
   // The viewer's ordering as of the PREVIOUS render, for a close that lands
@@ -100,7 +106,7 @@ export default function PostViewerProvider({
       // A link was tapped: the page is changing, nothing to land on.
       if (reason === "navigate") return
       land(lastPostId, lastSlide)
-      pendingLandRef.current = lastPostId
+      pendingLandRef.current = { postId: lastPostId, slide: lastSlide }
     },
     [land]
   )
@@ -112,15 +118,19 @@ export default function PostViewerProvider({
     const pending = pendingLandRef.current
     if (open || !pending) return
     pendingLandRef.current = null
-    const currentIds = mediaPosts(posts).map((p) => p.id)
-    const target = currentIds.includes(pending)
-      ? pending
-      : nextActiveId(idsRef.current, currentIds, pending)
-    if (target) landOnPost(target, { highlight: true })
+    const currentIds = viewablePosts(posts).map((p) => p.id)
+    const target = currentIds.includes(pending.postId)
+      ? pending.postId
+      : nextActiveId(idsRef.current, currentIds, pending.postId)
+    if (!target) return
+    // The slide only means something on the post it was read on; a stand-in
+    // post starts at its first.
+    const slide = target === pending.postId ? pending.slide : 0
+    landOnPost(target, { highlight: true, slide })
   }, [open, posts])
 
   useEffect(() => {
-    idsRef.current = mediaPosts(posts).map((p) => p.id)
+    idsRef.current = viewablePosts(posts).map((p) => p.id)
   })
 
   if (disabled) return <>{children}</>

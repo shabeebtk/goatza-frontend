@@ -3,12 +3,17 @@
 /**
  * DesktopSplitLayout — media on the left, the post on the right: header,
  * caption, stats, actions and the comments thread with its composer pinned.
+ * A text-only post puts its words on the stage instead (ViewerTextPost) and
+ * drops the panel's caption, which would repeat them.
  *
  * Posts are moved through with the up/down buttons, ↑/↓, or the wheel over
  * the media — one post per gesture, debounced, so a trackpad flick does not
  * skip five. Ctrl/⌘+wheel stays zoom (useZoomPan takes it first and
- * default-prevents it). The caption and the thread are keyed by post so a
- * new post starts them fresh; the composer is what Comment focuses.
+ * default-prevents it). Over a text box that can still scroll, the wheel is
+ * the text's: ViewerTextPost stops it before it reaches the stage, and the
+ * one-per-gesture rule applies again from the edge. The caption and the
+ * thread are keyed by post so a new post starts them fresh; the composer is
+ * what Comment focuses.
  */
 
 import { useCallback, useRef } from "react"
@@ -25,10 +30,11 @@ import { fmtCount } from "@/features/posts/utils/format"
 import { getTopReactions } from "@/features/posts/utils/reactions"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { useNavigation } from "@/shared/services/navigation.service"
-import type { ViewerLayoutProps } from "./PostViewer"
+import { burstKeyFor, type ViewerLayoutProps } from "./PostViewer"
 import TailSlide from "./TailSlide"
 import ViewerActions from "./ViewerActions"
 import ViewerMedia from "./ViewerMedia"
+import ViewerTextPost from "./ViewerTextPost"
 import styles from "./PostViewer.module.css"
 
 dayjs.extend(relativeTime)
@@ -50,7 +56,7 @@ export default function DesktopSplitLayout({
   videoApiRef,
   queryParams,
   isPostOwner,
-  burstKey,
+  burst,
   onDoubleTapLike,
   openOptions,
   openLikes,
@@ -70,6 +76,7 @@ export default function DesktopSplitLayout({
   const lastWheelRef = useRef(0)
 
   const current = media[slide]
+  const isText = media.length === 0
   const multi = media.length > 1
   const showNav = multi && !zoom.isZoomed
   const isLast = index === items.length - 1
@@ -113,7 +120,19 @@ export default function DesktopSplitLayout({
               zoom={zoom}
               videoApiRef={videoApiRef}
               onDoubleTap={onDoubleTapLike}
-              burstKey={burstKey}
+              burstKey={burstKeyFor(burst, post.id, slide)}
+            />
+          )}
+
+          {isText && (
+            /* Keyed: a new post's text box starts scrolled to the top. */
+            <ViewerTextPost
+              key={post.id}
+              post={post}
+              layout="desktop"
+              active
+              onDoubleTap={onDoubleTapLike}
+              burstKey={burstKeyFor(burst, post.id, 0)}
             />
           )}
 
@@ -242,8 +261,9 @@ export default function DesktopSplitLayout({
             </button>
           </header>
 
-          {post.content && (
-            /* Keyed: a new post's caption starts folded. */
+          {post.content && !isText && (
+            /* Keyed: a new post's caption starts folded. Not for a text
+               post: its words are on the stage already. */
             <div className={styles.panelCaption} key={post.id}>
               <PostContent text={post.content} mentions={post.mentions ?? []} />
             </div>

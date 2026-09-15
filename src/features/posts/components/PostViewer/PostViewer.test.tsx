@@ -6,7 +6,8 @@
  * Same shape as MediaLightbox.test.tsx: every close is awaited because it
  * routes through history.back(), and popstate is asynchronous. What is added
  * is the viewer's own contract — the double-tap like, the keyboard guard
- * while typing, the stacked back button, and the login wall for visitors.
+ * while typing, the stacked back button, the login wall for visitors, and
+ * the text-only post as a page of the list.
  *
  * jsdom lays nothing out and applies no media queries, so the layout is
  * chosen through a matchMedia stub: `asDesktop()` for the split panel, the
@@ -164,30 +165,39 @@ function renderViewer(
     const onClose = vi.fn()
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
-    const viewer = (
-        <PostViewer
-            posts={[post]}
-            initialPostId={post.id}
-            onClose={onClose}
-            {...props}
-        />
-    )
+    const tree = (next: Partial<PostViewerProps>) => {
+        const viewer = (
+            <PostViewer
+                posts={[post]}
+                initialPostId={post.id}
+                onClose={onClose}
+                {...next}
+            />
+        )
+        return (
+            <QueryClientProvider client={qc}>
+                <ToastProvider>
+                    {publicView ? (
+                        <PublicProfileProvider displayName="Riya" profilePath="/profile/riya" sections={{}}>
+                            {viewer}
+                        </PublicProfileProvider>
+                    ) : (
+                        viewer
+                    )}
+                </ToastProvider>
+            </QueryClientProvider>
+        )
+    }
 
-    const utils = render(
-        <QueryClientProvider client={qc}>
-            <ToastProvider>
-                {publicView ? (
-                    <PublicProfileProvider displayName="Riya" profilePath="/profile/riya" sections={{}}>
-                        {viewer}
-                    </PublicProfileProvider>
-                ) : (
-                    viewer
-                )}
-            </ToastProvider>
-        </QueryClientProvider>
-    )
+    const utils = render(tree(props))
 
-    return { post, onClose, ...utils }
+    return {
+        post,
+        onClose,
+        ...utils,
+        /** Same tree, new viewer props — what a list re-rendering the viewer does. */
+        rerenderViewer: (next: Partial<PostViewerProps>) => utils.rerender(tree({ ...props, ...next })),
+    }
 }
 
 /** The active slide's media surface — the thing a tap lands on. */
@@ -198,6 +208,31 @@ function activeMedia(): HTMLElement {
 
 function viewerDialog() {
     return screen.getByRole("dialog", { name: /post by/i })
+}
+
+/** A text-only post: swiped onto from a media post, never opened directly. */
+function textPost(overrides: Partial<Post> = {}): Post {
+    return makePost({
+        id: "post-text",
+        content: "Big win tonight #kochi",
+        media: [],
+        author: { id: "u2", username: "arjun", name: "Arjun", headline: "" },
+        ...overrides,
+    })
+}
+
+/** The active text card — the thing a double-tap on a text post lands on. */
+function activeTextCard(): HTMLElement {
+    return document.querySelector("[data-viewer-text][data-viewer-active]") as HTMLElement
+}
+
+/**
+ * jsdom lays nothing out: every scrollHeight and clientHeight is 0, so no
+ * clamp ever "overflows". This makes every box taller than its clamp.
+ */
+function pretendOverflow() {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(600)
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(300)
 }
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -277,6 +312,137 @@ describe("PostViewer", () => {
         })
     })
 
+    describe("text-only posts", () => {
+        const LIST = [makePost(), textPost(), makePost({ id: "post-3" })]
+
+        it("is a page between media posts, with the author row but not the caption", () => {
+            renderViewer({ posts: LIST })
+            expect(screen.getByText("1/3")).toBeTruthy()
+
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+
+            expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Arjun")
+            const card = activeTextCard()
+            expect(card).toBeTruthy()
+            // The words are on the card, once — the overlay shows the author only.
+            const words = screen.getAllByText(/Big win tonight/)
+            expect(words).toHaveLength(1)
+            expect(card.contains(words[0])).toBe(true)
+            expect(screen.getByText("Arjun")).toBeTruthy()
+            // Nothing that only media has.
+            expect(screen.queryByRole("button", { name: /mute video/i })).toBeNull()
+            expect(screen.queryByText(/\d\/\d/)).toBeNull()
+            // The hashtag is still a link.
+            expect(screen.getByRole("link", { name: "#kochi" })).toBeTruthy()
+        })
+
+        it("shows the words on the desktop stage, not in the panel caption", () => {
+            asDesktop()
+            renderViewer({ posts: LIST })
+
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+
+            const words = screen.getAllByText(/Big win tonight/)
+            expect(words).toHaveLength(1)
+            expect(activeTextCard().contains(words[0])).toBe(true)
+        })
+
+        it("likes on a double-tap, once, and never an already-reacted post", () => {
+            renderViewer({ posts: LIST })
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+
+            const card = activeTextCard()
+            fireEvent.click(card)
+            fireEvent.click(card)
+
+            expect(toggleLike).toHaveBeenCalledTimes(1)
+            expect(toggleLike).toHaveBeenCalledWith({ post_id: "post-text", type: "like" })
+            expect(card.querySelector("[data-like-burst]")).toBeTruthy()
+
+            cleanup()
+            toggleLike.mockClear()
+            renderViewer({
+                posts: [makePost(), textPost({ reaction: { is_reacted: true, type: "fire" } })],
+            })
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+            const reacted = activeTextCard()
+            fireEvent.click(reacted)
+            fireEvent.click(reacted)
+            expect(toggleLike).not.toHaveBeenCalled()
+        })
+
+        // A tap on a control is that control's: "Read more" then the card, or
+        // the card then a hashtag, is not a double-tap.
+        it("does not count taps on Read more or a link towards a double-tap", async () => {
+            pretendOverflow()
+            const { onClose } = renderViewer({ posts: LIST })
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+            const card = activeTextCard()
+
+            fireEvent.click(screen.getByRole("button", { name: "Read more" }))
+            fireEvent.click(card)
+            expect(toggleLike).not.toHaveBeenCalled()
+            // Let the held single tap lapse before the next pair.
+            await act(() => new Promise((r) => setTimeout(r, 300)))
+
+            fireEvent.click(card)
+            fireEvent.click(screen.getByRole("link", { name: "#kochi" }))
+            expect(toggleLike).not.toHaveBeenCalled()
+
+            // The link closes the viewer to navigate (through history.back());
+            // awaited so its popstate cannot land in the next test.
+            await waitFor(() => expect(push).toHaveBeenCalledWith("/search?q=%23kochi"))
+            await waitFor(() => expect(onClose).toHaveBeenCalledWith("post-text", 0, "navigate"))
+        })
+
+        it("offers Read more only when the clamp hides something", () => {
+            renderViewer({ posts: LIST })
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+            expect(screen.queryByRole("button", { name: "Read more" })).toBeNull()
+
+            cleanup()
+            pretendOverflow()
+            renderViewer({ posts: LIST })
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+
+            const more = screen.getByRole("button", { name: "Read more" })
+            expect(more.getAttribute("aria-expanded")).toBe("false")
+            fireEvent.click(more)
+            expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true")
+        })
+
+        it("does nothing on the slide keys or zoom keys", () => {
+            renderViewer({ posts: LIST })
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+
+            fireEvent.keyDown(document, { key: "ArrowRight" })
+            fireEvent.keyDown(document, { key: "+" })
+            fireEvent.keyDown(document, { key: "ArrowLeft" })
+
+            expect(viewerDialog().getAttribute("aria-label")).toBe("Post by Arjun")
+            expect(activeTextCard()).toBeTruthy()
+        })
+    })
+
+    // The bolt belongs to the post and slide that was double-tapped. It used
+    // to be a counter that every newly mounted slide replayed, so swiping on
+    // after one like made the next posts look liked too.
+    it("does not replay the like burst on the next post", () => {
+        renderViewer({ posts: [makePost(), makePost({ id: "post-2" }), textPost()] })
+
+        const media = activeMedia()
+        fireEvent.click(media)
+        fireEvent.click(media)
+        expect(document.querySelector("[data-like-burst]")).toBeTruthy()
+
+        fireEvent.keyDown(document, { key: "ArrowDown" })
+        expect(document.querySelector("[data-like-burst]")).toBeNull()
+
+        fireEvent.keyDown(document, { key: "ArrowDown" })
+        expect(activeTextCard()).toBeTruthy()
+        expect(document.querySelector("[data-like-burst]")).toBeNull()
+    })
+
     describe("keyboard", () => {
         // Typing a comment must never pause or mute the video.
         it("ignores shortcuts while focus is in the composer", async () => {
@@ -306,6 +472,55 @@ describe("PostViewer", () => {
 
             fireEvent.keyDown(document, { key: "ArrowLeft" })
             expect(screen.getByText("1/3")).toBeTruthy()
+        })
+    })
+
+    // The viewer asks for the next page once per approach to the end and
+    // guards against asking twice. The guard used to clear only when a render
+    // saw isFetchingNextPage go true — a fetch that started and settled
+    // between two renders never showed one, and the tail said "Loading
+    // more…" forever.
+    describe("pagination guard", () => {
+        const pagination = (fetchNextPage: () => unknown) => ({
+            hasNextPage: true,
+            isFetchingNextPage: false,
+            fetchNextPage,
+        })
+
+        it("recovers after a fetch that starts and settles between renders", async () => {
+            const fetchNextPage = vi.fn(() => Promise.resolve())
+            const { post, rerenderViewer } = renderViewer({ pagination: pagination(fetchNextPage) })
+            expect(fetchNextPage).toHaveBeenCalledTimes(1)
+
+            // The page landed (one more post) without this component ever
+            // rendering a `true` flag.
+            await act(async () => {})
+            rerenderViewer({
+                posts: [post, makePost({ id: "post-2" })],
+                pagination: pagination(fetchNextPage),
+            })
+
+            expect(fetchNextPage).toHaveBeenCalledTimes(2)
+        })
+
+        it("recovers on its own when the fetch never reports back", async () => {
+            vi.useFakeTimers()
+            try {
+                const fetchNextPage = vi.fn(() => new Promise(() => {}))
+                const { post, rerenderViewer } = renderViewer({ pagination: pagination(fetchNextPage) })
+                expect(fetchNextPage).toHaveBeenCalledTimes(1)
+
+                // Still guarded: a re-render before the timeout asks nothing.
+                rerenderViewer({ posts: [post, makePost({ id: "post-2" })], pagination: pagination(fetchNextPage) })
+                expect(fetchNextPage).toHaveBeenCalledTimes(1)
+
+                await act(() => vi.advanceTimersByTimeAsync(10_000))
+                rerenderViewer({ posts: [post, makePost({ id: "post-2" }), makePost({ id: "post-3" })], pagination: pagination(fetchNextPage) })
+
+                expect(fetchNextPage).toHaveBeenCalledTimes(2)
+            } finally {
+                vi.useRealTimers()
+            }
         })
     })
 

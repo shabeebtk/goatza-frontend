@@ -3,7 +3,9 @@
 /**
  * PhoneReelsLayout — the immersive phone viewer: black, 100dvh, one post per
  * screen in a vertical scroll-snap track, each post's slides in a horizontal
- * one, a right-hand action rail and the author + caption over a scrim.
+ * one, a right-hand action rail and the author + caption over a scrim. A
+ * text-only post is a page too — its words on a dark card (ViewerTextPost)
+ * in place of the slide track, no scrim, the author row without the text.
  *
  * The browser does both swipes. Which post is active is read back with an
  * IntersectionObserver rooted on the vertical track; which slide, off the
@@ -21,11 +23,12 @@ import { Icon } from "@iconify/react"
 import type { Post } from "@/features/posts/services/posts.api"
 import { useSoundStore } from "@/store/sound.store"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
-import type { ViewerLayoutProps } from "./PostViewer"
+import { burstKeyFor, type ViewerLayoutProps } from "./PostViewer"
 import TailSlide from "./TailSlide"
 import ViewerActions from "./ViewerActions"
 import ViewerCaption from "./ViewerCaption"
 import ViewerMedia, { type ZoomPan } from "./ViewerMedia"
+import ViewerTextPost from "./ViewerTextPost"
 import type { ViewerVideoApi } from "./ViewerVideo"
 import styles from "./PostViewer.module.css"
 
@@ -45,7 +48,7 @@ interface PhonePostPageProps {
   goToSlide: (next: number) => void
   zoom: ZoomPan
   videoApiRef: React.RefObject<ViewerVideoApi | null>
-  burstKey: number
+  burst: ViewerLayoutProps["burst"]
   onDoubleTapLike: () => void
   openComments: () => void
   openOptions: () => void
@@ -59,7 +62,7 @@ function PhonePostPage({
   goToSlide,
   zoom,
   videoApiRef,
-  burstKey,
+  burst,
   onDoubleTapLike,
   openComments,
   openOptions,
@@ -69,6 +72,7 @@ function PhonePostPage({
     () => [...post.media].sort((a, b) => a.order - b.order),
     [post.media]
   )
+  const isText = media.length === 0
   const scrollerRef = useRef<HTMLDivElement>(null)
   // Slide a programmatic scroll is heading for; null while the user drives.
   const targetRef = useRef<number | null>(null)
@@ -118,30 +122,42 @@ function PhonePostPage({
 
   return (
     <>
-      {/* A pinch never swipes: useZoomPan default-prevents the two-finger
-          touchmove (non-passive), which cancels both tracks' pans, and the
-          zoom lets go when the fingers lift. */}
-      <div ref={scrollerRef} className={styles.track} onScroll={onScroll}>
-        {shownMedia.map((item, i) => (
-          <div key={item.id} className={styles.slide}>
-            <ViewerMedia
-              item={item}
-              active={active && i === slide}
-              layout="phone"
-              zoom={zoom}
-              videoApiRef={videoApiRef}
-              onDoubleTap={onDoubleTapLike}
-              burstKey={burstKey}
-            />
-          </div>
-        ))}
-      </div>
+      {isText ? (
+        /* The words ARE the page: no slide track, and no scrim — the card
+           is dark already. */
+        <ViewerTextPost
+          post={post}
+          layout="phone"
+          active={active}
+          onDoubleTap={onDoubleTapLike}
+          burstKey={burstKeyFor(burst, post.id, 0)}
+        />
+      ) : (
+        /* A pinch never swipes: useZoomPan default-prevents the two-finger
+           touchmove (non-passive), which cancels both tracks' pans, and the
+           zoom lets go when the fingers lift. */
+        <div ref={scrollerRef} className={styles.track} onScroll={onScroll}>
+          {shownMedia.map((item, i) => (
+            <div key={item.id} className={styles.slide}>
+              <ViewerMedia
+                item={item}
+                active={active && i === slide}
+                layout="phone"
+                zoom={zoom}
+                videoApiRef={videoApiRef}
+                onDoubleTap={onDoubleTapLike}
+                burstKey={burstKeyFor(burst, post.id, i)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Bottom: scrim, author + caption, dots ── */}
-      <div className={styles.scrim} aria-hidden="true" />
+      {!isText && <div className={styles.scrim} aria-hidden="true" />}
 
       <div className={styles.phoneBottom}>
-        <ViewerCaption post={post} />
+        <ViewerCaption post={post} showText={!isText} />
 
         {active && multi && (
           <div className={styles.dots} role="tablist" aria-label="Slides">
@@ -186,7 +202,7 @@ export default function PhoneReelsLayout({
   zoom,
   videoApiRef,
   queryParams,
-  burstKey,
+  burst,
   onDoubleTapLike,
   openComments,
   openOptions,
@@ -210,6 +226,8 @@ export default function PhoneReelsLayout({
   const muted = useSoundStore((s) => s.muted)
   const toggleMuted = useSoundStore((s) => s.toggleMuted)
 
+  // A text post has no media, so neither the counter nor the mute button
+  // shows for it — the same rule, no special case.
   const current = media[slide]
   const isVideo = current?.media_type === "video"
   const multi = media.length > 1
@@ -277,7 +295,7 @@ export default function PhoneReelsLayout({
                   goToSlide={goToSlide}
                   zoom={zoom}
                   videoApiRef={videoApiRef}
-                  burstKey={burstKey}
+                  burst={burst}
                   onDoubleTapLike={onDoubleTapLike}
                   openComments={openComments}
                   openOptions={openOptions}

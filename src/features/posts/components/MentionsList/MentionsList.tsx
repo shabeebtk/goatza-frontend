@@ -5,21 +5,23 @@
  *
  * A thin list rather than PostsList: that component is keyed to a username +
  * offset paging, while this reads a cursor-paged, actor-scoped endpoint. Shape
- * follows SearchPostsList, which solved the same problem — one
- * IntersectionObserver drives paging, `fetchNextPage` is guarded by
- * hasNextPage && !isFetchingNextPage.
+ * follows SearchPostsList, which solved the same problem — useLoadMoreSentinel
+ * drives paging, and the full-screen viewer pages the same query.
  *
  * Rendered by BOTH the user settings page and the org-admin page: the actor
  * headers already decide whose mentions come back, so the two lists are
  * separate with no props.
  */
 
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useMemo } from "react"
 import { Icon } from "@iconify/react"
+import LoadMoreError from "@/features/posts/components/LoadMoreError/LoadMoreError"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
+import { useLoadMoreSentinel } from "@/features/posts/hooks/useLoadMoreSentinel"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
+import { dedupePosts } from "@/features/posts/utils/dedupePosts"
 import { useMyMentions } from "@/features/posts/hooks/useMentions"
 import styles from "./MentionsList.module.css"
 
@@ -41,31 +43,25 @@ export default function MentionsList() {
     fetchNextPage,
   } = useMyMentions()
 
-  const sentinelRef = useRef<HTMLDivElement>(null)
-
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [entry] = entries
-      if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage()
-      }
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  // The sentinel and the full-screen viewer both page this query. Without
+  // cancelRefetch: false the second caller cancels the request in flight and
+  // starts it again — the server does every page twice.
+  const loadMore = useCallback(
+    () => fetchNextPage({ cancelRefetch: false }),
+    [fetchNextPage]
   )
 
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(handleObserver, {
-      rootMargin: "600px",
-      threshold: 0,
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [handleObserver])
+  const sentinelRef = useLoadMoreSentinel({
+    hasNextPage,
+    isFetchingNextPage,
+    isError: isFetchNextPageError,
+    fetchNextPage: loadMore,
+  })
 
+  // Deduped: a cursor list can repeat a row across a page boundary, and
+  // React must never see two children with one key.
   const posts = useMemo(
-    () => data?.pages.flatMap((page) => page.results) ?? [],
+    () => dedupePosts(data?.pages.flatMap((page) => page.results) ?? []),
     [data]
   )
 
@@ -79,7 +75,10 @@ export default function MentionsList() {
     )
   }
 
-  if (isError) {
+  // The full error state only with nothing to show: a failed NEXT page sets
+  // isError too, and unmounting the list for that would take the open
+  // viewer (and its history entry) down with it.
+  if (isError && !data) {
     return (
       <div className={styles.errorCard}>
         <Icon
@@ -124,7 +123,7 @@ export default function MentionsList() {
         posts={posts}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
-        fetchNextPage={fetchNextPage}
+        fetchNextPage={loadMore}
         isError={isFetchNextPageError}
         endLabel="Back to mentions"
         queryParams={EMPTY_QUERY_PARAMS}
@@ -146,6 +145,8 @@ export default function MentionsList() {
           <span className={styles.loadingText}>Loading more…</span>
         </div>
       )}
+
+      {isFetchNextPageError && !isFetchingNextPage && <LoadMoreError onRetry={loadMore} />}
 
       {!hasNextPage && (
         <div className={styles.endOfList}>
