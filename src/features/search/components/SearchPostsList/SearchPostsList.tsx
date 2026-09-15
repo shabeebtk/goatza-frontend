@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import { useSearchPosts } from "../../hooks/useSearchQueries"
@@ -59,6 +60,7 @@ export default function SearchPostsList({ q }: SearchPostsListProps) {
     isFetching,
     refetch,
     isFetchingNextPage,
+    isFetchNextPageError,
     hasNextPage,
     fetchNextPage,
   } = useSearchPosts(q)
@@ -135,13 +137,25 @@ export default function SearchPostsList({ q }: SearchPostsListProps) {
     <section className={styles.section}>
       <SectionHeader />
 
-      <div className={styles.list} aria-busy={isFetching ? true : undefined}>
-        {posts.map((post) => (
-          <div key={post.id} className={styles.item}>
-            <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
-          </div>
-        ))}
-      </div>
+      {/* The full-screen viewer swipes through the results and pages them
+          through the same query. */}
+      <PostViewerProvider
+        posts={posts}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        fetchNextPage={fetchNextPage}
+        isError={isFetchNextPageError}
+        endLabel="Back to results"
+        queryParams={EMPTY_QUERY_PARAMS}
+      >
+        <div className={styles.list} aria-busy={isFetching ? true : undefined}>
+          {posts.map((post) => (
+            <div key={post.id} className={styles.item}>
+              <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
+            </div>
+          ))}
+        </div>
+      </PostViewerProvider>
 
       <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
       {isFetchingNextPage && <LoadingMore />}

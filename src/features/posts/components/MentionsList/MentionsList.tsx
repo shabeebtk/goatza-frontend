@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import { useMyMentions } from "@/features/posts/hooks/useMentions"
@@ -35,6 +36,7 @@ export default function MentionsList() {
     isFetching,
     refetch,
     isFetchingNextPage,
+    isFetchNextPageError,
     hasNextPage,
     fetchNextPage,
   } = useMyMentions()
@@ -115,13 +117,26 @@ export default function MentionsList() {
 
   return (
     <>
-      <div className={styles.list} aria-busy={isFetching ? true : undefined}>
-        {posts.map((post) => (
-          <div key={post.id} className={styles.item}>
-            <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
-          </div>
-        ))}
-      </div>
+      {/* The full-screen viewer swipes through this list and pages it
+          through the same query, so the list already has every post the
+          viewer loaded when it closes on one of them. */}
+      <PostViewerProvider
+        posts={posts}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        fetchNextPage={fetchNextPage}
+        isError={isFetchNextPageError}
+        endLabel="Back to mentions"
+        queryParams={EMPTY_QUERY_PARAMS}
+      >
+        <div className={styles.list} aria-busy={isFetching ? true : undefined}>
+          {posts.map((post) => (
+            <div key={post.id} className={styles.item}>
+              <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
+            </div>
+          ))}
+        </div>
+      </PostViewerProvider>
 
       <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
 

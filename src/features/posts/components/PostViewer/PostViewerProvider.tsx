@@ -54,6 +54,13 @@ interface PostViewerProviderProps {
   endLabel?: string
   /** Forwarded to the like mutation, as the list's cards do. */
   queryParams?: FetchPostsParams
+  /**
+   * True → the cards get no list viewer and fall back to their own single-post
+   * one. For a list that renders a subset of its query (the profile tab's
+   * one-post preview), where a viewer walking the full query would close on a
+   * post the list never shows.
+   */
+  disabled?: boolean
   children: ReactNode
 }
 
@@ -68,6 +75,7 @@ export default function PostViewerProvider({
   onPostSeen,
   endLabel = "Back to feed",
   queryParams,
+  disabled = false,
   children,
 }: PostViewerProviderProps) {
   const [open, setOpen] = useState<OpenState>(null)
@@ -114,6 +122,8 @@ export default function PostViewerProvider({
   useEffect(() => {
     idsRef.current = mediaPosts(posts).map((p) => p.id)
   })
+
+  if (disabled) return <>{children}</>
 
   return (
     <PostViewerActionsContext.Provider value={actions}>
