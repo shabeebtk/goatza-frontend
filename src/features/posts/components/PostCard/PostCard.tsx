@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, memo, useState } from "react"
+import { Fragment, memo, useCallback, useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -9,45 +9,21 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import MediaCarousel from "@/features/posts/components/MediaCarousel/MediaCarousel"
 import PostActions from "@/features/posts/components/PostActions/PostActions"
 import PostComments from "@/features/posts/components/PostComments/PostComments"
-import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"   // ← NEW
+import PostOptionsSheet from "@/features/posts/components/PostOptionsSheet/PostOptionsSheet"
 import PostLikesModal from "@/features/posts/components/PostLikesModal/PostLikesModal"
 import EditPostModal from "@/features/posts/components/EditPostModal/EditPostModal"
+import PostViewer from "@/features/posts/components/PostViewer/PostViewer"
+import { usePostViewer } from "@/features/posts/components/PostViewer/PostViewerProvider"
+import { usePostPermissions } from "@/features/posts/hooks/usePostPermissions"
+import { fmtCount } from "@/features/posts/utils/format"
+import { getTopReactions } from "@/features/posts/utils/reactions"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
-import { useAuthStore } from "@/store/auth.store"                                               // ← NEW
 import type { Post, PostMention } from "@/features/posts/services/posts.api"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import styles from "./PostCard.module.css"
 import { useNavigation } from "@/shared/services/navigation.service"
 
 dayjs.extend(relativeTime)
-
-// ── Helpers ───────────────────────────────────────────────────
-
-function fmtCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
-  return String(n)
-}
-
-const REACTION_META: Record<string, { icon: string; color: string }> = {
-  like: { icon: "mdi:lightning-bolt", color: "var(--color-brand)" },
-  fire: { icon: "mdi:fire", color: "#FF5E00" },
-  respect: { icon: "fluent:hand-wave-24-filled", color: "#FFC83D" },
-  funny: { icon: "fluent:emoji-laugh-24-filled", color: "#FFC83D" },
-}
-
-function getTopReactions(
-  breakdown: Record<string, number> | undefined
-): { type: string; icon: string; color: string }[] {
-  if (!breakdown) return []
-  return Object.entries(breakdown)
-    .filter(([, count]) => count > 0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 3)
-    .map(([type]) => ({
-      type,
-      ...(REACTION_META[type] ?? { icon: "mdi:lightning-bolt", color: "var(--color-brand)" }),
-    }))
-}
 
 // ── Content with "see more" ───────────────────────────────────
 
@@ -118,9 +94,18 @@ function splitContent(
 export function PostContent({
   text,
   mentions = [],
+  limit = CONTENT_LIMIT,
+  className,
 }: {
   text: string
   mentions?: PostMention[]
+  /**
+   * Characters shown before "see more". `Infinity` disables the fold — the
+   * full-screen viewer clamps by LINES with its own control instead, and two
+   * "more" buttons on one caption would be one too many.
+   */
+  limit?: number
+  className?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   // Routed, not hardcoded: from the org-admin feed these have to stay inside
@@ -128,8 +113,8 @@ export function PostContent({
   // account. In the user app they resolve to the plain paths either way.
   const { toSearch, toProfile } = useNavigation()
 
-  const isLong = text.length > CONTENT_LIMIT
-  const trimmed = isLong ? text.slice(0, CONTENT_LIMIT).replace(/\s+\S*$/, "") : text
+  const isLong = text.length > limit
+  const trimmed = isLong ? text.slice(0, limit).replace(/\s+\S*$/, "") : text
   const display = isLong && !expanded ? trimmed + "…" : text
 
   // The card itself has no click handler today, but these links sit inside
@@ -138,7 +123,7 @@ export function PostContent({
   const stopBubble = (event: React.MouseEvent) => event.stopPropagation()
 
   return (
-    <div className={styles.content}>
+    <div className={className ?? styles.content}>
       {/* Segments are inline children of the SAME <p>, so the module's
           white-space: pre-wrap still owns line breaks and spacing. */}
       <p className={styles.contentText}>
@@ -202,35 +187,24 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   const [showOptions, setShowOptions] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showLikes, setShowLikes] = useState(false)
-
-  const user = useAuthStore((s) => s.user)
-  const actorType = useAuthStore((s) => s.actorType)
-  const currentOrganization = useAuthStore((s) => s.currentOrganization)
+  // Slide the full-screen viewer opened on; null while closed. Only used
+  // outside a PostViewerProvider — inside one, the list's viewer opens.
+  const [viewerSlide, setViewerSlide] = useState<number | null>(null)
+  const listViewer = usePostViewer()
+  const openViewer = useCallback(
+    (slide: number) => {
+      if (listViewer) listViewer.open(post.id, slide)
+      else setViewerSlide(slide)
+    },
+    [listViewer, post.id]
+  )
 
   // Non-null only on a public profile viewed logged out.
   const publicView = usePublicProfile()
 
-  // A post is "own" (deletable/editable) when the ACTIVE actor authored it —
-  // the user for their posts, or the active org for its posts. This mirrors the
-  // backend, which deletes as the active actor. Never true for a visitor with
-  // no session, whatever a stale store happens to hold.
-  const isOwn =
-    !publicView &&
-    (post.author_type === "organization"
-      ? actorType === "organization" && currentOrganization?.id === post.author.id
-      : actorType === "user" && user?.id === post.author.id)
+  // Own / promotable / author — the same rules the full-screen viewer applies.
+  const { isOwn, promotableVideos, author } = usePostPermissions(post)
   const { toProfile } = useNavigation()
-
-  // "Add to Highlights" is offered only for the author's OWN video posts, and
-  // only to a player acting as themselves — highlights are personal, so an org
-  // actor (even on a post it authored) never sees it. Empty ⇒ the option hides.
-  const promotableVideos =
-    post.author_type === "user" &&
-    actorType === "user" &&
-    user?.id === post.author.id &&
-    user?.role === "player"
-      ? post.media.filter((m) => m.media_type === "video")
-      : []
 
   const timeAgo = dayjs(post.created_at).fromNow()
   const topReactions = getTopReactions(post.likes_breakdown)
@@ -243,7 +217,9 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
   }
 
   return (
-    <article className={styles.card}>
+    // data-post-id is how landOnPost() finds the card when the full-screen
+    // viewer closes on a different post than it opened on.
+    <article className={styles.card} data-post-id={post.id}>
 
       {/* ── Header ── */}
       <div className={styles.cardHeader}>
@@ -320,7 +296,12 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
       {/* ── Media ── */}
       {post.media.length > 0 && (
         <div className={styles.mediaWrap}>
-          <MediaCarousel media={post.media} postId={post.id} />
+          <MediaCarousel
+            media={post.media}
+            postId={post.id}
+            onOpenViewer={openViewer}
+            viewerOpen={viewerSlide !== null}
+          />
         </div>
       )}
 
@@ -388,15 +369,7 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           promotableVideos={promotableVideos}
           onClose={() => setShowOptions(false)}
           onEdit={() => setShowEdit(true)}
-          author={{
-            id: post.author.id,
-            username: post.author.username,
-            name: post.author.name,
-            // author_type is the server's string; anything not "organization"
-            // is a person, which is also the safe default for old payloads.
-            type:
-              post.author_type === "organization" ? "organization" : "user",
-          }}
+          author={author}
         />
       )}
 
@@ -411,6 +384,22 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
           postId={post.id}
           totalCount={post.likes_count}
           onClose={() => setShowLikes(false)}
+        />
+      )}
+
+      {/* ── Full-screen viewer (single-post fallback) ──
+          Lists that swipe between posts wrap their cards in a
+          PostViewerProvider and open THAT viewer instead (see openViewer).
+          Portalled, but rendered from INSIDE the card so the public-profile
+          context (login wall) reaches it. */}
+      {viewerSlide !== null && (
+        <PostViewer
+          posts={[post]}
+          initialPostId={post.id}
+          initialSlide={viewerSlide}
+          onClose={() => setViewerSlide(null)}
+          queryParams={queryParams}
+          isPreview={isPreview}
         />
       )}
 

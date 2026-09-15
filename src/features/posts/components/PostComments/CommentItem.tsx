@@ -16,6 +16,16 @@ import styles from "./PostComments.module.css"
 
 dayjs.extend(relativeTime)
 
+/**
+ * An author link was clicked. Receives the href so the host can leave through
+ * its own route (PostComments unwinds its overlay entries first); a host that
+ * does not preventDefault leaves the <Link> to navigate as usual.
+ */
+export type CommentNavigate = (
+  href: string,
+  event: React.MouseEvent<HTMLAnchorElement>
+) => void
+
 // ── Small 3-dot menu ──────────────────────────────────────────
 //
 // Used to render only for someone who could DELETE. It now also carries
@@ -111,12 +121,15 @@ function ReplyItem({
   parentId: string
   isPostOwner: boolean
   onDelete: (vars: DeleteCommentVars) => void
-  onNavigate?: () => void
+  onNavigate?: CommentNavigate
 }) {
   const { toProfile } = useNavigation()
   const isActiveAuthor = useIsActiveAuthor()
   const authorType = resolveCommentAuthorType(reply.actor)
   const href = toProfile(reply.actor.username, authorType)
+  const onLinkClick = onNavigate
+    ? (e: React.MouseEvent<HTMLAnchorElement>) => onNavigate(href, e)
+    : undefined
   const canDelete = isPostOwner || isActiveAuthor(reply.actor, authorType)
   // Reportable by anyone who did not write it — including a post owner, who
   // can both remove it from their own post and tell us why it was there.
@@ -127,7 +140,7 @@ function ReplyItem({
     <div className={styles.replyItem}>
       <Link
         href={href}
-        onClick={onNavigate}
+        onClick={onLinkClick}
         className={styles.actorLink}
         aria-label={`View ${reply.actor.name}'s profile`}
       >
@@ -139,7 +152,7 @@ function ReplyItem({
       </Link>
       <div className={styles.replyContentBox}>
         <div className={styles.replyHeader}>
-          <Link href={href} onClick={onNavigate} className={styles.commentName}>
+          <Link href={href} onClick={onLinkClick} className={styles.commentName}>
             {reply.actor.name}
           </Link>
           <span className={styles.commentTime}>{dayjs(reply.created_at).fromNow(true)}</span>
@@ -193,13 +206,16 @@ export default function CommentItem({
   isPostOwner: boolean
   onReply: (c: PostComment) => void
   onDelete: (vars: DeleteCommentVars) => void
-  onNavigate?: () => void
+  onNavigate?: CommentNavigate
 }) {
   const { toProfile } = useNavigation()
   const isActiveAuthor = useIsActiveAuthor()
   const hasMoreReplies = comment.replies_count > (comment.replies_preview?.length || 0)
   const authorType = resolveCommentAuthorType(comment.actor, comment.actor_type)
   const href = toProfile(comment.actor.username, authorType)
+  const onLinkClick = onNavigate
+    ? (e: React.MouseEvent<HTMLAnchorElement>) => onNavigate(href, e)
+    : undefined
   const canDelete = isPostOwner || isActiveAuthor(comment.actor, authorType)
   const canReport = !isActiveAuthor(comment.actor, authorType)
   const [reportOpen, setReportOpen] = useState(false)
@@ -208,7 +224,7 @@ export default function CommentItem({
     <div className={styles.commentRow} data-comment-id={comment.id}>
       <Link
         href={href}
-        onClick={onNavigate}
+        onClick={onLinkClick}
         className={styles.actorLink}
         aria-label={`View ${comment.actor.name}'s profile`}
       >
@@ -221,7 +237,7 @@ export default function CommentItem({
       <div className={styles.commentBody}>
         <div className={styles.commentContentBox}>
           <div className={styles.commentHeader}>
-            <Link href={href} onClick={onNavigate} className={styles.commentName}>
+            <Link href={href} onClick={onLinkClick} className={styles.commentName}>
               {comment.actor.name}
             </Link>
             <span className={styles.commentTime}>{dayjs(comment.created_at).fromNow(true)}</span>

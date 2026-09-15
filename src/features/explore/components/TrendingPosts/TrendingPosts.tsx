@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import PostSkeleton from "@/features/posts/components/PostCard/PostCardSkeleton"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import { useExplorePosts } from "../../hooks/useExploreQueries"
@@ -52,6 +53,7 @@ export default function TrendingPosts() {
     isError,
     refetch,
     isFetchingNextPage,
+    isFetchNextPageError,
     hasNextPage,
     fetchNextPage,
   } = useExplorePosts()
@@ -128,13 +130,27 @@ export default function TrendingPosts() {
     <section className={styles.section}>
       <SectionHeader />
 
-      <div className={styles.list}>
-        {posts.map((post) => (
-          <div key={post.id} className={styles.feedItem}>
-            <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
-          </div>
-        ))}
-      </div>
+      {/* The full-screen viewer swipes through this list and pages it
+          through useExplorePosts, so the list already has every post the
+          viewer loaded when it closes on one of them. No impressions here —
+          those are the home feed's. */}
+      <PostViewerProvider
+        posts={posts}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        fetchNextPage={fetchNextPage}
+        isError={isFetchNextPageError}
+        endLabel="Back to explore"
+        queryParams={EMPTY_QUERY_PARAMS}
+      >
+        <div className={styles.list}>
+          {posts.map((post) => (
+            <div key={post.id} className={styles.feedItem}>
+              <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
+            </div>
+          ))}
+        </div>
+      </PostViewerProvider>
 
       <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
       {isFetchingNextPage && <LoadingMore />}

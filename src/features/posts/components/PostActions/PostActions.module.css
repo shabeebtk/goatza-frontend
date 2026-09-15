@@ -2,18 +2,6 @@
    GOATZA — PostActions
    ============================================================ */
 
-@keyframes popIn {
-  0%   { opacity: 0; transform: translateY(10px) scale(0.88); }
-  60%  { transform: translateY(-3px) scale(1.03); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes iconPop {
-  0%   { transform: scale(1) translateY(0); }
-  40%  { transform: scale(1.45) translateY(-5px); }
-  100% { transform: scale(1.15) translateY(-2px); }
-}
-
 @keyframes likePop {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.4); }
@@ -26,12 +14,6 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--color-border);
-}
-
-/* ── Reaction wrap (positions the popover) ───────────────────── */
-
-.reactionWrap {
-  position: relative;
 }
 
 /* ── Shared action button ────────────────────────────────────── */
@@ -132,93 +114,4 @@
 
 @media (min-width: 380px) {
   .actionLabel { display: inline; }
-}
-
-/* ── Reaction popover ────────────────────────────────────────── */
-
-.popover {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  z-index: 200;
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 10px;
-  animation: popIn 0.28s var(--ease-spring) both;
-  white-space: nowrap;
-}
-
-/* Mobile: center above the button */
-@media (max-width: 480px) {
-  .popover {
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(100% + 10px);
-  }
-}
-
-/* ── Popover reaction button ─────────────────────────────────── */
-
-.popoverBtn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 48px;
-  height: 56px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  padding: var(--space-1);
-  transition: background var(--duration-fast);
-}
-
-.popoverBtn:hover {
-  background: var(--color-surface-raised);
-}
-
-/* Icon bounces up on hover */
-.popoverBtn:hover .popoverIcon {
-  animation: iconPop 0.3s var(--ease-spring) forwards;
-}
-
-.popoverIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-  transition: transform var(--duration-fast);
-}
-
-.popoverLabel {
-  font-family: var(--font-ui);
-  font-size: 0.58rem;
-  font-weight: var(--weight-semi);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  line-height: 1;
-}
-
-/* ── Mobile: slightly larger touch targets ───────────────────── */
-@media (hover: none) {
-  .popover {
-    padding: 8px 12px;
-  }
-
-  .popoverBtn {
-    width: 56px;
-    height: 64px;
-  }
-
-  .popoverIcon svg {
-    width: 30px !important;
-    height: 30px !important;
-  }
 }

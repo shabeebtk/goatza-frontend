@@ -19,6 +19,19 @@
   flex-direction: column;
   gap: 0;
   transition: box-shadow var(--duration-base);
+  /* Where landOnPost() parks a card: just under the shell's fixed header (see
+     AppShell / OrgShell .content padding-top), plus whatever the page pins
+     below it. --post-land-extra is set by a list that owns a sticky bar
+     (Explore's search bar on desktop) and is 0 everywhere else. */
+  scroll-margin-top: calc(
+    var(--top-nav-h) + var(--safe-top) + var(--post-land-extra, 0px) + var(--space-3)
+  );
+}
+
+@media (min-width: 768px) {
+  .card {
+    scroll-margin-top: calc(60px + var(--post-land-extra, 0px) + var(--space-3));
+  }
 }
 
 .card:hover { box-shadow: var(--shadow-card); }

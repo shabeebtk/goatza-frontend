@@ -1,0 +1,23 @@
+/* ============================================================
+   GOATZA — LikeBurst
+   ============================================================ */
+
+@keyframes burst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-12deg); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(0deg); }
+  45%  { transform: translate(-50%, -50%) scale(0.95); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4) translateY(-16px); }
+}
+
+.burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  color: var(--color-brand);
+  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: burst 0.9s var(--ease-out) forwards;
+}

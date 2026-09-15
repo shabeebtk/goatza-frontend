@@ -1,0 +1,122 @@
+/* ============================================================
+   GOATZA — ViewerCaption (phone bottom-left overlay)
+   White on the scrim; PostContent's paragraph is recoloured
+   below because its own module paints it for a light card.
+   ============================================================ */
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.author {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  align-self: flex-start;
+}
+
+.authorText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.authorName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.authorHeadline {
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.captionRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.text {
+  width: 100%;
+  min-width: 0;
+}
+
+.textClamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Expanded: scrolls inside a bounded box so the author line stays put. */
+.textExpanded {
+  max-height: 40dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* The wrapper PostContent renders — no card padding here. */
+.content {
+  padding: 0;
+}
+
+.content p {
+  color: #fff;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.moreBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.locationText {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
