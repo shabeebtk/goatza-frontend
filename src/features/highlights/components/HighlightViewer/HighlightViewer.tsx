@@ -26,6 +26,8 @@ import { useHighlightViews } from "../../hooks/useHighlightViews"
 import { VISIBILITY_META } from "../../visibilityMeta"
 import type { Highlight } from "../../types"
 import styles from "./HighlightViewer.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 
 export type HighlightViewerOwner = {
     username: string
@@ -154,16 +156,17 @@ export default function HighlightViewer({
 
     // ── mount effects: scroll lock, focus trap, keyboard ───────
 
+    useBodyScrollLock()
+    // Covers the mobile bars: the toasts stop offsetting themselves by them.
+    useHtmlFlag("chrome-covered")
+
     useEffect(() => {
         const previouslyFocused = document.activeElement as HTMLElement | null
-        const prevOverflow = document.body.style.overflow
-        document.body.style.overflow = "hidden"
 
         // Move focus in so Esc/arrows work without a click first.
         dialogRef.current?.focus()
 
         return () => {
-            document.body.style.overflow = prevOverflow
             previouslyFocused?.focus?.()
         }
     }, [])

@@ -42,6 +42,7 @@ import {
   useInitiateAccountDelete,
 } from "../../hooks/useAccountDeletion"
 import styles from "./DeleteAccountModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 /** Shown for both endpoints' 429 — the wait is an hour, not something to retry into. */
 const THROTTLED_MESSAGE = "Too many attempts. Please try again later."
@@ -74,13 +75,7 @@ export default function DeleteAccountModal({ onClose }: { onClose: () => void })
   useFocusTrap(containerRef, true)
 
   // Lock body scroll while open — same as every other sheet here.
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [])
+  useBodyScrollLock()
 
   const dismissable = !leaving && initiate.phase !== "loading"
 

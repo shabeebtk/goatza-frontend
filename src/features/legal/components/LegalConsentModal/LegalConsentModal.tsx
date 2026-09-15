@@ -13,6 +13,7 @@ import { legalHref, legalLabel } from "../../constants"
 import { acceptLegalApi } from "../../services/legal.api"
 import { useLegalConsentStore } from "../../store/legalConsent.store"
 import styles from "./LegalConsentModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 /**
  * "We've updated our terms" — the one modal in the app that cannot be closed.
@@ -44,12 +45,7 @@ export default function LegalConsentModal() {
   useFocusTrap(containerRef, true)
 
   // Lock body scroll, same as the onboarding modal.
-  useEffect(() => {
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [])
+  useBodyScrollLock()
 
   /**
    * Swallow Escape. Captured at the window, like OnboardingModal's handler, so

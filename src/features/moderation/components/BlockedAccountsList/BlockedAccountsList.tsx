@@ -23,6 +23,7 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import { useBlockedList, useUnblock } from "../../hooks/useModerationQueries"
 import type { BlockedItem } from "../../services/moderation.api"
 import styles from "./BlockedAccountsList.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 const SKELETON_COUNT = 4
 
@@ -229,13 +230,7 @@ function ConfirmUnblock({
   const label = row.blocked.name || row.blocked.username
 
   // Lock the page behind the sheet, same as every other sheet in the app.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useBodyScrollLock()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

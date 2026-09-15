@@ -233,6 +233,7 @@
     gap: var(--space-4);
     padding: var(--space-5);
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .sheetField {

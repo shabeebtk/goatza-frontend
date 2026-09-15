@@ -31,6 +31,7 @@ import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
 import { HIGHLIGHT_VISIBILITIES, type HighlightVisibility } from "../../types"
 import { VISIBILITY_META, formatClipDuration } from "../../visibilityMeta"
 import styles from "./AddHighlightModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 const MAX_TITLE = 80
 
@@ -113,13 +114,7 @@ export default function AddHighlightModal({
 
     // Lock the page behind the modal, and let Escape out when nothing is
     // in flight (closing mid-upload would orphan the progress UI).
-    useEffect(() => {
-        const prev = document.body.style.overflow
-        document.body.style.overflow = "hidden"
-        return () => {
-            document.body.style.overflow = prev
-        }
-    }, [])
+    useBodyScrollLock()
 
     useEffect(
         () => () => {
@@ -372,6 +367,15 @@ export default function AddHighlightModal({
                                             onClick={upload.retry}
                                         >
                                             Retry
+                                        </button>
+                                    )}
+                                    {upload.canRetryWithoutSound && (
+                                        <button
+                                            type="button"
+                                            className={styles.retryBtn}
+                                            onClick={upload.retryWithoutSound}
+                                        >
+                                            Add without sound
                                         </button>
                                     )}
                                 </p>

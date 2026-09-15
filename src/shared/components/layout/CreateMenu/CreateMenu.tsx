@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import styles from "./CreateMenu.module.css"
 
 /**
@@ -65,6 +68,12 @@ function ActionRow({
  */
 export default function CreateMenu({ open, onClose, actions }: CreateMenuProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Both surfaces render; CSS shows one. The sheet covers the page, so it
+  // locks it; the anchored dropdown closes when the page scrolls instead.
+  const isMobile = useMediaQuery("(max-width: 767px)")
+  useBodyScrollLock(open && isMobile)
+  useCloseOnScroll(open && !isMobile, onClose)
 
   // Esc closes either surface.
   useEffect(() => {

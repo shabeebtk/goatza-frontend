@@ -24,6 +24,7 @@
   animation: backdropIn 0.18s var(--ease-out) both;
   /* Let the backdrop scroll so the modal is always reachable */
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @media (min-width: 640px) {

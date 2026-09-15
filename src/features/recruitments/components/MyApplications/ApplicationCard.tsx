@@ -7,6 +7,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import { formatReportingTime } from "../../eligibility"
+import { isTrialOver } from "../../trialEnded"
 import type { MyApplicationListItem } from "../../services/recruitments.api"
 import { RECRUITMENT_TYPE_OPTIONS } from "../../filterOptions"
 import styles from "./ApplicationCard.module.css"
@@ -31,6 +32,10 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
   // need to remember on the day.
   const group = application.age_category
   const reportingTime = formatReportingTime(group?.reporting_time)
+
+  // The trial day has passed. The application keeps its own status (the club
+  // may still be deciding), so this sits beside it rather than replacing it.
+  const trialOver = isTrialOver(r)
 
   return (
     <article className={styles.card}>
@@ -57,7 +62,10 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
           </span>
         </Link>
 
-        <StatusBadge status={application.status} />
+        <span className={styles.badges}>
+          {trialOver && <span className={styles.endedBadge}>Trial ended</span>}
+          <StatusBadge status={application.status} />
+        </span>
       </div>
 
       <Link href={toRecruitment(r.id)} className={styles.titleLink}>

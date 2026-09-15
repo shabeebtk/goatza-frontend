@@ -30,6 +30,7 @@ import { usePostComments, useCreateComment, useDeleteComment } from "@/features/
 import type { DeleteCommentVars } from "@/features/posts/hooks/usePostMutations"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { blurActiveInput, keepFocusProps } from "@/shared/hooks/keepFocus"
 import CommentItem from "./CommentItem"
 import type { PostComment } from "@/features/posts/services/posts.api"
 import styles from "./PostComments.module.css"
@@ -125,6 +126,10 @@ export default function CommentsThread({
     const trimmed = text.trim()
     if (!trimmed || isPending) return
 
+    // The send button keeps focus in the input while it is tapped
+    // (keepFocusProps), so the keyboard is closed here, on purpose.
+    blurActiveInput()
+
     const parent = replyingTo
     // Snappy: clear the composer immediately; restore it if the post fails.
     setText("")
@@ -164,8 +169,14 @@ export default function CommentsThread({
     <>
       {renderHeader?.(count)}
 
-      {/* Scrollable list */}
-      <div className={styles.list} ref={listRef}>
+      {/* Scrollable list. Scrolling it closes the keyboard on purpose, the way
+          native apps do — rather than a later tap doing it by accident. */}
+      <div
+        className={styles.list}
+        ref={listRef}
+        onScroll={blurActiveInput}
+        onTouchMove={blurActiveInput}
+      >
         {isLoading ? (
           <div className={styles.stateMsg}>Loading comments…</div>
         ) : comments.length === 0 ? (
@@ -212,7 +223,12 @@ export default function CommentsThread({
           {replyingTo && (
             <div className={styles.replyingBadge}>
               <span>Replying to {replyingTo.actor.name}</span>
-              <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">
+              <button
+                type="button"
+                onClick={() => setReplyingTo(null)}
+                aria-label="Cancel reply"
+                {...keepFocusProps}
+              >
                 <Icon icon="mdi:close" width={14} height={14} />
               </button>
             </div>
@@ -231,6 +247,10 @@ export default function CommentsThread({
               className={styles.sendBtn}
               disabled={!text.trim() || isPending}
               aria-label="Send"
+              // A tap on Send must not blur the input first: on iOS the
+              // keyboard would close, the sheet would move and the click
+              // would miss the button. The submit closes it afterwards.
+              {...keepFocusProps}
             >
               <Icon
                 icon={isPending ? "mdi:loading" : "mdi:send"}

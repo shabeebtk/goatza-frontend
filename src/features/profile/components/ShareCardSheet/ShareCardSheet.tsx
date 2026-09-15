@@ -45,6 +45,7 @@ import {
   defaultSlotKeys,
 } from "@/features/profile/utils/shareCard/slots"
 import styles from "./ShareCardSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 /** Long enough that dragging through the checkboxes does not fire a render per
  *  tap, short enough that the preview feels attached to the choice. */
@@ -259,13 +260,7 @@ function ShareCardSheetInner({
 
   // ── Modal mechanics (mirrors ShareSheet) ───────────────────
 
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [])
+  useBodyScrollLock()
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null

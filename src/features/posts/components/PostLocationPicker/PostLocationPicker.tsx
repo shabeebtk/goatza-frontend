@@ -56,6 +56,7 @@ import {
 } from "@/shared/services/places.service"
 import PoweredByGoogle from "@/shared/components/PoweredByGoogle/PoweredByGoogle"
 import styles from "./PostLocationPicker.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // Both are cost rules from docs/PLACES_MIGRATION.md section 3, not UX taste:
 // every keystroke that reaches Google is a billed Autocomplete event, and
@@ -158,16 +159,9 @@ function PostLocationPickerInner({
   const titleId = useId()
 
   // ── Scroll lock ─────────────────────────────────────────────
-  // The opener already locked the body; restoring the previous value rather
-  // than clearing it is what keeps the modal underneath locked after this
-  // closes.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  // The opener already locked the page; the lock is counted, which is what
+  // keeps the modal underneath locked after this closes.
+  useBodyScrollLock()
 
   // ── Focus ────────────────────────────────────────────────────
   // The input, not the panel: this screen exists to be typed into, and the

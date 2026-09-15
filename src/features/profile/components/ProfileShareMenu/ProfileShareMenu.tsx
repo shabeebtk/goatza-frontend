@@ -45,6 +45,7 @@ import ReportSheet from "@/features/moderation/components/ReportSheet/ReportShee
 import ShareCardSheet from "@/features/profile/components/ShareCardSheet/ShareCardSheet"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { profileUrl } from "@/shared/services/profileUrl"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import styles from "./ProfileShareMenu.module.css"
 
 /** Module-level so useSyncExternalStore doesn't resubscribe every render. */
@@ -152,6 +153,10 @@ export default function ProfileShareMenu({
     document.addEventListener("keydown", close)
     return () => document.removeEventListener("keydown", close)
   }, [menuOpen])
+
+  // Anchored to the trigger: it closes when the page scrolls rather than
+  // locking the page, which a menu this small has no business doing.
+  useCloseOnScroll(menuOpen, () => setMenuOpen(false))
 
   const handleSendInMessage = () => {
     setMenuOpen(false)

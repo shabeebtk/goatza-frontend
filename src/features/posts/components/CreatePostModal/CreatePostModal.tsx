@@ -17,7 +17,7 @@ import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { VIDEO_ACCEPT } from "@/shared/constants/media"
-import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
+import { OPTIMIZING_LABEL, isVideoAudioLostError } from "@/shared/services/videoEncode"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
@@ -25,6 +25,7 @@ import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageC
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import styles from "./CreatePostModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -409,6 +410,8 @@ export default function CreatePostModal({
   const [submitError,  setSubmitError]  = useState<string | null>(null)
   const [phase,        setPhase]        = useState<SubmitPhase>("idle")
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  // The browser could not keep the video's sound: ask before posting it mute.
+  const [confirmSilent,  setConfirmSilent]  = useState(false)
 
   // Location state — managed outside any form library
   const [postLocation,  setPostLocation]  = useState<PlaceResult | null>(null)
@@ -441,13 +444,7 @@ export default function CreatePostModal({
   }
 
   // ── Manage body scroll lock ───────────────────────────────────
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = originalOverflow
-    }
-  }, [])
+  useBodyScrollLock()
 
   // ── Auto-resize textarea ──────────────────────────────────────
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
@@ -517,7 +514,7 @@ export default function CreatePostModal({
   }, [])
 
   // ── Submit ────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  const handleSubmit = async (opts?: { allowSilentAudio?: boolean }) => {
     setSubmitError(null)
     const trimmed = content.trim()
     if (trimmed.length < 3) {
@@ -539,7 +536,8 @@ export default function CreatePostModal({
             setEntries(prev => prev.map((e, i) => i === fileIndex
               ? { ...e, progress: pct, optimizing: uploadPhase === "encoding" }
               : e))
-          }
+          },
+          { allowSilentAudio: opts?.allowSilentAudio }
         )
         for (let i = 0; i < results.length; i++) {
           setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, optimizing: false, result: results[i] } : e))
@@ -547,6 +545,15 @@ export default function CreatePostModal({
         }
         uploadedMedia = results
       } catch (err: unknown) {
+        // Not a failure yet — a decision. Nothing was uploaded, so put the
+        // composer back exactly as it was and ask; "Post without sound"
+        // re-runs this with the author's permission.
+        if (isVideoAudioLostError(err)) {
+          setEntries(prev => prev.map(e => ({ ...e, status: "idle", progress: 0, optimizing: false, error: null })))
+          setPhase("idle")
+          setConfirmSilent(true)
+          return
+        }
         const msg = err instanceof Error ? err.message : "Upload failed"
         setEntries(prev => prev.map(e => e.status !== "done" ? { ...e, status: "error", optimizing: false, error: msg } : e))
         setSubmitError(msg)
@@ -785,7 +792,7 @@ export default function CreatePostModal({
 
             <div className={styles.footerRight}>
               {/* Post button */}
-              <button type="button" className={styles.postBtn} onClick={handleSubmit} disabled={!canSubmit}>
+              <button type="button" className={styles.postBtn} onClick={() => handleSubmit()} disabled={!canSubmit}>
                 Post
               </button>
             </div>
@@ -806,6 +813,39 @@ export default function CreatePostModal({
         />
 
       </div>
+
+      {/* The sound cannot be kept on this browser: post mute, or not at all */}
+      {confirmSilent && (
+        <div className={styles.confirmOverlay} onClick={() => setConfirmSilent(false)}>
+          <div
+            className={styles.confirmDialog}
+            onClick={e => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Post without sound"
+          >
+            <span className={`${styles.confirmIcon} ${styles.confirmIconWarn}`}>
+              <Icon icon="mdi:volume-off" width={26} height={26} />
+            </span>
+            <h3 className={styles.confirmTitle}>Post without sound?</h3>
+            <p className={styles.confirmText}>
+              This browser can&rsquo;t keep the sound on this video. Try posting it from a computer, or update your phone&rsquo;s software.
+            </p>
+            <div className={styles.confirmActions}>
+              <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmSilent(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.confirmPrimaryBtn}
+                onClick={() => { setConfirmSilent(false); void handleSubmit({ allowSilentAudio: true }) }}
+              >
+                Post without sound
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Discard-changes confirmation */}
       {confirmDiscard && (

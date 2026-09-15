@@ -14,13 +14,14 @@
  *   onClose    — called when done
  */
 
-import { useCallback, useRef, useState, useEffect } from "react"
+import { useCallback, useRef, useState } from "react"
 import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
 import { useOrgPhotoUpload, type OrgPhotoType } from "../../hooks/useOrgPhotoUpload"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
 import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./OrgPhotoEditModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Config ────────────────────────────────────────────────────
 
@@ -67,11 +68,7 @@ export default function OrgPhotoEditModal({
   const [croppedArea, setCroppedArea]   = useState<PixelCrop | null>(null)
 
   // Body scroll lock
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = prev }
-  }, [])
+  useBodyScrollLock()
 
   // ── File pick ─────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +213,9 @@ export default function OrgPhotoEditModal({
         {/* ── CROP / SAVING ── */}
         {(state === "crop" || state === "saving") && (
           <>
-            <div className={styles.cropArea}>
+            {/* data-allow-touchmove: the page scroll lock must not cancel
+                the cropper's drag and pinch. */}
+            <div className={styles.cropArea} data-allow-touchmove="">
               <Cropper
                 image={imageSrc}
                 crop={crop}

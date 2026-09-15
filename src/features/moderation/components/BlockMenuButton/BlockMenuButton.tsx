@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react"
 import { Icon } from "@iconify/react"
 
 import BlockConfirmSheet from "../BlockConfirmSheet/BlockConfirmSheet"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import type { BlockTargetType } from "../../services/moderation.api"
 import styles from "./BlockMenuButton.module.css"
 
@@ -49,6 +50,10 @@ export default function BlockMenuButton({
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
   }, [open])
+
+  // Anchored to the trigger: it closes when the page scrolls rather than
+  // locking the page, which a menu this small has no business doing.
+  useCloseOnScroll(open, () => setOpen(false))
 
   if (isBlocked) return null
 

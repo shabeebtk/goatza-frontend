@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { createPortal } from "react-dom"
 import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
 import styles from "./PostImageCropper.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 export type CropState = { x: number; y: number }
 
@@ -34,11 +35,7 @@ export default function PostImageCropper({
   const [busy, setBusy] = useState(false)
 
   // Lock body scroll while cropping
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = prev }
-  }, [])
+  useBodyScrollLock()
 
   const onCropComplete = useCallback(
     (_: unknown, pixels: PixelCrop) => setArea(pixels),
@@ -69,7 +66,9 @@ export default function PostImageCropper({
         </button>
       </div>
 
-      <div className={styles.cropArea}>
+      {/* data-allow-touchmove: the page scroll lock must not cancel the
+          cropper's drag and pinch. */}
+      <div className={styles.cropArea} data-allow-touchmove="">
         <Cropper
           image={src}
           crop={crop}

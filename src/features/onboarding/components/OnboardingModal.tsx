@@ -13,6 +13,7 @@ import PreviewStep from "../steps/PreviewStep"
 import SuccessStep from "../steps/SuccessStep"
 import CloseWarningDialog from "./CloseWarningDialog"
 import styles from "./OnboardingModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 /**
  * The onboarding shell: fullscreen sheet on mobile, centered card on desktop.
@@ -41,12 +42,7 @@ export default function OnboardingModal() {
   const mustChooseRole = user?.is_role_confirmed === false
 
   // Lock body scroll while the modal is up.
-  useEffect(() => {
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [])
+  useBodyScrollLock()
 
   // Escape opens the close-warning (or dismisses the warning if already open).
   useEffect(() => {

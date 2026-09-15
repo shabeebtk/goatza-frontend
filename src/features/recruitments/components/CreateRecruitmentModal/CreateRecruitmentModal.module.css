@@ -141,6 +141,7 @@
   background: var(--color-bg);
   flex-shrink: 0;
   overflow-x: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -953,6 +954,7 @@
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -1869,6 +1871,7 @@
   box-shadow: var(--shadow-lg);
   max-height: 220px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   animation: fadeIn 0.12s var(--ease-out) both;
 }

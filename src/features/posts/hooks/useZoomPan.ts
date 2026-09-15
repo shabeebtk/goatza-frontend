@@ -350,6 +350,9 @@ export function useZoomPan({
   const containerProps = useMemo(
     () => ({
       ref: setContainer,
+      // The page scroll lock cancels touchmove outside a scroll container;
+      // the pinch and the pan are handled here, so it must let this through.
+      "data-allow-touchmove": "",
       onDoubleClick,
       onMouseDown,
       onMouseMove,

@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useChangeRecruitmentStatus } from "../../hooks/useRecruitments"
 import { STATUS_TRANSITIONS, type RecruitmentStatusAction } from "../../statusTransitions"
@@ -36,6 +39,12 @@ export default function StatusChangeMenu({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const toast = useToast()
   const { mutateAsync, isPending } = useChangeRecruitmentStatus()
+
+  // The sheet covers the page, so it locks it; the anchored dropdown closes
+  // when the page scrolls instead (never mid-request).
+  const isMobile = useMediaQuery("(max-width: 767px)")
+  useBodyScrollLock(open && isMobile)
+  useCloseOnScroll(open && !isMobile && !isPending, onClose)
 
   // Note: the parent mounts this only while open, so each open starts with
   // fresh `confirming`/`error` state — no reset effect needed.

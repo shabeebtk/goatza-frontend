@@ -8,6 +8,7 @@ import { useSportPositions } from "@/features/profile/hooks/useSportsQueries"
 import type { Sport } from "@/features/profile/services/sports.api"
 import type { PlaceResult } from "@/shared/services/places.service"
 import styles from "./ExploreListFilters.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Values (URL-synced by the page) ───────────────────────────
 
@@ -135,16 +136,15 @@ export default function ExploreListFilters({
   const closeSheet = () => setSheetOpen(false)
 
   // Body-scroll lock + Escape close while the sheet is open.
+  useBodyScrollLock(sheetOpen)
+
   useEffect(() => {
     if (!sheetOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSheetOpen(false)
     }
     window.addEventListener("keydown", onKey)
     return () => {
-      document.body.style.overflow = prev
       window.removeEventListener("keydown", onKey)
     }
   }, [sheetOpen])

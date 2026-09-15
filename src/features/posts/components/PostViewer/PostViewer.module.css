@@ -450,6 +450,7 @@
   flex-shrink: 0;
   max-height: 35%;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-bottom: 1px solid var(--color-border-subtle);
 }
 

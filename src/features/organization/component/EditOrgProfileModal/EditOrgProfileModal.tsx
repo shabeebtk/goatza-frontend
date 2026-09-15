@@ -20,6 +20,7 @@ import { useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { OrganizationDetail, OrgLocation, OrgLocationPayload } from "../../types"
 
 import styles from "./EditOrgProfileModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Zod schema ────────────────────────────────────────────────
 
@@ -133,10 +134,7 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
   const placeBias = useProfileBias()
 
   // Lock body scroll
-  useEffect(() => {
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = "" }
-  }, [])
+  useBodyScrollLock()
 
   const {
     register,

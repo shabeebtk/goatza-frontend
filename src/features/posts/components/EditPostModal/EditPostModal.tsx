@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -15,6 +15,7 @@ import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import shared from "../CreatePostModal/CreatePostModal.module.css"
 import styles from "./EditPostModal.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Read-only media preview — clamped ratio, no editing ───────
 
@@ -174,11 +175,7 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
   const canSave = isDirty && contentValid && !saving
 
   // Lock body scroll while open
-  useEffect(() => {
-    const original = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = original }
-  }, [])
+  useBodyScrollLock()
 
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto"

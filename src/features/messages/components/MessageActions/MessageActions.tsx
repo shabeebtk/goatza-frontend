@@ -8,6 +8,7 @@ import {
   useState,
 } from "react"
 import { createPortal } from "react-dom"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { Icon } from "@iconify/react"
 import styles from "./MessageActions.module.css"
 
@@ -66,6 +67,10 @@ export default function MessageActions({
 
   const canReportHere = canReport && Boolean(onReport)
   const hasActions = canDelete || canReportHere || Boolean(copyText)
+
+  // Anchored to a point on screen: the list must not scroll away under it
+  // (a mouse wheel still closes it — see the scroll listener below).
+  useBodyScrollLock(open)
 
   const closeMenu = useCallback(() => {
     setOpen(false)

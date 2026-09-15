@@ -39,6 +39,9 @@ import type {
 } from "../../services/moderation.api"
 import BlockConfirmSheet from "../BlockConfirmSheet/BlockConfirmSheet"
 import styles from "./ReportSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { blurActiveInput, keepFocusProps } from "@/shared/hooks/keepFocus"
 
 /**
  * The ACCOUNT behind the reported thing, when there is one to block.
@@ -89,13 +92,11 @@ export default function ReportSheet({
   const noun = REPORT_TARGET_NOUN[targetType]
 
   // Lock body scroll while open — same as BlockConfirmSheet / PostOptionsSheet.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useBodyScrollLock()
+
+  // The details field is a text input: keep the sheet inside the visible
+  // area while the keyboard is up (see ReportSheet.module.css).
+  useVisualViewport()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -123,6 +124,10 @@ export default function ReportSheet({
 
   const submit = () => {
     if (!category) return
+
+    // Submit keeps focus in the textarea while tapped (keepFocusProps), so
+    // the keyboard is closed here, deliberately, once the report is on.
+    blurActiveInput()
 
     report.mutate(
       {
@@ -258,6 +263,7 @@ export default function ReportSheet({
                 className={styles.submitBtn}
                 onClick={submit}
                 disabled={report.isPending}
+                {...keepFocusProps}
               >
                 {report.isPending ? (
                   <>

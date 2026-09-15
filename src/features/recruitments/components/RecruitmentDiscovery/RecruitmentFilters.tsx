@@ -12,6 +12,7 @@ import {
   type DiscoveryFilters,
 } from "../../filterOptions"
 import styles from "./RecruitmentFilters.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 type TextKey = "search" | "city" | "birthYear"
 
@@ -111,16 +112,15 @@ export default function RecruitmentFilters({
   const closeSheet = () => setSheetOpen(false)
 
   // Lock body scroll + close on Escape while the sheet is open.
+  useBodyScrollLock(sheetOpen)
+
   useEffect(() => {
     if (!sheetOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSheetOpen(false)
     }
     window.addEventListener("keydown", onKey)
     return () => {
-      document.body.style.overflow = prev
       window.removeEventListener("keydown", onKey)
     }
   }, [sheetOpen])

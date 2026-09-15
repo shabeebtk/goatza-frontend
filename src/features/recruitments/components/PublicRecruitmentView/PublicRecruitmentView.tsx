@@ -53,6 +53,7 @@ import { recruitmentDetailPath } from "@/shared/services/recruitmentUrl"
 import { useAuthStore } from "@/store/auth.store"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { formatCountdown } from "../../countdown"
+import { isTrialOver } from "../../trialEnded"
 import {
   APPLY_METHOD_LABEL,
   BENEFIT_ICONS,
@@ -196,10 +197,16 @@ export default function PublicRecruitmentView({
   // `is_accepting_applications` — the server's single public verdict over
   // status, deadline and the applications cap — is the only thing that can
   // decide the open/closed treatment here.
-  const accepting = r.is_accepting_applications !== false
+  // The trial day itself has passed (`is_trial_over`, or the Kolkata calendar
+  // when the payload predates the flag): a banner, no countdown, no apply.
+  const trialOver = isTrialOver(r)
+  const accepting = r.is_accepting_applications !== false && !trialOver
   const countdown = formatCountdown(
     r.application_deadline,
-    accepting ? "active" : "closed"
+    accepting ? "active" : "closed",
+    // The helper reads the clock itself, as it always has here.
+    undefined,
+    { trialOver }
   )
 
   // The first IMAGE, or a video's poster frame. Never a video's own file_url —
@@ -301,6 +308,17 @@ export default function PublicRecruitmentView({
           </div>
         )}
       </div>
+
+      {trialOver && (
+        <div className={styles.endedBanner} role="status">
+          <Icon icon="mdi:calendar-remove-outline" width={18} height={18} />
+          <span>
+            <b>This trial has ended.</b> The trial day was{" "}
+            {r.event_date ? dayjs(r.event_date).format("D MMM YYYY") : "before today"};
+            applications are no longer taken.
+          </span>
+        </div>
+      )}
 
       {countdown && (
         <p
@@ -478,8 +496,12 @@ export default function PublicRecruitmentView({
           </Link>
         ) : (
           <span className={`${styles.btnPrimary} ${styles.btnDisabled}`}>
-            <Icon icon="mdi:lock-outline" width={16} height={16} />
-            Applications closed
+            <Icon
+              icon={trialOver ? "mdi:calendar-remove-outline" : "mdi:lock-outline"}
+              width={16}
+              height={16}
+            />
+            {trialOver ? "Trial ended" : "Applications closed"}
           </span>
         )}
 

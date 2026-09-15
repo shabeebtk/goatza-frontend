@@ -14,6 +14,7 @@ import { useVideoSound } from "@/shared/hooks/useVideoSound"
 // shift while it loads. Shared with ImageMessage.
 import { displaySize } from "../../utils/mediaBox"
 import styles from "./VideoMessage.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Fullscreen player ─────────────────────────────────────────
 
@@ -52,15 +53,14 @@ function VideoPlayer({
         void el.play().catch(() => undefined)
     }, [applyMuted, reportBlocked])
 
+    useBodyScrollLock()
+
     useEffect(() => {
-        const prev = document.body.style.overflow
-        document.body.style.overflow = "hidden"
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") onClose()
         }
         document.addEventListener("keydown", onKey)
         return () => {
-            document.body.style.overflow = prev
             document.removeEventListener("keydown", onKey)
         }
     }, [onClose])
@@ -130,15 +130,14 @@ function CancelConfirm({
     onKeep: () => void
     onConfirm: () => void
 }) {
+    useBodyScrollLock()
+
     useEffect(() => {
-        const prev = document.body.style.overflow
-        document.body.style.overflow = "hidden"
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") onKeep()
         }
         document.addEventListener("keydown", onKey)
         return () => {
-            document.body.style.overflow = prev
             document.removeEventListener("keydown", onKey)
         }
     }, [onKeep])

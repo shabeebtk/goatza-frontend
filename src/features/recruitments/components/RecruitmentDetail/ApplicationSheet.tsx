@@ -27,6 +27,7 @@ import StatusBadge from "../StatusBadge/StatusBadge"
 import { useWithdrawApplication } from "../../hooks/useRecruitments"
 import type { RecruitmentDetail as TRecruitmentDetail } from "../../services/recruitments.api"
 import styles from "./ApplicationSheet.module.css"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 interface ApplicationSheetProps {
     r: TRecruitmentDetail
@@ -59,16 +60,15 @@ export default function ApplicationSheet({
     const reapplyEnabled = showReapply && r.can_apply
 
     // Scroll lock + focus, tied to mount so neither can outlive the sheet.
-    // Same contract as ImageLightbox; the previous overflow is restored rather
-    // than cleared so opening this from anything that locked the page first
-    // does not unlock a page that is still covered.
+    // Same contract as ImageLightbox: the lock is counted, so opening this
+    // from anything that locked the page first does not unlock a page that
+    // is still covered.
+    useBodyScrollLock()
+
     useEffect(() => {
         const previouslyFocused = document.activeElement as HTMLElement | null
-        const prevOverflow = document.body.style.overflow
-        document.body.style.overflow = "hidden"
         dialogRef.current?.focus()
         return () => {
-            document.body.style.overflow = prevOverflow
             previouslyFocused?.focus?.()
         }
     }, [])
