@@ -284,6 +284,31 @@
   --bottom-nav-h: 62px;
 }
 
+/* ── 4b. Z-INDEX ───────────────────────────────────────────── */
+/* Only the two layers that had to be threaded between existing ones are
+   tokens; the rest of the scale is documented here so the next layer lands
+   in the right band instead of at "9999 + 1".
+
+     ≤ 500   app chrome — AppNav / OrgNav, create menu, page modals
+             (Create/Edit post backdrop used to be 500 too; see below)
+       550   full-screen post viewer (--z-post-viewer): above the nav, below
+             everything it can open — sheets, the editor, the lightboxes
+       600   sheets — comments, post options, report, block; onboarding gate
+       650   post editor (--z-post-editor): Create/Edit post backdrop, so an
+             edit started from inside the viewer opens above it;
+             delete-account modal
+       700   image cropper (over the editor); legal consent gate
+       800   location picker (over the editor and the cropper)
+      1000   likes list, share sheet, login wall, image/media lightboxes
+      9999   toasts, page loader
+
+   Global gates (legal consent 700, onboarding 600) stay above the viewer. */
+
+:root {
+  --z-post-viewer: 550;
+  --z-post-editor: 650;
+}
+
 /* ── 5. MOTION TOKENS ──────────────────────────────────────── */
 
 :root {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useCallback } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import type { FetchPostsParams } from "@/features/posts/services/posts.api"
 import { useFeedList } from "../../hooks/useFeedQueries"
 import { useImpressionTracker } from "../../hooks/useImpressionTracker"
@@ -50,13 +51,16 @@ export default function FeedList() {
         isLoading,
         isError,
         isFetchingNextPage,
+        isFetchNextPageError,
         hasNextPage,
         fetchNextPage,
     } = useFeedList()
 
     // Independent of the pagination observer below: different threshold,
-    // different job. See useImpressionTracker.
-    const { getPostRef } = useImpressionTracker()
+    // different job. See useImpressionTracker. markSeen is what the
+    // full-screen viewer reports through — its posts never cross the
+    // observer, but they were read all the same.
+    const { getPostRef, markSeen } = useImpressionTracker()
 
     const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -115,19 +119,33 @@ export default function FeedList() {
 
     return (
         <div className={styles.wrapper}>
-            <div className={styles.list}>
-                {allPosts.map((post) => (
-                    <div
-                        key={post.id}
-                        ref={getPostRef(post.id)}
-                        className={styles.feedItem}
-                    >
-                        {/* The "Suggested" marker lives inside PostCard's header
-                            (top-right), driven by post.feed_source. */}
-                        <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
-                    </div>
-                ))}
-            </div>
+            {/* The full-screen viewer swipes through THIS list and pages it
+                through the same query, so the list already has every post
+                the viewer loaded when it closes on one of them. */}
+            <PostViewerProvider
+                posts={allPosts}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
+                isError={isFetchNextPageError}
+                onPostSeen={markSeen}
+                endLabel="Back to feed"
+                queryParams={EMPTY_QUERY_PARAMS}
+            >
+                <div className={styles.list}>
+                    {allPosts.map((post) => (
+                        <div
+                            key={post.id}
+                            ref={getPostRef(post.id)}
+                            className={styles.feedItem}
+                        >
+                            {/* The "Suggested" marker lives inside PostCard's header
+                                (top-right), driven by post.feed_source. */}
+                            <PostCard post={post} queryParams={EMPTY_QUERY_PARAMS} />
+                        </div>
+                    ))}
+                </div>
+            </PostViewerProvider>
 
             <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
             {isFetchingNextPage && <LoadingMore />}

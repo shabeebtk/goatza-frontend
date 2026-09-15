@@ -1,0 +1,583 @@
+/* ============================================================
+   GOATZA — PostViewer
+   Root + phone reels layout + desktop split layout.
+   Media chrome lives in ViewerMedia / ViewerVideo; the rail and
+   panel actions in ViewerActions; the phone caption in ViewerCaption.
+   ============================================================ */
+
+@keyframes viewerIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Root ────────────────────────────────────────────────────── */
+
+.root {
+  position: fixed;
+  inset: 0;
+  /* Above the nav, below every sheet / modal it opens — see globals.css. */
+  z-index: var(--z-post-viewer);
+  outline: none;
+  animation: viewerIn 0.2s var(--ease-out) both;
+}
+
+.rootPhone {
+  background: #000;
+}
+
+.rootDesktop {
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PHONE — reels
+   ══════════════════════════════════════════════════════════════ */
+
+.phone {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+}
+
+/* Native vertical snap track: one post per screen. */
+.vtrack {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.vtrack::-webkit-scrollbar { display: none; }
+
+/* One post. Placeholders are the same box with nothing inside, so scroll
+   positions hold however long the list gets. */
+.page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  background: #000;
+}
+
+/* Native horizontal snap track inside a page: one slide per viewport width. */
+.track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.track::-webkit-scrollbar { display: none; }
+
+.slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+
+.phoneTop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--space-2) + var(--safe-top)) var(--space-2) var(--space-2);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.phoneTop > * { pointer-events: auto; }
+
+.phoneIconBtn,
+.phoneIconSpacer {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.phoneIconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.phoneIconBtn:active { background: rgba(255, 255, 255, 0.12); }
+
+.phoneCounter {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Bottom: scrim, caption, dots, rail ──────────────────────── */
+
+/* Keeps the caption readable on a bright frame. Sits under the overlays and
+   never takes a touch — the track underneath still gets the swipe. */
+.scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48%;
+  z-index: 2;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.45) 40%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.phoneBottom {
+  position: absolute;
+  left: 0;
+  /* Leave the rail's column free. */
+  right: 76px;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) calc(var(--space-4) + var(--safe-bottom));
+  pointer-events: none;
+}
+
+.phoneBottom > * { pointer-events: auto; }
+
+.rail {
+  position: absolute;
+  right: var(--space-1);
+  bottom: calc(var(--space-4) + var(--safe-bottom));
+  z-index: 3;
+}
+
+/* Dots — in flow under the caption on the phone, floated on the desktop stage. */
+.dots {
+  display: flex;
+  gap: var(--space-2);
+  align-self: flex-start;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--duration-base), transform var(--duration-base) var(--ease-spring);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dotActive {
+  background: var(--color-brand);
+  transform: scale(1.5);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DESKTOP — split panel
+   ══════════════════════════════════════════════════════════════ */
+
+.desktop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 96px;
+}
+
+.modal {
+  display: flex;
+  width: 100%;
+  max-width: 1200px;
+  height: calc(100vh - 48px);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: modalIn 0.22s var(--ease-out) both;
+}
+
+/* Left: media on black. */
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slideNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.slideNav:hover {
+  background: var(--color-brand);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.slideNavPrev { left: var(--space-4); }
+.slideNavNext { right: var(--space-4); }
+
+.stage .dots {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+/* "3 / 27" — quiet, top-left of the stage. */
+.position {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 4;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wider);
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.zoomChip {
+  position: absolute;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+}
+
+.zoomResetBtn {
+  background: var(--color-brand);
+  border: none;
+  color: var(--color-on-brand);
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  margin-left: 4px;
+  transition: background var(--duration-fast);
+}
+
+.zoomResetBtn:hover { background: var(--color-brand-hover); }
+
+/* Right: the post. */
+.panel {
+  flex: 0 0 380px;
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+}
+
+/* Header — mirrors PostCard's. */
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.panelAuthor {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.panelAuthorInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+  min-width: 0;
+}
+
+.panelAuthorName {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--duration-fast);
+}
+
+.panelAuthor:hover .panelAuthorName { color: var(--color-brand-hover); }
+
+.panelAuthorHeadline {
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.panelMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  flex-wrap: wrap;
+  line-height: 1;
+}
+
+.metaDot { opacity: 0.5; }
+
+.panelLocation {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panelMoreBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.panelMoreBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+/* Caption — bounded so a long one cannot squeeze the thread out. */
+.panelCaption {
+  flex-shrink: 0;
+  max-height: 35%;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+/* Stats — mirrors PostCard's stats row. */
+.statsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.likesBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.likesBtn:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-text-secondary);
+}
+
+.reactionIcons {
+  display: flex;
+  align-items: center;
+}
+
+.reactionBubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-surface);
+  margin-left: -4px;
+  line-height: 0;
+}
+
+.reactionBubble:first-child { margin-left: 0; }
+
+.statsComments { margin-left: auto; }
+
+/* The thread fills what is left; its list scrolls, its composer is pinned
+   (both come from PostComments.module.css). */
+.thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Outside the modal */
+.desktopClose {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.desktopClose:hover { background: rgba(255, 255, 255, 0.2); }
+
+.postNav {
+  position: absolute;
+  right: var(--space-5);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.postNavBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.postNavBtn:hover:not(:disabled) {
+  background: var(--color-brand);
+  transform: scale(1.08);
+}
+
+.postNavBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Narrow desktops: keep the gutters but let the panel shrink a little. */
+@media (max-width: 1100px) {
+  .desktop { padding: 24px 72px; }
+  .panel { flex-basis: 340px; width: 340px; }
+}

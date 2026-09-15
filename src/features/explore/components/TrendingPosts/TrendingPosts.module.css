@@ -12,6 +12,18 @@
     gap: var(--space-3);
 }
 
+/* Desktop: ExploreSearchBar is sticky right under the top nav, so a card that
+   landOnPost() parks at the header's edge would slide under it. Read by
+   PostCard's scroll-margin-top. The value is the bar's rendered height from
+   ExploreSearchBar.module.css: 48px min-height + 2 × var(--space-3) (12px)
+   padding + 1px border-bottom = 73px. On phones the bar is static and scrolls
+   away with the content, so no offset there. */
+@media (min-width: 768px) {
+    .section {
+        --post-land-extra: 73px;
+    }
+}
+
 .header {
     padding: 0 var(--space-4);
 }

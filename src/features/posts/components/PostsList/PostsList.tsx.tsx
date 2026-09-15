@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useCallback } from "react"
 import { Icon } from "@iconify/react"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
+import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
 import { usePostsList } from "../../hooks/usePostMutations"
 import type { FetchPostsParams, Post } from "../../services/posts.api"
@@ -131,6 +132,7 @@ export default function PostsList({
         isLoading: isFetching,
         isError: isFetchError,
         isFetchingNextPage,
+        isFetchNextPageError,
         hasNextPage,
         fetchNextPage,
     } = usePostsList(queryParams, preview ? 1 : undefined, !publicPosts)
@@ -226,17 +228,35 @@ export default function PostsList({
                 </p>
             )}
 
-            <div className={styles.list}>
-                {displayPosts.map((post) => (   // ← displayPosts not allPosts
-                    <div key={post.id} className={styles.feedItem}>
-                        <PostCard
-                            post={post}
-                            queryParams={queryParams}
-                            isPreview={preview}
-                        />
-                    </div>
-                ))}
-            </div>
+            {/* The full-screen viewer swipes through this list and pages it
+                through the same query. Not in preview mode: the profile tab
+                shows ONE post with a "View all" link, and a viewer that
+                walked a list the tab never renders would have nowhere to
+                land — the card's own single-post viewer serves it, as it
+                does on the single post page. The public (logged-out) list
+                is unpaginated by design and simply ends. */}
+            <PostViewerProvider
+                posts={displayPosts}
+                hasNextPage={!publicPosts && hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
+                isError={isFetchNextPageError}
+                endLabel="Back to posts"
+                queryParams={queryParams}
+                disabled={preview || Boolean(postId)}
+            >
+                <div className={styles.list}>
+                    {displayPosts.map((post) => (   // ← displayPosts not allPosts
+                        <div key={post.id} className={styles.feedItem}>
+                            <PostCard
+                                post={post}
+                                queryParams={queryParams}
+                                isPreview={preview}
+                            />
+                        </div>
+                    ))}
+                </div>
+            </PostViewerProvider>
 
             {/* Only show infinite scroll machinery in full mode */}
             {!preview && (

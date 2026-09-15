@@ -10,8 +10,20 @@ import { formatClipDuration } from "@/features/highlights/visibilityMeta"
 import BlockConfirmSheet from "@/features/moderation/components/BlockConfirmSheet/BlockConfirmSheet"
 import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import type { PostMedia } from "../../services/posts.api"
 import styles from "./PostOptionsSheet.module.css"
+
+/**
+ * The post's author as the moderation sheets want it. Built by
+ * usePostPermissions so every surface that opens this sheet agrees on it.
+ */
+export interface PostOptionsAuthor {
+  id: string
+  username: string
+  name?: string
+  type: "user" | "organization"
+}
 
 interface PostOptionsSheetProps {
   postId: string
@@ -21,7 +33,8 @@ interface PostOptionsSheetProps {
   isSaved?: boolean
   /**
    * Video items of this post. Present only when the viewer may promote them —
-   * the post's own author, a player, acting as themselves (PostCard decides).
+   * the post's own author, a player, acting as themselves (usePostPermissions
+   * decides).
    */
   promotableVideos?: PostMedia[]
   onClose: () => void
@@ -31,12 +44,7 @@ interface PostOptionsSheetProps {
    * own post (there is nobody to block) and by any caller that has not wired
    * it — the row simply does not render.
    */
-  author?: {
-    id: string
-    username: string
-    name?: string
-    type: "user" | "organization"
-  }
+  author?: PostOptionsAuthor
 }
 
 export default function PostOptionsSheet({
@@ -73,12 +81,9 @@ export default function PostOptionsSheet({
     promote(mediaId, { onDone: onClose })
   }
 
-  // Lock body scroll while open
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => { document.body.style.overflow = prev }
-  }, [])
+  // Lock body scroll while open. Counted, so opening this over the post
+  // viewer and closing either first leaves the page in the right state.
+  useBodyScrollLock()
 
   // Close on Escape
   useEffect(() => {

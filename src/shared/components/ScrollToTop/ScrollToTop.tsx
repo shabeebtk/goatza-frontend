@@ -20,14 +20,26 @@ import { usePathname } from "next/navigation"
  * Query-only updates (?q=, filters via router.replace) never change the
  * pathname, so those don't trigger a scroll — which is what the filter pages
  * that pass { scroll: false } rely on.
+ *
+ * A pop that lands on the SAME pathname is ignored outright. Overlays reserve
+ * history entries on the current URL (useBackToClose), and navigateAway pops
+ * them and pushes the destination in the same breath — a pop like that must
+ * not arm the flag, or the push right behind it would open the new page at
+ * the old scroll offset.
  */
 export default function ScrollToTop() {
   const pathname = usePathname()
   const isPopNavigation = useRef(false)
   const isFirstRender = useRef(true)
+  // Read inside the popstate listener, which is registered once.
+  const pathnameRef = useRef(pathname)
+  useEffect(() => { pathnameRef.current = pathname }, [pathname])
 
   useEffect(() => {
     const onPopState = () => {
+      // The URL is already the target's when popstate fires: same pathname
+      // ⇒ this pop cannot trigger the effect below, so nothing to suppress.
+      if (window.location.pathname === pathnameRef.current) return
       isPopNavigation.current = true
       // Safety net: clear the flag even when the pop doesn't change the pathname
       // (e.g. back to the same path with a different query) so it can't go stale

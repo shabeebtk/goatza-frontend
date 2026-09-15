@@ -86,7 +86,10 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  z-index: 500;
+  /* Shared with EditPostModal. Above the post viewer (550) so an edit opened
+     from inside it lands on top; the cropper (700) and location picker (800)
+     portal to <body> and still stack above this. Scale in globals.css. */
+  z-index: var(--z-post-editor);
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);

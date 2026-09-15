@@ -198,5 +198,8 @@ export function useImpressionTracker() {
     }
   }, [flush, getObserver])
 
-  return { getPostRef }
+  // markSeen is exposed for surfaces that show a feed post OUTSIDE the list —
+  // the full-screen viewer reports what was read there, since the observer
+  // below can only see cards in the viewport.
+  return { getPostRef, markSeen }
 }
