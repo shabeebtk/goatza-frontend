@@ -15,7 +15,9 @@
  * The names are pinned against:
  *   accounts/views/user_auth_views.py   — `guardian_required`, top level
  *   accounts/views/user_views.py        — the same key on the role response
- *   guardians/selectors/consent_selectors.py — `status` + `masked_contact`
+ *   guardians/selectors/consent_selectors.py — `status`, `masked_contact`,
+ *                                          `same_as_login_contact`, `request_state`
+ *   guardians/views/consent_views.py    — the same two on /guardian/details
  *   guardians/permissions.py            — the blocking statuses
  */
 
@@ -128,13 +130,68 @@ describe("syncFromServer — the guardian block on GET /user/details", () => {
     expect(read().required).toBe(false)
   })
 
-  it("leaves a shared_contact flow alone when nothing was masked", () => {
-    // Nothing was sent in shared_contact mode, so there is no contact to mask;
-    // the locally stored mode is the better answer than forcing null.
-    useGuardianStore.getState().setMode("shared_contact")
+  it("drops the mode when nothing was masked — nobody has been named yet", () => {
+    // There is exactly one mode a link can be in, so no masked contact means
+    // no link, and the details form is the right screen.
+    useGuardianStore.getState().setMode("link_sent", "pri•••@x.com")
     syncGuardianFromServer({ status: "pending", masked_contact: null })
 
-    expect(read().mode).toBe("shared_contact")
+    expect(read().mode).toBeNull()
+  })
+
+  it("reads same_as_login_contact and request_state by those exact names", () => {
+    // The exact shape of `data.guardian` from GET /user/details.
+    const block = {
+      status: "pending" as const,
+      masked_contact: "s***d@x.com",
+      same_as_login_contact: true,
+      request_state: "declined" as const,
+    }
+
+    syncGuardianFromServer(block)
+
+    expect(read().sameAsLoginContact).toBe(true)
+    expect(read().requestState).toBe("declined")
+  })
+
+  it("defaults the two new keys when an older server omits them", () => {
+    // The backend can deploy ahead of this client. An older block must read
+    // as the plain waiting state it always was — not as "declined", and not
+    // as "same address".
+    syncGuardianFromServer({ status: "pending", masked_contact: "pri•••@x.com" })
+
+    expect(read().sameAsLoginContact).toBe(false)
+    expect(read().requestState).toBeNull()
+  })
+
+  it("does NOT find them under camelCase or nested keys", () => {
+    // The shape a client might wrongly assume. Kept so a rename on either
+    // side fails here rather than leaving the child on the wrong screen.
+    const wrong = {
+      status: "pending" as const,
+      masked_contact: "pri•••@x.com",
+      sameAsLoginContact: true,
+      requestState: "declined",
+    }
+
+    syncGuardianFromServer(wrong)
+
+    expect(read().sameAsLoginContact).toBe(false)
+    expect(read().requestState).toBeNull()
+  })
+
+  it("clears both new fields once a parent approves", () => {
+    syncGuardianFromServer({
+      status: "pending",
+      masked_contact: "a@b.com",
+      same_as_login_contact: true,
+      request_state: "waiting",
+    })
+
+    syncGuardianFromServer({ status: "approved", masked_contact: null })
+
+    expect(read().sameAsLoginContact).toBe(false)
+    expect(read().requestState).toBeNull()
   })
 })
 
@@ -151,20 +208,31 @@ describe("lock — the 403 backstop", () => {
   })
 })
 
-describe("setMode — the /guardian/details reply", () => {
+describe("setMode — the /guardian/details and /guardian/resend reply", () => {
   it("records link_sent with the masked address for the waiting screen", () => {
     startGuardianFlow(true)
     useGuardianStore.getState().setMode("link_sent", "pri•••@x.com")
 
     expect(read().mode).toBe("link_sent")
     expect(read().maskedContact).toBe("pri•••@x.com")
+    expect(read().sameAsLoginContact).toBe(false)
   })
 
-  it("records shared_contact, which sends nothing and masks nothing", () => {
-    startGuardianFlow(true)
-    useGuardianStore.getState().setMode("shared_contact")
+  it("carries same_as_login_contact through, and starts a fresh wait", () => {
+    // A fresh link just went out, so whatever the last request ended as —
+    // expired, declined — the child is waiting again.
+    useGuardianStore.setState({ requestState: "declined" })
+    useGuardianStore.getState().setMode("link_sent", "s***d@x.com", true)
 
-    expect(read().mode).toBe("shared_contact")
-    expect(read().maskedContact).toBeNull()
+    expect(read().sameAsLoginContact).toBe(true)
+    expect(read().requestState).toBe("waiting")
+  })
+
+  it("resets both new fields on clear", () => {
+    useGuardianStore.getState().setMode("link_sent", "s***d@x.com", true)
+    useGuardianStore.getState().clear()
+
+    expect(read().sameAsLoginContact).toBe(false)
+    expect(read().requestState).toBeNull()
   })
 })

@@ -3,7 +3,9 @@
 
    A standalone screen with no app chrome around it — the child
    is not in the app yet — so it centres its own card and owns
-   its own page background.
+   its own page background. The declined and expired shapes
+   render into the same card with the same type scale, so the
+   page never jumps when a status check changes the answer.
    ============================================================ */
 
 .page {
@@ -157,6 +159,18 @@
 .textBtn:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* The answer to a status check that found nothing new. Quiet and muted:
+   it is information, not an error — nothing went wrong, nobody has
+   answered yet. */
+.statusNote {
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
 }
 
 /* Resend confirmation. Success-coloured and quiet — it replaces the button

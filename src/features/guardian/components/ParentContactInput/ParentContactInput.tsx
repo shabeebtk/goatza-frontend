@@ -4,6 +4,7 @@ import { Icon } from "@iconify/react"
 
 import { Input } from "@/shared/components/ui"
 
+import { PARENT_EMAIL_HINT } from "../../guardianCopy"
 import { ENABLED_CONTACT_CHANNELS, type GuardianContactChannel } from "../../types"
 import styles from "./ParentContactInput.module.css"
 
@@ -33,6 +34,13 @@ type ChannelMeta = {
   icon: string
   /** Name of the chooser button, when there is a chooser. */
   short: string
+  /**
+   * One line under the field. Per channel, because what needs saying differs:
+   * for email it is that the sign-up address is allowed, which is the thing a
+   * child would otherwise guess wrong. Shown through the shared Input's own
+   * helper slot, which yields to an error message when there is one.
+   */
+  hint?: string
 }
 
 export const CHANNEL_META: Record<GuardianContactChannel, ChannelMeta> = {
@@ -43,6 +51,7 @@ export const CHANNEL_META: Record<GuardianContactChannel, ChannelMeta> = {
     autoComplete: "email",
     icon: "mdi:email-outline",
     short: "Email",
+    hint: PARENT_EMAIL_HINT,
   },
   phone: {
     label: "Parent or guardian's phone",
@@ -109,6 +118,7 @@ export default function ParentContactInput({
         onBlur={onBlur}
         disabled={disabled}
         error={error}
+        helperText={meta.hint}
       />
     </div>
   )

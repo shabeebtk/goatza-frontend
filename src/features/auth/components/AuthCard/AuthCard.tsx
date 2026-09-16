@@ -29,10 +29,8 @@ import {
     isUnderAgeError,
     rememberAgeRefusal,
 } from "../../services/ageGate"
-import HandToParentStep from "@/features/guardian/components/HandToParentStep/HandToParentStep"
 import ParentDetailsStep from "@/features/guardian/components/ParentDetailsStep/ParentDetailsStep"
 import { useGuardianStore } from "@/features/guardian/store/guardian.store"
-import type { GuardianMode } from "@/features/guardian/types"
 
 
 // ── Zod schemas ──────────────────────────────────────────────
@@ -196,7 +194,6 @@ function AuthCard() {
     const guardianMode = useGuardianStore((s) => s.mode)
     const guardianStatus = useGuardianStore((s) => s.status)
     const setGuardianMode = useGuardianStore((s) => s.setMode)
-    const clearGuardian = useGuardianStore((s) => s.clear)
 
     const isSignUp = mode === "signup"
     const isLoading = login.isPending || signup.isPending || verifyOtp.isPending
@@ -468,31 +465,18 @@ function AuthCard() {
     // ── Guardian flow ──────────────────────────────────────────
 
     /**
-     * The parent's details went in and the server chose how to reach them.
-     *
-     * `shared_contact` keeps the child on this card — the mode lands in the
-     * store and the render swaps to the hand-the-phone step. `link_sent` is a
-     * wait that can last days, so it gets a route of its own rather than a
-     * state inside a form component.
+     * The parent's details went in and the link is on its way — to the
+     * address given, whether or not it is the one the child signed up with.
+     * The wait can last days, so it gets a route of its own rather than a
+     * state inside a form component; the store carries what that screen
+     * needs to say.
      */
     const handleGuardianDetails = (
-        mode: GuardianMode,
         maskedContact: string | null,
+        sameAsLoginContact: boolean,
     ) => {
-        setGuardianMode(mode, maskedContact)
-
-        if (mode === "link_sent") {
-            router.push("/auth/guardian/waiting")
-        }
-    }
-
-    /**
-     * The parent approved on this device. The gate is down, so the flow is over
-     * and the child goes where any other new account would.
-     */
-    const handleGuardianApproved = () => {
-        clearGuardian()
-        router.push(nextPath)
+        setGuardianMode("link_sent", maskedContact, sameAsLoginContact)
+        router.push("/auth/guardian/waiting")
     }
 
     // ___ google oauth ____________
@@ -528,10 +512,6 @@ function AuthCard() {
     if (guardianRequired) {
         return (
             <div className={styles.heroAuthCard}>
-                {guardianMode === "shared_contact" && (
-                    <HandToParentStep onApproved={handleGuardianApproved} />
-                )}
-
                 {guardianMode === null && (
                     <ParentDetailsStep
                         onSubmitted={handleGuardianDetails}

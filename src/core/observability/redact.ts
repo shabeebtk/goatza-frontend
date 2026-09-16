@@ -9,9 +9,15 @@
  * One unrelated crash on that page and a live consent link is sitting in an
  * error tracker, in a third party's storage, readable by anybody on the team.
  *
+ * The same token travels in the API calls that page makes —
+ * `/api/guardian/consent/<token>/approve` and its siblings — and every one of
+ * those is a fetch breadcrumb too. And the very first version of the email
+ * carried it as `?token=`, so a query value of that name is scrubbed as well.
+ *
  * Nothing here is about hiding failures. The path still arrives as
- * `/guardian/[token]`, so the page is just as identifiable as any other route;
- * the only thing lost is the part that grants access.
+ * `/guardian/[token]` or `/guardian/consent/[redacted]/approve`, so the page
+ * and the call are just as identifiable as any other route; the only thing
+ * lost is the part that grants access.
  *
  * WHY A SHARED MODULE. It runs in all three Sentry runtimes — browser, node and
  * edge. A server-side render of that route, or the request error Next reports
@@ -26,19 +32,53 @@
  */
 const SECRET_PATH_PREFIXES = ["guardian"]
 
+/**
+ * Segments allowed to sit BETWEEN the prefix and the credential, and kept:
+ * the consent page's API calls are `/guardian/consent/<token>/approve`, and
+ * a rule that only knew `/guardian/<secret>` ate the word `consent` and left
+ * the token standing — the exact opposite of the job. With this, the call
+ * arrives as `/guardian/consent/[redacted]/approve`.
+ */
+const KEPT_MIDDLE_SEGMENTS = ["consent"]
+
+/** Query parameters whose value is a credential. */
+const SECRET_QUERY_PARAMS = ["token"]
+
+/**
+ * One path segment: everything up to the next slash, query, fragment, space
+ * or quote. The double backslash matters: these are template literals, where
+ * a lone `\s` cooks to the letter s — the first version of this file had
+ * exactly that, and a token containing an "s" kept its tail.
+ */
+const SEGMENT = `[^/?#\\s"']+`
+
 const SECRET_PATH_PATTERN = new RegExp(
-  `/(${SECRET_PATH_PREFIXES.join("|")})/[^/?#\s"']+`,
+  `/(${SECRET_PATH_PREFIXES.join("|")})` +
+    `((?:/(?:${KEPT_MIDDLE_SEGMENTS.join("|")}))?)` +
+    `/${SEGMENT}`,
   "gi",
 )
 
-/** Replace any secret path segment in a string. Safe on non-URLs. */
+// `[?&]` and not a bare `token=`: `access_token=` is somebody else's secret
+// with its own rules, and a word that merely ends in "token" is not a match.
+const SECRET_QUERY_PATTERN = new RegExp(
+  `([?&](?:${SECRET_QUERY_PARAMS.join("|")})=)[^&#\\s"']*`,
+  "gi",
+)
+
+/** Replace any secret path segment or query value in a string. Safe on non-URLs. */
 export function redactSecretPaths<T>(value: T): T {
   if (typeof value !== "string") return value
 
-  return value.replace(
-    SECRET_PATH_PATTERN,
-    (_match, prefix: string) => `/${prefix}/[redacted]`,
-  ) as unknown as T
+  return value
+    .replace(
+      SECRET_PATH_PATTERN,
+      (_match, prefix: string, kept: string) => `/${prefix}${kept}/[redacted]`,
+    )
+    .replace(
+      SECRET_QUERY_PATTERN,
+      (_match, key: string) => `${key}[redacted]`,
+    ) as unknown as T
 }
 
 /** The fields on a Sentry breadcrumb that can hold a URL. */

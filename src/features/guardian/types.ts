@@ -36,28 +36,50 @@ export const BLOCKING_GUARDIAN_STATUSES: readonly GuardianConsentStatus[] = [
 ]
 
 /**
+ * Where the standing request stands, for the waiting screen.
+ *
+ * `waiting` — the newest link is still live. `expired` — it lapsed with no
+ * answer. `declined` — the child's newest event is the parent saying no. Only
+ * ever set while `pending` with a parent named; `null` everywhere else.
+ */
+export type GuardianRequestState = "waiting" | "expired" | "declined"
+
+/**
  * The `guardian` block on GET /user/details.
  *
  * Rides along on the call the client already makes at session start, which is
  * what lets a locked child's screen render on the same round trip that says the
- * account is locked. `masked_contact` is non-null only while `pending` AND a
+ * account is locked — and it is what the waiting screen re-reads when the tab
+ * comes back into view. `masked_contact` is non-null only while `pending` AND a
  * parent has actually been named — a minor who has just verified their OTP and
- * not yet reached the parent form gets `pending` with null.
+ * not yet reached the parent form gets `pending` with null, `false` and null.
+ *
+ * `same_as_login_contact` and `request_state` are optional on the type because
+ * the backend may deploy before this client does; the store defaults them.
  */
 export type GuardianStatusBlock = {
   status: GuardianConsentStatus
   /** e.g. "pri•••@gmail.com". Never the full address. */
   masked_contact: string | null
+  /** The parent's address is the one the child signed up with. */
+  same_as_login_contact?: boolean
+  request_state?: GuardianRequestState | null
 }
 
 /**
  * How the parent gets reached. Decided by the server, never the client.
  *
+ * ONE VALUE. Every request goes out as an emailed link now — the child's own
+ * sign-up address included — so this only ever says `link_sent`. It stays a
+ * named type and stays on the wire because the store uses it as "a parent has
+ * been named, go to the waiting screen", which is a different fact from
+ * `required`.
+ *
  * Comes back from POST /guardian/details ONLY. It is deliberately absent from
  * the auth responses — at OTP time nobody has named a parent yet, so there is
  * no mode to report.
  */
-export type GuardianMode = "shared_contact" | "link_sent"
+export type GuardianMode = "link_sent"
 
 /** POST /guardian/details — body. */
 export type GuardianDetailsPayload = {
@@ -76,11 +98,17 @@ export type GuardianDetailsPayload = {
   parent_phone?: string
 }
 
-/** POST /guardian/details — response. */
+/** POST /guardian/details and POST /guardian/resend — response. */
 export type GuardianDetailsResponse = {
   mode: GuardianMode
   /** The address the link went to, masked. Shown on the waiting screen. */
   masked_contact: string | null
+  /**
+   * The address is the one the child signed up with. The waiting screen says
+   * so, rather than implying a second inbox exists. Optional for the same
+   * deploy-order reason as on GuardianStatusBlock.
+   */
+  same_as_login_contact?: boolean
 }
 
 /** Which channel the parent's contact was given on. */
@@ -99,16 +127,15 @@ export const ENABLED_CONTACT_CHANNELS: readonly GuardianContactChannel[] = [
 ]
 
 /**
- * The approval body, on both surfaces.
+ * The approval body — POST /guardian/consent/<token>/approve.
  *
  * `confirm_18_plus` is always literally true — the server checks `is not True`,
- * so a missing key, "", "false" and 0 are all refused. `parent_birthdate` is
- * ISO "YYYY-MM-DD" and genuinely optional.
+ * so a missing key, "", "false" and 0 are all refused. Nothing else: the
+ * server no longer reads a date of birth, and the form no longer asks.
  */
 export type GuardianApprovalPayload = {
   parent_name: string
   confirm_18_plus: true
-  parent_birthdate?: string
 }
 
 /**
@@ -148,4 +175,9 @@ export type GuardianConsentView = {
   siblings?: string[]
   /** ISO timestamp. Only while a link is live. */
   expires_at?: string | null
+  /**
+   * The name the child gave for this parent — pre-fills the approval form.
+   * Sent on `pending` only; the approved page has no form and gets null.
+   */
+  guardian_name?: string | null
 }

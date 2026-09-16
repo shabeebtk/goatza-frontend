@@ -2,72 +2,31 @@
 
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm } from "react-hook-form"
+import { useForm } from "react-hook-form"
 import { Icon } from "@iconify/react"
 import { z } from "zod"
 
 import { Button, Input } from "@/shared/components/ui"
-import DateOfBirthInput, {
-  parseIsoDate,
-  EARLIEST_BIRTH_YEAR,
-} from "@/shared/components/DateOfBirthInput"
 
-import {
-  APPROVE_MEANING,
-  CONFIRM_18_LABEL,
-  PARENT_DOB_HINT,
-} from "../../guardianCopy"
+import { APPROVE_MEANING, CONFIRM_18_LABEL } from "../../guardianCopy"
 import type { GuardianApprovalPayload } from "../../types"
 import styles from "./ParentApprovalForm.module.css"
 
 /**
- * The three questions an approval asks, wherever it is asked.
+ * The two questions an approval asks: who are you, and are you their parent
+ * or guardian and 18 or older.
  *
- * TWO SURFACES, ONE FORM. A parent standing next to their child answers this on
- * the child's phone (HandToParentStep); a parent who got an email answers it on
- * a page with no account behind it (the public consent page). Those screens
- * frame it differently and reach different endpoints, but the questions, the
- * wording, the validation and what counts as consent must be identical — a
- * second copy would eventually ask for something slightly different, and then
- * the two records would mean slightly different things.
+ * ONE SURFACE. A parent who got an email answers this on a page with no
+ * account behind it (the public consent page), and nowhere else — there is no
+ * on-device approval any more. It is still its own component rather than
+ * inline in that page: the fields, the wording, the validation and what counts
+ * as consent are the record, and keeping them apart from the page's framing
+ * (the child's name, the data list, the decline button) is what keeps a layout
+ * change from quietly becoming a change to what a parent agreed to.
  *
- * So the surfaces own the framing and the submit; this owns the fields.
+ * NO DATE OF BIRTH. It was asked for once, optionally, and bought nothing the
+ * tick below does not already claim — the server no longer reads it.
  */
-
-/**
- * Optional, unlike everywhere else this component appears in the app.
- *
- * The parent's own date of birth is a nice-to-have — it corroborates the tick
- * above it — and a required field here would stop an approval that is otherwise
- * complete and honest. So "" passes, and anything typed has to be a real past
- * date, which is exactly the set of mistakes the person can see for themselves.
- */
-const optionalBirthdate = z
-  .string()
-  .refine(
-    (value) => value === "" || parseIsoDate(value) !== null,
-    { message: "That date doesn't exist — check the day and month" },
-  )
-  .refine(
-    (value) => {
-      if (value === "") return true
-      const parts = parseIsoDate(value)
-      return parts === null || parts.year >= EARLIEST_BIRTH_YEAR
-    },
-    { message: "Check the year" },
-  )
-  .refine(
-    (value) => {
-      if (value === "") return true
-      const parts = parseIsoDate(value)
-      if (parts === null) return true
-
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      return new Date(parts.year, parts.month - 1, parts.day) <= today
-    },
-    { message: "Date of birth can't be in the future" },
-  )
 
 const approvalSchema = z.object({
   parentName: z.string().trim().min(1, "Enter your name"),
@@ -78,8 +37,6 @@ const approvalSchema = z.object({
   confirm18: z.literal(true, {
     error: "Please confirm this to continue",
   }),
-
-  birthdate: optionalBirthdate,
 })
 
 type ApprovalFields = z.infer<typeof approvalSchema>
@@ -90,7 +47,14 @@ interface ParentApprovalFormProps {
    * retyped. Resolving is the surface's cue to move on.
    */
   onApprove: (payload: GuardianApprovalPayload) => Promise<void>
-  /** "Approve" on both surfaces today; a prop so a third one can differ. */
+  /**
+   * Pre-fills "Your name" — the name the child gave for this parent, which the
+   * email already greeted them with. Still editable and still required: a
+   * pre-filled name is a convenience, and what they submit is what is
+   * recorded as what THEY said.
+   */
+  defaultName?: string
+  /** "Approve" today; a prop so a second surface could differ. */
   submitLabel?: string
   /** Decline, on the surfaces that offer it. Rendered under the button. */
   secondaryAction?: React.ReactNode
@@ -114,6 +78,7 @@ function errorMessage(err: unknown): string {
 
 export default function ParentApprovalForm({
   onApprove,
+  defaultName = "",
   submitLabel = "Approve",
   secondaryAction,
   busy = false,
@@ -121,7 +86,6 @@ export default function ParentApprovalForm({
   const [apiError, setApiError] = useState<string | null>(null)
 
   const {
-    control,
     register,
     handleSubmit,
     watch,
@@ -129,11 +93,10 @@ export default function ParentApprovalForm({
   } = useForm<ApprovalFields>({
     resolver: zodResolver(approvalSchema),
     defaultValues: {
-      parentName: "",
+      parentName: defaultName,
       // Starts false and is never seeded from anywhere. A pre-ticked box is
       // not consent.
       confirm18: false as unknown as true,
-      birthdate: "",
     },
   })
 
@@ -149,9 +112,6 @@ export default function ParentApprovalForm({
       await onApprove({
         parent_name: values.parentName.trim(),
         confirm_18_plus: true,
-        // Absent, not empty. An empty string is a value the server would have
-        // to interpret; leaving the key off says plainly that it was not given.
-        ...(values.birthdate ? { parent_birthdate: values.birthdate } : {}),
       })
     } catch (err) {
       setApiError(errorMessage(err))
@@ -187,21 +147,6 @@ export default function ParentApprovalForm({
           </p>
         )}
       </div>
-
-      <Controller
-        control={control}
-        name="birthdate"
-        render={({ field, fieldState }) => (
-          <DateOfBirthInput
-            value={field.value ?? ""}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            disabled={locked}
-            error={fieldState.error?.message}
-            hint={PARENT_DOB_HINT}
-          />
-        )}
-      />
 
       {apiError && (
         <p className={styles.apiError} role="alert">

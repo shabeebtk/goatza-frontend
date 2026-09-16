@@ -9,7 +9,7 @@ import { z } from "zod"
 import { Button, Input } from "@/shared/components/ui"
 
 import {
-  HAND_TO_PARENT_SUBHEADING,
+  PERMISSION_NEEDED_SUBHEADING,
   WITHDRAWN_HEADING,
   WITHDRAWN_SUBHEADING,
 } from "../../guardianCopy"
@@ -18,7 +18,6 @@ import {
   ENABLED_CONTACT_CHANNELS,
   type GuardianConsentStatus,
   type GuardianContactChannel,
-  type GuardianMode,
 } from "../../types"
 import ParentContactInput from "../ParentContactInput/ParentContactInput"
 import styles from "./ParentDetailsStep.module.css"
@@ -105,12 +104,13 @@ interface ParentDetailsStepProps {
    */
   status?: GuardianConsentStatus | null
   /**
-   * Handed the mode the server chose, which decides the next screen, plus the
-   * masked address a link went to — the waiting screen names it, and this is
-   * the same masked string /user/details will return later, so the two screens
-   * cannot end up spelling one value two ways.
+   * The link is out. Handed the masked address it went to — the waiting screen
+   * names it, and this is the same masked string /user/details will return
+   * later, so the two screens cannot end up spelling one value two ways — and
+   * whether that address is the one the child signed up with, which changes
+   * how the waiting screen words itself.
    */
-  onSubmitted: (mode: GuardianMode, maskedContact: string | null) => void
+  onSubmitted: (maskedContact: string | null, sameAsLoginContact: boolean) => void
 }
 
 export default function ParentDetailsStep({
@@ -144,17 +144,19 @@ export default function ParentDetailsStep({
     setApiError(null)
 
     try {
-      const { mode, masked_contact } = await submitGuardianDetailsApi({
-        parent_name: values.parentName.trim(),
-        // EXACTLY ONE of the two. The server 400s on both and on neither, and
-        // the unused key is absent rather than empty — an empty string is a
-        // value it would have to decide the meaning of.
-        ...(values.channel === "email"
-          ? { parent_email: values.contact.trim() }
-          : { parent_phone: values.contact.trim() }),
-      })
+      const { masked_contact, same_as_login_contact } =
+        await submitGuardianDetailsApi({
+          parent_name: values.parentName.trim(),
+          // EXACTLY ONE of the two. The server 400s on both and on neither, and
+          // the unused key is absent rather than empty — an empty string is a
+          // value it would have to decide the meaning of.
+          ...(values.channel === "email"
+            ? { parent_email: values.contact.trim() }
+            : { parent_phone: values.contact.trim() }),
+        })
 
-      onSubmitted(mode, masked_contact)
+      // `=== true` rather than a bare read: an older server omits the key.
+      onSubmitted(masked_contact, same_as_login_contact === true)
     } catch (err) {
       setApiError(errorMessage(err))
     }
@@ -165,12 +167,10 @@ export default function ParentDetailsStep({
       <p className={styles.title}>
         {relocked ? WITHDRAWN_HEADING : "Ask a parent or guardian"}
       </p>
-      {/* The shared sentence, not a second copy of it — this screen and the
-          hand-the-phone one say the same thing and must keep saying it. */}
       <p className={styles.subtitle}>
         {relocked
           ? WITHDRAWN_SUBHEADING
-          : `${HAND_TO_PARENT_SUBHEADING} Tell us who to ask.`}
+          : `${PERMISSION_NEEDED_SUBHEADING} Tell us who to ask.`}
       </p>
 
       <form onSubmit={onSubmit} className={styles.form} noValidate>

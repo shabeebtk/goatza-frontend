@@ -1,7 +1,12 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-import type { GuardianConsentStatus, GuardianMode } from "../types"
+import type {
+  GuardianConsentStatus,
+  GuardianMode,
+  GuardianRequestState,
+  GuardianStatusBlock,
+} from "../types"
 
 /**
  * Where the child is in the guardian flow, between the OTP and the app.
@@ -18,17 +23,20 @@ import type { GuardianConsentStatus, GuardianMode } from "../types"
  *
  *   1. `guardian_required` on the OTP / role response — the moment an account
  *      becomes real and is found to be a minor.
- *   2. The `guardian` block on GET /user/details — read at every session start,
- *      which is what makes the flow survive a new tab or a cold boot.
+ *   2. The `guardian` block on GET /user/details — read at every session start
+ *      and again whenever the waiting screen re-checks, which is what makes
+ *      the flow survive a new tab or a cold boot and what tells a waiting
+ *      child that their parent has answered.
  *   3. A 403 `GUARDIAN_CONSENT_REQUIRED` from any gated endpoint — the safety
  *      net for anything the first two missed.
  *
  * SESSION STORAGE, and it holds NO personal data — only which step you are on.
- * Not the parent's name, not their email, not a birthdate; those go straight to
- * the server from the form that collects them and are never written to a
- * child's device. It survives a refresh and dies with the tab, and because
- * route 2 above re-establishes it from the server on every boot, losing it
- * costs nothing.
+ * Not the parent's name, not their email; those go straight to the server from
+ * the form that collects them and are never written to a child's device. The
+ * masked address, the "same address you signed up with" flag and the request
+ * state are all server-issued facts about the exchange, not about a person.
+ * It survives a refresh and dies with the tab, and because route 2 above
+ * re-establishes it from the server on every boot, losing it costs nothing.
  */
 
 type GuardianFlowState = {
@@ -47,18 +55,30 @@ type GuardianFlowState = {
   mode: GuardianMode | null
   /** The address a link went to, masked. Server-supplied, for the wait screen. */
   maskedContact: string | null
+  /**
+   * The parent's address is the child's own sign-up email. The waiting screen
+   * words itself differently — there is no second inbox to go and check.
+   */
+  sameAsLoginContact: boolean
+  /**
+   * What the waiting screen should say about the standing request: still
+   * waiting, the link expired, or the parent said no. Server-supplied; null
+   * until a parent has been named.
+   */
+  requestState: GuardianRequestState | null
 
   /** From `guardian_required` on the OTP / role response. */
   start: (required: boolean | undefined) => void
   /** From the `guardian` block on GET /user/details. */
-  syncFromServer: (block: {
-    status: GuardianConsentStatus
-    masked_contact: string | null
-  } | undefined) => void
+  syncFromServer: (block: GuardianStatusBlock | undefined) => void
   /** From a 403 GUARDIAN_CONSENT_REQUIRED on any gated request. */
   lock: (status: GuardianConsentStatus) => void
-  /** From POST /guardian/details. */
-  setMode: (mode: GuardianMode, maskedContact?: string | null) => void
+  /** From POST /guardian/details and POST /guardian/resend. */
+  setMode: (
+    mode: GuardianMode,
+    maskedContact?: string | null,
+    sameAsLoginContact?: boolean,
+  ) => void
   /** Approval landed. */
   clear: () => void
 }
@@ -68,6 +88,8 @@ const CLEARED = {
   status: null,
   mode: null,
   maskedContact: null,
+  sameAsLoginContact: false,
+  requestState: null,
 } as const
 
 export const useGuardianStore = create<GuardianFlowState>()(
@@ -102,21 +124,34 @@ export const useGuardianStore = create<GuardianFlowState>()(
             which is the waiting state, and the server is the only side that
             knows it. Without this, a child who closes the tab mid-wait and
             comes back would be asked for their parent's details a second time
-            and send a second email.
-
-            Null leaves `mode` alone rather than forcing it null: on a boot
-            mid-`shared_contact` there is no contact to mask (nothing was sent)
-            and the locally stored mode is the better answer.
+            and send a second email. No masked contact means nobody has been
+            named yet, and the details form is the right screen — there is no
+            other mode a link could be in.
           */
-          mode: block.masked_contact ? "link_sent" : get().mode,
+          mode: block.masked_contact ? "link_sent" : null,
+          /*
+            Defaulted, not trusted to be present: the backend may deploy ahead
+            of this client, and an older block without these keys must read as
+            the plain waiting state it always was.
+          */
+          sameAsLoginContact: block.same_as_login_contact === true,
+          requestState: block.request_state ?? null,
         })
       },
 
       lock: (status) =>
         set({ required: true, status }),
 
-      setMode: (mode, maskedContact = null) =>
-        set({ required: true, mode, maskedContact }),
+      setMode: (mode, maskedContact = null, sameAsLoginContact = false) =>
+        set({
+          required: true,
+          mode,
+          maskedContact,
+          sameAsLoginContact,
+          // A fresh link has just gone out, so whatever the last one was —
+          // expired, declined — the child is waiting again.
+          requestState: "waiting",
+        }),
 
       clear: () => set(CLEARED),
     }),
@@ -138,6 +173,8 @@ export const useGuardianStore = create<GuardianFlowState>()(
         status: state.status,
         mode: state.mode,
         maskedContact: state.maskedContact,
+        sameAsLoginContact: state.sameAsLoginContact,
+        requestState: state.requestState,
       }),
     },
   ),
@@ -151,9 +188,8 @@ export const useGuardianStore = create<GuardianFlowState>()(
 export const startGuardianFlow = (required: boolean | undefined) =>
   useGuardianStore.getState().start(required)
 
-export const syncGuardianFromServer = (
-  block: { status: GuardianConsentStatus; masked_contact: string | null } | undefined,
-) => useGuardianStore.getState().syncFromServer(block)
+export const syncGuardianFromServer = (block: GuardianStatusBlock | undefined) =>
+  useGuardianStore.getState().syncFromServer(block)
 
 export const lockGuardian = (status: GuardianConsentStatus) =>
   useGuardianStore.getState().lock(status)
