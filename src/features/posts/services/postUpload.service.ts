@@ -1,18 +1,29 @@
 import imageCompression from "browser-image-compression"
+import { isAxiosError } from "axios"
 
-import { getBlobDimensions, makeThumb } from "@/shared/services/imageVariants"
 import {
+    getBlobDimensions,
+    imageFileName,
+    makeThumb,
+    preferredImageType,
+} from "@/shared/services/imageVariants"
+import {
+    UPLOAD_CANCELLED,
     describeBlob,
     getUploadConfigApi,
     putToR2,
+    type MediaUploadType,
+    type UploadConfigResponse,
     type UploadFileDescriptor,
 } from "@/shared/services/mediaUpload"
 import {
+    VIDEO_PREPARE_FAILED_MESSAGE,
     capturePoster,
     encodeVideo,
     videoProgressSplit,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
+import { isUploadCancellation } from "@/shared/services/apiError"
 import { checkVideoExtension } from "@/shared/constants/media"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -29,6 +40,13 @@ export type UploadMediaOptions = {
      * `VideoAudioLostError` in videoEncode.ts.
      */
     allowSilentAudio?: boolean
+    /**
+     * Cancels the whole pipeline: the compressor, the encoder, the signature
+     * request and every PUT. Everything then rejects with a cancellation —
+     * `isUploadCancellation` in apiError.ts recognises each shape — which the
+     * composer treats as silence, not failure.
+     */
+    signal?: AbortSignal
 }
 
 export type MediaUploadResult = {
@@ -74,15 +92,23 @@ export const MAX_RAW_VIDEO_MB = 300
 
 export const MAX_VIDEO_SECONDS = 5 * 60   // 5 minutes
 
+/**
+ * Feed photos are viewed large and zoomed in the fullscreen viewer, so this
+ * allows a higher size ceiling and resolution than chat does. The output
+ * format is decided per browser (`preferredImageType`): WebP where the canvas
+ * can write it, JPEG otherwise — asking an iPhone for WebP quietly yields a
+ * PNG several times the size, with `maxSizeMB` unable to do anything about it.
+ */
 const IMAGE_COMPRESSION_OPTIONS = {
-    // Keep good quality — feed photos are viewed large and zoomed in the
-    // fullscreen viewer, so allow a higher size ceiling and resolution.
     maxSizeMB: 2.5,
     maxWidthOrHeight: 2560,
     initialQuality: 0.9,
     useWebWorker: true,
-    fileType: "image/webp" as const,
 }
+
+/** What the author sees when the photos could not be made uploadable. */
+export const PHOTOS_PREPARE_FAILED_MESSAGE =
+    "Couldn't prepare these photos. Please try again."
 
 // ── Validation ────────────────────────────────────────────────
 
@@ -140,6 +166,46 @@ export function getVideoDuration(file: File): Promise<number> {
     })
 }
 
+// ── Cancellation ──────────────────────────────────────────────
+
+function throwIfAborted(signal?: AbortSignal) {
+    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
+}
+
+// ── Signing ───────────────────────────────────────────────────
+
+/**
+ * The ONE config request for a post's batch, with a 400 translated for the
+ * author.
+ *
+ * Every rule the signature endpoint enforces — content types, the 1MB thumb
+ * cap, the 80MB video cap, video↔thumb pairing — is met by the client before
+ * the request is made, so a 400 here means the CLIENT prepared something the
+ * server will not take, not something the author can change by editing their
+ * post. "Thumbnail is larger than 1MB" is true and useless to them; what they
+ * can do is try again. The server's own message is kept in development so the
+ * actual rule that fired is not lost.
+ */
+async function signPostBatch(
+    type: MediaUploadType,
+    files: UploadFileDescriptor[],
+    signal: AbortSignal | undefined,
+    prepareFailedMessage: string
+): Promise<UploadConfigResponse> {
+    try {
+        return await getUploadConfigApi(type, files, undefined, signal)
+    } catch (err) {
+        if (isUploadCancellation(err)) throw err
+        if (isAxiosError(err) && err.response?.status === 400) {
+            if (process.env.NODE_ENV === "development") {
+                console.warn("[postUpload] signature request refused", err.response.data)
+            }
+            throw new Error(prepareFailedMessage)
+        }
+        throw err
+    }
+}
+
 // ── Upload every file of one post ─────────────────────────────
 
 /**
@@ -159,6 +225,8 @@ export function getVideoDuration(file: File): Promise<number> {
  *
  * `order` still carries the position the user arranged, independent of upload
  * order.
+ *
+ * `options.signal` cancels at any point; see {@link UploadMediaOptions}.
  */
 export async function uploadMediaFile(
     files: File[],
@@ -171,6 +239,9 @@ export async function uploadMediaFile(
     options?: UploadMediaOptions
 ): Promise<MediaUploadResult[]> {
     if (!files.length) return []
+
+    const signal = options?.signal
+    throwIfAborted(signal)
 
     // `validateMediaFiles` has already refused a mixed batch, so a video here
     // means exactly one file and no images.
@@ -186,10 +257,24 @@ export async function uploadMediaFile(
         height: number
     }[] = []
 
+    const fileType = await preferredImageType()
+
     for (const file of files) {
-        const compressed = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
-        const full = new File([compressed], file.name, { type: compressed.type })
-        const thumb = await makeThumb(full)
+        // The compressor rejects with `signal.reason` when aborted.
+        const compressed = await imageCompression(file, {
+            ...IMAGE_COMPRESSION_OPTIONS,
+            fileType,
+            signal,
+        })
+        throwIfAborted(signal)
+
+        // `compressed.type` is what was REALLY written (a browser without a
+        // WebP encoder reports the format it fell back to), so the name and
+        // the declared type follow it rather than the request.
+        const type = compressed.type || fileType
+        const full = new File([compressed], imageFileName(file.name, type), { type })
+        const thumb = await makeThumb(full, signal)
+        throwIfAborted(signal)
         const dims = await getBlobDimensions(full)
 
         prepared.push({
@@ -206,7 +291,7 @@ export async function uploadMediaFile(
         describeBlob(p.thumb, "thumb"),
     ])
 
-    const res = await getUploadConfigApi("posts", descriptors)
+    const res = await signPostBatch("posts", descriptors, signal, PHOTOS_PREPARE_FAILED_MESSAGE)
     const uploads = res.uploads
 
     if (!uploads || uploads.length !== descriptors.length) {
@@ -223,8 +308,8 @@ export async function uploadMediaFile(
 
         // The full image owns the progress bar; the thumb is tens of KB and
         // would only make the bar jump backwards when it starts.
-        await putToR2(full, fullEntry, (l, t) => onProgress?.(i, l, t))
-        await putToR2(thumb, thumbEntry)
+        await putToR2(full, fullEntry, (l, t) => onProgress?.(i, l, t), signal)
+        await putToR2(thumb, thumbEntry, undefined, signal)
 
         results.push({
             file_url: fullEntry.public_url,
@@ -261,12 +346,16 @@ async function uploadPostVideo(
     ) => void,
     options?: UploadMediaOptions
 ): Promise<MediaUploadResult> {
+    const signal = options?.signal
+
     // Duration first, on the ORIGINAL, so a 10-minute clip is refused in the
     // time it takes to read metadata rather than after a full encode.
     const sourceDuration = await getVideoDuration(file)
     if (sourceDuration > MAX_VIDEO_SECONDS) {
         throw new Error(`Video must be under 5 minutes`)
     }
+
+    throwIfAborted(signal)
 
     // One bar for the whole operation: encode 0→70%, upload 70→100%.
     const { onEncode, onUpload } = videoProgressSplit((fraction, phase) =>
@@ -278,34 +367,46 @@ async function uploadPostVideo(
     const encoded = await encodeVideo(file, {
         maxBytes: MAX_VIDEO_MB * 1024 * 1024,
         onProgress: onEncode,
+        signal,
         allowSilentAudio: options?.allowSilentAudio,
     })
 
+    throwIfAborted(signal)
+
     // Poster from the ENCODED blob, not the original: it is already H.264 in an
     // MP4, so every browser can decode a frame out of it — a raw HEVC .mov is
-    // exactly the file a <video> element may refuse to open.
+    // exactly the file a <video> element may refuse to open. `capturePoster`
+    // guarantees a lossy format under the server's thumb cap.
     const poster = await capturePoster(encoded.blob, { mode: "feed" })
 
-    const res = await getUploadConfigApi("posts", [
-        describeVideo(encoded.blob),
-        describeBlob(poster, "thumb"),
-    ])
+    throwIfAborted(signal)
+
+    const res = await signPostBatch(
+        "posts",
+        [describeVideo(encoded.blob), describeBlob(poster, "thumb")],
+        signal,
+        VIDEO_PREPARE_FAILED_MESSAGE
+    )
 
     const [videoEntry, posterEntry] = res.uploads ?? []
     if (!videoEntry || !posterEntry) throw new Error("Upload config mismatch")
 
     // The video owns the progress bar; the poster is tens of KB.
-    await putToR2(encoded.blob, videoEntry, onUpload)
-    await putToR2(poster, posterEntry)
+    await putToR2(encoded.blob, videoEntry, onUpload, signal)
+    await putToR2(poster, posterEntry, undefined, signal)
+
+    // Prefer what the encoder measured; fall back to the probe for a
+    // passthrough, where nothing was decoded. A <video> reports Infinity for
+    // a fragmented/streaming MP4, which JSON would send as `null` — leave the
+    // field out instead, like every other unknown.
+    const duration = Math.round(encoded.duration || sourceDuration)
 
     return {
         file_url: videoEntry.public_url,
         public_id: videoEntry.key,
         media_type: "video",
         thumbnail_url: posterEntry.public_url,
-        // Prefer what the encoder measured; fall back to the probe for a
-        // passthrough, where nothing was decoded.
-        duration: Math.round(encoded.duration || sourceDuration) || undefined,
+        duration: Number.isFinite(duration) && duration > 0 ? duration : undefined,
         width: encoded.width || undefined,
         height: encoded.height || undefined,
         size_bytes: encoded.blob.size,

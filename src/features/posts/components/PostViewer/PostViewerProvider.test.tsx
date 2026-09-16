@@ -255,7 +255,7 @@ describe("PostViewerProvider", () => {
 
         await waitFor(() => expect(landOnPost).toHaveBeenCalledTimes(1))
         // The slide goes along: the landed tile is the one that takes focus.
-        expect(landOnPost).toHaveBeenCalledWith("p3", { highlight: true, slide: 0 })
+        expect(landOnPost).toHaveBeenCalledWith("p3", { slide: 0 })
         expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
         // The inline carousel of that post is told the slide too.
         expect(usePostViewerStore.getState().landings.p3).toEqual({ slide: 0 })
@@ -272,7 +272,7 @@ describe("PostViewerProvider", () => {
         fireEvent.keyDown(document, { key: "Escape" })
 
         await waitFor(() => expect(landOnPost).toHaveBeenCalledTimes(1))
-        expect(landOnPost).toHaveBeenCalledWith("p2", { highlight: true, slide: 0 })
+        expect(landOnPost).toHaveBeenCalledWith("p2", { slide: 0 })
     })
 
     it("closes from the end slide's button and lands", async () => {
@@ -281,7 +281,7 @@ describe("PostViewerProvider", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Back to feed" }))
 
-        await waitFor(() => expect(landOnPost).toHaveBeenCalledWith("p4", { highlight: true, slide: 0 }))
+        await waitFor(() => expect(landOnPost).toHaveBeenCalledWith("p4", { slide: 0 }))
     })
 
     // A link tap navigates away: the list is about to be gone, and landing

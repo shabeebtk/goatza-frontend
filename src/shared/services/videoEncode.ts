@@ -41,6 +41,12 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import {
+    THUMB_MAX_BYTES,
+    canEncodeWebP,
+    type LossyImageType,
+} from "@/shared/services/imageVariants"
+
 // ── Output targets ────────────────────────────────────────────
 
 /**
@@ -72,9 +78,23 @@ const AUDIO_BITRATE = 128_000
  */
 const KEYFRAME_INTERVAL = 2
 
-/** Poster frames. WebP at this quality lands far under the server's 1MB cap. */
-const POSTER_QUALITY = 0.82
-const POSTER_MAX_DIMENSION = 1280
+/**
+ * Poster frames.
+ *
+ * The server signs a "thumb" only up to `THUMB_MAX_BYTES` (1MB). WebP or JPEG
+ * at the first quality step lands far under that, but the budget is enforced
+ * here regardless — with headroom, so the request never lands ON the cap —
+ * by stepping the quality down and then the longest side, until it fits.
+ * Anything that still does not fit is refused with a clear message rather
+ * than becoming a 400 from the signature request.
+ */
+export const POSTER_MAX_BYTES = Math.floor(THUMB_MAX_BYTES * 0.88) // ~900KB
+const POSTER_QUALITY_STEPS = [0.82, 0.7, 0.58] as const
+const POSTER_DIMENSION_STEPS = [1280, 960, 720] as const
+
+/** What the user sees when a poster cannot be made to fit. */
+export const VIDEO_PREPARE_FAILED_MESSAGE =
+    "Couldn't prepare this video. Please try again."
 
 /** The highlight rail tile: 9:16. */
 const HIGHLIGHT_POSTER_WIDTH = 360
@@ -208,6 +228,18 @@ type EncodePath =
 function logPath(path: EncodePath, detail?: string) {
     if (process.env.NODE_ENV !== "development") return
     console.info(`[videoEncode] ${path}${detail ? ` — ${detail}` : ""}`)
+}
+
+/**
+ * What the poster came out as. The type is the interesting part: a browser
+ * with no WebP encoder hands back PNG when asked for WebP, and "the thumb was
+ * 1.4MB" is invisible in the result the caller gets.
+ */
+function logPoster(blob: Blob, width: number, height: number, quality: number) {
+    if (process.env.NODE_ENV !== "development") return
+    console.info(
+        `[videoEncode] poster — ${blob.type} ${kb(blob.size)}KB ${width}×${height} q${quality}`
+    )
 }
 
 // ── Capability probe ──────────────────────────────────────────
@@ -662,7 +694,7 @@ function passthroughIfSafe(
 export type PosterMode = "feed" | "highlight"
 
 /**
- * Grab a poster frame as WebP.
+ * Grab a poster frame as WebP — or JPEG on a browser that cannot write WebP.
  *
  * Nothing generates poster frames server-side, and the attach endpoints REQUIRE
  * a thumbnail for every video — so this is not decoration, it is a required part
@@ -674,6 +706,9 @@ export type PosterMode = "feed" | "highlight"
  *
  * - `feed`      — intrinsic aspect, longest side ≤1280.
  * - `highlight` — 9:16 cover-crop at 360×640, the shape the rail tile expects.
+ *
+ * The returned blob's `type` is the format that was REALLY written, and its
+ * size is under {@link POSTER_MAX_BYTES} — see {@link encodePoster}.
  */
 export function capturePoster(
     source: Blob,
@@ -687,6 +722,9 @@ export function capturePoster(
         video.playsInline = true
 
         let settled = false
+        // The encode below is async and `seeked` can fire more than once; one
+        // frame is plenty.
+        let drawing = false
 
         const cleanup = () => {
             window.clearTimeout(timer)
@@ -714,68 +752,20 @@ export function capturePoster(
         // Hard bound. A poster is required, so a stalled probe has to become an
         // error rather than hanging the upload forever.
         const timer = window.setTimeout(
-            () => fail("Couldn't read a frame from that video."),
+            () => fail(POSTER_READ_FAILED_MESSAGE),
             POSTER_TIMEOUT_MS
         )
 
         const draw = () => {
-            try {
-                const vw = video.videoWidth
-                const vh = video.videoHeight
-                if (!vw || !vh) {
-                    fail("Couldn't read a frame from that video.")
-                    return
-                }
-
-                const canvas = document.createElement("canvas")
-                const ctx = canvas.getContext("2d")
-                if (!ctx) {
-                    fail("Couldn't read a frame from that video.")
-                    return
-                }
-
-                if (mode === "highlight") {
-                    // Cover-crop to 9:16: scale so the box is filled, then
-                    // centre what overflows — a cover-crop, not a letterbox.
-                    canvas.width = HIGHLIGHT_POSTER_WIDTH
-                    canvas.height = HIGHLIGHT_POSTER_HEIGHT
-
-                    const scale = Math.max(
-                        canvas.width / vw,
-                        canvas.height / vh
-                    )
-                    const dw = vw * scale
-                    const dh = vh * scale
-
-                    ctx.drawImage(
-                        video,
-                        (canvas.width - dw) / 2,
-                        (canvas.height - dh) / 2,
-                        dw,
-                        dh
-                    )
-                } else {
-                    const { width, height } = fitWithin(
-                        vw,
-                        vh,
-                        POSTER_MAX_DIMENSION
-                    )
-                    canvas.width = width
-                    canvas.height = height
-                    ctx.drawImage(video, 0, 0, width, height)
-                }
-
-                canvas.toBlob(
-                    (blob) => {
-                        if (blob) finish(blob)
-                        else fail("Couldn't read a frame from that video.")
-                    },
-                    "image/webp",
-                    POSTER_QUALITY
+            if (settled || drawing) return
+            drawing = true
+            encodePoster(video, mode).then(finish, (err: unknown) =>
+                fail(
+                    err instanceof Error && err.message
+                        ? err.message
+                        : POSTER_READ_FAILED_MESSAGE
                 )
-            } catch {
-                fail("Couldn't read a frame from that video.")
-            }
+            )
         }
 
         video.onloadeddata = () => {
@@ -794,11 +784,115 @@ export function capturePoster(
             }
         }
         video.onseeked = draw
-        video.onerror = () => fail("Couldn't read a frame from that video.")
+        video.onerror = () => fail(POSTER_READ_FAILED_MESSAGE)
 
         video.src = url
         video.load()
     })
+}
+
+const POSTER_READ_FAILED_MESSAGE = "Couldn't read a frame from that video."
+
+/**
+ * Paint the current frame at the size `mode` wants, bounded by `maxDimension`
+ * on the longest side for `feed` (ignored for the fixed-size highlight tile).
+ */
+function drawPosterFrame(
+    video: HTMLVideoElement,
+    mode: PosterMode,
+    maxDimension: number
+): HTMLCanvasElement {
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    if (!vw || !vh) throw new Error(POSTER_READ_FAILED_MESSAGE)
+
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error(POSTER_READ_FAILED_MESSAGE)
+
+    if (mode === "highlight") {
+        // Cover-crop to 9:16: scale so the box is filled, then centre what
+        // overflows — a cover-crop, not a letterbox.
+        canvas.width = HIGHLIGHT_POSTER_WIDTH
+        canvas.height = HIGHLIGHT_POSTER_HEIGHT
+
+        const scale = Math.max(canvas.width / vw, canvas.height / vh)
+        const dw = vw * scale
+        const dh = vh * scale
+
+        ctx.drawImage(
+            video,
+            (canvas.width - dw) / 2,
+            (canvas.height - dh) / 2,
+            dw,
+            dh
+        )
+    } else {
+        const { width, height } = fitWithin(vw, vh, maxDimension)
+        canvas.width = width
+        canvas.height = height
+        ctx.drawImage(video, 0, 0, width, height)
+    }
+
+    return canvas
+}
+
+const toBlob = (canvas: HTMLCanvasElement, type: string, quality: number) =>
+    new Promise<Blob | null>((resolve) => {
+        try {
+            canvas.toBlob(resolve, type, quality)
+        } catch {
+            resolve(null)
+        }
+    })
+
+/**
+ * Encode the frame under the byte budget.
+ *
+ * `canvas.toBlob(cb, "image/webp")` is a request the browser may ignore: with
+ * no WebP encoder (every iPhone browser) it returns a lossless PNG — quality
+ * argument and all — and a detailed 720×1280 frame as PNG is routinely over
+ * the server's 1MB thumb cap. So WebP is asked for only where the probe says
+ * it will be honoured, JPEG otherwise, the returned blob's REAL type and size
+ * are checked, and the quality steps down first, then the longest side, until
+ * the poster fits under {@link POSTER_MAX_BYTES}.
+ */
+async function encodePoster(
+    video: HTMLVideoElement,
+    mode: PosterMode
+): Promise<Blob> {
+    let type: LossyImageType = (await canEncodeWebP())
+        ? "image/webp"
+        : "image/jpeg"
+
+    // The highlight tile is a fixed 360×640, so only quality can give.
+    const dimensions: readonly number[] =
+        mode === "highlight" ? [HIGHLIGHT_POSTER_HEIGHT] : POSTER_DIMENSION_STEPS
+
+    for (const maxDimension of dimensions) {
+        const canvas = drawPosterFrame(video, mode, maxDimension)
+
+        for (const quality of POSTER_QUALITY_STEPS) {
+            let blob = await toBlob(canvas, type, quality)
+            if (!blob) throw new Error(POSTER_READ_FAILED_MESSAGE)
+
+            // The probe said WebP but the browser wrote something else: fall
+            // back to JPEG for the rest of the run rather than trusting it.
+            if (blob.type !== type && type === "image/webp") {
+                type = "image/jpeg"
+                blob = await toBlob(canvas, type, quality)
+                if (!blob) throw new Error(POSTER_READ_FAILED_MESSAGE)
+            }
+            if (blob.type !== type) throw new Error(VIDEO_PREPARE_FAILED_MESSAGE)
+
+            if (blob.size <= POSTER_MAX_BYTES) {
+                logPoster(blob, canvas.width, canvas.height, quality)
+                return blob
+            }
+        }
+    }
+
+    throw new Error(VIDEO_PREPARE_FAILED_MESSAGE)
 }
 
 /** Matches the probe timeouts in chatUpload.service.ts. */
@@ -830,6 +924,7 @@ export function fitWithin(
 const even = (n: number) => (n % 2 === 0 ? n : n - 1)
 
 const mb = (bytes: number) => Math.round(bytes / (1024 * 1024))
+const kb = (bytes: number) => Math.round(bytes / 1024)
 
 // ── Progress split, shared by all three video flows ───────────
 
@@ -872,4 +967,4 @@ export function videoProgressSplit(
 }
 
 /** The label shown while the encode half of the bar is running. */
-export const OPTIMIZING_LABEL = "Optimizing video…"
+export const OPTIMIZING_LABEL = "Uploading video…"

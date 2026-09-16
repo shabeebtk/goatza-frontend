@@ -4,9 +4,11 @@ import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 
-// The fullscreen viewer used to live here. Achievements needed the same one,
-// so it moved to shared/ — this file is now a caller, not its owner.
-import ImageLightbox from "@/shared/components/ImageLightbox/ImageLightbox"
+// The fullscreen viewer used to live here; it moved to shared/ and this file
+// is a caller, not its owner. MediaLightbox is the post-viewer-style one —
+// black full-bleed, pinch zoom, back-gesture close — which is what a chat
+// photo should feel like.
+import MediaLightbox from "@/shared/components/ImageLightbox/MediaLightbox"
 import type { ChatMessage } from "../../hooks/useChatSocket"
 import { thumbSrc } from "@/shared/services/mediaDelivery"
 // Space is reserved from intrinsic dimensions so the image never causes layout
@@ -261,12 +263,19 @@ export default function ImageMessage({
             </div>
 
             {viewerOpen && (
-                // No alt: in a bubble the photo IS the message, so there is
-                // nothing to describe it with that isn't a guess. The dialog's
-                // own label is what a screen reader announces.
-                <ImageLightbox
-                    src={fullSrc}
-                    alt=""
+                // One item: the full image, with the 640px thumb the bubble
+                // already has cached so the viewer opens on something and
+                // swaps to the full file once it has loaded. The dialog's own
+                // label is what a screen reader announces — in a bubble the
+                // photo IS the message and there is nothing else to say.
+                <MediaLightbox
+                    media={[{
+                        id: msg.id,
+                        media_type: "image",
+                        file_url: fullSrc,
+                        thumbnail_url: bubbleSrc,
+                    }]}
+                    label="Photo viewer"
                     onClose={() => setViewerOpen(false)}
                 />
             )}

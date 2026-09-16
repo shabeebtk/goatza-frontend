@@ -24,6 +24,12 @@ vi.mock("@iconify/react", () => ({
     Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />,
 }))
 
+// MediaLightbox reserves its history entry through useBackToClose, which
+// needs the app router for navigateAway; nothing here navigates.
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({ push: vi.fn() }),
+}))
+
 afterEach(cleanup)
 
 function image(n: number): RecruitmentMedia {
@@ -153,9 +159,9 @@ describe("RecruitmentHeroCarousel", () => {
             const dialog = screen.getByRole("dialog")
             expect(dialog.getAttribute("aria-modal")).toBe("true")
             // Scoped to the dialog: the stage behind it is still on slide 3 and
-            // shows the same "3 / 3", so an unscoped query would pass even if
+            // shows its own counter, so an unscoped query would pass even if
             // the viewer had opened at the wrong index.
-            expect(within(dialog).getByText("3 / 3")).toBeTruthy()
+            expect(within(dialog).getByText("3/3")).toBeTruthy()
             const img = dialog.querySelector("img") as HTMLImageElement
             expect(img.src).toBe(image(2).file_url)
         })
@@ -166,7 +172,7 @@ describe("RecruitmentHeroCarousel", () => {
             fireEvent.click(screen.getByRole("button", { name: /Media 1 of 3/ }))
 
             const dialog = screen.getByRole("dialog")
-            expect(within(dialog).getByText("1 / 3")).toBeTruthy()
+            expect(within(dialog).getByText("1/3")).toBeTruthy()
         })
 
         // Async because the close routes through history.back() — see

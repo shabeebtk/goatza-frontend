@@ -126,7 +126,9 @@ export default function PostViewerProvider({
     // The slide only means something on the post it was read on; a stand-in
     // post starts at its first.
     const slide = target === pending.postId ? pending.slide : 0
-    landOnPost(target, { highlight: true, slide })
+    // No highlight flash: the landing itself says where the reader is, and
+    // the brand outline read as a broken border on the card.
+    landOnPost(target, { slide })
   }, [open, posts])
 
   useEffect(() => {

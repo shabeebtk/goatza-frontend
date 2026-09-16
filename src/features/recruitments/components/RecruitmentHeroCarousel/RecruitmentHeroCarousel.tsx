@@ -13,7 +13,8 @@
  *   - its videos autoplay on an IntersectionObserver through the global sound
  *     store and the adaptive HLS ladder (`useAdaptiveVideo`); v1 here plays
  *     nothing inline at all (see below)
- *   - its lightbox draws custom video chrome; this one wants native controls
+ *   - its viewer is a post viewer — likes, comments, caption; fullscreen here
+ *     is media only (`MediaLightbox`, which shares its look and gestures)
  *
  * Lifting it would have meant gutting three of its four moving parts, leaving
  * the feed with a thinner component to serve a surface that does not want any

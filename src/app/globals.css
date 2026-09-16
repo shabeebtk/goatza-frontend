@@ -519,6 +519,24 @@ input {
   transition-delay: 270ms;
 }
 
+/* ── 9. QUIET FOCUS RETURN ──────────────────────────────────── */
+
+/* A closing overlay hands focus back to the element that opened it (or, for
+   the post viewer, to the tile of the post the reader got to) — see
+   shared/services/focusReturn.ts. Closed from the keyboard, that element
+   shows its ring like any other focus; closed by a tap, click or the back
+   gesture it must not — iOS Safari treats programmatic focus as
+   :focus-visible, and the reader never pressed it. returnFocus() sets this
+   attribute for the pointer case and clears it on the element's next blur or
+   the next keydown, so a Tab onto it later is ordinary again. `html` prefix:
+   this has to outrank a CSS Module's own `.slide:focus-visible`, and the
+   order the module chunks load in is not something to lean on. Outline
+   only — whatever else :focus-visible styles set is design, not a ring. */
+html [data-focus-quiet]:focus,
+html [data-focus-quiet]:focus-visible {
+  outline: none;
+}
+
 /* ── 10. REDUCED MOTION ─────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

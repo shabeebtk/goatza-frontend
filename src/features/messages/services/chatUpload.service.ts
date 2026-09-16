@@ -1,6 +1,11 @@
 import imageCompression from "browser-image-compression"
 
-import { getBlobDimensions, makeThumb } from "@/shared/services/imageVariants"
+import {
+    getBlobDimensions,
+    imageFileName,
+    makeThumb,
+    preferredImageType,
+} from "@/shared/services/imageVariants"
 import {
     describeBlob,
     getUploadConfigApi,
@@ -42,13 +47,15 @@ export const MAX_CHAT_VIDEO_SECONDS = 90
 const CHAT_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"])
 
 // Compression target — chat photos are viewed smaller than feed posts, so a
-// tighter ceiling than posts keeps uploads fast on mobile data.
+// tighter ceiling than posts keeps uploads fast on mobile data. The format is
+// chosen per browser (`preferredImageType`): WebP where the canvas can write
+// it, JPEG otherwise — an iPhone asked for WebP quietly returns PNG, which
+// `maxSizeMB` cannot shrink.
 const CHAT_IMAGE_COMPRESSION = {
     maxSizeMB: 2,
     maxWidthOrHeight: 2048,
     initialQuality: 0.85,
     useWebWorker: true,
-    fileType: "image/webp" as const,
 }
 
 export type ChatImageUploadResult = {
@@ -282,10 +289,20 @@ export async function uploadChatImage(
     onProgress?: ChatUploadProgress,
     signal?: AbortSignal
 ): Promise<ChatImageUploadResult> {
-    const compressed = await imageCompression(file, CHAT_IMAGE_COMPRESSION)
+    const fileType = await preferredImageType()
+    const raw = await imageCompression(file, {
+        ...CHAT_IMAGE_COMPRESSION,
+        fileType,
+        signal,
+    })
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    const thumb = await makeThumb(compressed)
+    // Named and typed by what was REALLY written — the PUT's Content-Type is
+    // signed, and the object key's extension comes from it.
+    const type = raw.type || fileType
+    const compressed = new File([raw], imageFileName(file.name, type), { type })
+
+    const thumb = await makeThumb(compressed, signal)
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
     const dims = await getBlobDimensions(compressed)

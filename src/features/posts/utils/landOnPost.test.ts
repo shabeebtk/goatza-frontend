@@ -91,16 +91,25 @@ describe("landOnPost", () => {
     expect(scrollTo).not.toHaveBeenCalled()
   })
 
-  // jsdom has no Element.animate; the highlight must degrade to nothing
-  // rather than throw after the scroll already happened.
-  it("tolerates a highlight request where animations are unavailable", () => {
-    mount(mountCard("post-1"))
+  // The brand-green outline that used to flash on the landed card read as a
+  // broken border. Landing is the scroll and the focus, nothing painted.
+  it("does not animate an outline on the card", () => {
+    const el = mount(mountCard("post-1"))
+    const animate = vi.fn()
+    el.animate = animate as unknown as HTMLElement["animate"]
 
-    expect(() => landOnPost("post-1", { highlight: true })).not.toThrow()
+    landOnPost("post-1")
+
+    expect(animate).not.toHaveBeenCalled()
     expect(scrollTo).toHaveBeenCalled()
   })
 
   describe("focus", () => {
+    // The tracker in focusReturn.ts remembers the reader's last input across
+    // tests; each case states its own.
+    const tap = () => document.dispatchEvent(new Event("pointerdown", { bubbles: true }))
+    const key = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }))
+
     it("moves focus to the tile of the slide the reader was on", () => {
       const el = mount(mountCard("post-1"))
       const tiles = [0, 1, 2].map((i) => {
@@ -123,6 +132,43 @@ describe("landOnPost", () => {
       landOnPost("post-1")
 
       expect(document.activeElement).toBe(el)
+    })
+
+    // iOS Safari draws :focus-visible for programmatic focus, so a reader
+    // who tapped ✕ (or swiped back) would otherwise see the tile's ring
+    // until their next tap. The focus still moves; only the ring is held.
+    it("marks the focus quiet after a tap, and clears it on blur", () => {
+      const el = mount(mountCard("post-1"))
+      tap()
+
+      landOnPost("post-1")
+
+      expect(document.activeElement).toBe(el)
+      expect(el.hasAttribute("data-focus-quiet")).toBe(true)
+
+      el.blur()
+      expect(el.hasAttribute("data-focus-quiet")).toBe(false)
+    })
+
+    it("clears the quiet mark on the next keydown, so the ring comes back", () => {
+      const el = mount(mountCard("post-1"))
+      tap()
+
+      landOnPost("post-1")
+      expect(el.hasAttribute("data-focus-quiet")).toBe(true)
+
+      key()
+      expect(el.hasAttribute("data-focus-quiet")).toBe(false)
+    })
+
+    it("leaves a keyboard reader's focus ring alone", () => {
+      const el = mount(mountCard("post-1"))
+      key()
+
+      landOnPost("post-1")
+
+      expect(document.activeElement).toBe(el)
+      expect(el.hasAttribute("data-focus-quiet")).toBe(false)
     })
   })
 

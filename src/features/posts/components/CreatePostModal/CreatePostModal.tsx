@@ -18,6 +18,8 @@ import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { OPTIMIZING_LABEL, isVideoAudioLostError } from "@/shared/services/videoEncode"
+import { UPLOAD_CANCELLED } from "@/shared/services/mediaUpload"
+import { getApiErrorMessage, isUploadCancellation } from "@/shared/services/apiError"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
@@ -312,21 +314,35 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
   )
 }
 
-// ── Upload progress section ───────────────────────────────────
+// ── Upload overlay ────────────────────────────────────────────
 
-function UploadProgressSection({ entries, phase, onDone }: {
-  entries: FileEntry[]
-  phase:   SubmitPhase
-  onDone:  () => void
+/** Circumference of the progress ring (r = 56). */
+const RING_R = 56
+const RING_C = 2 * Math.PI * RING_R
+
+/**
+ * Covers the composer from Post until the redirect: one ring for the whole
+ * batch, the media dimmed behind it, and Cancel for as long as cancelling is
+ * safe. Once the create-post request is in flight ("Publishing…") the post
+ * cannot be un-sent, so Cancel goes with it.
+ */
+function UploadOverlay({ entries, phase, onCancel, onDone }: {
+  entries:  FileEntry[]
+  phase:    SubmitPhase
+  onCancel: () => void
+  onDone:   () => void
 }) {
   const total      = entries.length
   const doneCount  = entries.filter(e => e.status === "done").length
   const overallPct = total === 0 ? 100 : Math.round(entries.reduce((s, e) => s + e.progress, 0) / total)
+  const totalBytes = entries.reduce((s, e) => s + e.file.size, 0)
   const isPosting  = phase === "posting"
   const isDone     = phase === "done"
   // A video spends the first 70% of its bar being encoded, which on a phone is
   // the slower half — saying "Uploading" through it reads as a stall.
   const isOptimizing = entries.some((e) => e.optimizing)
+  const canCancel    = phase === "uploading"
+  const first        = entries[0]
 
   useEffect(() => {
     if (isDone) {
@@ -335,49 +351,70 @@ function UploadProgressSection({ entries, phase, onDone }: {
     }
   }, [isDone, onDone])
 
+  const label = isDone ? "Posted!"
+    : isPosting || total === 0 ? "Publishing…"
+    : isOptimizing ? OPTIMIZING_LABEL
+    : `Uploading ${Math.min(doneCount + 1, total)}/${total}`
+
+  const pct = isPosting || isDone ? 100 : overallPct
+
   return (
-    <div className={`${styles.uploadSection} ${isDone ? styles.uploadSectionDone : ""}`}>
-      {isDone ? (
-        <div className={styles.uploadDoneState}>
-          <span className={styles.uploadBigTick}><Icon icon="mdi:check-circle" width={40} height={40} /></span>
-          <span className={styles.uploadDoneLabel}>Posted!</span>
-        </div>
-      ) : (
-        <>
-          <div className={styles.uploadHeader}>
-            <span className={styles.uploadLabel}>
-              {isPosting ? "Publishing…"
-                : isOptimizing ? OPTIMIZING_LABEL
-                : total === 0 ? "Publishing…"
-                : `Uploading ${doneCount}/${total} file${total > 1 ? "s" : ""}`}
-            </span>
-            <span className={styles.uploadPct}>{isPosting ? "" : `${overallPct}%`}</span>
-          </div>
-          <div className={styles.overallBarWrap}>
-            <div className={styles.overallBar} style={{ width: isPosting ? "100%" : `${overallPct}%` }} />
-          </div>
-          {total > 1 && !isPosting && (
-            <div className={styles.fileRows}>
-              {entries.map((e) => (
-                <div key={e.id} className={styles.fileRow}>
-                  <div className={styles.fileRowThumb}>
-                    {e.isVideo ? <Icon icon="mdi:video-outline" width={14} height={14} /> : <img src={e.preview} className={styles.fileRowThumbImg} alt="" />}
-                  </div>
-                  <div className={styles.fileRowInfo}>
-                    <span className={styles.fileRowName}>{e.file.name.slice(0, 24)}</span>
-                    <div className={styles.fileRowBar}><div className={styles.fileRowBarFill} style={{ width: `${e.progress}%` }} /></div>
-                  </div>
-                  <span className={styles.fileRowStatus}>
-                    {e.status === "done" ? <Icon icon="mdi:check-circle" width={16} height={16} className={styles.fileRowDone} />
-                      : e.status === "error" ? <Icon icon="mdi:alert-circle" width={16} height={16} className={styles.fileRowError} />
-                      : <span className={styles.fileRowPct}>{e.progress}%</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
+    <div className={styles.uploadOverlay} role="status" aria-live="polite">
+      {/* The post's own media, dimmed and softened, so the screen still reads
+          as "your post" rather than a blank progress page. */}
+      {first && (
+        <div className={styles.uploadOverlayBg} aria-hidden="true">
+          {first.isVideo ? (
+            // `#t=0.001` makes Safari paint the first frame of a paused,
+            // metadata-only video instead of leaving the box black.
+            <video
+              src={`${first.preview}#t=0.001`}
+              className={styles.uploadOverlayBgMedia}
+              muted
+              playsInline
+              preload="metadata"
+              tabIndex={-1}
+            />
+          ) : (
+            <img src={first.preview} className={styles.uploadOverlayBgMedia} alt="" />
           )}
-          {total === 1 && <div className={styles.singleFileHint}>{fmtBytes(entries[0].file.size)} · {overallPct}%</div>}
-        </>
+        </div>
+      )}
+
+      <div className={styles.uploadOverlayContent}>
+        <div className={`${styles.uploadRingWrap} ${isPosting ? styles.uploadRingIndeterminate : ""}`}>
+          <svg viewBox="0 0 128 128" className={styles.uploadRingSvg} aria-hidden="true">
+            <circle cx="64" cy="64" r={RING_R} fill="none" strokeWidth="6" className={styles.uploadRingTrack} />
+            <circle
+              cx="64" cy="64" r={RING_R} fill="none" strokeWidth="6" strokeLinecap="round"
+              className={styles.uploadRingFill}
+              strokeDasharray={RING_C}
+              strokeDashoffset={RING_C * (1 - pct / 100)}
+            />
+          </svg>
+          {isDone ? (
+            <span className={styles.uploadOverlayDone}>
+              <Icon icon="mdi:check-circle" width={56} height={56} />
+            </span>
+          ) : (
+            <span className={styles.uploadRingPct}>{isPosting ? "" : `${overallPct}%`}</span>
+          )}
+        </div>
+
+        <span className={styles.uploadOverlayLabel}>{label}</span>
+
+        {!isDone && total > 0 && (
+          <span className={styles.uploadOverlayMeta}>
+            {total > 1 ? `${total} files · ` : ""}{fmtBytes(totalBytes)}
+            {!isPosting ? ` · ${overallPct}%` : ""}
+          </span>
+        )}
+      </div>
+
+      {canCancel && (
+        <button type="button" className={styles.uploadCancelBtn} onClick={onCancel}>
+          Cancel
+        </button>
       )}
     </div>
   )
@@ -412,6 +449,11 @@ export default function CreatePostModal({
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   // The browser could not keep the video's sound: ask before posting it mute.
   const [confirmSilent,  setConfirmSilent]  = useState(false)
+  // "Cancel upload?" — asked before an in-flight upload is thrown away.
+  const [confirmCancel,  setConfirmCancel]  = useState(false)
+  // The upload in flight, so Cancel (and unmount) can pull the plug on the
+  // compressor, the encoder, the signature request and every PUT at once.
+  const abortRef = useRef<AbortController | null>(null)
 
   // Location state — managed outside any form library
   const [postLocation,  setPostLocation]  = useState<PlaceResult | null>(null)
@@ -445,6 +487,43 @@ export default function CreatePostModal({
 
   // ── Manage body scroll lock ───────────────────────────────────
   useBodyScrollLock()
+
+  // ── Cancel an in-flight upload ────────────────────────────────
+  // Aborts with the shared sentinel as the reason so every stage — including
+  // browser-image-compression, which rethrows `signal.reason` — rejects with
+  // the same cancellation the catch below stays silent on. The draft (text,
+  // media, sport, location, visibility) is untouched: only the entries'
+  // upload state goes back to idle.
+  const cancelUpload = useCallback(() => {
+    setConfirmCancel(false)
+    const controller = abortRef.current
+    abortRef.current = null
+    controller?.abort(new Error(UPLOAD_CANCELLED))
+    setEntries(prev => prev.map(e => ({ ...e, status: "idle", progress: 0, optimizing: false, error: null, result: null })))
+    setSubmitError(null)
+    setPhase("idle")
+  }, [])
+
+  // Leaving the screen mid-upload must not leave an encoder or an XHR running
+  // for a composer that no longer exists.
+  useEffect(() => () => {
+    abortRef.current?.abort(new Error(UPLOAD_CANCELLED))
+    abortRef.current = null
+  }, [])
+
+  // Esc while uploading asks to cancel (and closes that question again); it
+  // never closes the modal. Once the post is being published there is nothing
+  // left to cancel, so Esc does nothing.
+  useEffect(() => {
+    if (phase !== "uploading") return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      e.stopPropagation()
+      setConfirmCancel(open => !open)
+    }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [phase])
 
   // ── Auto-resize textarea ──────────────────────────────────────
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
@@ -526,25 +605,40 @@ export default function CreatePostModal({
     let uploadedMedia: PostMediaPayload[] = []
 
     if (entries.length > 0) {
+      // One controller per attempt; a retry ("Post without sound") gets its own.
+      abortRef.current?.abort(new Error(UPLOAD_CANCELLED))
+      const controller = new AbortController()
+      abortRef.current = controller
+      const { signal } = controller
+
       setPhase("uploading")
-      setEntries(prev => prev.map(e => ({ ...e, status: "uploading", progress: 0 })))
+      setEntries(prev => prev.map(e => ({ ...e, status: "uploading", progress: 0, error: null })))
       try {
         const results = await uploadMediaFile(
           entries.map(e => e.file),
           (fileIndex, loaded, total, uploadPhase) => {
+            // A late progress event from a cancelled upload must not touch the
+            // composer the cancel just put back.
+            if (signal.aborted) return
             const pct = Math.round((loaded / total) * 100)
             setEntries(prev => prev.map((e, i) => i === fileIndex
               ? { ...e, progress: pct, optimizing: uploadPhase === "encoding" }
               : e))
           },
-          { allowSilentAudio: opts?.allowSilentAudio }
+          { allowSilentAudio: opts?.allowSilentAudio, signal }
         )
+        if (signal.aborted) return
         for (let i = 0; i < results.length; i++) {
           setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, optimizing: false, result: results[i] } : e))
           if (i < results.length - 1) await new Promise(r => setTimeout(r, 120))
+          if (signal.aborted) return
         }
         uploadedMedia = results
       } catch (err: unknown) {
+        // The author cancelled: `cancelUpload` has already put the composer
+        // back, and there is nothing to tell them.
+        if (signal.aborted || isUploadCancellation(err)) return
+
         // Not a failure yet — a decision. Nothing was uploaded, so put the
         // composer back exactly as it was and ask; "Post without sound"
         // re-runs this with the author's permission.
@@ -554,11 +648,17 @@ export default function CreatePostModal({
           setConfirmSilent(true)
           return
         }
-        const msg = err instanceof Error ? err.message : "Upload failed"
+
+        // The overlay goes away and the composer shows what went wrong — the
+        // server's own words when it has some, the upload helpers' otherwise,
+        // and never axios's "Request failed with status code …".
+        const msg = getApiErrorMessage(err, "Couldn't upload your media. Please try again.")
         setEntries(prev => prev.map(e => e.status !== "done" ? { ...e, status: "error", optimizing: false, error: msg } : e))
         setSubmitError(msg)
         setPhase("idle")
         return
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null
       }
     } else {
       setPhase("uploading")
@@ -593,8 +693,7 @@ export default function CreatePostModal({
       })
       setPhase("done")
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to post. Try again."
-      setSubmitError(msg)
+      setSubmitError(getApiErrorMessage(err, "Couldn't publish your post. Please try again."))
       setPhase("idle")
     }
   }
@@ -755,9 +854,14 @@ export default function CreatePostModal({
 
         </div>
 
-        {/* ── Upload / posting progress section ── */}
+        {/* ── Full-screen upload / publishing / posted overlay ── */}
         {phase !== "idle" && (
-          <UploadProgressSection entries={entries} phase={phase} onDone={handleDoneRedirect} />
+          <UploadOverlay
+            entries={entries}
+            phase={phase}
+            onCancel={() => setConfirmCancel(true)}
+            onDone={handleDoneRedirect}
+          />
         )}
 
         {/* ── Footer toolbar ── */}
@@ -841,6 +945,35 @@ export default function CreatePostModal({
                 onClick={() => { setConfirmSilent(false); void handleSubmit({ allowSilentAudio: true }) }}
               >
                 Post without sound
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel the upload in flight — the draft stays */}
+      {confirmCancel && phase === "uploading" && (
+        <div className={styles.confirmOverlay} onClick={() => setConfirmCancel(false)}>
+          <div
+            className={styles.confirmDialog}
+            onClick={e => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Cancel upload"
+          >
+            <span className={styles.confirmIcon}>
+              <Icon icon="mdi:upload-off-outline" width={26} height={26} />
+            </span>
+            <h3 className={styles.confirmTitle}>Cancel upload?</h3>
+            <p className={styles.confirmText}>
+              Your post won&rsquo;t be shared.
+            </p>
+            <div className={styles.confirmActions}>
+              <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmCancel(false)}>
+                Keep uploading
+              </button>
+              <button type="button" className={styles.confirmDiscardBtn} onClick={cancelUpload}>
+                Cancel upload
               </button>
             </div>
           </div>

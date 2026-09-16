@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import type { ChatMessage } from "../../hooks/useChatSocket"
@@ -9,96 +9,16 @@ import { formatDuration } from "../../services/chatUpload.service"
 // derivative is built any more, so these just read the right field.
 import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
-import { useVideoSound } from "@/shared/hooks/useVideoSound"
+// The full-screen player: the same media-only viewer chat photos and
+// recruitment media open in, bound to the global sound store, with the
+// back gesture closing it. The local native-controls player it replaced
+// was the one <video> in the app that looked like a browser, not the app.
+import MediaLightbox from "@/shared/components/ImageLightbox/MediaLightbox"
 // Space is reserved from intrinsic dimensions so the poster never causes layout
 // shift while it loads. Shared with ImageMessage.
 import { displaySize } from "../../utils/mediaBox"
 import styles from "./VideoMessage.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
-
-// ── Fullscreen player ─────────────────────────────────────────
-
-function VideoPlayer({
-    src,
-    poster,
-    onClose,
-}: {
-    src: string
-    poster?: string
-    onClose: () => void
-}) {
-    const videoRef = useRef<HTMLVideoElement>(null)
-    // Sound is GLOBAL (src/store/sound.store.ts). This player renders native
-    // `controls`, so onVolumeChange feeds the browser's own mute button back
-    // into the store — otherwise it would be a second source of truth.
-    const { applyMuted, onVolumeChange, reportBlocked } = useVideoSound(videoRef)
-
-    // ONE-SHOT. Without it, every later `canplay` (a seek, a stall recovering)
-    // would read a deliberately paused video as a refusal and force it back
-    // into playing.
-    const autoPlayCheckedRef = useRef(false)
-
-    // autoPlay + an unmuted store is the one combination the browser can
-    // refuse. Playback beats sound: drop the whole app to muted and try again,
-    // rather than opening the modal on a frozen first frame.
-    const onAutoPlayChecked = useCallback(() => {
-        if (autoPlayCheckedRef.current) return
-        autoPlayCheckedRef.current = true
-
-        const el = videoRef.current
-        if (!el || !el.paused || el.muted) return
-
-        applyMuted(true)
-        reportBlocked()
-        void el.play().catch(() => undefined)
-    }, [applyMuted, reportBlocked])
-
-    useBodyScrollLock()
-
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose()
-        }
-        document.addEventListener("keydown", onKey)
-        return () => {
-            document.removeEventListener("keydown", onKey)
-        }
-    }, [onClose])
-
-    return createPortal(
-        <div
-            className={styles.viewer}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Video player"
-            onClick={onClose}
-        >
-            <button className={styles.viewerClose} type="button" aria-label="Close">
-                <Icon icon="mdi:close" width={24} height={24} />
-            </button>
-            <video
-                ref={videoRef}
-                src={src}
-                poster={poster || undefined}
-                className={styles.viewerVideo}
-                controls
-                autoPlay
-                // BARE `muted`, never muted={muted}: the server-rendered markup
-                // and first client paint must always be muted, and
-                // useVideoSound sets the property after mount.
-                muted
-                playsInline
-                onVolumeChange={onVolumeChange}
-                // A refusal never fires `play`, so the rejection is detected
-                // as "still paused once it was ready to go".
-                onCanPlay={onAutoPlayChecked}
-                // Stop the backdrop's onClick from closing while using controls.
-                onClick={(e) => e.stopPropagation()}
-            />
-        </div>,
-        document.body
-    )
-}
 
 // ── Progress ring ─────────────────────────────────────────────
 
@@ -367,9 +287,15 @@ export default function VideoMessage({
             </div>
 
             {playerOpen && (
-                <VideoPlayer
-                    src={videoSrc(msg)}
-                    poster={posterSrc(msg)}
+                <MediaLightbox
+                    media={[{
+                        id: msg.id,
+                        media_type: "video",
+                        file_url: videoSrc(msg),
+                        thumbnail_url: posterSrc(msg) || undefined,
+                        duration: durationSec || undefined,
+                    }]}
+                    label="Video player"
                     onClose={() => setPlayerOpen(false)}
                 />
             )}

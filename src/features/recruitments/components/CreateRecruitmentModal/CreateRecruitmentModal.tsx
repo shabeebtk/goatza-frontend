@@ -7,7 +7,7 @@ import imageCompression from "browser-image-compression"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
-import { makeThumb } from "@/shared/services/imageVariants"
+import { imageFileName, makeThumb, preferredImageType } from "@/shared/services/imageVariants"
 import {
     describeBlob,
     getUploadConfigApi,
@@ -130,14 +130,15 @@ type MediaAspectKey = (typeof MEDIA_ASPECT_OPTIONS)[number]["key"]
 
 const DEFAULT_MEDIA_ASPECT: MediaAspectKey = "portrait"
 
-// Mirror the posts image pipeline: compress to WebP before upload so recruitment
-// photos use the same sizes/formats as feed photos.
+// Mirror the posts image pipeline: compress before upload so recruitment
+// photos use the same sizes/formats as feed photos. The format comes from
+// `preferredImageType` at upload time — WebP where the browser can write it,
+// JPEG otherwise (an iPhone asked for WebP quietly returns PNG).
 const IMAGE_COMPRESSION_OPTIONS = {
     maxSizeMB: 2.5,
     maxWidthOrHeight: 2560,
     initialQuality: 0.9,
     useWebWorker: true,
-    fileType: "image/webp" as const,
 }
 
 // Time picker options at clean 30-minute steps (00 / 30).
@@ -1742,13 +1743,15 @@ export default function CreateRecruitmentModal({
                 // names one folder per request, and the server's same-folder
                 // rule binds a thumbnail to the image it posters.
                 const prepared: { entryId: string; full: File; thumb: File }[] = []
+                const fileType = await preferredImageType()
                 for (const entry of newEntries) {
                     const file = entry.file
                     if (!file) continue
-                    // Compress to WebP first — same sizes/formats the feed uses.
-                    const compressed = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
-                    const base = file.name.replace(/\.[^.]+$/, "") || "photo"
-                    const full = new File([compressed], `${base}.webp`, { type: compressed.type })
+                    // Compress first — same sizes/formats the feed uses. The
+                    // name and type follow what was REALLY written.
+                    const compressed = await imageCompression(file, { ...IMAGE_COMPRESSION_OPTIONS, fileType })
+                    const type = compressed.type || fileType
+                    const full = new File([compressed], imageFileName(file.name || "photo", type), { type })
                     prepared.push({ entryId: entry.id, full, thumb: await makeThumb(full) })
                 }
 
