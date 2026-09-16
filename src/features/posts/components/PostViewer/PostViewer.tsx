@@ -39,6 +39,7 @@ import { useZoomPan } from "@/features/posts/hooks/useZoomPan"
 import type { FetchPostsParams, Post, PostMedia } from "@/features/posts/services/posts.api"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import { useBackToClose } from "@/shared/hooks/useBackToClose"
+import { returnFocus } from "@/shared/services/focusReturn"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
@@ -280,10 +281,13 @@ export default function PostViewer({
     dialogRef.current?.focus()
     return () => {
       // Back to the tile that opened this — a keyboard user should land
-      // exactly where they were. preventScroll: the list is about to be
-      // landed on the post the reader got to, and a focus that scrolled
-      // would drag it back to the one they opened.
-      previouslyFocused?.focus?.({ preventScroll: true })
+      // exactly where they were, ring included; a reader who tapped ✕ or
+      // swiped back gets the focus without the ring (iOS Safari would
+      // otherwise draw the tile's :focus-visible outline until the next
+      // tap). preventScroll: the list is about to be landed on the post the
+      // reader got to, and a focus that scrolled would drag it back to the
+      // one they opened.
+      returnFocus(previouslyFocused)
     }
   }, [])
 

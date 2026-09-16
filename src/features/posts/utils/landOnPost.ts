@@ -11,9 +11,12 @@
  * layouts. No smooth scrolling: the viewer is closing over it, and a jump that
  * happens under the fade reads as "already there".
  *
- * Once the card holds still, focus moves to its media tile (preventScroll),
- * so a keyboard user carries on from the post they were reading, and a guard
- * watches the window for a second: iOS Safari puts a history entry's saved
+ * Once the card holds still, focus moves to its media tile — preventScroll,
+ * and quiet unless the reader is on the keyboard (shared/services/
+ * focusReturn.ts; the tile's :focus-visible ring after a tap WAS the "green
+ * border after closing" bug) — so a keyboard user carries on from the post
+ * they were reading. A guard then watches the window for a second: iOS
+ * Safari puts a history entry's saved
  * scroll position back asynchronously, after the popstate that closed the
  * viewer and after this has already landed. useBackToClose stops that at the
  * source (scrollRestoration: manual); the guard is the safety net — a scroll
@@ -22,14 +25,13 @@
  * then on every scroll is the reader's.
  */
 
+import { returnFocus } from "@/shared/services/focusReturn"
+
 /** Upper bound on the settle loop; the usual case stops after two frames. */
 const MAX_SETTLE_FRAMES = 10
 
 /** Within this many px of the target counts as landed. */
 const SETTLE_TOLERANCE_PX = 1
-
-/** Brand outline on the card, fading out. */
-const HIGHLIGHT_MS = 1200
 
 /** How long after landing a scroll the reader did not start is corrected. */
 const GUARD_MS = 1000
@@ -47,8 +49,6 @@ const READER_INTENT_EVENTS = [
 ] as const
 
 export interface LandOnPostOptions {
-  /** Flash a brand-green outline on the card once it is in place. */
-  highlight?: boolean
   /** The slide the reader was on: its tile takes focus (the first, otherwise). */
   slide?: number
 }
@@ -71,34 +71,6 @@ function jumpTo(el: HTMLElement, offset: number) {
   window.scrollTo({ top: Math.max(0, top), behavior: "auto" })
 }
 
-function highlightCard(el: HTMLElement) {
-  // Web Animations rather than a class: the card is a CSS Module and this
-  // helper must not know its class names. Cleans itself up when it ends.
-  if (typeof el.animate !== "function") return
-
-  const brand =
-    getComputedStyle(el).getPropertyValue("--color-brand").trim() || "#00B562"
-  const reduced =
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
-  const outline = `3px solid ${brand}`
-  el.animate(
-    reduced
-      // Reduced motion: hold, then drop — no fade to track.
-      ? [
-          { outline, outlineOffset: "2px" },
-          { outline, outlineOffset: "2px" },
-        ]
-      : [
-          { outline, outlineOffset: "2px", offset: 0 },
-          { outline, outlineOffset: "2px", offset: 0.5 },
-          { outline: "3px solid transparent", outlineOffset: "2px", offset: 1 },
-        ],
-    { duration: HIGHLIGHT_MS, easing: "ease-out" }
-  )
-}
-
 /**
  * The card's media tile for `slide` — the carousel's slides are the only
  * `role="button"` elements in a card, in slide order — or the card itself
@@ -114,13 +86,9 @@ function focusTarget(card: HTMLElement, slide: number): HTMLElement {
 }
 
 function focusCard(el: HTMLElement, slide: number) {
-  try {
-    // preventScroll is the whole point: a focus that scrolled would undo the
-    // landing it follows.
-    focusTarget(el, slide).focus({ preventScroll: true })
-  } catch {
-    // An element that cannot take focus is not worth failing the landing over.
-  }
+  // preventScroll is the whole point: a focus that scrolled would undo the
+  // landing it follows. Quiet unless the reader is on the keyboard.
+  returnFocus(focusTarget(el, slide))
 }
 
 /** True when `el` sits within tolerance of its landing offset. */
@@ -172,7 +140,7 @@ function guardLanding(el: HTMLElement, offset: number) {
  */
 export function landOnPost(
   postId: string,
-  { highlight = false, slide = 0 }: LandOnPostOptions = {}
+  { slide = 0 }: LandOnPostOptions = {}
 ): boolean {
   const el = findPostElement(postId)
   if (!el) return false
@@ -198,7 +166,6 @@ export function landOnPost(
     if (!landed) jumpTo(el, offset)
 
     if ((landed && stable) || frames >= MAX_SETTLE_FRAMES) {
-      if (highlight) highlightCard(el)
       focusCard(el, slide)
       guardLanding(el, offset)
       return

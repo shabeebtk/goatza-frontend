@@ -1,6 +1,6 @@
 /* ============================================================
    GOATZA — CreatePostModal  (v2)
-   Carousel preview · Upload progress panel · Done animation
+   Carousel preview · Full-screen upload overlay · Done animation
    ============================================================ */
 
 @keyframes backdropIn {
@@ -57,16 +57,6 @@
   }
 }
 
-@keyframes barFill {
-  from {
-    opacity: 0.4;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
 @keyframes thumbDone {
   0% {
     transform: scale(0);
@@ -109,6 +99,8 @@
 /* ── Modal ───────────────────────────────────────────────────── */
 
 .modal {
+  /* The upload overlay is absolutely positioned over this box. */
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -190,7 +182,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  /* allow body to shrink when upload section appears */
   min-height: 0;
 }
 
@@ -753,190 +744,167 @@
 }
 
 /* ════════════════════════════════════════════════════════════
-   UPLOAD PROGRESS SECTION
+   UPLOAD OVERLAY
+   Covers the composer from Post until the redirect. Always dark —
+   it sits over the author's own media — so the colours here are
+   fixed rather than theme-flipped; the ring and tick use brand.
    ══════════════════════════════════════════════════════════ */
 
-.uploadSection {
-  flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
-  padding: var(--space-4) var(--space-5);
-  background: var(--color-bg);
+.uploadOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  animation: fadeIn 0.25s var(--ease-out) both;
-  /* max height so file rows don't overflow modal */
-  max-height: 260px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.uploadSectionDone {
   align-items: center;
   justify-content: center;
-  min-height: 90px;
-  background: var(--color-brand-subtle);
-  border-top-color: var(--color-brand-muted);
+  gap: var(--space-5);
+  padding: calc(var(--space-6) + var(--safe-top)) var(--space-5) calc(var(--space-6) + var(--safe-bottom));
+  background: var(--primitive-ink-950);
+  color: #ffffff;
+  overflow: hidden;
+  animation: fadeIn 0.2s var(--ease-out) both;
 }
 
-/* Done state */
-.uploadDoneState {
+/* The post's media, dimmed and softened behind the ring */
+.uploadOverlayBg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.uploadOverlayBgMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.4;
+  filter: blur(18px) saturate(0.85);
+  /* Hides the blur's soft edges */
+  transform: scale(1.1);
+}
+
+.uploadOverlayBg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.35), rgba(10, 10, 10, 0.78));
+}
+
+.uploadOverlayContent {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-4);
+  text-align: center;
 }
 
-.uploadBigTick {
-  color: var(--color-brand);
-  display: flex;
-  animation: tickPop 0.5s var(--ease-spring) both;
-  filter: drop-shadow(0 0 10px rgba(0, 181, 98, 0.5));
-}
-
-.uploadDoneLabel {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-brand-hover);
-  animation: fadeIn 0.3s var(--ease-out) 0.2s both;
-}
-
-/* Header row */
-.uploadHeader {
+/* Progress ring */
+.uploadRingWrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
 }
 
-.uploadLabel {
+.uploadRingSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Progress starts at 12 o'clock */
+  transform: rotate(-90deg);
+}
+
+.uploadRingTrack {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.uploadRingFill {
+  stroke: var(--color-brand);
+  transition: stroke-dashoffset 0.25s linear;
+  filter: drop-shadow(0 0 8px var(--color-brand-glow));
+}
+
+/* "Publishing…" has no progress to show — the full ring turns instead */
+.uploadRingIndeterminate .uploadRingSvg {
+  animation: spin 1.1s linear infinite;
+}
+
+.uploadRingPct {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.uploadOverlayDone {
+  position: relative;
+  display: flex;
+  color: var(--color-brand);
+  animation: tickPop 0.5s var(--ease-spring) both;
+  filter: drop-shadow(0 0 12px var(--color-brand-glow));
+}
+
+.uploadOverlayLabel {
   font-family: var(--font-ui);
   font-weight: var(--weight-bold);
   font-size: var(--text-sm);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--color-ink);
+  color: #ffffff;
 }
 
-.uploadPct {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  color: var(--color-brand);
-  letter-spacing: 0.01em;
-  line-height: 1;
-}
-
-/* Overall bar */
-.overallBarWrap {
-  height: 5px;
-  background: var(--color-border);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.overallBar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--color-brand), var(--color-brand-hover));
-  border-radius: var(--radius-full);
-  transition: width 0.25s linear;
-  animation: barFill 0.3s var(--ease-out) both;
-}
-
-/* File rows */
-.fileRows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.fileRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.fileRowThumb {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  flex-shrink: 0;
-  background: var(--color-surface-raised);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-}
-
-.fileRowThumbImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.fileRowInfo {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.fileRowName {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fileRowBar {
-  height: 3px;
-  background: var(--color-border);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.fileRowBarFill {
-  height: 100%;
-  background: var(--color-brand);
-  border-radius: var(--radius-full);
-  transition: width 0.2s linear;
-}
-
-.fileRowStatus {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-
-.fileRowDone {
-  color: var(--color-brand);
-  animation: thumbDone 0.3s var(--ease-spring) both;
-}
-
-.fileRowError {
-  color: var(--color-error);
-}
-
-.fileRowPct {
+.uploadOverlayMeta {
   font-family: var(--font-ui);
   font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  font-weight: var(--weight-semi);
-  min-width: 30px;
-  text-align: right;
-}
-
-/* Single file hint */
-.singleFileHint {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Cancel — only while optimizing or uploading */
+.uploadCancelBtn {
+  position: relative;
+  margin-top: var(--space-2);
+  padding: 10px var(--space-6);
+  min-height: 44px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.uploadCancelBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uploadOverlay,
+  .uploadOverlayDone,
+  .uploadRingIndeterminate .uploadRingSvg {
+    animation: none;
+  }
+
+  .uploadRingFill {
+    transition: none;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════

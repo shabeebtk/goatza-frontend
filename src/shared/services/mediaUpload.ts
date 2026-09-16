@@ -85,10 +85,12 @@ export const ALLOWED_IMAGE_CONTENT_TYPES = [
 /**
  * The content type to declare for a blob.
  *
- * Everything is compressed to WebP before it gets here, so this is normally
- * just `blob.type`. The fallback covers a browser whose compressor quietly
- * handed back the original format — declaring the truth matters, because the
- * PUT must send back exactly the type that was signed.
+ * Everything is compressed to WebP — or JPEG, on a browser that cannot write
+ * WebP (see `preferredImageType` in imageVariants.ts) — before it gets here,
+ * and the compressors report the type they REALLY wrote, so this is normally
+ * just `blob.type`. Declaring the truth matters twice over: the PUT must send
+ * back exactly the type that was signed, and the object key's extension is
+ * derived from it. The fallback only covers a blob with no type at all.
  */
 export function resolveContentType(blob: Blob): string {
     const type = blob.type as (typeof ALLOWED_IMAGE_CONTENT_TYPES)[number]
@@ -115,17 +117,26 @@ export function describeBlob(
  *
  * `orgId` is only for org-scoped types; it mirrors the old `org_id` query
  * param and lets a user acting personally upload for an org they belong to.
+ *
+ * `signal` cancels the request itself; axios then rejects with a
+ * `CanceledError` (`axios.isCancel`), which callers treat as silent alongside
+ * {@link UPLOAD_CANCELLED}.
  */
 export const getUploadConfigApi = async (
     type: MediaUploadType,
     files: UploadFileDescriptor[],
-    orgId?: string
+    orgId?: string,
+    signal?: AbortSignal
 ): Promise<UploadConfigResponse> => {
-    const res = await api.post("/user/get/upload/signature", {
-        type,
-        ...(orgId ? { org_id: orgId } : {}),
-        files,
-    })
+    const res = await api.post(
+        "/user/get/upload/signature",
+        {
+            type,
+            ...(orgId ? { org_id: orgId } : {}),
+            files,
+        },
+        signal ? { signal } : undefined
+    )
     return res.data.data
 }
 

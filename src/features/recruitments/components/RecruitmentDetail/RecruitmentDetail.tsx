@@ -659,7 +659,13 @@ export default function RecruitmentDetail({
               : null
             const detail = [range, reporting].filter(Boolean).join(" · ")
             return (
-              <span key={cat.id} className={styles.chipLg} title={detail || undefined}>
+              <span
+                key={cat.id}
+                // Two lines in a fully-round pill read as an oval; the
+                // stacked chip takes a softer corner.
+                className={`${styles.chipLg} ${detail ? styles.chipLgStacked : ""}`}
+                title={detail || undefined}
+              >
                 {cat.title}
                 {detail && <small>{detail}</small>}
               </span>
@@ -1466,13 +1472,11 @@ export default function RecruitmentDetail({
             </button>
           </>
         ) : (
+          // No fee here: the fact row at the top already shows it, and on a
+          // 320px screen the fee block squeezed the apply button until
+          // "Applications closed" was cut off. The desktop stateCard keeps
+          // its fee — the fact row is hidden there.
           <>
-            {fee && (
-              <span className={styles.feeBlock}>
-                <b>{fee}</b>
-                <span>entry fee</span>
-              </span>
-            )}
             {applyControl(true)}
             {shareMenu("up")}
           </>

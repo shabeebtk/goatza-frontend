@@ -18,6 +18,77 @@ export const THUMB_MAX_BYTES = 1024 * 1024
  */
 export const THUMB_MAX_DIMENSION = 640
 
+// ── Which lossy format this browser can actually write ────────
+
+/** The two lossy formats the server signs. PNG is never chosen on purpose. */
+export type LossyImageType = "image/webp" | "image/jpeg"
+
+/**
+ * Can a canvas here encode WebP?
+ *
+ * `canvas.toBlob(cb, "image/webp")` is a REQUEST, not a guarantee: a browser
+ * with no WebP encoder — every browser on an iPhone, since they are all
+ * WebKit — silently hands back a lossless PNG instead, with the quality
+ * argument ignored. A detailed 720×1280 video frame as PNG is often over 1MB,
+ * which is exactly the server's cap for a thumb. So the format is probed once,
+ * on a tiny canvas, by checking the TYPE of the blob that comes back, and the
+ * answer is cached for the page.
+ */
+let webpProbe: Promise<boolean> | null = null
+
+export function canEncodeWebP(): Promise<boolean> {
+    webpProbe ??= new Promise<boolean>((resolve) => {
+        if (typeof document === "undefined") {
+            resolve(false)
+            return
+        }
+        try {
+            const canvas = document.createElement("canvas")
+            canvas.width = 2
+            canvas.height = 2
+            canvas.toBlob(
+                (blob) => resolve(blob?.type === "image/webp"),
+                "image/webp",
+                0.8
+            )
+        } catch {
+            resolve(false)
+        }
+    })
+    return webpProbe
+}
+
+/**
+ * The format to compress to here: WebP where the browser can write it, JPEG
+ * everywhere else. JPEG is signed by the server, lands under the size caps at
+ * the same quality settings, and plays everywhere — PNG does neither of the
+ * first two for a photo or a video frame.
+ */
+export async function preferredImageType(): Promise<LossyImageType> {
+    return (await canEncodeWebP()) ? "image/webp" : "image/jpeg"
+}
+
+const EXTENSION_BY_TYPE: Record<string, string> = {
+    "image/webp": "webp",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+}
+
+/**
+ * `name` with its extension swapped for the one matching `type`. The object
+ * key's extension comes from the signed content type, so a File whose name
+ * says `.webp` while its bytes are JPEG would be a lie the next reader trips
+ * on. Unknown types keep the original name.
+ */
+export function imageFileName(name: string, type: string): string {
+    const ext = EXTENSION_BY_TYPE[type]
+    if (!ext) return name
+    const base = name.replace(/\.[^.]+$/, "") || "image"
+    return `${base}.${ext}`
+}
+
+// ── Thumbs ────────────────────────────────────────────────────
+
 const THUMB_COMPRESSION = {
     // 0.5 not 1: the ceiling is 1MB and a second pass that lands ON the limit
     // leaves no room for the container overhead. 640px of WebP is ~40-80KB in
@@ -26,29 +97,41 @@ const THUMB_COMPRESSION = {
     maxWidthOrHeight: THUMB_MAX_DIMENSION,
     initialQuality: 0.8,
     useWebWorker: true,
-    fileType: "image/webp" as const,
 }
 
 /**
- * A small WebP copy of an already-compressed image.
+ * A small lossy copy of an already-compressed image — WebP where the browser
+ * can write it, JPEG otherwise (see {@link preferredImageType}).
  *
  * Deliberately a second pass over the FULL blob rather than a resize of the
- * original file: the full blob is already decoded, already WebP, and already
- * the image the user will see, so the thumb cannot drift from it.
+ * original file: the full blob is already decoded, already compressed, and
+ * already the image the user will see, so the thumb cannot drift from it.
+ *
+ * `signal` aborts the compressor mid-pass; it rejects with `signal.reason`.
  */
-export async function makeThumb(fullBlob: Blob): Promise<File> {
+export async function makeThumb(
+    fullBlob: Blob,
+    signal?: AbortSignal
+): Promise<File> {
+    const fileType = await preferredImageType()
+
     const source =
         fullBlob instanceof File
             ? fullBlob
-            : new File([fullBlob], "image.webp", {
-                  type: fullBlob.type || "image/webp",
+            : new File([fullBlob], imageFileName("image", fullBlob.type || fileType), {
+                  type: fullBlob.type || fileType,
               })
 
-    const thumb = await imageCompression(source, THUMB_COMPRESSION)
-
-    return new File([thumb], "thumb.webp", {
-        type: thumb.type || "image/webp",
+    const thumb = await imageCompression(source, {
+        ...THUMB_COMPRESSION,
+        fileType,
+        signal,
     })
+
+    // The compressor reports the type it really wrote, which is what the
+    // upload must declare — the PUT's Content-Type is signed.
+    const type = thumb.type || fileType
+    return new File([thumb], imageFileName("thumb", type), { type })
 }
 
 /**
