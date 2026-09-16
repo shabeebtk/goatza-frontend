@@ -26,8 +26,8 @@ import { useGuardianStore } from "../store/guardian.store"
  * and a 403 from any gated endpoint as the backstop. All three write to the
  * same store, so any one of them is enough.
  *
- * WHERE IT SENDS THEM depends on how far the flow got — the details step and
- * the hand-the-phone step both live on /auth, the wait has its own route.
+ * WHERE IT SENDS THEM depends on how far the flow got — the details step
+ * lives on /auth, the wait has its own route.
  */
 
 /**

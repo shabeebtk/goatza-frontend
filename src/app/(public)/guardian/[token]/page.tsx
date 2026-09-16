@@ -15,6 +15,9 @@
  *     a description or an Open Graph card — the very things a chat app expands
  *     into a preview when the parent forwards the email to the other parent.
  *     The title below is the same eight words for every token in existence.
+ *   * `referrer: "no-referrer"`. The URL IS the credential, and the browser
+ *     would otherwise hand it to any third-party origin the page loads from
+ *     — an icon CDN, a font — in the Referer header, one request at a time.
  *   * `dynamic = "force-dynamic"`. There is nothing to prerender and nothing
  *     to cache: the state behind a token changes the moment the parent acts.
  *
@@ -32,6 +35,7 @@ export const metadata: Metadata = {
   // Deliberately generic. See the note above on forwarded links.
   title: "Parent approval · Goatza",
   robots: { index: false, follow: false, nocache: true },
+  referrer: "no-referrer",
 }
 
 export const dynamic = "force-dynamic"

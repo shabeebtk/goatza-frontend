@@ -297,6 +297,8 @@ export default function PublicConsentPage({ token }: { token: string }) {
 
       <ParentApprovalForm
         onApprove={handleApprove}
+        // The name the child gave, from the same payload that named them.
+        defaultName={view.guardian_name ?? ""}
         submitLabel="Approve"
         busy={actionBusy}
         secondaryAction={

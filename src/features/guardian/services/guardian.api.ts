@@ -1,10 +1,6 @@
 import api from "@/core/api/axios"
 
-import type {
-  GuardianApprovalPayload,
-  GuardianDetailsPayload,
-  GuardianDetailsResponse,
-} from "../types"
+import type { GuardianDetailsPayload, GuardianDetailsResponse } from "../types"
 
 /**
  * The SIGNED-IN half of the guardian flow — the two calls the child's own
@@ -17,36 +13,23 @@ import type {
  *
  * The parent-facing consent page is the other half and shares nothing with
  * this: no session, no interceptors, a token in the URL. It lives in
- * ./publicConsent.api.
+ * ./publicConsent.api. Nothing on THIS side approves anything: every approval
+ * arrives through the parent's link, whichever inbox it went to.
  */
 
 /**
  * POST /guardian/details — the parent's name and one way to reach them.
  *
- * The response is the BRANCH POINT for the whole flow: `shared_contact` means
- * the parent is reachable on the device in the child's hand and the approval
- * happens right here; `link_sent` means an email is on its way and the child
- * waits. The client never guesses this — only the server knows whether the
- * address it was given belongs to the child.
+ * Always answers `link_sent`: an email goes out whatever the address, the
+ * child's own sign-up email included. `same_as_login_contact` is the server
+ * saying so — the client never guesses whether the address it was given
+ * belongs to the child — and the waiting screen words itself accordingly.
  */
 export const submitGuardianDetailsApi = async (
   payload: GuardianDetailsPayload,
 ): Promise<GuardianDetailsResponse> => {
   const res = await api.post("/guardian/details", payload)
   return res.data.data
-}
-
-/**
- * POST /guardian/shared/approve — the parent approving on the child's device.
- *
- * Sent from the hand-the-phone step and from nowhere else. Success means the
- * gate is down and the child goes straight into the app, so the caller's next
- * move is to re-read the session rather than to show another screen.
- */
-export const approveSharedContactApi = async (
-  payload: GuardianApprovalPayload,
-): Promise<void> => {
-  await api.post("/guardian/shared/approve", payload)
 }
 
 /**
@@ -60,6 +43,10 @@ export const approveSharedContactApi = async (
  * Throttled hard on the server. The person on the other end has no account and
  * no way to unsubscribe, so a child tapping this repeatedly must not turn into
  * a parent being mailed repeatedly.
+ *
+ * Refused with `code: "consent_declined"` once the parent has said no to the
+ * standing request — the waiting screen hides this button in that state and
+ * offers a fresh request instead.
  */
 export const resendGuardianLinkApi = async (): Promise<GuardianDetailsResponse> => {
   const res = await api.post("/guardian/resend")
