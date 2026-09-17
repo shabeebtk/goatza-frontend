@@ -25,46 +25,34 @@
  */
 
 /**
- * Path segments whose NEXT segment is a credential.
+ * THESE TWO MUST STAY REGEX LITERALS. They were built with `new RegExp()` from
+ * template literals joined by `+`, and Next 16.2.1's production minifier
+ * (Turbopack/SWC) folds that shape wrongly when the `${}` values are constants:
+ * it drops the text after each `${}`, so the bundle shipped
+ * `RegExp("/(guardian((?:/(?:consent/[^/?#\s\"']+", "gi")` — an unterminated
+ * group that throws at module evaluation. This module loads before hydration
+ * (`instrumentation-client.ts`) and in the server and edge Sentry configs, so
+ * the whole app went blank. Nothing catches it in test either: Vitest and
+ * `next dev --webpack` do not minify, so all the tests below still passed.
+ * Do not turn these back into `new RegExp` + template literals.
  *
- * Add to this rather than writing a second scrubber. Anything shaped
- * `/<prefix>/<secret>` belongs here.
+ * SECRET_PATH_PATTERN matches `/<prefix>/<secret>`, where the secret is one
+ * path segment: everything up to the next slash, query, fragment, space or
+ * quote. Group 1 is the prefix — another one goes in as `(guardian|other)`.
+ * Group 2 is the segment allowed to sit BETWEEN the prefix and the credential
+ * and kept, or "": the consent page's API calls are
+ * `/guardian/consent/<token>/approve`, and a rule that only knew
+ * `/guardian/<secret>` ate the word `consent` and left the token standing —
+ * the exact opposite of the job. Another kept segment goes in as
+ * `(?:consent|other)`. Inside the character class `/` stays unescaped, or
+ * eslint's no-useless-escape complains.
  */
-const SECRET_PATH_PREFIXES = ["guardian"]
-
-/**
- * Segments allowed to sit BETWEEN the prefix and the credential, and kept:
- * the consent page's API calls are `/guardian/consent/<token>/approve`, and
- * a rule that only knew `/guardian/<secret>` ate the word `consent` and left
- * the token standing — the exact opposite of the job. With this, the call
- * arrives as `/guardian/consent/[redacted]/approve`.
- */
-const KEPT_MIDDLE_SEGMENTS = ["consent"]
-
-/** Query parameters whose value is a credential. */
-const SECRET_QUERY_PARAMS = ["token"]
-
-/**
- * One path segment: everything up to the next slash, query, fragment, space
- * or quote. The double backslash matters: these are template literals, where
- * a lone `\s` cooks to the letter s — the first version of this file had
- * exactly that, and a token containing an "s" kept its tail.
- */
-const SEGMENT = `[^/?#\\s"']+`
-
-const SECRET_PATH_PATTERN = new RegExp(
-  `/(${SECRET_PATH_PREFIXES.join("|")})` +
-    `((?:/(?:${KEPT_MIDDLE_SEGMENTS.join("|")}))?)` +
-    `/${SEGMENT}`,
-  "gi",
-)
+const SECRET_PATH_PATTERN = /\/(guardian)((?:\/(?:consent))?)\/[^/?#\s"']+/gi
 
 // `[?&]` and not a bare `token=`: `access_token=` is somebody else's secret
 // with its own rules, and a word that merely ends in "token" is not a match.
-const SECRET_QUERY_PATTERN = new RegExp(
-  `([?&](?:${SECRET_QUERY_PARAMS.join("|")})=)[^&#\\s"']*`,
-  "gi",
-)
+// Another query parameter goes in as `(?:token|other)`.
+const SECRET_QUERY_PATTERN = /([?&](?:token)=)[^&#\s"']*/gi
 
 /** Replace any secret path segment or query value in a string. Safe on non-URLs. */
 export function redactSecretPaths<T>(value: T): T {
