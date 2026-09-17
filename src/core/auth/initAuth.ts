@@ -28,7 +28,7 @@ export const initAuth = async (attempt = 0): Promise<void> => {
     syncGuardianFromServer(user?.guardian)
   } catch (err) {
     if (err instanceof SessionExpiredError) {
-      clearAuth() // definitive — show login
+      clearAuth("expired") // definitive — show login
       return
     }
     // Retryable (offline PWA cold start, flaky network, 5xx)

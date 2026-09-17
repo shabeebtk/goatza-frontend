@@ -58,7 +58,7 @@ async function doRefresh(): Promise<string> {
   } catch (err) {
     if (isDefinitiveAuthFailure(err)) {
       clearProactiveTimer()
-      useAuthStore.getState().clearAuth()
+      useAuthStore.getState().clearAuth("expired")
       throw new SessionExpiredError()
     }
     throw err // retryable — caller decides; auth state untouched

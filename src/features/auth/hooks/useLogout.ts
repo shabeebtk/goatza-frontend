@@ -22,7 +22,7 @@ export function useLogout() {
     try {
       await logoutApi()
     } catch {}
-    clearAuth()
+    clearAuth("logout")
     queryClient.clear()
     router.push("/auth")
   }

@@ -1,8 +1,9 @@
 "use client"
 
 import { useAuthStore } from "@/store/auth.store"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { authUrlWithNext } from "@/shared/services/authRedirect"
 import OnboardingGate from "@/features/onboarding/components/OnboardingGate"
 import LegalConsentGate from "@/features/legal/components/LegalConsentGate"
 import GuardianGate from "@/features/guardian/components/GuardianGate"
@@ -12,17 +13,41 @@ export default function AuthGuard({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated, isLoading } = useAuthStore()
+  const { isAuthenticated, isLoading, authExitReason } = useAuthStore()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (isLoading) return
 
     if (!isAuthenticated) {
-      router.replace("/auth")
+      // A deliberate sign-out must NOT remember where it happened. useLogout
+      // pushes /auth itself and this effect races it; capturing here would
+      // leave /auth?next=/settings behind, and the next person to sign in on
+      // this device would land on the previous user's page.
+      if (authExitReason === "logout") {
+        router.replace("/auth")
+        return
+      }
+
+      // Everything else — an expired session, a cold load initAuth could not
+      // refresh, an emailed or push deep link opened while logged out — is
+      // someone who was HEADED somewhere. Send them through /auth and back.
+      //
+      // The query string is read from window, not useSearchParams(). This is
+      // a client component sitting in a layout above statically-prerendered
+      // pages, and useSearchParams() there forces a Suspense boundary that
+      // can fail `next build`. The redirect only ever happens client-side,
+      // inside this effect, so window.location.search is both safe and
+      // simpler. authUrlWithNext validates: a blocked path becomes a plain
+      // /auth.
+      //
+      // replace, not push — the page they were bounced off is not somewhere
+      // Back should return them to.
+      router.replace(authUrlWithNext(`${pathname}${window.location.search}`))
       return
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, authExitReason, pathname, router])
 
   // prevent flicker
   if (isLoading) return null

@@ -61,6 +61,18 @@ export type User = {
 
 export type OrganizationActor = OrganizationMini
 
+/**
+ * Why the session ended. `clearAuth` REQUIRES one so the compiler, not a code
+ * review, catches a call site that forgot to say.
+ *
+ * AuthGuard reads it: a session that EXPIRED under someone is captured as
+ * `?next=` so they come back to the page they were on, but a deliberate LOGOUT
+ * is not — otherwise signing out of `/settings` races useLogout's own push and
+ * can leave `/auth?next=/settings` behind, and the next person to sign in on
+ * that device lands on the previous user's page.
+ */
+export type AuthExitReason = "logout" | "expired"
+
 const ORG_ADMIN_ROUTE_REGEX = /^\/organization\/admin\/([^/?#]+)/
 
 const findOrgById = (
@@ -86,6 +98,9 @@ type AuthState = {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+  // How the LAST session ended; null until one has. Memory only — a reload
+  // starts with no history, and that is the right answer for a fresh tab.
+  authExitReason: AuthExitReason | null
 
   // actor context
   actorType: ActorType
@@ -122,7 +137,7 @@ type AuthState = {
 
   syncActorFromPath: (pathname: string) => void
 
-  clearAuth: () => void
+  clearAuth: (reason: AuthExitReason) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -133,6 +148,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      authExitReason: null,
 
       // ACTOR CONTEXT
       actorType: "user",
@@ -156,6 +172,8 @@ export const useAuthStore = create<AuthState>()(
           user,
           isAuthenticated: true,
           isLoading: false,
+          // A new session inherits nothing from how the last one ended.
+          authExitReason: null,
           currentOrganization:
             state.actorType === "organization"
               ? findOrgById(state.organizations, state.actorId)
@@ -321,12 +339,13 @@ export const useAuthStore = create<AuthState>()(
           }
         }),
 
-      clearAuth: () =>
+      clearAuth: (reason) =>
         set({
           accessToken: null,
           user: null,
           isAuthenticated: false,
           isLoading: false,
+          authExitReason: reason,
           actorType: "user",
           actorId: null,
           organizations: [],
@@ -353,6 +372,7 @@ export const useAuthStore = create<AuthState>()(
         state.user = null
         state.isAuthenticated = false
         state.isLoading = true
+        state.authExitReason = null
         state.organizations = []
         state.currentOrganization = null
       },

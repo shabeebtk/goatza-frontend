@@ -113,7 +113,7 @@ export default function DeleteAccountModal({ onClose }: { onClose: () => void })
       // Exactly what useLogout does, minus the /user/logout call: confirm has
       // already blacklisted every refresh token and cleared the refresh
       // cookie, so there is no session left to retire.
-      clearAuth()
+      clearAuth("logout")
       queryClient.clear()
 
       // Hard, not router.push. Clearing the store is what makes AuthGuard
