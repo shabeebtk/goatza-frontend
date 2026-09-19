@@ -2,17 +2,17 @@
    GOATZA — UserProfile.module.css  (v4 — no inline edits)
    ============================================================ */
 
-@keyframes profileIn   { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes shimmer     { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-
 /* ── Page wrapper ────────────────────────────────────────────── */
 
+/* No entrance animation, deliberately. The page lands under a skeleton of the
+   same shape in the same place (see ProfileSkeleton), and a slide-and-fade on
+   arrival made that hand-off read as yet another load — on every visit,
+   because the authenticated fetch replays it. */
 .profilePage {
   width: 100%;
   max-width: 760px;
   margin-inline: auto;
   padding: 0 0 var(--space-16);
-  animation: profileIn 0.5s var(--ease-out) both;
 }
 
 @media (min-width: 640px) {
@@ -446,38 +446,9 @@
 
 .emptyHint { color: var(--color-text-muted); font-style: italic; font-size: var(--text-sm); }
 
-/* ── Skeleton ────────────────────────────────────────────────── */
-
-.profileSkeleton { max-width: 760px; margin-inline: auto; padding: var(--space-4); }
-
-.skeletonBlock {
-  background: linear-gradient(
-    90deg,
-    var(--color-surface-raised) 25%,
-    var(--color-border) 50%,
-    var(--color-surface-raised) 75%
-  );
-  background-size: 800px 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: var(--radius-md);
-}
-
-.skeletonCover { width: 100%; aspect-ratio: 3 / 1; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
-
-.skeletonBody {
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
-  border-top: none;
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-  padding: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.skeletonAvatar { width: 80px; height: 80px; border-radius: 50%; margin-top: -40px; }
-.skeletonLine { height: 24px; width: 55%; }
-.skeletonLineSm { height: 16px; width: 35%; }
+/* The loading skeleton is the shared ProfileSkeleton — its rules live with
+   it, so the shape drawn here can never drift from the one loading.tsx and
+   PublicShell draw. */
 
 /* ── Error ───────────────────────────────────────────────────── */
 

@@ -62,7 +62,19 @@
 
 /* ── 2. SEMANTIC TOKENS — LIGHT MODE (default) ─────────────── */
 
+/* THE THEME IS THE USER'S, NOT THE OS'S. Light is the default for everyone;
+   dark applies only when `data-theme="dark"` is on <html>, which the theme
+   store (store/theme.store.ts) writes from the Settings toggle and a head
+   script restores from localStorage before first paint. Nothing in src/
+   reads `prefers-color-scheme` for colour any more — a phone set to dark
+   gets a light Goatza until its owner says otherwise.
+
+   `color-scheme` follows the same switch so native scrollbars, form controls
+   and the on-screen keyboard match the page rather than the OS. */
+
 :root {
+  color-scheme: light;
+
   /* ── Page backgrounds */
   --color-bg: var(--primitive-neutral-50);
   /* page canvas */
@@ -150,66 +162,69 @@
 }
 
 /* ── 2b. SEMANTIC TOKENS — DARK MODE ───────────────────────── */
+/* Keyed on the attribute, never on the OS — see the note above 2. Same
+   token list as the light block, in the same order, so the two stay
+   diffable line for line. */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* ── Page backgrounds */
-    --color-bg: var(--primitive-neutral-900);
-    --color-surface: var(--primitive-neutral-850);
-    --color-surface-raised: var(--primitive-neutral-800);
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-    /* ── Borders */
-    --color-border: var(--primitive-neutral-700);
-    --color-border-subtle: rgba(255, 255, 255, 0.05);
+  /* ── Page backgrounds */
+  --color-bg: var(--primitive-neutral-900);
+  --color-surface: var(--primitive-neutral-850);
+  --color-surface-raised: var(--primitive-neutral-800);
 
-    /* ── Brand — brightened for dark bg */
-    --color-brand: var(--primitive-green-400);
-    --color-brand-hover: var(--primitive-green-500);
-    --color-brand-active: var(--primitive-green-600);
-    --color-brand-subtle: var(--primitive-green-alpha-100);
-    --color-brand-muted: var(--primitive-green-alpha-180);
-    --color-brand-glow: var(--primitive-green-alpha-300);
+  /* ── Borders */
+  --color-border: var(--primitive-neutral-700);
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
 
-    /* ── Foreground on brand bg */
-    --color-on-brand: var(--primitive-ink-950);
-    /* stays dark — green is light enough */
+  /* ── Brand — brightened for dark bg */
+  --color-brand: var(--primitive-green-400);
+  --color-brand-hover: var(--primitive-green-500);
+  --color-brand-active: var(--primitive-green-600);
+  --color-brand-subtle: var(--primitive-green-alpha-100);
+  --color-brand-muted: var(--primitive-green-alpha-180);
+  --color-brand-glow: var(--primitive-green-alpha-300);
 
-    /* ── Text */
-    --color-text-primary: var(--primitive-neutral-100);
-    --color-text-secondary: var(--primitive-neutral-400);
-    --color-text-muted: var(--primitive-neutral-500);
-    --color-text-inverted: var(--primitive-ink-950);
+  /* ── Foreground on brand bg */
+  --color-on-brand: var(--primitive-ink-950);
+  /* stays dark — green is light enough */
 
-    /* ── UI ink — flips to near-white on dark */
-    --color-ink: var(--primitive-neutral-100);
+  /* ── Text */
+  --color-text-primary: var(--primitive-neutral-100);
+  --color-text-secondary: var(--primitive-neutral-400);
+  --color-text-muted: var(--primitive-neutral-500);
+  --color-text-inverted: var(--primitive-ink-950);
 
-    /* ── Semantic states */
-    --color-error: var(--primitive-red-400);
-    --color-success: var(--primitive-green-400);
-    --color-warn: #e0a52e;
+  /* ── UI ink — flips to near-white on dark */
+  --color-ink: var(--primitive-neutral-100);
 
-    /* ── Chat read receipt — brightened so it still reads as blue against
-       the darker bubble fills */
-    --color-read-receipt: #53bdeb;
+  /* ── Semantic states */
+  --color-error: var(--primitive-red-400);
+  --color-success: var(--primitive-green-400);
+  --color-warn: #e0a52e;
 
-    /* ── Shadows deepen on dark */
-    --shadow-xs: 0 1px 4px rgba(0, 0, 0, 0.45);
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.50);
-    --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.55);
-    --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.65);
-    --shadow-brand: 0 4px 28px var(--color-brand-glow);
-    --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+  /* ── Chat read receipt — brightened so it still reads as blue against
+     the darker bubble fills */
+  --color-read-receipt: #53bdeb;
 
-    /* ── CTA section — goes deepest on dark */
-    --color-cta-bg: var(--primitive-neutral-950);
-    --color-cta-grid: rgba(0, 201, 110, 0.04);
+  /* ── Shadows deepen on dark */
+  --shadow-xs: 0 1px 4px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.50);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.65);
+  --shadow-brand: 0 4px 28px var(--color-brand-glow);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
 
-    /* ── Hero grid */
-    --color-hero-grid: rgba(0, 201, 110, 0.05);
+  /* ── CTA section — goes deepest on dark */
+  --color-cta-bg: var(--primitive-neutral-950);
+  --color-cta-grid: rgba(0, 201, 110, 0.04);
 
-    /* ── Header scrolled */
-    --color-header-scrolled-bg: rgba(13, 17, 14, 0.92);
-  }
+  /* ── Hero grid */
+  --color-hero-grid: rgba(0, 201, 110, 0.05);
+
+  /* ── Header scrolled */
+  --color-header-scrolled-bg: rgba(13, 17, 14, 0.92);
 }
 
 /* ── 3. TYPOGRAPHY TOKENS ──────────────────────────────────── */

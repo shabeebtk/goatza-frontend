@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Icon } from "@iconify/react"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
+import { useAuthStore } from "@/store/auth.store"
 import {
   useRecruitmentDiscover,
   useRecruitmentsList,
@@ -252,6 +253,9 @@ export default function RecruitmentDiscovery() {
   const showRails = !anyFilterActive && !!discover
 
   const missingFields = discover?.missing_profile_fields ?? []
+  // For the "Add …" links: straight to /profile/<username> rather than through
+  // the /profile redirect page (see profileFieldHref).
+  const myUsername = useAuthStore((s) => s.user?.username)
   const distanceRadius = discover?.max_distance_km ?? DEFAULT_DISTANCE_KM
 
   // "See all" targets: each rail's own rule, expressed as list filters.
@@ -288,7 +292,7 @@ export default function RecruitmentDiscovery() {
               {missingFields.map((field) => (
                 <Link
                   key={field}
-                  href={profileFieldHref(field)}
+                  href={profileFieldHref(field, myUsername)}
                   className={styles.profilePromptLink}
                 >
                   Add {MISSING_FIELD_META[field]?.label ?? field}

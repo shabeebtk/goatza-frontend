@@ -1,17 +1,18 @@
 /**
  * /join — pre-launch registration.
  *
- * ALWAYS DARK, like the landing page, whatever the visitor's OS theme says.
+ * ALWAYS DARK, like the landing page, whatever theme the visitor has chosen.
  * The route exports `viewport.themeColor = "#000000"`, and a page whose status
  * bar is black while its body is cream is worse than either on its own.
  *
- * The mechanism is the block below: globals.css defines the dark values inside
- * `@media (prefers-color-scheme: dark)`, which is exactly the wrong trigger
- * here, so `.page` re-declares those same semantic tokens from the same
- * primitives. Custom properties inherit, so every shared component underneath
- * — Input, Select, Card, Badge, Button — renders its dark skin with no `dark`
- * prop, no overrides and no forked styles. Nothing in this file restyles a
- * shared component; it only tells them which theme they are in.
+ * The mechanism is the block below: globals.css defines the dark values under
+ * `:root[data-theme="dark"]` — the user's Settings choice, light by default —
+ * which is exactly the wrong trigger here, so `.page` re-declares those same
+ * semantic tokens from the same primitives. Custom properties inherit, so
+ * every shared component underneath — Input, Select, Card, Badge, Button —
+ * renders its dark skin with no `dark` prop, no overrides and no forked
+ * styles. Nothing in this file restyles a shared component; it only tells
+ * them which theme they are in.
  */
 
 /**

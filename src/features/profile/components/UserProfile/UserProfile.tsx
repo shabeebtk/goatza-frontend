@@ -17,6 +17,7 @@ import HighlightsRail from "@/features/highlights/components/HighlightsRail/High
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import ProfileShareMenu from "@/features/profile/components/ProfileShareMenu/ProfileShareMenu"
+import ProfileSkeleton from "@/features/profile/components/ProfileSkeleton/ProfileSkeleton"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
 import {
   useUserProfile,
@@ -153,17 +154,13 @@ export default function UserProfile({
   }
 
   // ── Loading skeleton ──────────────────────────────────────────
+  // The SAME silhouette the route's loading.tsx and PublicShell draw, in the
+  // same column. A signed-in viewer always passes through this fetch (the
+  // server bundle is the anonymous view and is discarded for them), so a
+  // skeleton of its own here was a second, differently shaped load on every
+  // profile open.
   if (isLoading) {
-    return (
-      <div className={styles.profileSkeleton}>
-        <div className={`${styles.skeletonBlock} ${styles.skeletonCover}`} />
-        <div className={styles.skeletonBody}>
-          <div className={`${styles.skeletonBlock} ${styles.skeletonAvatar}`} />
-          <div className={`${styles.skeletonBlock} ${styles.skeletonLine}`} />
-          <div className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
-        </div>
-      </div>
-    )
+    return <ProfileSkeleton />
   }
 
   if (isError || !profile) {

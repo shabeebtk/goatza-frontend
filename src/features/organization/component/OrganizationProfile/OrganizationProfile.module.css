@@ -343,12 +343,11 @@
   color: #c47f00;
 }
 
-@media (prefers-color-scheme: dark) {
-  .badgeLevel {
-    background: rgba(255, 190, 30, 0.10);
-    border-color: rgba(255, 190, 30, 0.22);
-    color: #f0a500;
-  }
+/* Keyed on the app's own theme attribute (see globals.css), never on the OS. */
+:root[data-theme="dark"] .badgeLevel {
+  background: rgba(255, 190, 30, 0.10);
+  border-color: rgba(255, 190, 30, 0.22);
+  color: #f0a500;
 }
 
 .badgeSportPrimary {

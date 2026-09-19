@@ -180,7 +180,14 @@ export const MISSING_FIELD_META: Record<
 /** The own-profile page, where every field editor lives. */
 export const PROFILE_HREF = "/profile"
 
-export function profileFieldHref(field: string): string {
+/**
+ * `username`, when the caller has it, lands on /profile/<username> directly:
+ * PROFILE_HREF is a redirect page (it renders nothing, then replaces itself
+ * with the real URL), and the hop through it is a blank frame. Without a
+ * username the redirect page is still the right destination.
+ */
+export function profileFieldHref(field: string, username?: string | null): string {
+  const base = username ? `${PROFILE_HREF}/${username}` : PROFILE_HREF
   const anchor = MISSING_FIELD_META[field]?.anchor
-  return anchor ? `${PROFILE_HREF}#${anchor}` : PROFILE_HREF
+  return anchor ? `${base}#${anchor}` : base
 }

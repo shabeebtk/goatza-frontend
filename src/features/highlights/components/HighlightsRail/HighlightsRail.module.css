@@ -83,9 +83,16 @@
   display: flex;
   gap: var(--space-3);
   overflow-x: auto;
-  /* Bleed to the card edges so the last tile doesn't look clipped mid-scroll. */
-  margin-inline: calc(var(--space-4) * -1);
-  padding-inline: var(--space-4);
+  /* No bleed: the rail lives in the same column as every other section, so
+     the first tile lines up with the heading above it and the sports chips
+     and career rows around it. It used to bleed by a fixed --space-4, but
+     the container (.profileBody) pads --space-5 on phones and --space-8
+     above 640px, so the scroll area started ~4px left of its siblings and
+     tiles drifted into that gap mid-scroll — the rail read as sitting further
+     left than everything else. Tiles now clip at the column edge while
+     scrolling, like any other row that overflows. */
+  margin-inline: 0;
+  padding-inline: 0;
   padding-bottom: 2px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;

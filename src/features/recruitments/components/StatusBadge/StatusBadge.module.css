@@ -39,13 +39,8 @@
 
 /* The mockup is a dark-only sheet; on the light theme its literal amber/blue/
    violet inks fail against a pale pill, so the hues are kept and the INK is
-   darkened. Dark theme takes the mockup's values as drawn. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .reviewing   { color: #f5b83d; }
-  :root:not([data-theme="light"]) .shortlisted { color: #6fd3ff; }
-  :root:not([data-theme="light"]) .invited     { color: #c9a6ff; }
-}
-
+   darkened. Dark theme takes the mockup's values as drawn. `data-theme` on
+   <html> is the only switch — the OS scheme is not consulted. */
 :root[data-theme="dark"] .reviewing   { color: #f5b83d; }
 :root[data-theme="dark"] .shortlisted { color: #6fd3ff; }
 :root[data-theme="dark"] .invited     { color: #c9a6ff; }
