@@ -19,9 +19,11 @@
  *
  * ── Why two <img> tags ────────────────────────────────────────
  *
- * The app has no JS theme store — light/dark is CSS `prefers-color-scheme`
- * throughout — and `src` cannot be set from CSS. So both variants render and
- * the stylesheet hides the wrong one. Only one is ever visible.
+ * The theme lives in a JS store now (store/theme.store.ts), so `src` COULD be
+ * picked in render — but the stylesheet already keys every other colour off
+ * `data-theme` on <html>, and this stays with that: both variants render and
+ * the stylesheet hides the wrong one, so a theme flip needs no re-render and
+ * no subscription here. Only one is ever visible.
  *
  * Plain <img>, not next/image: these are tiny fixed-size static assets, and
  * next/image would need them added to `images.remotePatterns` reasoning it does

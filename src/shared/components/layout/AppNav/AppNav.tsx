@@ -115,6 +115,16 @@ export default function AppNav() {
   // Nav is driven entirely by the role config — no role branching in JSX.
   const navItems = getNavItems(user?.role)
 
+  // The profile tab and the avatar go STRAIGHT to /profile/<username> once the
+  // session knows who this is. The config still says /profile — that route is
+  // a redirect page (it renders nothing, then replaces itself with the real
+  // URL) and stays the right target for a deep link or a click before the
+  // session resolves. Going through it from the nav cost an extra hop on
+  // every visit to your own profile: blank page, then the profile.
+  // Active-state matching below stays on the config's `/profile`, so viewing
+  // anyone's profile still lights the tab up exactly as before.
+  const profileHref = user?.username ? `/profile/${user.username}` : "/profile"
+
   // The toasts offset themselves by the mobile bars only while the bars are
   // actually there: not on a public page, not on a chat page (bars hidden),
   // and not while the role is still resolving.
@@ -241,7 +251,7 @@ export default function AppNav() {
             <div className={styles.topNavAvatar}>
               <div className={styles.avatarBtn}>
                 <Link
-                  href="/profile"
+                  href={profileHref}
                   style={{ display: "flex", borderRadius: "50%" }}
                   aria-label="My Profile"
                 >
@@ -357,7 +367,7 @@ export default function AppNav() {
             return (
               <Link
                 key={item.id}
-                href={item.href}
+                href={profileHref}
                 className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
                 aria-label="Profile (Long press for account switcher)"
                 aria-current={isActive ? "page" : undefined}

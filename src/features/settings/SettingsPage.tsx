@@ -16,6 +16,7 @@ import { useLogout } from "@/features/auth/hooks/useLogout"
 import ProblemReportSheet from "@/features/support/components/ProblemReportSheet/ProblemReportSheet"
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
+import { useThemeStore } from "@/store/theme.store"
 import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
 import LegalSettingsSection from "@/features/legal/components/LegalSettingsSection"
 import DeleteAccountSection from "./components/DeleteAccountSection/DeleteAccountSection"
@@ -38,6 +39,14 @@ export default function SettingsPage() {
   // Public by default, and that is also the right optimistic answer while the
   // profile is still loading — the row must not flicker "off" and back.
   const isPublic = profile?.is_public_profile ?? true
+
+  // The theme is device-local state (localStorage, no API), so this is a plain
+  // store read with no mutation and no busy state. It is also hydration-safe:
+  // the store reports its default (light) for the server render and the
+  // hydration pass and the stored value only once React is mounted, so the
+  // server markup and the first client render agree on the switch.
+  const theme = useThemeStore((s) => s.theme)
+  const setTheme = useThemeStore((s) => s.setTheme)
 
   return (
     <div className={styles.page}>
@@ -62,6 +71,20 @@ export default function SettingsPage() {
           href="/settings/password"
           icon="mdi:lock-outline"
           label="Change password"
+        />
+      </SettingsSection>
+
+      {/* Straight after Account and before Privacy: it is about how the app
+          looks on THIS device, not about what other people can see. Light is
+          the default whatever the phone is set to — the OS theme is not
+          consulted anywhere — so this switch is the one way to go dark. */}
+      <SettingsSection title="Appearance">
+        <SettingsToggleRow
+          icon="mdi:weather-night"
+          label="Dark mode"
+          description="Only on this device — it isn't saved to your account"
+          checked={theme === "dark"}
+          onChange={(next) => setTheme(next ? "dark" : "light")}
         />
       </SettingsSection>
 

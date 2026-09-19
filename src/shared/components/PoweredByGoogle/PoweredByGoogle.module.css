@@ -18,21 +18,20 @@
   opacity: 0.9;
 }
 
-/* Only one variant is ever visible. The app is token-themed, so this media
-   query is the one place that has to branch on the scheme directly — a `src`
-   cannot be chosen from CSS. */
+/* Only one variant is ever visible. The app is token-themed, so this is the
+   one place that has to branch on the theme directly — a `src` cannot be
+   chosen from CSS. The branch is the app's own `data-theme` (see globals.css),
+   not the OS scheme. */
 .logoDark {
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .logoLight {
-    display: none;
-  }
+:root[data-theme="dark"] .logoLight {
+  display: none;
+}
 
-  .logoDark {
-    display: block;
-  }
+:root[data-theme="dark"] .logoDark {
+  display: block;
 }
 
 /* Text fallback, until the official PNGs land in public/google/. */

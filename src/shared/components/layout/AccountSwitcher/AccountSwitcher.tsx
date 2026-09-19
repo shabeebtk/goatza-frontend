@@ -82,7 +82,10 @@ function AccountSwitcherContent({
         </Link>
       ) : (
         <Link
-          href="/profile"
+          // Straight to the real URL when the username is known, for the same
+          // reason AppNav does it: /profile is a redirect page, and the hop
+          // through it is a blank frame before your own profile.
+          href={user?.username ? `/profile/${user.username}` : "/profile"}
           className={styles.dropdownHeader}
           onClick={onClose}
           style={{ textDecoration: "none" }}

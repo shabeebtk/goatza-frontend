@@ -1,0 +1,221 @@
+/* ============================================================
+   ProfileSkeleton — the profile card and the CV sheet, as
+   placeholders. See ProfileSkeleton.tsx for who renders them
+   and when.
+
+   Every measurement below is taken from the page it stands in
+   for — UserProfile.module.css's 760px card for the profile,
+   PublicCVView's --container-tight sheet for the CV — so the
+   real page swaps in without the layout jumping.
+   ============================================================ */
+
+/* ── Chrome stand-in (withNavBand only) ────────────────────
+   When the skeleton is the whole page there is no shell behind it, so it
+   takes the viewport height and the page background itself. The nav band is
+   the one full-width element, because the real nav is fixed and does span
+   the viewport. Inside a real shell neither is wanted: the shell already
+   paints the background and the real nav is already there. */
+
+.shell {
+    min-height: 100dvh;
+    background: var(--color-bg);
+}
+
+.navBand {
+    height: calc(var(--top-nav-h) + var(--safe-top));
+}
+
+.navBand,
+.cover,
+.avatar,
+.line,
+.lineSm,
+.chip,
+.stat,
+.btn,
+.box,
+.section,
+.cvPhoto {
+    background: var(--color-surface-raised);
+    animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+/* ── Shared pieces ─────────────────────────────────────────── */
+
+.line {
+    height: 22px;
+    width: 55%;
+    border-radius: var(--radius-sm);
+}
+
+.lineSm {
+    height: 14px;
+    width: 32%;
+    border-radius: var(--radius-sm);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.chip {
+    height: 26px;
+    width: 86px;
+    border-radius: var(--radius-full);
+}
+
+.stat {
+    height: 38px;
+    width: 76px;
+    border-radius: var(--radius-md);
+}
+
+.btn {
+    height: 42px;
+    flex: 1 1 120px;
+    border-radius: var(--radius-full);
+}
+
+/* ── Profile shape ─────────────────────────────────────────── */
+
+/* Mirrors .profilePage: 760px, centred, unpadded on phones (the card is
+   full-bleed there) and inset from 640px up. */
+.page {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+}
+
+@media (min-width: 640px) {
+    .page {
+        padding: var(--space-4) var(--space-6) var(--space-8);
+    }
+}
+
+/* Mirrors .profileCard: square and borderless on phones, a bordered rounded
+   card from 640px up. */
+.card {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    overflow: hidden;
+}
+
+@media (min-width: 640px) {
+    .card {
+        border: 1.5px solid var(--color-border);
+        border-radius: var(--radius-xl);
+    }
+}
+
+.cover {
+    aspect-ratio: 3 / 1;
+    width: 100%;
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: 0 var(--space-5) var(--space-8);
+}
+
+@media (min-width: 640px) {
+    .body {
+        padding: 0 var(--space-8) var(--space-8);
+    }
+}
+
+/* The overlap the real avatar has over the cover (.avatarRow). */
+.avatar {
+    width: 92px;
+    height: 92px;
+    border-radius: var(--radius-full);
+    border: 3px solid var(--color-surface);
+    margin-top: -44px;
+}
+
+@media (min-width: 640px) {
+    .avatar {
+        margin-top: -52px;
+    }
+}
+
+/* ── CV shape ──────────────────────────────────────────────── */
+
+/* Mirrors PublicCVView's .sheet. */
+.sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+
+    width: 100%;
+    max-width: var(--container-tight);
+    margin-inline: auto;
+    padding: var(--space-6) var(--space-5) var(--space-10);
+}
+
+.cvHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+}
+
+.cvPhoto {
+    width: 92px;
+    height: 92px;
+    flex: 0 0 auto;
+    border-radius: var(--radius-full);
+}
+
+.cvHeaderText {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* The fact grid — one block rather than three cells: it is a bordered box on
+   the real page, and three floating rectangles read as content that then
+   moves. */
+.box {
+    height: 84px;
+    border-radius: var(--radius-md);
+}
+
+.section {
+    height: 128px;
+    border-radius: var(--radius-md);
+}
+
+@keyframes skeletonPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .navBand,
+    .cover,
+    .avatar,
+    .line,
+    .lineSm,
+    .chip,
+    .stat,
+    .btn,
+    .box,
+    .section,
+    .cvPhoto {
+        animation: none;
+    }
+}

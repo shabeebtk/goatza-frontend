@@ -154,10 +154,12 @@
   filter: brightness(0) invert(1) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
 }
 
-@media (prefers-color-scheme: dark) {
-  .logoImg,
-  .footerLogoImg { filter: brightness(0) invert(1); }
-}
+/* Keyed on the app's own theme attribute (see globals.css), never on the OS.
+   No `:root` prefix here, on purpose: that would lift this to the same
+   specificity as the un-scrolled header rule above and, coming later, beat
+   it — the logo over the hero would lose its drop-shadow in dark mode. */
+[data-theme="dark"] .logoImg,
+[data-theme="dark"] .footerLogoImg { filter: brightness(0) invert(1); }
 
 .logoWordmark {
   font-family: var(--font-display);

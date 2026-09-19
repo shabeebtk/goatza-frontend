@@ -59,6 +59,13 @@
     display: block;
 }
 
+/* Theme safety, same as AppNav — the LOGO_URL artwork is solid black and
+   vanishes on the dark chrome without this. Keyed on the app's own theme
+   attribute (see globals.css), never on the OS scheme. */
+:root[data-theme="dark"] .logoImg {
+    filter: brightness(0) invert(1);
+}
+
 .wordmark {
     font-family: var(--font-display, inherit);
     font-size: var(--text-lg);

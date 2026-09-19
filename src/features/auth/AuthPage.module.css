@@ -264,6 +264,14 @@
   object-fit: contain;
 }
 
+/* Theme safety, same as AppNav — the LOGO_URL artwork is solid black and
+   vanishes on the dark page without this (the sign-in and forgot-password
+   screens share this class). Keyed on the app's own theme attribute (see
+   globals.css), never on the OS scheme. */
+:root[data-theme="dark"] .logoImg {
+  filter: brightness(0) invert(1);
+}
+
 .logoWordmark {
   font-family: var(--font-display);
   font-size: var(--text-2xl);

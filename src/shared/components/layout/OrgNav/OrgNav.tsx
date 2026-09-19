@@ -7,7 +7,7 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import styles from "./OrgNav.module.css"
 import { useAuthStore } from "@/store/auth.store"
-import { logoutApi } from "@/features/auth/services/auth.api"
+import { useLogout } from "@/features/auth/hooks/useLogout"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import CreateMenu, { type CreateAction } from "@/shared/components/layout/CreateMenu/CreateMenu"
@@ -131,7 +131,6 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const [recruitmentOpen, setRecruitmentOpen] = useState(false)
 
   const user = useAuthStore((state) => state.user)
-  const clearAuth = useAuthStore((state) => state.clearAuth)
   const actorType = useAuthStore((state) => state.actorType)
   const actorId = useAuthStore((state) => state.actorId)
   const switchToUser = useAuthStore((state) => state.switchToUser)
@@ -209,14 +208,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
-  const handleLogout = async () => {
-    try {
-      await logoutApi()
-    } catch {}
-    clearAuth()
-    queryClient.clear()
-    router.push("/auth")
-  }
+  // One logout path for the whole app (the user nav uses the same hook);
+  // AccountSwitcher closes its own dropdown / sheet after calling it.
+  const handleLogout = useLogout()
 
   const handleSwitchToUser = () => {
     switchToUser()

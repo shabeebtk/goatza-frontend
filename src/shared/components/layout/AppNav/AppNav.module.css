@@ -5,18 +5,14 @@
    ============================================================ */
 
 /* ── Shared keyframes ────────────────────────────────────────── */
-@keyframes navFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-6px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
+/* The three fixed bars have NO entry animation, on purpose. They are
+   permanent chrome, but AppShell (and so AppNav) remounts on every hop
+   between route groups — /home lives in (autheticated), /profile/<username>
+   in (public) — and an entry animation replays on each remount. That was the
+   nav visibly sliding into place on the way to every profile: the app looked
+   as if it was rebuilding itself. The dropdown, the account sheet, the badge
+   pulse and the role skeleton's shimmer keep theirs; none of those is a bar
+   arriving. */
 @keyframes dropDown {
     from {
         opacity: 0;
@@ -26,18 +22,6 @@
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
-    }
-}
-
-@keyframes tabBarUp {
-    from {
-        opacity: 0;
-        transform: translateY(12px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
     }
 }
 
@@ -93,11 +77,10 @@
 }
 
 /* Theme safety — the LOGO_URL artwork is solid black, so it must flip to
-   white in dark mode to stay visible on the dark chrome. */
-@media (prefers-color-scheme: dark) {
-    .logoImg {
-        filter: brightness(0) invert(1);
-    }
+   white in dark mode to stay visible on the dark chrome. Keyed on the app's
+   own theme attribute (see globals.css), not on the OS scheme. */
+:root[data-theme="dark"] .logoImg {
+    filter: brightness(0) invert(1);
 }
 
 /* Mobile top bar sits a touch shorter — trim the mark to match. */
@@ -142,7 +125,6 @@
         background: var(--color-surface);
         border-bottom: 1px solid var(--color-border);
         box-shadow: var(--shadow-sm);
-        animation: navFadeIn 0.45s var(--ease-out) both;
     }
 }
 
@@ -519,14 +501,16 @@
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
     box-shadow: var(--shadow-sm);
-    animation: navFadeIn 0.45s var(--ease-out) both;
     /* Scroll-linked auto-hide. `--chrome-progress` (0→1) is written by
        useScrollChrome; translateY(-100%) at 1 slides the bar (incl. its
        safe-area padding) fully off the top. Transition is 0s during the
        follow phase so it tracks scroll 1:1 — the snap rule below turns it on
-       only to settle. `!important` beats the entry animation's persisted
-       transform (fill:both); opacity still fades in. */
-    transform: translateY(calc(var(--chrome-progress, 0) * -100%)) !important;
+       only to settle. No `!important`: it was there to beat the entry
+       animation's persisted transform (fill:both), and that animation is gone
+       (see the keyframes note at the top). Nothing else declares a transform
+       on this bar, so the plain declaration wins on its own. If an animation
+       that touches `transform` ever comes back here, so must the override. */
+    transform: translateY(calc(var(--chrome-progress, 0) * -100%));
     transition: transform 0s;
     will-change: transform;
 }
@@ -606,10 +590,10 @@
         background: var(--color-surface);
         border-top: 1px solid var(--color-border);
         box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
-        animation: tabBarUp 0.45s var(--ease-out) 0.1s both;
         /* Scroll-linked auto-hide — translateY(100%) at progress 1 slides the
-           bar (incl. safe-area padding) fully off the bottom. See .mobileTopBar. */
-        transform: translateY(calc(var(--chrome-progress, 0) * 100%)) !important;
+           bar (incl. safe-area padding) fully off the bottom. See .mobileTopBar,
+           including for why this no longer needs `!important`. */
+        transform: translateY(calc(var(--chrome-progress, 0) * 100%));
         transition: transform 0s;
         will-change: transform;
     }
