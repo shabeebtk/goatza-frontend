@@ -60,6 +60,7 @@ import {
   EXPERIENCE_LABEL,
   GENDER_LABEL,
   TYPE_LABEL,
+  VISIBILITY_LABEL,
 } from "../../recruitmentCopy"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
@@ -78,14 +79,9 @@ dayjs.extend(relativeTime)
 // ../../recruitmentCopy when the public page started rendering the same facts.
 // Two detail surfaces reading one posting must not name it two different ways.
 //
-// The two below stay here on purpose: they describe `visibility` and `status`,
-// which are OWNER-ONLY fields and never reach the public payload.
-
-const VISIBILITY_LABEL: Record<string, string> = {
-  public: "Public",
-  followers_only: "Followers only",
-  private: "Private",
-}
+// VISIBILITY_LABEL went the same way once the create wizard's publish control
+// started showing it. ORG_STATUS_LABEL stays: `status` is owner-only and
+// only this page names it.
 
 const ORG_STATUS_LABEL: Record<string, string> = {
   active: "Active",

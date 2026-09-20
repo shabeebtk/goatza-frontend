@@ -1,0 +1,282 @@
+/* ============================================================
+   GOATZA — RecruitmentPreview
+   The listing as the player will see it, built from the wizard draft.
+   Empty fields are prompts, never blanks.
+   ============================================================ */
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.previewCompact {
+  gap: var(--space-3);
+}
+
+/* ── Hero ─────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  width: 100%;
+  /* The poster stage is 4:5; capped so the review step is not one photo. */
+  aspect-ratio: 4 / 5;
+  max-height: 260px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+}
+
+.previewCompact .hero {
+  aspect-ratio: 4 / 3;
+  max-height: 220px;
+}
+
+.heroImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.heroScrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--space-4);
+  padding-top: var(--space-8);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent);
+  color: #fff;
+}
+
+.heroTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.05;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.heroCount {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* The grey band. A button: tapping it goes to the photos. */
+.heroEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-style: dashed;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--duration-fast), color var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.heroEmpty:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+}
+
+.heroEmpty:disabled { cursor: default; }
+
+.heroEmptySub {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: var(--weight-normal);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
+/* ── Meta row ─────────────────────────────────────────────────── */
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  min-width: 0;
+}
+
+.metaItem strong {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semi);
+}
+
+/* ── Prompt: the empty field, as a thing to do ───────────────── */
+
+.prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), color var(--duration-fast), background var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.prompt:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  color: var(--color-brand-hover);
+  background: var(--color-brand-subtle);
+}
+
+.prompt:disabled { cursor: default; }
+
+/* ── The card ─────────────────────────────────────────────────── */
+
+/* Inert: the card's links and bookmark are real and must not fire. */
+.cardWrap {
+  pointer-events: none;
+}
+
+/* ── Detail block ─────────────────────────────────────────────── */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.previewCompact .detail {
+  padding: var(--space-3);
+  gap: var(--space-3);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.tagline {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: var(--leading-loose);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.previewCompact .body {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-semi);
+  color: var(--color-text-secondary);
+}
+
+.chip em {
+  font-style: normal;
+  color: var(--color-text-muted);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.list li::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  flex-shrink: 0;
+}
+
+.list em {
+  font-style: normal;
+  color: var(--color-text-muted);
+}

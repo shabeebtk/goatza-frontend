@@ -28,7 +28,14 @@
 
 .backdrop {
   position: fixed;
-  inset: 0;
+  /* The VISIBLE area, not the layout viewport: with the keyboard up, iOS
+     keeps inset: 0 / vh at the full screen and the footer with Next ends up
+     under the keys. useVisualViewport writes these while the wizard is open;
+     the fallbacks are the full screen. */
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
   z-index: 500;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(4px);
@@ -52,8 +59,10 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  /* 100% of the backdrop = the visible area, so the keyboard shortens the
+     sheet rather than pushing its footer off. */
+  height: 100%;
+  max-height: 100%;
   background: var(--color-surface);
   overflow: hidden;
   animation: slideUp 0.25s var(--ease-spring) both;
@@ -62,7 +71,7 @@
 @media (min-width: 640px) {
   .modal {
     height: auto;
-    max-height: 92dvh;
+    max-height: min(92dvh, 100%);
     max-width: 620px;
     border-radius: var(--radius-xl);
     border: 1.5px solid var(--color-border);
@@ -110,8 +119,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-md);
   border: none;
   background: transparent;
@@ -136,7 +145,7 @@
 .stepBar {
   display: flex;
   align-items: center;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-1) var(--space-5);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
   flex-shrink: 0;
@@ -158,6 +167,8 @@
 .stepItemBtn {
   border: none;
   background: transparent;
+  /* A 44px hit area: the label row itself is ~22px. */
+  min-height: 44px;
   padding: 2px 0;
   font: inherit;
   color: inherit;
@@ -738,37 +749,6 @@
   animation: fadeIn 0.25s var(--ease-out) both;
 }
 
-/* Shape switcher — 4:5 portrait (default) or 1:1 square, for the whole set. */
-.aspectRow {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.aspectBtn {
-  flex: 1;
-  padding: var(--space-2);
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semi);
-  letter-spacing: var(--tracking-wide);
-  cursor: pointer;
-  transition: border-color var(--duration-fast), color var(--duration-fast);
-}
-
-.aspectBtn:hover:not(:disabled) { border-color: var(--color-brand); }
-
-.aspectBtnOn {
-  border-color: var(--color-brand);
-  background: var(--color-brand-subtle);
-  color: var(--color-text-primary);
-}
-
-.aspectBtn:disabled { opacity: 0.5; cursor: default; }
-
 .previewSlide {
   position: relative;
   width: 100%;
@@ -1153,6 +1133,7 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
 }
 
 .nextBtn,
@@ -1236,6 +1217,10 @@
 
   .btnLabelFull { display: none; }
   .btnLabelShort { display: inline; }
+
+  /* Back · Draft · Publish▾ is the whole width of a phone; the step bar
+     above already says where we are. */
+  .stepCounter { display: none; }
 }
 
 /* ── Done state ──────────────────────────────────────────────── */
@@ -2162,4 +2147,656 @@
 
 .confirmDiscardBtn:hover {
   filter: brightness(0.92);
+}
+
+/* ── Type picker (screen 0) ───────────────────────────────────── */
+
+.typePickerIntro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.typePickerTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1.05;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .typeGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* A card, not a row: the icon, a name and a full sentence, each its own
+   line. min-height keeps the four the same height when the blurbs differ. */
+.typeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: border-color var(--duration-fast), background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+  touch-action: manipulation;
+}
+
+.typeCard:hover:not(:disabled),
+.typeCard:focus-visible {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  outline: none;
+}
+
+.typeCard:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.typeCard:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.typeCardIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+
+.typeCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.typeCardLabel {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.typeCardBlurb {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: var(--leading-loose);
+  color: var(--color-text-secondary);
+}
+
+.typeCardChevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  margin-top: 10px;
+}
+
+/* ── Step intro ───────────────────────────────────────────────── */
+
+.stepIntro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stepIntroTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+.stepIntroBlurb {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-loose);
+}
+
+/* ── Chip rows: choices, presets, one-tap inserts ─────────────── */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A radio drawn as a chip. Tall enough to tap (≥40px + the row gap), wide
+   enough to read; wraps rather than scrolls. */
+.choiceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.choiceChip:hover:not(:disabled):not(.choiceChipActive) {
+  border-color: var(--color-text-secondary);
+  color: var(--color-ink);
+}
+
+.choiceChipActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+.choiceChip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A one-tap insert: a suggestion (a title, a heading, a saved contact) that
+   becomes a value. Dashed so it reads as "not yet yours". */
+.insertChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px var(--space-3);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast), color var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.insertChip:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  border-style: solid;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+.insertChip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Invalid field ────────────────────────────────────────────── */
+
+.fieldInputInvalid,
+.fieldInputInvalid:focus {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 18%, transparent);
+}
+
+/* ── Still missing (review step) ──────────────────────────────── */
+
+.missingBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.missingTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.missingList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.missingLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.missingList li:last-child .missingLink { border-bottom: none; }
+
+.missingLink:hover:not(:disabled) { color: var(--color-ink); }
+
+.missingJump {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+/* ── Publish split button + visibility menu ───────────────────── */
+
+.publishSplit {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.publishMain {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.publishCaret {
+  padding: 10px 10px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid color-mix(in srgb, var(--color-on-brand) 35%, transparent);
+}
+
+.publishMenu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  min-width: 260px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: var(--space-1);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  z-index: 5;
+  animation: fadeIn 0.15s var(--ease-out) both;
+}
+
+.publishMenuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.publishMenuItem:hover,
+.publishMenuItemActive {
+  background: var(--color-brand-subtle);
+  color: var(--color-ink);
+}
+
+.publishMenuText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.publishMenuHint {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: var(--weight-normal);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
+/* ── Live preview: split layout (≥1024px) ─────────────────────── */
+
+/* Form + preview column. Below 1024px there is only the form in here. */
+.split {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+@media (min-width: 1024px) {
+  .modal {
+    max-width: 1000px;
+  }
+}
+
+.previewCol {
+  width: 340px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.previewColTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Live preview: strip + sheet (<1024px) ────────────────────── */
+
+.previewStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-5);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  text-align: left;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.previewStripThumb {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.previewStripIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+  flex-shrink: 0;
+}
+
+.previewStripText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.previewStripTitle {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewStripSub {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewStripCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+/* Over the form, under the footer: the body area only, so Next stays put. */
+.previewSheet {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  animation: slideUp 0.22s var(--ease-spring) both;
+}
+
+.previewSheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.previewSheetBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4) var(--space-5);
+}
+
+/* ── Quick start: repeat a past recruitment / templates ───────── */
+
+@keyframes spin { to { transform: rotate(360deg) } }
+.spin { animation: spin 0.8s linear infinite; }
+
+.quickStart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quickStartTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.quickStartList {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+.quickStartRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.quickStartRow:last-child { border-bottom: none; }
+
+.quickStartRow:hover:not(:disabled) { background: var(--color-brand-subtle); }
+
+.quickStartRow:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.quickStartIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-brand);
+}
+
+.quickStartText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.quickStartLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quickStartSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quickStartCta {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+/* ── Small controls, full-size hit areas ──────────────────────── */
+/* The ✕ on a row, the asterisk toggle, the fee switch and the photo controls
+   are drawn small on purpose (a 44px ✕ beside a 40px input reads as a second
+   button). Their HIT AREA is 44px anyway: a pseudo-element extends the
+   clickable box without moving anything around it. */
+.removeQBtn,
+.removeOptBtn,
+.locationPillRemove,
+.mandatoryToggle,
+.toggleBtn,
+.previewRemoveBtn,
+.previewNav,
+.benefitIconTrigger,
+.criteriaReorderBtn {
+  position: relative;
+}
+
+.removeQBtn::before,
+.removeOptBtn::before,
+.locationPillRemove::before,
+.mandatoryToggle::before,
+.toggleBtn::before,
+.previewRemoveBtn::before,
+.previewNav::before,
+.benefitIconTrigger::before,
+.criteriaReorderBtn::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
+/* The two reorder arrows stack: split the 44px between them. */
+.criteriaReorderBtn::before {
+  height: 22px;
 }
