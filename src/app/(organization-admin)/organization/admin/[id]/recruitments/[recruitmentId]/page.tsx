@@ -28,7 +28,13 @@ export default function OrgRecruitmentDetailPage({ params }: OrgRecruitmentDetai
   if (!organization) return null
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "var(--space-4)" }}>
+    // 1180px, not 720, for the same reason the user-facing route uses it:
+    // RecruitmentDetail is a two-column poster layout at >=960px (430px poster
+    // + content), and that media query asks the VIEWPORT, not this box. Capped
+    // at 720 the grid still engaged on a desktop and then had 244px left for
+    // the right-hand column, which crushed the details list to one character
+    // per line. Narrow screens are unaffected — the page is fluid below it.
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "var(--space-4)" }}>
       {/* RecruitmentAdminView reads ?tab from the URL, so it needs a Suspense
           boundary (useSearchParams). */}
       <Suspense fallback={null}>

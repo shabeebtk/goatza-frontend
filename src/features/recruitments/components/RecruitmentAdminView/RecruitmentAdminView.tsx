@@ -73,12 +73,14 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
           onEdit={() => setEditOpen(true)}
         />
       ) : (
-        // Age groups ride along on the detail we already fetched, so the
-        // pipeline's group filter costs no extra request.
-        <ApplicantsList
-          recruitmentId={recruitmentId}
-          ageCategories={recruitment?.age_categories ?? []}
-        />
+        <div className={styles.applicantsPanel}>
+          {/* Age groups ride along on the detail we already fetched, so the
+              pipeline's group filter costs no extra request. */}
+          <ApplicantsList
+            recruitmentId={recruitmentId}
+            ageCategories={recruitment?.age_categories ?? []}
+          />
+        </div>
       )}
 
       {/* Edit wizard — reuses the create flow prefilled; only mounted once the
