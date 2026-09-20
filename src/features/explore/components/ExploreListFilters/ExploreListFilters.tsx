@@ -97,7 +97,7 @@ function PositionSelect({
     <Select
       options={options}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
       disabled={!sportId}
       aria-label="Filter by position"
       helperText={!sportId ? "Select a sport first" : undefined}
@@ -207,7 +207,7 @@ export default function ExploreListFilters({
       options={sportOptions}
       value={v.sportId}
       // Changing the sport always clears the position.
-      onChange={(e) => apply({ sportId: e.target.value, positionId: "" })}
+      onChange={(sportId) => apply({ sportId, positionId: "" })}
       aria-label="Filter by sport"
     />
   )
@@ -241,7 +241,7 @@ export default function ExploreListFilters({
             <Select
               options={RADIUS_OPTIONS}
               value={values.radius || DEFAULT_RADIUS}
-              onChange={(e) => onChange({ radius: e.target.value })}
+              onChange={(radius) => onChange({ radius })}
               aria-label="Search radius"
             />
           </div>
@@ -340,7 +340,7 @@ export default function ExploreListFilters({
                   <Select
                     options={RADIUS_OPTIONS}
                     value={draft.radius || DEFAULT_RADIUS}
-                    onChange={(e) => patchDraft({ radius: e.target.value })}
+                    onChange={(radius) => patchDraft({ radius })}
                     aria-label="Search radius"
                   />
                 </div>

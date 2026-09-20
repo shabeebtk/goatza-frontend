@@ -1,74 +1,435 @@
+/* ============================================================
+   GOATZA — Select
+   Trigger matches ui/Input's field styling so it sits level with the rest of
+   a form. The popup is ours, not the OS's: an anchored dropdown at ≥768px, a
+   bottom sheet below it (same language as StatusChangeMenu). Both are
+   portalled, so every colour here is a semantic token — the panel inherits
+   `data-theme` from <html>, never `prefers-color-scheme`.
+   ============================================================ */
 
-.selectWrap {
+@keyframes selectPanelIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes selectPanelInAbove {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes selectBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes selectSheetUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes selectErrorIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Field ── */
+
+.field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   width: 100%;
 }
- 
-.selectFieldWrap {
-  position: relative;
+
+.label {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-semi);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
 }
- 
-.select {
+
+.required {
+  color: var(--color-error);
+  margin-left: 2px;
+}
+
+/* ── Trigger (mirrors Input.module.css .input) ── */
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   width: 100%;
-  padding: 13px 44px 13px var(--space-4);
+  min-height: 48px;
+  padding: 13px var(--space-4);
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-family: var(--font-body);
   font-size: var(--text-base);
-  line-height: 1;
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
+  line-height: var(--leading-normal);
+  text-align: left;
   cursor: pointer;
-  min-height: 48px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
   transition:
     border-color var(--duration-base) var(--ease-out),
     box-shadow var(--duration-base) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+    background var(--duration-base);
 }
- 
-.select:hover:not(:disabled) {
+
+.trigger:hover:not(:disabled):not(.triggerOpen) {
   border-color: var(--color-brand-muted);
 }
- 
-.select:focus {
+
+.trigger:focus-visible,
+.triggerOpen {
   border-color: var(--color-brand);
   box-shadow: 0 0 0 3px var(--color-brand-subtle);
-  transform: translateY(-1px);
 }
- 
-.select:disabled {
+
+.trigger:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  background: var(--color-surface-raised);
 }
- 
-.selectChevron {
-  position: absolute;
-  right: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%);
+
+.triggerError {
+  border-color: var(--color-error);
+}
+
+.triggerError:focus-visible,
+.triggerError.triggerOpen {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px rgba(232, 70, 42, 0.12);
+}
+
+/* Sizes — the 36 / 48 / 56px heights the native field had. */
+.triggerSm {
+  min-height: 36px;
+  padding: 8px var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.triggerLg {
+  min-height: 56px;
+  padding: 16px var(--space-5);
+  font-size: var(--text-lg);
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeholder {
   color: var(--color-text-muted);
-  pointer-events: none;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
   transition:
     transform var(--duration-base) var(--ease-out),
     color var(--duration-base);
 }
- 
-.selectFieldWrap:focus-within .selectChevron {
+
+.triggerOpen .chevron {
+  transform: rotate(180deg);
   color: var(--color-brand);
-  transform: translateY(-50%) rotate(180deg);
 }
- 
-/* Select error state */
-.selectError .select {
-  border-color: var(--color-error);
+
+/* ── Helper & error ── */
+
+.helper {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+  padding-left: 2px;
 }
- 
-/* Select sizes */
-.selectSm .select { min-height: 36px; padding: 8px 40px 8px var(--space-3); font-size: var(--text-sm); }
-.selectLg .select { min-height: 56px; padding: 16px 48px 16px var(--space-5); font-size: var(--text-lg); }
- 
+
+.errorMsg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  line-height: var(--leading-snug);
+  padding-left: 2px;
+  animation: selectErrorIn 0.25s var(--ease-out) both;
+}
+
+.errorMsg svg {
+  flex-shrink: 0;
+}
+
+/* ── Desktop dropdown ──
+   Portalled and `position: fixed`: every modal that hosts a select clips an
+   absolutely-positioned panel. Left / width / top-or-bottom / max-height are
+   set inline from the trigger's rect. */
+
+.panel {
+  position: fixed;
+  z-index: var(--z-select-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: selectPanelIn var(--duration-fast) var(--ease-out) both;
+}
+
+.panelAbove {
+  animation-name: selectPanelInAbove;
+}
+
+/* ── Search ── */
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  padding: 11px var(--space-3) 11px calc(var(--space-3) + 22px);
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.search::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ── Option list ── */
+
+.list {
+  max-height: 280px;
+  min-height: 0;
+  overflow-y: auto;
+  /* CLAUDE.md: every overlay scroller keeps its edge bounce to itself. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+}
+
+.listSheet {
+  flex: 1;
+  min-width: 0;
+  max-height: 60dvh;
+  padding: var(--space-1) var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 9px var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.optionActive {
+  background: var(--color-brand-subtle);
+}
+
+.optionSelected .optionLabel {
+  font-weight: var(--weight-semi);
+  color: var(--color-brand);
+}
+
+.optionDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.optionIcon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.optionSelected .optionIcon {
+  color: var(--color-brand);
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionHint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionCheck {
+  flex-shrink: 0;
+  color: var(--color-brand);
+}
+
+.empty {
+  padding: var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ── Mobile bottom sheet ── */
+
+.sheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-select-panel);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: selectBackdropIn 0.2s var(--ease-out) both;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 88dvh;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  overflow: hidden;
+  animation: selectSheetUp 0.28s var(--ease-spring) both;
+}
+
+.sheetHandle {
+  width: 36px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--color-border);
+  margin: var(--space-3) auto var(--space-1);
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheetTitle {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetSpacer {
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.sheetClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.sheetClose:hover {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+
+.sheetContent {
+  display: flex;
+  min-height: 0;
+  /* The home indicator sits over the last row otherwise. */
+  padding-bottom: calc(var(--safe-bottom) + var(--space-4));
+}
+
+/* ── Reduced motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .sheetBackdrop,
+  .sheet,
+  .errorMsg {
+    animation: none;
+  }
+
+  .trigger,
+  .chevron,
+  .option,
+  .sheetClose {
+    transition: none;
+  }
+}

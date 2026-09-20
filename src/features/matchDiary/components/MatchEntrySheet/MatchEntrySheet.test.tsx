@@ -32,6 +32,12 @@ vi.mock("@iconify/react", () => ({
     Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />,
 }))
 
+// The sheet does not navigate, but its ui/Select fields call useBackToClose,
+// which reaches for the app router as soon as they render.
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({ push: vi.fn() }),
+}))
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
 const createMutate = vi.fn().mockResolvedValue({})

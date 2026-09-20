@@ -11,16 +11,21 @@
  * signal.
  *
  * Date of birth sits outside react-hook-form, the same way DetailsStep handles
- * it — DateOfBirthPicker is three selects behind one `onChange(string | null)`,
- * not an input RHF can register. The city picker is outside it for the same
- * reason: LocationPicker holds a PlaceResult object, not a string, and RHF has
- * nothing to register against a component that never renders a named input.
+ * it — DateOfBirthPicker is three ui/Select fields behind one composed
+ * `onChange(string | null)`, not an input RHF can register. The city picker is
+ * outside it for the same reason: LocationPicker holds a PlaceResult object,
+ * not a string, and RHF has nothing to register against a component that never
+ * renders a named input.
+ *
+ * Position and Level ARE in the form, but through <Controller>: ui/Select is a
+ * custom listbox, so there is no ref for `register()` to bind and its onChange
+ * emits a plain string.
  */
 
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
 
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
@@ -191,6 +196,7 @@ export default function JoinForm({
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
@@ -360,20 +366,39 @@ export default function JoinForm({
           />
         </div>
 
-        <Select
-          label="Position"
-          placeholder="Select your position"
-          options={[...POSITIONS]}
-          {...register("position")}
-          error={errors.position?.message}
+        {/* Through Controller, not `{...register()}`: ui/Select is not a
+            native element, so there is no ref for RHF to bind and its
+            onChange hands back a plain value rather than an event. */}
+        <Controller
+          name="position"
+          control={control}
+          render={({ field }) => (
+            <Select
+              label="Position"
+              placeholder="Select your position"
+              options={[...POSITIONS]}
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              error={errors.position?.message}
+            />
+          )}
         />
 
-        <Select
-          label="Level"
-          placeholder="Where you've played"
-          options={[...LEVELS]}
-          {...register("level")}
-          error={errors.level?.message}
+        <Controller
+          name="level"
+          control={control}
+          render={({ field }) => (
+            <Select
+              label="Level"
+              placeholder="Where you've played"
+              options={[...LEVELS]}
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              error={errors.level?.message}
+            />
+          )}
         />
 
         <div>

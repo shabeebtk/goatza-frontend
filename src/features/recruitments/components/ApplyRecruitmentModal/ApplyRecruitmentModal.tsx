@@ -17,6 +17,7 @@ import { useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import Select from "@/shared/components/ui/Select/Select"
 import { useAuthStore } from "@/store/auth.store"
 import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
 import { useApplyRecruitment } from "../../hooks/useRecruitments"
@@ -339,17 +340,15 @@ export default function ApplyRecruitmentModal({
         )
       case "select":
         return (
-          <select
-            className={styles.fieldSelect}
+          <Select
+            aria-label={q.question}
+            sheetTitle={q.question}
+            placeholder={q.placeholder || "— Select —"}
             value={a.optionIds[0] ?? ""}
-            onChange={(e) => setSingleOption(q.id, e.target.value)}
+            onChange={(optionId) => setSingleOption(q.id, optionId)}
             disabled={isPending}
-          >
-            <option value="">{q.placeholder || "— Select —"}</option>
-            {q.options.map((o) => (
-              <option key={o.id} value={o.id}>{o.value}</option>
-            ))}
-          </select>
+            options={q.options.map((o) => ({ value: o.id, label: o.value }))}
+          />
         )
       case "radio":
         return (
@@ -523,24 +522,23 @@ export default function ApplyRecruitmentModal({
                   <label className={styles.fieldLabel}>
                     Which age group are you applying for? <span className={styles.required}>*</span>
                   </label>
-                  <select
-                    className={`${styles.fieldInput} ${ageGroupError ? styles.fieldInputError : ""}`}
+                  <Select
+                    aria-label="Age group"
+                    sheetTitle="Age group"
+                    placeholder="— Select a group —"
                     value={ageGroupId}
-                    onChange={(e) => {
-                      setAgeGroupId(e.target.value)
+                    onChange={(groupId) => {
+                      setAgeGroupId(groupId)
                       setAgeGroupTouched(true)
                       clearFieldError("age_category")
                     }}
                     onBlur={() => setAgeGroupTouched(true)}
                     disabled={isPending}
-                  >
-                    <option value="">— Select a group —</option>
-                    {ageGroups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {ageGroupOptionLabel(group)}
-                      </option>
-                    ))}
-                  </select>
+                    options={ageGroups.map((group) => ({
+                      value: group.id,
+                      label: ageGroupOptionLabel(group),
+                    }))}
+                  />
                   {ageGroupError && (
                     <span className={styles.fieldErrorText} role="alert">
                       <Icon icon="mdi:alert-circle-outline" width={12} height={12} />

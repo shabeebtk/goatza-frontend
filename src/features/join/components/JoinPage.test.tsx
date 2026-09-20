@@ -55,6 +55,13 @@ vi.mock("@iconify/react", () => ({
   Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />,
 }))
 
+// The page itself never navigates (rule 1 below), but ui/Select calls
+// useBackToClose, which reaches for the app router whether or not its mobile
+// sheet is enabled.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
 vi.mock("sonner", () => ({
   Toaster: () => null,
   toast: { error: vi.fn(), success: vi.fn() },

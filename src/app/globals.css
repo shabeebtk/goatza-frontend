@@ -321,6 +321,8 @@
        650   post editor (--z-post-editor): Create/Edit post backdrop, so an
              edit started from inside the viewer opens above it;
              delete-account modal
+       700   select panel (--z-select-panel): a field's dropdown/sheet must sit
+             above the modal it was opened from, incl. the post editor.
        700   image cropper (over the editor); legal consent gate
        800   location picker (over the editor and the cropper)
       1000   likes list, share sheet, login wall, image/media lightboxes
@@ -331,6 +333,7 @@
 :root {
   --z-post-viewer: 550;
   --z-post-editor: 650;
+  --z-select-panel: 700;
 }
 
 /* ── 5. MOTION TOKENS ──────────────────────────────────────── */

@@ -254,40 +254,11 @@
   border-color: var(--color-brand);
 }
 
-.badgeSelectWrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.badgeSelectIcon {
-  position: absolute;
-  left: 10px;
-  color: var(--color-brand-hover);
-  pointer-events: none;
-}
-
-.badgeSelect {
-  padding: 3px 10px 3px 26px;
-  background: var(--color-brand-subtle);
-  border: 1px solid var(--color-brand-muted);
-  border-radius: var(--radius-full);
-  font-family: var(--font-ui);
-  font-weight: var(--weight-semi);
-  font-size: 0.65rem;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--color-brand-hover);
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  outline: none;
-  transition: border-color var(--duration-base), box-shadow var(--duration-base);
-}
-
-.badgeSelect:focus {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+/* Layout only — the sport tag is a ui/Select now and draws its own field.
+   Shared with EditPostModal, which imports this module. */
+.sportField {
+  flex: 0 0 auto;
+  width: 160px;
 }
 
 .badgePill {

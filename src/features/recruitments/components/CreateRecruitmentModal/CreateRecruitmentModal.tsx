@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import imageCompression from "browser-image-compression"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import Select from "@/shared/components/ui/Select/Select"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
 import { imageFileName, makeThumb, preferredImageType } from "@/shared/services/imageVariants"
@@ -990,15 +991,20 @@ function ContactsBuilder({ contacts, onChange, disabled }: {
         <div className={styles.listBuilder}>
             {contacts.map(c => (
                 <div key={c.id} className={styles.contactRow}>
-                    <select
-                        className={`${styles.fieldSelect} ${styles.contactTypeSelect}`}
+                    <Select
+                        className={styles.contactTypeSelect}
+                        size="sm"
+                        searchable={false}
+                        aria-label="Contact type"
+                        sheetTitle="Contact type"
                         value={c.contact_type}
-                        onChange={e => update(c.id, { contact_type: e.target.value as "phone" | "email" })}
+                        onChange={v => update(c.id, { contact_type: v as "phone" | "email" })}
                         disabled={disabled}
-                    >
-                        <option value="phone">Phone</option>
-                        <option value="email">Email</option>
-                    </select>
+                        options={[
+                            { value: "phone", label: "Phone" },
+                            { value: "email", label: "Email" },
+                        ]}
+                    />
                     <input
                         className={`${styles.fieldInput} ${styles.contactNameInput}`}
                         placeholder="Name (optional)"
@@ -1067,9 +1073,17 @@ function QuestionBuilder({ questions, onChange, disabled }: {
                 <div key={q.id} className={styles.questionCard}>
                     <div className={styles.questionCardHeader}>
                         <span className={styles.questionNum}>Q{i + 1}</span>
-                        <select className={styles.fieldTypeSelect} value={q.field_type} onChange={e => updateQ(q.id, { field_type: e.target.value as QuestionFieldType })} disabled={disabled} title="How players answer this question">
-                            {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
-                        </select>
+                        <Select
+                            className={styles.qTypeField}
+                            size="sm"
+                            searchable={false}
+                            aria-label="How players answer this question"
+                            sheetTitle="Answer type"
+                            value={q.field_type}
+                            onChange={v => updateQ(q.id, { field_type: v as QuestionFieldType })}
+                            disabled={disabled}
+                            options={FIELD_TYPES.map(ft => ({ value: ft.value, label: ft.label }))}
+                        />
                         <label className={styles.requiredToggle} title="Players can't submit their application without answering this question.">
                             <input type="checkbox" checked={q.is_required} onChange={e => updateQ(q.id, { is_required: e.target.checked })} disabled={disabled} />
                             <span>Required to apply</span>
@@ -1271,16 +1285,21 @@ function DateTimeField({ value, onChange, disabled }: {
                 onChange={e => setDate(e.target.value)}
                 disabled={disabled}
             />
-            <select
-                className={`${styles.fieldSelect} ${styles.dateTimeTime}`}
+            {/* "" is an answer here, not a placeholder: a date with no time is
+                valid, and picking "Time —" again is how a time is cleared. */}
+            <Select
+                className={styles.dateTimeTime}
+                size="sm"
                 value={timePart}
-                onChange={e => setTime(e.target.value)}
+                onChange={setTime}
                 disabled={disabled || !datePart}
-                title={datePart ? "Time (optional)" : "Pick a date first"}
-            >
-                <option value="">Time —</option>
-                {timeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+                aria-label={datePart ? "Time (optional)" : "Pick a date first"}
+                sheetTitle="Time"
+                options={[
+                    { value: "", label: "Time —" },
+                    ...timeOptions.map(o => ({ value: o.value, label: o.label })),
+                ]}
+            />
         </div>
     )
 }
@@ -1892,19 +1911,36 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldRow}>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Type <span className={styles.required}>*</span></label>
-                                <select className={styles.fieldSelect} value={recruitmentType} onChange={e => setRecruitmentType(e.target.value as RecruitmentType)} disabled={isSubmitting}>
-                                    <option value="open_trial">Open Trial</option>
-                                    <option value="player_looking">Player Looking</option>
-                                    <option value="direct_recruitment">Direct Recruitment</option>
-                                    <option value="scholarship">Scholarship</option>
-                                </select>
+                                <Select
+                                    size="sm"
+                                    searchable={false}
+                                    aria-label="Recruitment type"
+                                    sheetTitle="Recruitment type"
+                                    value={recruitmentType}
+                                    onChange={v => setRecruitmentType(v as RecruitmentType)}
+                                    disabled={isSubmitting}
+                                    options={[
+                                        { value: "open_trial", label: "Open Trial" },
+                                        { value: "player_looking", label: "Player Looking" },
+                                        { value: "direct_recruitment", label: "Direct Recruitment" },
+                                        { value: "scholarship", label: "Scholarship" },
+                                    ]}
+                                />
                             </div>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Sport <span className={styles.required}>*</span></label>
-                                <select className={styles.fieldSelect} value={sportId} onChange={e => handleSportChange(e.target.value)} disabled={isSubmitting}>
-                                    <option value="">— Select sport —</option>
-                                    {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
+                                {/* handleSportChange, not setSportId — changing the
+                                    sport clears the positions picked under the old one. */}
+                                <Select
+                                    size="sm"
+                                    aria-label="Sport"
+                                    sheetTitle="Sport"
+                                    placeholder="— Select sport —"
+                                    value={sportId}
+                                    onChange={handleSportChange}
+                                    disabled={isSubmitting}
+                                    options={sports.map(s => ({ value: s.id, label: s.name }))}
+                                />
                             </div>
                         </div>
 
@@ -1913,22 +1949,40 @@ export default function CreateRecruitmentModal({
                         <div className={styles.fieldRow}>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Experience Level</label>
-                                <select className={styles.fieldSelect} value={experienceLevel} onChange={e => setExperienceLevel(e.target.value)} disabled={isSubmitting}>
-                                    <option value="">— Any —</option>
-                                    <option value="beginner">Beginner</option>
-                                    <option value="district">District</option>
-                                    <option value="state">State</option>
-                                    <option value="national">National</option>
-                                    <option value="international">International</option>
-                                </select>
+                                <Select
+                                    size="sm"
+                                    searchable={false}
+                                    aria-label="Experience level"
+                                    sheetTitle="Experience level"
+                                    value={experienceLevel}
+                                    onChange={setExperienceLevel}
+                                    disabled={isSubmitting}
+                                    options={[
+                                        { value: "", label: "— Any —" },
+                                        { value: "beginner", label: "Beginner" },
+                                        { value: "district", label: "District" },
+                                        { value: "state", label: "State" },
+                                        { value: "national", label: "National" },
+                                        { value: "international", label: "International" },
+                                    ]}
+                                />
                             </div>
                             <div className={styles.fieldGroup}>
                                 <label className={styles.fieldLabel}>Visibility</label>
-                                <select className={styles.fieldSelect} value={visibility} onChange={e => setVisibility(e.target.value as RecruitmentVisibility)} disabled={isSubmitting}>
-                                    <option value="public">Public</option>
-                                    <option value="followers_only">Followers Only</option>
-                                    <option value="private">Private</option>
-                                </select>
+                                <Select
+                                    size="sm"
+                                    searchable={false}
+                                    aria-label="Visibility"
+                                    sheetTitle="Visibility"
+                                    value={visibility}
+                                    onChange={v => setVisibility(v as RecruitmentVisibility)}
+                                    disabled={isSubmitting}
+                                    options={[
+                                        { value: "public", label: "Public" },
+                                        { value: "followers_only", label: "Followers Only" },
+                                        { value: "private", label: "Private" },
+                                    ]}
+                                />
                             </div>
                         </div>
 
@@ -1982,11 +2036,20 @@ export default function CreateRecruitmentModal({
                         {/* Gender */}
                         <div className={styles.fieldGroup}>
                             <label className={styles.fieldLabelMuted}>Gender</label>
-                            <select className={styles.fieldSelect} value={gender} onChange={e => setGender(e.target.value as RecruitmentGender)} disabled={isSubmitting}>
-                                <option value="all">Open to all</option>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                            </select>
+                            <Select
+                                size="sm"
+                                searchable={false}
+                                aria-label="Gender"
+                                sheetTitle="Gender"
+                                value={gender}
+                                onChange={v => setGender(v as RecruitmentGender)}
+                                disabled={isSubmitting}
+                                options={[
+                                    { value: "all", label: "Open to all" },
+                                    { value: "male", label: "Male" },
+                                    { value: "female", label: "Female" },
+                                ]}
+                            />
                         </div>
 
                         {/* Other criteria */}
@@ -2248,12 +2311,21 @@ export default function CreateRecruitmentModal({
                                     <div className={styles.fieldRow}>
                                         <div className={styles.fieldGroup} style={{ flex: "0 0 90px" }}>
                                             <label className={styles.fieldLabel}>Currency</label>
-                                            <select className={styles.fieldSelect} value={feeCurrency} onChange={e => setFeeCurrency(e.target.value)} disabled={isSubmitting}>
-                                                <option value="INR">INR</option>
-                                                <option value="USD">USD</option>
-                                                <option value="EUR">EUR</option>
-                                                <option value="GBP">GBP</option>
-                                            </select>
+                                            <Select
+                                                size="sm"
+                                                searchable={false}
+                                                aria-label="Currency"
+                                                sheetTitle="Currency"
+                                                value={feeCurrency}
+                                                onChange={setFeeCurrency}
+                                                disabled={isSubmitting}
+                                                options={[
+                                                    { value: "INR", label: "INR" },
+                                                    { value: "USD", label: "USD" },
+                                                    { value: "EUR", label: "EUR" },
+                                                    { value: "GBP", label: "GBP" },
+                                                ]}
+                                            />
                                         </div>
                                         <div className={styles.fieldGroup}>
                                             <label className={styles.fieldLabel}>Amount <span className={styles.required}>*</span></label>

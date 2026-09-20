@@ -24,6 +24,7 @@ import { useMemo } from "react"
 import { MATCH_STATUSES } from "../../types"
 import type { MatchListFilters, MatchStatus } from "../../types"
 import { MATCH_STATUS_LABELS } from "../../matchDiaryMeta"
+import Select from "@/shared/components/ui/Select/Select"
 import styles from "./MatchDiaryPage.module.css"
 
 /**
@@ -77,50 +78,45 @@ export default function MatchDiaryFilters({
             </div>
 
             <div className={styles.selects}>
-                <label className={styles.selectWrap}>
-                    <span className="sr-only">Filter by year</span>
-                    <select
-                        className={styles.select}
-                        value={filters.year ?? ""}
-                        onChange={(event) =>
-                            onChange({
-                                ...filters,
-                                year: event.target.value
-                                    ? Number(event.target.value)
-                                    : undefined,
-                            })
-                        }
-                    >
-                        <option value="">All years</option>
-                        {years.map((year) => (
-                            <option key={year} value={year}>
-                                {year}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+                <Select
+                    className={styles.selectWrap}
+                    size="sm"
+                    aria-label="Filter by year"
+                    sheetTitle="Year"
+                    value={filters.year != null ? String(filters.year) : ""}
+                    onChange={(value) =>
+                        onChange({
+                            ...filters,
+                            year: value ? Number(value) : undefined,
+                        })
+                    }
+                    options={[
+                        { value: "", label: "All years" },
+                        ...years.map((year) => ({
+                            value: String(year),
+                            label: String(year),
+                        })),
+                    ]}
+                />
 
                 {showSports && (
-                    <label className={styles.selectWrap}>
-                        <span className="sr-only">Filter by sport</span>
-                        <select
-                            className={styles.select}
-                            value={filters.sportId ?? ""}
-                            onChange={(event) =>
-                                onChange({
-                                    ...filters,
-                                    sportId: event.target.value || undefined,
-                                })
-                            }
-                        >
-                            <option value="">All sports</option>
-                            {sports.map((sport) => (
-                                <option key={sport.id} value={sport.id}>
-                                    {sport.name}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                    <Select
+                        className={styles.selectWrap}
+                        size="sm"
+                        aria-label="Filter by sport"
+                        sheetTitle="Sport"
+                        value={filters.sportId ?? ""}
+                        onChange={(sportId) =>
+                            onChange({ ...filters, sportId: sportId || undefined })
+                        }
+                        options={[
+                            { value: "", label: "All sports" },
+                            ...sports.map((sport) => ({
+                                value: sport.id,
+                                label: sport.name,
+                            })),
+                        ]}
+                    />
                 )}
             </div>
         </div>
