@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useForm, type SubmitHandler, type Resolver } from "react-hook-form"
+import { Controller, useForm, type SubmitHandler, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
-import { Input, Button } from "@/shared/components/ui"
+import { Input, Button, Select } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
@@ -138,6 +138,7 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
 
   const {
     register,
+    control,
     handleSubmit,
     watch,
     setError,
@@ -352,13 +353,28 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                 </Field>
                 
                 <Field label="Organization Type" error={errors.type?.message}>
-                  <select className={styles.selectField} {...register("type")}>
-                    <option value="">Select Type</option>
-                    <option value="club">Club</option>
-                    <option value="team">Team</option>
-                    <option value="academy">Academy</option>
-                    <option value="school">School</option>
-                  </select>
+                  <Controller
+                    name="type"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        aria-label="Organization type"
+                        sheetTitle="Type"
+                        placeholder="Select Type"
+                        searchable={false}
+                        disabled={isSubmitting}
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        options={[
+                          { value: "club", label: "Club" },
+                          { value: "team", label: "Team" },
+                          { value: "academy", label: "Academy" },
+                          { value: "school", label: "School" },
+                        ]}
+                      />
+                    )}
+                  />
                 </Field>
 
                 <Field label="Headline" error={errors.headline?.message} hint={`${headlineLen}/150`}>
@@ -377,13 +393,28 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                 
                 <div className={styles.row2}>
                   <Field label="Level" error={errors.level?.message}>
-                    <select className={styles.selectField} {...register("level")}>
-                      <option value="">Select Level</option>
-                      <option value="youth">Youth</option>
-                      <option value="amateur">Amateur</option>
-                      <option value="semi_professional">Semi Professional</option>
-                      <option value="professional">Professional</option>
-                    </select>
+                    <Controller
+                      name="level"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          aria-label="Level"
+                          sheetTitle="Level"
+                          placeholder="Select Level"
+                          searchable={false}
+                          disabled={isSubmitting}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          options={[
+                            { value: "youth", label: "Youth" },
+                            { value: "amateur", label: "Amateur" },
+                            { value: "semi_professional", label: "Semi Professional" },
+                            { value: "professional", label: "Professional" },
+                          ]}
+                        />
+                      )}
+                    />
                   </Field>
                   <Field label="Website" error={errors.website?.message}>
                     <Input {...register("website")} type="url" placeholder="https://example.com" />

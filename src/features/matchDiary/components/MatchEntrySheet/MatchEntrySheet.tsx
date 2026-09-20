@@ -37,6 +37,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import {
+    Controller,
     useForm,
     type Resolver,
     type SubmitErrorHandler,
@@ -56,6 +57,7 @@ import {
 } from "@/features/profile/hooks/useSportsQueries"
 import type { Sport, UserSport } from "@/features/profile/services/sports.api"
 import Portal from "@/shared/components/ui/Portal/Portal"
+import Select from "@/shared/components/ui/Select/Select"
 import { useAuthStore } from "@/store/auth.store"
 
 import {
@@ -407,6 +409,7 @@ function MatchEntryForm({
 
     const {
         register,
+        control,
         handleSubmit,
         watch,
         setValue,
@@ -655,7 +658,7 @@ function MatchEntryForm({
         try {
             node.scrollIntoView?.({ block: "center", behavior: "smooth" })
             node
-                .querySelector<HTMLElement>("input, select, textarea, button")
+                .querySelector<HTMLElement>("input, textarea, button")
                 ?.focus({ preventScroll: true })
         } catch {
             // Old or headless engines without scrollIntoView. The inline error
@@ -974,22 +977,19 @@ function MatchEntryForm({
                                     htmlFor="match-sport"
                                     error={errors.sport?.message}
                                 >
-                                    <select
+                                    <Select
                                         id="match-sport"
-                                        className={styles.selectField}
                                         value={watchedSport}
                                         disabled={saving}
-                                        onChange={(event) =>
-                                            handleSportChange(event.target.value)
-                                        }
-                                    >
-                                        <option value="">Pick a sport</option>
-                                        {sportOptions.map((sport) => (
-                                            <option key={sport.id} value={sport.id}>
-                                                {sport.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onChange={handleSportChange}
+                                        aria-label="Sport"
+                                        sheetTitle="Sport"
+                                        placeholder="Pick a sport"
+                                        options={sportOptions.map((sport) => ({
+                                            value: sport.id,
+                                            label: sport.name,
+                                        }))}
+                                    />
                                 </Field>
                             )}
 
@@ -1086,18 +1086,26 @@ function MatchEntryForm({
                                     htmlFor="match-type"
                                     error={errors.match_type?.message}
                                 >
-                                    <select
-                                        id="match-type"
-                                        className={styles.selectField}
-                                        disabled={saving}
-                                        {...register("match_type")}
-                                    >
-                                        {MATCH_TYPES.map((type) => (
-                                            <option key={type} value={type}>
-                                                {MATCH_TYPE_LABELS[type]}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <Controller
+                                        name="match_type"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Select
+                                                id="match-type"
+                                                aria-label="Match type"
+                                                sheetTitle="Match type"
+                                                searchable={false}
+                                                disabled={saving}
+                                                value={field.value ?? ""}
+                                                onChange={field.onChange}
+                                                onBlur={field.onBlur}
+                                                options={MATCH_TYPES.map((type) => ({
+                                                    value: type,
+                                                    label: MATCH_TYPE_LABELS[type],
+                                                }))}
+                                            />
+                                        )}
+                                    />
                                 </Field>
 
                                 {positionOptions.length > 0 && (
@@ -1107,29 +1115,25 @@ function MatchEntryForm({
                                         htmlFor="match-position"
                                         error={errors.position?.message}
                                     >
-                                        <select
+                                        <Select
                                             id="match-position"
-                                            className={styles.selectField}
                                             value={position}
                                             disabled={saving}
-                                            onChange={(event) =>
-                                                setValue(
-                                                    "position",
-                                                    event.target.value,
-                                                    { shouldDirty: true }
-                                                )
+                                            onChange={(next) =>
+                                                setValue("position", next, {
+                                                    shouldDirty: true,
+                                                })
                                             }
-                                        >
-                                            <option value="">Not set</option>
-                                            {positionOptions.map((option) => (
-                                                <option
-                                                    key={option.id}
-                                                    value={option.id}
-                                                >
-                                                    {option.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            aria-label="Position"
+                                            sheetTitle="Position"
+                                            options={[
+                                                { value: "", label: "Not set" },
+                                                ...positionOptions.map((option) => ({
+                                                    value: option.id,
+                                                    label: option.name,
+                                                })),
+                                            ]}
+                                        />
                                     </Field>
                                 )}
                             </div>

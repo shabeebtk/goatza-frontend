@@ -13,6 +13,7 @@ import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
+import Select from "@/shared/components/ui/Select/Select"
 import shared from "../CreatePostModal/CreatePostModal.module.css"
 import styles from "./EditPostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
@@ -276,20 +277,20 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
 
                 {/* Sport select */}
                 {sportOptions.length > 0 && (
-                  <div className={shared.badgeSelectWrap}>
-                    <Icon icon="mdi:trophy-outline" width={12} height={12} className={shared.badgeSelectIcon} />
-                    <select
-                      className={shared.badgeSelect}
-                      value={sportId}
-                      onChange={(e) => setSportId(e.target.value)}
-                      aria-label="Tag a sport"
-                    >
-                      <option value="">SELECT SPORT</option>
-                      {sportOptions.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    className={shared.sportField}
+                    size="sm"
+                    aria-label="Tag a sport"
+                    sheetTitle="Tag a sport"
+                    placeholder="Select sport"
+                    value={sportId}
+                    onChange={setSportId}
+                    options={sportOptions.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      icon: "mdi:trophy-outline",
+                    }))}
+                  />
                 )}
 
                 {/* Location toggle / pill */}

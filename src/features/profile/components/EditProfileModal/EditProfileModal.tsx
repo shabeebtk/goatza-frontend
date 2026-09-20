@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useForm, type SubmitHandler, type Resolver } from "react-hook-form"
+import { Controller, useForm, type SubmitHandler, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
-import { Input, DateOfBirthPicker } from "@/shared/components/ui"
+import { Input, DateOfBirthPicker, Select } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
 import { useUpdateProfileData, useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { useAuthStore } from "@/store/auth.store"
@@ -170,6 +170,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
 
   const {
     register,
+    control,
     handleSubmit,
     watch,
     setError,
@@ -382,12 +383,29 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
               </Field>
 
               <Field label="Gender" error={errors.gender?.message}>
-                <select className={styles.selectField} {...register("gender")}>
-                  <option value="">Prefer not to say</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
+                {/* "" is a real answer here, not a placeholder — it is what
+                    "Prefer not to say" stores. */}
+                <Controller
+                  name="gender"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Gender"
+                      sheetTitle="Gender"
+                      searchable={false}
+                      disabled={isSubmitting}
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      options={[
+                        { value: "", label: "Prefer not to say" },
+                        { value: "male", label: "Male" },
+                        { value: "female", label: "Female" },
+                        { value: "other", label: "Other" },
+                      ]}
+                    />
+                  )}
+                />
               </Field>
 
               <div className={styles.row2}>

@@ -1,10 +1,12 @@
 "use client"
 
 import { useCallback, useRef, useState, useEffect } from "react"
+import dayjs from "dayjs"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import imageCompression from "browser-image-compression"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import Select from "@/shared/components/ui/Select/Select"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
 import { imageFileName, makeThumb, preferredImageType } from "@/shared/services/imageVariants"
@@ -15,67 +17,60 @@ import {
 } from "@/shared/services/mediaUpload"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
+import { useAuthStore } from "@/store/auth.store"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import styles from "./CreateRecruitmentModal.module.css"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
-import { useCreateRecruitment, useUpdateRecruitment } from "../../hooks/useRecruitments"
-import type {
-    RecruitmentDetail,
-    CreateRecruitmentPayload,
-    CreateRecruitmentMediaPayload,
-    ApplyMethod,
+import { useCreateRecruitment, useUpdateRecruitment, useChangeRecruitmentStatus, useRecruitmentsList } from "../../hooks/useRecruitments"
+import {
+    fetchRecruitmentDetailApi,
+    type Recruitment,
+    type RecruitmentDetail,
+    type CreateRecruitmentMediaPayload,
+    type ApplyMethod,
 } from "../../services/recruitments.api"
 import {
     MIN_BIRTH_YEAR,
-    buildAgeCategoriesPayload,
     formatBirthYears,
     validateAgeGroups,
     type AgeGroupDraft,
 } from "../../eligibility"
+import type {
+    RecruitmentType,
+    RecruitmentVisibility,
+    RecruitmentGender,
+    QuestionFieldType,
+    QuestionDraft,
+    EligibilityCriteriaDraft,
+    BenefitDraft,
+    RequirementDraft,
+    ContactDraft,
+    PositionItem,
+    RecruitmentDraft,
+} from "./draft"
+import { buildPayload } from "./buildPayload"
+import { isoToLocalInput, parseLocalInput } from "./wizardDate"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
+import { useBackToClose, type BackToClose } from "@/shared/hooks/useBackToClose"
+import { BENEFIT_ICON_OPTIONS, VISIBILITY_LABEL } from "../../recruitmentCopy"
+import TypePicker from "./TypePicker"
+import type { RecruitmentTemplate } from "./templates"
+import RecruitmentPreview, { type PreviewJumpTarget } from "./RecruitmentPreview"
+import { draftToPreviewRecruitment, missingFromDraft, type MissingItem } from "./draftToPreviewRecruitment"
+import {
+    TYPE_CONFIG,
+    STEP_META,
+    FIELD_STEP_KEY,
+    type StepKey,
+    type HideableField,
+} from "./typeConfig"
 
 // ── Types ─────────────────────────────────────────────────────
 
-export type RecruitmentType = "open_trial" | "player_looking" | "direct_recruitment" | "scholarship"
-export type RecruitmentVisibility = "public" | "followers_only" | "private"
-export type RecruitmentGender = "male" | "female" | "all"
-export type QuestionFieldType = "short_text" | "long_text" | "select" | "radio" | "checkbox" | "number"
-
-type QuestionDraft = {
-    id: string
-    question: string
-    field_type: QuestionFieldType
-    is_required: boolean
-    options: { value: string }[]
-}
-
-type EligibilityCriteriaDraft = {
-    id: string
-    title: string
-    display_order: number
-}
-
-type BenefitDraft = {
-    id: string
-    title: string
-    icon_name: string
-    display_order: number
-}
-
-type RequirementDraft = {
-    id: string
-    title: string
-    is_mandatory: boolean
-    display_order: number
-}
-
-type ContactDraft = {
-    id: string
-    name: string
-    contact_type: "phone" | "email"
-    value: string
-}
+export type { RecruitmentType, RecruitmentVisibility, RecruitmentGender, QuestionFieldType } from "./draft"
 
 type UploadedMedia = {
     file_url: string
@@ -99,36 +94,19 @@ type MediaEntry = {
     zoom?: number
 }
 
-type PositionItem = { position_id: string; name: string }
 type SubmitPhase = "idle" | "uploading" | "posting" | "done"
 
-const TOTAL_STEPS = 5
-const STEP_LABELS = ["Basics", "Eligibility & Venue", "Positions", "Media", "Review"]
 
 /**
- * The recruitment media standard: 4:5 PORTRAIT, with 1:1 as the alternate.
+ * The recruitment media standard: 4:5 PORTRAIT, fixed.
  *
- * Was a fixed 16:9 banner. The poster stage this feeds
- * (RecruitmentHeroCarousel) is a 4:5 frame, so a 16:9 crop arrived there only
- * to be centre-cropped again — the recruiter framed a banner and the app threw
- * away a third of it. Cropping to the shape it will be shown in makes the
- * preview honest.
- *
- * Square stays available because a crest, a squad photo or a flyer is often
- * genuinely square and 4:5 clips it. Both ratios are portrait-or-taller than
- * the frame is wide, so neither leaves bars.
- *
- * One choice per recruitment, not per photo: the gallery is swiped through as
- * a run, and a set that changes shape between slides makes the stage jump.
+ * The poster stage this feeds (RecruitmentHeroCarousel) is a 4:5 frame, so
+ * the cropper cuts to the shape the photo will be shown in. There used to be
+ * a 4:5 / 1:1 switch here; it was never saved or sent, reset whenever the
+ * step was left, and the hero rendered 4:5 regardless — a control with no
+ * effect. One shape, one cropper.
  */
-const MEDIA_ASPECT_OPTIONS = [
-    { key: "portrait", label: "4:5 Portrait", value: 4 / 5 },
-    { key: "square", label: "1:1 Square", value: 1 },
-] as const
-
-type MediaAspectKey = (typeof MEDIA_ASPECT_OPTIONS)[number]["key"]
-
-const DEFAULT_MEDIA_ASPECT: MediaAspectKey = "portrait"
+const MEDIA_ASPECT = 4 / 5
 
 // Mirror the posts image pipeline: compress before upload so recruitment
 // photos use the same sizes/formats as feed photos. The format comes from
@@ -161,20 +139,11 @@ const TIME_OPTIONS: { value: string; label: string }[] = (() => {
     return out
 })()
 
-// Maps a backend field-error key → the wizard step that owns it, so a 400 can
-// jump the user straight to the offending input and show the message inline.
-const FIELD_STEP: Record<string, number> = {
-    title: 0,
-    short_description: 0,
-    sport_id: 0,
-    event_date: 0,
-    application_deadline: 0,
-    max_applications: 0,
-    positions: 2,
-    external_apply_url: 2,
-    contacts: 2,
-    fee_amount: 3,
-    media: 3,
+/** A Google Maps URL for a picked place — by place id when we have one. */
+function mapLinkFor(place: PlaceResult): string {
+    const q = `${place.latitude},${place.longitude}`
+    const pid = place.external_id ? `&query_place_id=${encodeURIComponent(place.external_id)}` : ""
+    return `https://www.google.com/maps/search/?api=1&query=${q}${pid}`
 }
 
 function isValidHttpUrl(value: string): boolean {
@@ -191,7 +160,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ── Preset age categories ──────────────────────────────────────
 
-const CURRENT_YEAR = new Date().getFullYear()
+// Read at the moment it is needed, never at import: a tab left open across
+// 1 January would otherwise keep offering last year's birth years.
+const currentYear = () => new Date().getFullYear()
 
 const AGE_PRESETS = [
     { label: "U13", maxAge: 13 },
@@ -202,25 +173,74 @@ const AGE_PRESETS = [
     { label: "U23", maxAge: 23 },
 ]
 
-function ageToYears(maxAge: number) {
+function ageToYears(maxAge: number, year: number) {
     // e.g. U17: born 2008 or 2009 for current year
-    const maxBirth = CURRENT_YEAR - (maxAge - 1)
-    const minBirth = CURRENT_YEAR - maxAge
+    const maxBirth = year - (maxAge - 1)
+    const minBirth = year - maxAge
     return { min_birth_year: minBirth, max_birth_year: maxBirth }
 }
 
 // ── Benefit icon options ───────────────────────────────────────
+// One list for the picker AND the detail pages — see recruitmentCopy.ts.
+const BENEFIT_ICONS = BENEFIT_ICON_OPTIONS
 
-const BENEFIT_ICONS = [
-    { value: "coach", label: "Coaching", icon: "mdi:whistle-outline" },
-    { value: "trophy", label: "Trophy", icon: "mdi:trophy-outline" },
-    { value: "award", label: "Award", icon: "mdi:medal-outline" },
-    { value: "travel", label: "Travel", icon: "mdi:airplane" },
-    { value: "kit", label: "Kit", icon: "mdi:tshirt-crew-outline" },
-    { value: "certificate", label: "Certificate", icon: "mdi:certificate-outline" },
-    { value: "money", label: "Stipend", icon: "mdi:currency-inr" },
-    { value: "network", label: "Networking", icon: "mdi:account-group-outline" },
+// What the toast calls a field when a check fails.
+const FIELD_LABEL: Record<string, string> = {
+    title: "Title",
+    short_description: "Card tagline",
+    sport_id: "Sport",
+    event_date: "Date",
+    application_deadline: "Deadline",
+    venue_link: "Venue map link",
+    venue_name: "Venue name",
+    location: "Location",
+    age_categories: "Age groups",
+    questions: "Application questions",
+    external_apply_url: "Application link",
+    contacts: "Contacts",
+    fee_amount: "Fee amount",
+    max_applications: "Max applications",
+    media: "Photos",
+    positions: "Positions",
+    description: "Full description",
+    visibility: "Visibility",
+}
+
+// The preview's prompts and the "still missing" list point at fields.
+const PREVIEW_JUMP_FIELD: Record<PreviewJumpTarget, string> = {
+    photos: "media",
+    date: "event_date",
+    location: "location",
+    description: "description",
+    contact: "contacts",
+    tagline: "short_description",
+    deadline: "application_deadline",
+    title: "title",
+}
+const MISSING_FIELD: Record<MissingItem["key"], string> = {
+    photos: "media",
+    deadline: "application_deadline",
+    location: "location",
+    contact: "contacts",
+    description: "description",
+    tagline: "short_description",
+}
+
+// "Publish publicly" — the verb's adverb, per visibility.
+const VISIBILITY_ADVERB: Record<RecruitmentVisibility, string> = {
+    public: "publicly",
+    followers_only: "to followers",
+    private: "privately",
+}
+const VISIBILITY_OPTIONS: { value: RecruitmentVisibility; label: string; hint: string; icon: string }[] = [
+    { value: "public", label: "Publish publicly", hint: "Anyone on Goatza can find and open it", icon: "mdi:earth" },
+    { value: "followers_only", label: "Publish to followers", hint: "Only accounts that follow you see it", icon: "mdi:account-group-outline" },
+    { value: "private", label: "Publish privately", hint: "Hidden — only people with the link", icon: "mdi:lock-outline" },
 ]
+
+// The three headings a good description is built from. Inserted, not
+// suggested in a placeholder: they stay in the text.
+const DESCRIPTION_HEADINGS = ["What to expect", "What to bring", "How selection works"]
 
 const APPLY_METHODS: { value: ApplyMethod; label: string; icon: string }[] = [
     { value: "goatza", label: "On Goatza", icon: "mdi:cellphone-check" },
@@ -242,52 +262,6 @@ const APPLY_METHOD_DESC: Record<ApplyMethod, string> = {
 function uid() { return Math.random().toString(36).slice(2, 10) }
 
 // ── Edit mode: map server detail shapes → wizard draft shapes ──
-
-// Wizard date value format: "YYYY-MM-DD" (date only, no time chosen) OR
-// "YYYY-MM-DDTHH:MM" (date + time). A "no time" pick is stored at end-of-day
-// (23:59); legacy rows stored it at midnight (00:00). Both sentinels round-trip
-// back to date-only here, so the time is only shown when one was really set.
-function isoToLocalInput(iso: string | null): string {
-    if (!iso) return ""
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return ""
-    const pad = (n: number) => String(n).padStart(2, "0")
-    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    const h = d.getHours(), m = d.getMinutes()
-    if ((h === 0 && m === 0) || (h === 23 && m === 59)) return date
-    return `${date}T${pad(h)}:${pad(m)}`
-}
-
-// Parse a wizard date value as a LOCAL Date. A date-only value means "that
-// whole day", so it resolves to END of day (23:59) — this keeps a same-day
-// timed deadline ≤ the event and stops a date-only "today" deadline from
-// reading as already-past, matching the backend's datetime comparisons.
-function parseLocalInput(v: string): Date | null {
-    if (!v) return null
-    if (v.includes("T")) {
-        const d = new Date(v)
-        return Number.isNaN(d.getTime()) ? null : d
-    }
-    const [y, m, d] = v.split("-").map(Number)
-    if (!y || !m || !d) return null
-    const date = new Date(y, m - 1, d, 23, 59, 0, 0)
-    return Number.isNaN(date.getTime()) ? null : date
-}
-
-// Wizard value → ISO 8601 for the API (undefined when empty/invalid).
-function localInputToISO(v: string): string | undefined {
-    const d = parseLocalInput(v)
-    return d ? d.toISOString() : undefined
-}
-
-// Human display of a wizard date value — time shown only when one was set.
-function fmtWizardDate(v: string): string | null {
-    const d = parseLocalInput(v)
-    if (!d) return null
-    return v.includes("T")
-        ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
-        : d.toLocaleDateString(undefined, { dateStyle: "medium" } as Intl.DateTimeFormatOptions)
-}
 
 function reportingTimeToDraft(t: string | null): { value: string; show: boolean } {
     if (!t) return { value: "", show: false }
@@ -414,8 +388,9 @@ function mapInitialMedia(r: RecruitmentDetail): MediaEntry[] {
 
 // ── Step bar ──────────────────────────────────────────────────
 
-function StepBar({ step, onStepClick, disabled }: {
+function StepBar({ step, labels, onStepClick, disabled }: {
     step: number
+    labels: string[]
     onStepClick: (i: number) => void
     disabled: boolean
 }) {
@@ -434,7 +409,7 @@ function StepBar({ step, onStepClick, disabled }: {
 
     return (
         <div className={styles.stepBar} ref={barRef}>
-            {STEP_LABELS.map((label, i) => (
+            {labels.map((label, i) => (
                 <button
                     key={i}
                     type="button"
@@ -448,7 +423,7 @@ function StepBar({ step, onStepClick, disabled }: {
                         {i < step ? <Icon icon="mdi:check" width={10} height={10} /> : <span>{i + 1}</span>}
                     </div>
                     <span className={styles.stepLabel}>{label}</span>
-                    {i < STEP_LABELS.length - 1 && <div className={styles.stepLine} />}
+                    {i < labels.length - 1 && <div className={styles.stepLine} />}
                 </button>
             ))}
         </div>
@@ -467,6 +442,9 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
     // Leaving "specific groups" throws away whatever was authored, so ask
     // first — but only when there is actually something to lose.
     const [confirmClear, setConfirmClear] = useState(false)
+    // Fixed for this mount — the presets it produces must not shift under a
+    // form that is half filled in.
+    const [thisYear] = useState(currentYear)
 
     const chooseAllAges = () => {
         if (allAges) return
@@ -490,7 +468,7 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
 
     const addPreset = (label: string, maxAge: number) => {
         if (categories.find(c => c.title === label)) return
-        const { min_birth_year, max_birth_year } = ageToYears(maxAge)
+        const { min_birth_year, max_birth_year } = ageToYears(maxAge, thisYear)
         onChange([...categories, {
             id: uid(),
             title: label,
@@ -506,8 +484,8 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
         onChange([...categories, {
             id: uid(),
             title: "",
-            min_birth_year: CURRENT_YEAR - 18,
-            max_birth_year: CURRENT_YEAR - 17,
+            min_birth_year: thisYear - 18,
+            max_birth_year: thisYear - 17,
             reporting_time: "",
             showReportingTime: false,
             display_order: categories.length,
@@ -621,7 +599,7 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
                                         className={styles.fieldInput}
                                         type="number"
                                         min={MIN_BIRTH_YEAR}
-                                        max={CURRENT_YEAR}
+                                        max={thisYear}
                                         placeholder="Any"
                                         value={cat.min_birth_year ?? ""}
                                         onChange={e => updateYear(cat.id, "min_birth_year", e.target.value)}
@@ -636,7 +614,7 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
                                         className={styles.fieldInput}
                                         type="number"
                                         min={MIN_BIRTH_YEAR}
-                                        max={CURRENT_YEAR}
+                                        max={thisYear}
                                         placeholder="Any"
                                         value={cat.max_birth_year ?? ""}
                                         onChange={e => updateYear(cat.id, "max_birth_year", e.target.value)}
@@ -725,9 +703,17 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
 // Free-text lines about who may attend. Mirrors RequirementsBuilder (the org
 // is writing a list either way) minus the mandatory toggle — a criterion is
 // never "optional", and none of it is ever checked against an applicant.
+// The five experience levels the wizard used to offer as a dropdown live here
+// now: nothing matched or filtered on the field, and a line of text says the
+// same thing in the recruiter's own words. (Existing records keep their
+// `experience_level` and the detail page still shows it.)
 const CRITERIA_PRESETS = [
-    "Kerala residents only",
+    "Beginners welcome",
     "District-level experience required",
+    "State-level experience required",
+    "National-level experience required",
+    "International experience required",
+    "Kerala residents only",
     "School / college students only",
     "Registered with the state association",
 ]
@@ -969,36 +955,129 @@ function RequirementsBuilder({ requirements, onChange, disabled }: {
             ))}
             <button className={styles.addQBtn} onClick={() => add()} type="button" disabled={disabled}>
                 <Icon icon="mdi:plus-circle-outline" width={15} height={15} />
-                Add Requirement
+                Add item
             </button>
         </div>
     )
 }
 
+// ── Choice chips ──────────────────────────────────────────────
+// A radio group drawn as chips: three or four options, one tap, no popup.
+// (A Select for three values is a tap to open, a scroll and a tap to pick.)
+function ChoiceChips({ options, value, onChange, disabled, ariaLabel }: {
+    options: { value: string; label: string; icon?: string }[]
+    value: string
+    onChange: (v: string) => void
+    disabled?: boolean
+    ariaLabel: string
+}) {
+    return (
+        <div className={styles.chipRow} role="radiogroup" aria-label={ariaLabel}>
+            {options.map(o => (
+                <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={value === o.value}
+                    className={`${styles.choiceChip} ${value === o.value ? styles.choiceChipActive : ""}`}
+                    onClick={() => onChange(o.value)}
+                    disabled={disabled}
+                >
+                    {o.icon && <Icon icon={o.icon} width={14} height={14} />}
+                    {o.label}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+// ── Date presets ──────────────────────────────────────────────
+// "YYYY-MM-DD" of a local Date.
+function toDatePart(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// The next `weekday` (0 = Sunday) strictly after today, plus `weeksAhead`
+// whole weeks: "This Saturday" is the coming one, "Next Sunday" the one after
+// the coming Sunday.
+function upcomingWeekday(weekday: number, weeksAhead = 0, from = new Date()): string {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+    let delta = (weekday - d.getDay() + 7) % 7
+    if (delta === 0) delta = 7
+    d.setDate(d.getDate() + delta + weeksAhead * 7)
+    return toDatePart(d)
+}
+
+// `days` before a wizard date value's DATE part, as a date-only value.
+function daysBefore(value: string, days: number): string {
+    const [y, m, d] = value.slice(0, 10).split("-").map(Number)
+    if (!y || !m || !d) return ""
+    const date = new Date(y, m - 1, d)
+    date.setDate(date.getDate() - days)
+    return toDatePart(date)
+}
+
+const DEADLINE_PRESETS = [
+    { label: "1 day before", days: 1 },
+    { label: "3 days before", days: 3 },
+    { label: "1 week before", days: 7 },
+]
+
 // ── Contacts builder ──────────────────────────────────────────
 
-function ContactsBuilder({ contacts, onChange, disabled }: {
+type ContactSuggestion = { name: string; contact_type: "phone" | "email"; value: string }
+
+function ContactsBuilder({ contacts, onChange, disabled, suggestions = [] }: {
     contacts: ContactDraft[]
     onChange: (c: ContactDraft[]) => void
     disabled: boolean
+    /** Contacts already on file (the admin's account) — one tap to add. */
+    suggestions?: ContactSuggestion[]
 }) {
     const add = (type: "phone" | "email") => onChange([...contacts, { id: uid(), name: "", contact_type: type, value: "" }])
+    const addSuggestion = (sug: ContactSuggestion) =>
+        onChange([...contacts, { id: uid(), name: sug.name, contact_type: sug.contact_type, value: sug.value }])
+    const present = new Set(contacts.map(c => c.value.trim()))
+    const offered = suggestions.filter(sg => !present.has(sg.value.trim()))
     const update = (id: string, patch: Partial<ContactDraft>) => onChange(contacts.map(c => c.id === id ? { ...c, ...patch } : c))
     const remove = (id: string) => onChange(contacts.filter(c => c.id !== id))
 
     return (
         <div className={styles.listBuilder}>
+            {offered.length > 0 && (
+                <div className={styles.chipRow} aria-label="Saved contacts">
+                    {offered.map(sg => (
+                        <button
+                            key={`${sg.contact_type}:${sg.value}`}
+                            type="button"
+                            className={styles.insertChip}
+                            onClick={() => addSuggestion(sg)}
+                            disabled={disabled}
+                            title="Add this saved contact"
+                        >
+                            <Icon icon={sg.contact_type === "phone" ? "mdi:phone-plus-outline" : "mdi:email-plus-outline"} width={13} height={13} />
+                            {sg.value}
+                        </button>
+                    ))}
+                </div>
+            )}
             {contacts.map(c => (
                 <div key={c.id} className={styles.contactRow}>
-                    <select
-                        className={`${styles.fieldSelect} ${styles.contactTypeSelect}`}
+                    <Select
+                        className={styles.contactTypeSelect}
+                        size="sm"
+                        searchable={false}
+                        aria-label="Contact type"
+                        sheetTitle="Contact type"
                         value={c.contact_type}
-                        onChange={e => update(c.id, { contact_type: e.target.value as "phone" | "email" })}
+                        onChange={v => update(c.id, { contact_type: v as "phone" | "email" })}
                         disabled={disabled}
-                    >
-                        <option value="phone">Phone</option>
-                        <option value="email">Email</option>
-                    </select>
+                        options={[
+                            { value: "phone", label: "Phone" },
+                            { value: "email", label: "Email" },
+                        ]}
+                    />
                     <input
                         className={`${styles.fieldInput} ${styles.contactNameInput}`}
                         placeholder="Name (optional)"
@@ -1067,9 +1146,17 @@ function QuestionBuilder({ questions, onChange, disabled }: {
                 <div key={q.id} className={styles.questionCard}>
                     <div className={styles.questionCardHeader}>
                         <span className={styles.questionNum}>Q{i + 1}</span>
-                        <select className={styles.fieldTypeSelect} value={q.field_type} onChange={e => updateQ(q.id, { field_type: e.target.value as QuestionFieldType })} disabled={disabled} title="How players answer this question">
-                            {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
-                        </select>
+                        <Select
+                            className={styles.qTypeField}
+                            size="sm"
+                            searchable={false}
+                            aria-label="How players answer this question"
+                            sheetTitle="Answer type"
+                            value={q.field_type}
+                            onChange={v => updateQ(q.id, { field_type: v as QuestionFieldType })}
+                            disabled={disabled}
+                            options={FIELD_TYPES.map(ft => ({ value: ft.value, label: ft.label }))}
+                        />
                         <label className={styles.requiredToggle} title="Players can't submit their application without answering this question.">
                             <input type="checkbox" checked={q.is_required} onChange={e => updateQ(q.id, { is_required: e.target.checked })} disabled={disabled} />
                             <span>Required to apply</span>
@@ -1121,14 +1208,7 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     // Crop editor — cropSrc is a temp object URL of the ORIGINAL image.
     const [cropId, setCropId] = useState<string | null>(null)
     const [cropSrc, setCropSrc] = useState<string | null>(null)
-    // Applies to the whole set — see MEDIA_ASPECT_OPTIONS. Switching it after a
-    // crop does not re-cut anything: the frame changes and `cover` centre-crops
-    // what is already there, which is the same treatment old landscape media
-    // gets. Adjust re-opens at the new ratio for anyone who wants to reframe.
-    const [aspectKey, setAspectKey] = useState<MediaAspectKey>(DEFAULT_MEDIA_ASPECT)
-    const aspect =
-        MEDIA_ASPECT_OPTIONS.find(o => o.key === aspectKey)?.value ??
-        MEDIA_ASPECT_OPTIONS[0].value
+    const aspect = MEDIA_ASPECT
 
     if (entries.length === 0) return null
     const total = entries.length
@@ -1162,24 +1242,6 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     return (
         <>
         <div className={styles.previewCarousel}>
-            {/* Shape switcher. Above the frame rather than inside the cropper:
-                PostImageCropper is a posts component reused verbatim here, and
-                the choice applies to the whole set, not to the photo currently
-                being cut. */}
-            <div className={styles.aspectRow} role="group" aria-label="Photo shape">
-                {MEDIA_ASPECT_OPTIONS.map(opt => (
-                    <button
-                        key={opt.key}
-                        type="button"
-                        className={`${styles.aspectBtn} ${aspectKey === opt.key ? styles.aspectBtnOn : ""}`}
-                        onClick={() => setAspectKey(opt.key)}
-                        aria-pressed={aspectKey === opt.key}
-                        disabled={disabled}
-                    >
-                        {opt.label}
-                    </button>
-                ))}
-            </div>
             <div className={styles.previewSlide} style={{ aspectRatio: String(aspect) }}>
                 <img src={cur.preview} className={styles.previewMedia} alt={`Media ${idx + 1}`} />
                 {cur.status === "uploading" && <div className={styles.previewOverlay}><span className={styles.uploadPct}>{cur.progress}%</span></div>}
@@ -1221,28 +1283,18 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
     )
 }
 
-// ── Review summary helpers ────────────────────────────────────
-
-function ReviewRow({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
-    if (!value) return null
-    return (
-        <div className={styles.reviewRow}>
-            <Icon icon={icon} width={14} height={14} className={styles.reviewRowIcon} />
-            <span className={styles.reviewRowLabel}>{label}</span>
-            <span className={styles.reviewRowValue}>{value}</span>
-        </div>
-    )
-}
-
 // ── Date + time field ─────────────────────────────────────────
 // Renders a separate date input and a 30-minute-step time picker, but reads /
 // writes a single wizard value: "YYYY-MM-DD" (no time) or "YYYY-MM-DDTHH:MM".
 // Time is optional — the date alone is enough.
 
-function DateTimeField({ value, onChange, disabled }: {
+function DateTimeField({ value, onChange, disabled, dateRef, onBlur, invalid }: {
     value: string
     onChange: (v: string) => void
     disabled?: boolean
+    dateRef?: React.RefObject<HTMLInputElement | null>
+    onBlur?: () => void
+    invalid?: boolean
 }) {
     const datePart = value ? value.slice(0, 10) : ""
     const timePart = value.includes("T") ? value.slice(11, 16) : ""
@@ -1265,24 +1317,49 @@ function DateTimeField({ value, onChange, disabled }: {
     return (
         <div className={styles.dateTimeRow}>
             <input
-                className={`${styles.fieldInput} ${styles.dateTimeDate}`}
+                ref={dateRef}
+                className={`${styles.fieldInput} ${styles.dateTimeDate} ${invalid ? styles.fieldInputInvalid : ""}`}
                 type="date"
                 value={datePart}
                 onChange={e => setDate(e.target.value)}
+                onBlur={onBlur}
                 disabled={disabled}
+                aria-invalid={invalid || undefined}
             />
-            <select
-                className={`${styles.fieldSelect} ${styles.dateTimeTime}`}
+            {/* "" is an answer here, not a placeholder: a date with no time is
+                valid, and picking "Time —" again is how a time is cleared. */}
+            <Select
+                className={styles.dateTimeTime}
+                size="sm"
                 value={timePart}
-                onChange={e => setTime(e.target.value)}
+                onChange={setTime}
                 disabled={disabled || !datePart}
-                title={datePart ? "Time (optional)" : "Pick a date first"}
-            >
-                <option value="">Time —</option>
-                {timeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+                aria-label={datePart ? "Time (optional)" : "Pick a date first"}
+                sheetTitle="Time"
+                options={[
+                    { value: "", label: "Time —" },
+                    ...timeOptions.map(o => ({ value: o.value, label: o.label })),
+                ]}
+            />
         </div>
     )
+}
+
+// ── Back gesture ──────────────────────────────────────────────
+// useBackToClose reserves ONE history entry and consumes it on popstate, then
+// calls back. The wizard wants a back press to move one step, not to leave —
+// so the hook lives in this null component, and the modal remounts it (by
+// `key`) after every consumed press to reserve a fresh entry.
+function BackGuard({ onBack, controlRef }: {
+    onBack: () => void
+    controlRef: React.RefObject<BackToClose | null>
+}) {
+    const back = useBackToClose(onBack)
+    useEffect(() => {
+        controlRef.current = back
+        return () => { controlRef.current = null }
+    }, [back, controlRef])
+    return null
 }
 
 // ── Main Modal ────────────────────────────────────────────────
@@ -1318,7 +1395,9 @@ export default function CreateRecruitmentModal({
     const isEdit = init !== null
     const initialPositions = init ? mapInitialPositions(init) : null
 
-    // ── Step ─────────────────────────────────────────────────────
+    // ── Screen + step ────────────────────────────────────────────
+    // Create opens on the type picker; edit already knows its type.
+    const [screen, setScreen] = useState<"type" | "wizard">(isEdit ? "wizard" : "type")
     const [step, setStep] = useState(0)
 
     // ── Step 0: Basics ────────────────────────────────────────────
@@ -1327,9 +1406,16 @@ export default function CreateRecruitmentModal({
     const [description, setDescription] = useState(() => init?.description ?? "")
     const [recruitmentType, setRecruitmentType] = useState<RecruitmentType>(() => init?.recruitment_type ?? "open_trial")
     const [visibility, setVisibility] = useState<RecruitmentVisibility>(() => init?.visibility ?? "public")
+    // Everything type-specific — labels, hidden fields, the step list.
+    const typeCfg = TYPE_CONFIG[recruitmentType]
+    const stepKeys = typeCfg.steps
+    const TOTAL_STEPS = stepKeys.length
+    const STEP_LABELS = stepKeys.map(k => STEP_META[k].label)
     const [sportId, setSportId] = useState(() => init?.sport?.id ?? "")
     const [gender, setGender] = useState<RecruitmentGender>(() => init?.gender || "all")
-    const [experienceLevel, setExperienceLevel] = useState(() => init?.experience_level ?? "")
+    // No longer offered in the wizard (see CRITERIA_PRESETS); carried through
+    // unchanged so editing an older record does not silently drop its value.
+    const [experienceLevel] = useState(() => init?.experience_level ?? "")
     const [applicationDeadline, setApplicationDeadline] = useState(() => isoToLocalInput(init?.application_deadline ?? null))
     const [eventDate, setEventDate] = useState(() => isoToLocalInput(init?.event_date ?? null))
     const [maxApplications, setMaxApplications] = useState(() => (init?.max_applications != null ? String(init.max_applications) : ""))
@@ -1351,6 +1437,15 @@ export default function CreateRecruitmentModal({
     // The actor's own coordinates, as a 50 km bias circle for place search.
     // Cache-only: never fetches, and null is a perfectly normal answer.
     const placeBias = useProfileBias()
+
+    // A picked place always has coordinates (the picker refuses to build one
+    // without), so the map link can be written for the recruiter — but only
+    // into an EMPTY field: a link they typed themselves is theirs.
+    const pickLocation = (place: PlaceResult | null) => {
+        setLocation(place)
+        clearFieldError("location")
+        if (place && !venueLink.trim()) setVenueLink(mapLinkFor(place))
+    }
 
     // ── Step 2: Positions + Questions ────────────────────────────
     const [anyPosition, setAnyPosition] = useState(() => (initialPositions ? initialPositions.any : true))
@@ -1374,12 +1469,55 @@ export default function CreateRecruitmentModal({
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const [draftSaved, setDraftSaved] = useState(false)
     const [confirmDiscard, setConfirmDiscard] = useState(false)
+    // The visibility menu on the publish button.
+    const [publishMenuOpen, setPublishMenuOpen] = useState(false)
+    const publishMenuRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        if (!publishMenuOpen) return
+        const onDown = (e: MouseEvent | TouchEvent) => {
+            if (publishMenuRef.current && !publishMenuRef.current.contains(e.target as Node)) setPublishMenuOpen(false)
+        }
+        document.addEventListener("mousedown", onDown)
+        document.addEventListener("touchstart", onDown)
+        return () => {
+            document.removeEventListener("mousedown", onDown)
+            document.removeEventListener("touchstart", onDown)
+        }
+    }, [publishMenuOpen])
 
     const toast = useToast()
     const router = useRouter()
+
+    // The admin's own phone / email, offered as one-tap contacts. There is no
+    // contact book on the org profile, so the account is what "saved" means.
+    const authUser = useAuthStore(s => s.user)
+    const savedContacts: ContactSuggestion[] = [
+        authUser?.phone ? { name: authUser.name ?? "", contact_type: "phone" as const, value: authUser.phone } : null,
+        authUser?.email ? { name: authUser.name ?? "", contact_type: "email" as const, value: authUser.email } : null,
+    ].filter((c): c is ContactSuggestion => c !== null)
     const { mutateAsync: createRecruitment } = useCreateRecruitment()
     const { mutateAsync: updateRecruitment } = useUpdateRecruitment()
+    const { mutateAsync: changeStatus } = useChangeRecruitmentStatus()
+    // A saved draft being edited: Save Draft stays offered, and Publish is a
+    // real publish rather than "save changes".
+    const isDraftRecord = isEdit && init?.status === "draft"
+    const canSaveDraft = !isEdit || isDraftRecord
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const descriptionRef = useRef<HTMLTextAreaElement>(null)
+    const eventDateRef = useRef<HTMLInputElement>(null)
+
+    // Append a heading line to the description and leave the caret under it.
+    const insertHeading = (heading: string) => {
+        const base = description.replace(/\s+$/, "")
+        const next = `${base ? base + "\n\n" : ""}${heading}\n`
+        setDescription(next)
+        requestAnimationFrame(() => {
+            const ta = descriptionRef.current
+            if (!ta) return
+            ta.focus()
+            ta.setSelectionRange(next.length, next.length)
+        })
+    }
     const isSubmitting = phase !== "idle"
     const composing = phase === "idle"
 
@@ -1388,7 +1526,10 @@ export default function CreateRecruitmentModal({
     // touched anything since opening. Draft ids are excluded because they're
     // random per session and would otherwise always read as "changed".
     const snapshot = JSON.stringify({
-        title, shortDesc, description, recruitmentType, visibility, sportId, gender,
+        // In create mode the type is chosen on the picker screen, before any
+        // detail is entered; counting it would confirm-on-discard a blank form.
+        recruitmentType: isEdit ? recruitmentType : null,
+        title, shortDesc, description, visibility, sportId, gender,
         experienceLevel, applicationDeadline, eventDate, maxApplications,
         allAges,
         ageCategories: ageCategories.map(({ id: _id, ...c }) => c),
@@ -1410,14 +1551,70 @@ export default function CreateRecruitmentModal({
     if (initialSnapshotRef.current === null) initialSnapshotRef.current = snapshot
     const isDirty = initialSnapshotRef.current !== snapshot
 
+    // ── Back gesture / Escape ─────────────────────────────────────
+    // One history entry stands for "the wizard is open". A back press (or
+    // Escape) consumes it and lands here; the entry is re-armed by bumping
+    // `backEpoch`, which remounts BackGuard. Explicit closes go THROUGH the
+    // entry (history.back → popstate → here) so it is never left behind.
+    const backRef = useRef<BackToClose | null>(null)
+    const [backEpoch, setBackEpoch] = useState(0)
+    const closingRef = useRef(false)
+    const rearmBack = () => setBackEpoch(e => e + 1)
+
+    const handleBackGesture = () => {
+        if (closingRef.current) { closingRef.current = false; onClose(); return }
+        // Mid-upload / mid-post there is nothing to go back to; keep the entry.
+        if (!composing) { rearmBack(); return }
+        if (!onFirstScreen) { goPrev(); rearmBack(); return }
+        // First screen: back means leave — with the usual confirm.
+        if (isDirty) { setConfirmDiscard(true); rearmBack(); return }
+        onClose()
+    }
+
+    // Leave now, consuming the history entry on the way out.
+    const closeNow = () => {
+        closingRef.current = true
+        if (backRef.current) backRef.current.requestClose()
+        else { closingRef.current = false; onClose() }
+    }
+
     // Close, but confirm first if there are unsaved changes.
     const requestClose = () => {
         if (composing && isDirty) setConfirmDiscard(true)
-        else onClose()
+        else closeNow()
     }
+
+    // Escape = one back press. Bubble phase on purpose: the Select sheet, the
+    // place picker and the other overlays that stack above capture Escape
+    // and stop it, so a press inside them never reaches this.
+    const backdropRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== "Escape" || e.defaultPrevented) return
+            const target = e.target instanceof Element ? e.target : null
+            const owner = target?.closest('[aria-modal="true"]')
+            if (owner && !backdropRef.current?.contains(owner)) return
+            e.preventDefault()
+            if (confirmDiscard) { setConfirmDiscard(false); return }
+            if (backRef.current) backRef.current.requestClose()
+            else handleBackGesture()
+        }
+        document.addEventListener("keydown", handler)
+        return () => document.removeEventListener("keydown", handler)
+    })
 
     // ── Scroll lock ───────────────────────────────────────────────
     useBodyScrollLock()
+    // Text inputs on most steps: the backdrop follows the VISIBLE area so the
+    // footer stays above the keyboard (see .backdrop in the stylesheet).
+    useVisualViewport()
+
+    // ── Live preview ──────────────────────────────────────────────
+    // ≥1024px: a second column beside the form. Below that: a slim strip
+    // under the step bar that opens a sheet over the form — never a second
+    // column on a phone.
+    const isWide = useMediaQuery("(min-width: 1024px)")
+    const [previewSheetOpen, setPreviewSheetOpen] = useState(false)
 
     // ── Scroll position per step ─────────────────────────────────
     // Every step change (Next / Back / step bar / a server error jumping to
@@ -1426,10 +1623,22 @@ export default function CreateRecruitmentModal({
     const bodyRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         bodyRef.current?.scrollTo({ top: 0, behavior: "auto" })
-    }, [step])
+        setPreviewSheetOpen(false)
+    }, [step, screen])
 
     const { data: sports = [] } = useSportsList()
+    const sportName = sports.find(s => s.id === sportId)?.name ?? ""
     const positions = sports.find(s => s.id === sportId)?.positions ?? []
+
+    // "U17 Football Open Trial — Kannur": built from whatever is known so
+    // far, offered as one tap. Age and city usually arrive later (or from a
+    // clone / template), so the suggestion grows as the draft does.
+    const ageTitles = allAges ? [] : ageCategories.map(c => c.title.trim()).filter(Boolean)
+    const ageWord = ageTitles.length === 0 ? "" : ageTitles.length === 1 ? ageTitles[0] : `${ageTitles[0]}–${ageTitles[ageTitles.length - 1]}`
+    const cityWord = location?.city || location?.name || ""
+    const suggestedTitle = sportName
+        ? `${[ageWord, sportName, typeCfg.label].filter(Boolean).join(" ")}${cityWord ? ` — ${cityWord}` : ""}`
+        : ""
 
     // Changing the sport invalidates any selected positions. Done in the
     // select handler (not an effect) so edit-mode prefilled positions survive
@@ -1459,102 +1668,326 @@ export default function CreateRecruitmentModal({
             </span>
         ) : null
 
-    // Surface a validation / form error as a toast instead of inline text.
-    const showFormError = (msg: string) =>
-        toast.show({ title: "Please check your details", message: msg, variant: "error" })
-
     // ── Validation ────────────────────────────────────────────────
-    // `s` defaults to the current step but can be passed explicitly so we can
-    // validate intermediate steps when jumping ahead via the step bar.
-    const validateStep = (s: number = step): string | null => {
-        if (s === 0) {
-            if (!title.trim() || title.trim().length < 5) return "Title must be at least 5 characters."
-            // Short description is optional, but if written it must be meaningful.
-            if (shortDesc.trim() && shortDesc.trim().length < 10) return "Short description must be at least 10 characters."
-            if (!sportId) return "Please select a sport."
-            if (!eventDate) return "Please set an event / trial date."
-
-            // deadline must be on or before the event date. parseLocalInput
-            // resolves a date-only value to end-of-day, so a same-day timed
-            // deadline (e.g. 9 AM the morning of a date-only event) is allowed.
-            const evDate = parseLocalInput(eventDate)
-            const dlDate = parseLocalInput(applicationDeadline)
-            if (dlDate && evDate && dlDate > evDate) {
-                return "Application deadline must be on or before the event date."
-            }
-            // deadline not in the past — but in edit mode, an unchanged past deadline is fine
-            if (dlDate) {
-                const initialDeadlineLocal = isoToLocalInput(init?.application_deadline ?? null)
-                const deadlineChanged = applicationDeadline !== initialDeadlineLocal
-                // Date-only resolves to end-of-day (via parseLocalInput), so a
-                // date-only "today" is not treated as past.
-                if ((!isEdit || deadlineChanged) && dlDate.getTime() < Date.now()) {
-                    return "Application deadline cannot be in the past."
+    // One rule set, keyed by FIELD, used three ways: on blur of a touched
+    // field (that field only), on Next (every field on the step, first
+    // failure marked and focused) and on submit (every step). The same
+    // `fieldErrors` map a server 400 writes into shows the result inline, so
+    // a client failure and a server failure look the same on screen.
+    //
+    // `forDraft` waives the one thing a draft may legitimately not have yet:
+    // the date. Title and sport stay required — the server rejects a body
+    // without them, draft or not.
+    const validateField = (name: string, forDraft = false): string | null => {
+        switch (name) {
+            case "title":
+                if (!title.trim() || title.trim().length < 5) return "Title must be at least 5 characters."
+                return null
+            case "short_description":
+                // The tagline is optional, but if written it must be meaningful.
+                if (shortDesc.trim() && shortDesc.trim().length < 10) return "Card tagline must be at least 10 characters."
+                return null
+            case "sport_id":
+                return sportId ? null : "Please select a sport."
+            case "event_date":
+                if (!eventDate && !forDraft) return `Please set the ${typeCfg.dateLabel.toLowerCase()}.`
+                return null
+            case "application_deadline": {
+                // deadline must be on or before the event date. parseLocalInput
+                // resolves a date-only value to end-of-day, so a same-day timed
+                // deadline (e.g. 9 AM the morning of a date-only event) is allowed.
+                const evDate = parseLocalInput(eventDate)
+                const dlDate = parseLocalInput(applicationDeadline)
+                if (dlDate && evDate && dlDate > evDate) {
+                    return "Application deadline must be on or before the event date."
                 }
-            }
-        }
-        if (s === 1) {
-            // "Open to all ages" submits [], so there is nothing to check.
-            if (!allAges) {
-                if (ageCategories.length === 0) {
-                    return "Add an age group, or choose “Open to all ages”."
+                // deadline not in the past — but in edit mode, an unchanged past deadline is fine
+                if (dlDate) {
+                    const initialDeadlineLocal = isoToLocalInput(init?.application_deadline ?? null)
+                    const deadlineChanged = applicationDeadline !== initialDeadlineLocal
+                    // Date-only resolves to end-of-day (via parseLocalInput), so a
+                    // date-only "today" is not treated as past.
+                    if ((!isEdit || deadlineChanged) && dlDate.getTime() < Date.now()) {
+                        return "Application deadline cannot be in the past."
+                    }
                 }
-                const ageError = validateAgeGroups(ageCategories, CURRENT_YEAR)
-                if (ageError) return ageError
+                return null
             }
-            if (venueLink.trim() && !isValidHttpUrl(venueLink.trim())) {
-                return "Enter a valid venue map URL (including https://)."
-            }
-        }
-        if (s === 2) {
-            for (const q of questions) {
-                if (!q.question.trim()) return "All questions must have text."
-                const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
-                if (hasOptions && q.options.filter(o => o.value.trim()).length < 2) return `Question "${q.question || "untitled"}" needs at least 2 options.`
-            }
-
-            // apply method
-            if (applyMethod === "external") {
+            case "venue_link":
+                if (venueLink.trim() && !isValidHttpUrl(venueLink.trim())) {
+                    return "Enter a valid venue map URL (including https://)."
+                }
+                return null
+            case "age_categories":
+                // "Open to all ages" submits [], so there is nothing to check.
+                if (allAges) return null
+                if (ageCategories.length === 0) return "Add an age group, or choose “Open to all ages”."
+                return validateAgeGroups(ageCategories, currentYear())
+            case "questions":
+                for (const q of questions) {
+                    if (!q.question.trim()) return "All questions must have text."
+                    const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
+                    if (hasOptions && q.options.filter(o => o.value.trim()).length < 2) return `Question "${q.question || "untitled"}" needs at least 2 options.`
+                }
+                return null
+            case "external_apply_url":
+                if (applyMethod !== "external") return null
                 if (!externalApplyUrl.trim()) return "Add the external application link."
                 if (!isValidHttpUrl(externalApplyUrl.trim())) return "Enter a valid application URL (including https://)."
-            }
-            const filledContacts = contacts.filter(c => c.value.trim())
-            if (applyMethod === "contact" && filledContacts.length === 0) {
-                return "Add at least one contact for players to apply through."
-            }
-
-            // contact format
-            for (const c of filledContacts) {
-                if (c.contact_type === "email" && !EMAIL_RE.test(c.value.trim())) {
-                    return "Enter a valid email address for the email contact."
+                return null
+            case "contacts": {
+                const filledContacts = contacts.filter(c => c.value.trim())
+                if (applyMethod === "contact" && filledContacts.length === 0) {
+                    return "Add at least one contact for players to apply through."
                 }
-                if (c.contact_type === "phone" && !PHONE_RE.test(c.value.trim().replace(/[\s\-().]/g, ""))) {
-                    return "Enter a valid phone number for the phone contact."
+                for (const c of filledContacts) {
+                    if (c.contact_type === "email" && !EMAIL_RE.test(c.value.trim())) {
+                        return "Enter a valid email address for the email contact."
+                    }
+                    if (c.contact_type === "phone" && !PHONE_RE.test(c.value.trim().replace(/[\s\-().]/g, ""))) {
+                        return "Enter a valid phone number for the phone contact."
+                    }
                 }
+                return null
             }
+            case "fee_amount":
+                if (isPaid && !feeAmount) return "Enter the fee amount."
+                return null
+            case "max_applications":
+                if (maxApplications && !(Number(maxApplications) >= 1)) return "Max applications must be at least 1."
+                return null
+            default:
+                return null
         }
-        if (s === 3) {
-            if (isPaid && !feeAmount) return "Enter the fee amount."
+    }
+
+    // A failed check, pointing at the input to mark and focus.
+    type FieldProblem = { field: string; message: string }
+
+    // Every step's fields in screen order, so the first failure is also the
+    // top-most one on the page.
+    const STEP_FIELDS: Record<StepKey, string[]> = {
+        basics: ["sport_id", "title", "short_description"],
+        when_where: ["event_date", "application_deadline", "venue_link"],
+        who: ["age_categories"],
+        pitch: [],
+        apply: ["external_apply_url", "questions", "contacts", "fee_amount", "max_applications"],
+        publish: [],
+    }
+
+    const validateStepKey = (key: StepKey, forDraft = false): FieldProblem | null => {
+        for (const field of STEP_FIELDS[key]) {
+            const message = validateField(field, forDraft)
+            if (message) return { field, message }
         }
         return null
     }
 
-    // Validate every editable step (0…3). Used before submit so a required
-    // field skipped via the step bar is caught and pointed to, rather than
-    // reaching the backend as a vague "This field is required."
-    const validateAll = (): { step: number; error: string } | null => {
+    // `s` defaults to the current step but can be passed explicitly so we can
+    // validate intermediate steps when jumping ahead via the step bar.
+    const validateStep = (s: number = step, forDraft = false): FieldProblem | null => {
+        const key = stepKeys[s]
+        return key ? validateStepKey(key, forDraft) : null
+    }
+
+    // Validate every editable step (all but the last). Used before submit so
+    // a required field skipped via the step bar is caught and pointed to,
+    // rather than reaching the backend as a vague "This field is required."
+    const validateAll = (forDraft = false): { step: number; problem: FieldProblem } | null => {
         for (let s = 0; s < TOTAL_STEPS - 1; s++) {
-            const e = validateStep(s)
-            if (e) return { step: s, error: e }
+            const problem = validateStep(s, forDraft)
+            if (problem) return { step: s, problem }
         }
         return null
+    }
+
+    // The field that should be scrolled to and focused once its step has
+    // rendered — set by a failed Next / submit / a server 400.
+    const [focusField, setFocusField] = useState<{ name: string; n: number } | null>(null)
+    const focusFieldNow = (name: string) => setFocusField(prev => ({ name, n: (prev?.n ?? 0) + 1 }))
+    useEffect(() => {
+        if (!focusField) return
+        // After the step has painted: the field may be on a step that only
+        // just mounted.
+        const id = window.requestAnimationFrame(() => {
+            const root = bodyRef.current
+            const group = root?.querySelector<HTMLElement>(`[data-field="${focusField.name}"]`)
+            if (!group) return
+            group.scrollIntoView({ block: "center", behavior: "smooth" })
+            const target = group.querySelector<HTMLElement>(
+                'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+            target?.focus({ preventScroll: true })
+        })
+        return () => window.cancelAnimationFrame(id)
+    }, [focusField])
+
+    // Mark a field's problem inline, say so in the toast, and take the user
+    // to it — the one path every failed check goes through.
+    const reportProblem = (s: number, problem: FieldProblem) => {
+        setScreen("wizard")
+        setStep(s)
+        setFieldErrors({ [problem.field]: problem.message })
+        focusFieldNow(problem.field)
+        toast.show({
+            title: `${STEP_META[stepKeys[s]]?.label ?? "Check your details"} · ${FIELD_LABEL[problem.field] ?? problem.field}`,
+            message: problem.message,
+            variant: "error",
+        })
+    }
+
+    // Blur of a touched field re-checks THAT field only: the error appears
+    // when the user leaves it, never while they are still typing in it.
+    const touchedRef = useRef<Set<string>>(new Set())
+    const touchField = (name: string) => {
+        touchedRef.current.add(name)
+        const message = validateField(name)
+        setFieldErrors(prev => {
+            if (!message) {
+                if (!prev[name]) return prev
+                const next = { ...prev }
+                delete next[name]
+                return next
+            }
+            if (prev[name] === message) return prev
+            return { ...prev, [name]: message }
+        })
     }
 
     const goNext = () => goToStep(step + 1)
 
+    // Back from the first step of a NEW recruitment returns to the type
+    // picker; edit mode has no picker, so its first step is the first screen.
+    const onFirstScreen = screen === "type" || (isEdit && step === 0)
+
     const goPrev = () => {
         setFieldErrors({})
+        if (step === 0 && !isEdit) { setScreen("type"); return }
         setStep(s => Math.max(0, s - 1))
+    }
+
+    const pickType = (t: RecruitmentType) => {
+        setRecruitmentType(t)
+        setScreen("wizard")
+        setStep(0)
+    }
+
+    // ── Repeat a past recruitment / start from a template ─────────
+    // The org's newest five, fetched only while the type screen is up (edit
+    // never shows it). Same query the org's own list uses.
+    const { data: pastPages, isLoading: pastLoading } = useRecruitmentsList(
+        { username },
+        5,
+        screen === "type" && !isEdit,
+    )
+    const pastRecruitments: Recruitment[] | undefined = pastPages?.pages[0]?.results.slice(0, 5)
+    const [cloning, setCloning] = useState<string | null>(null)
+
+    // Everything from a detail payload, minus what must not carry over: dates
+    // are cleared (the new trial has its own), media is dropped (photos need
+    // a fresh upload) and age groups lose their server ids (they belong to
+    // the OTHER recruitment — echoing them would try to update its rows).
+    const cloneFrom = (r: RecruitmentDetail) => {
+        setRecruitmentType(r.recruitment_type)
+        setVisibility(r.visibility)
+        setTitle(r.title)
+        setShortDesc(r.short_description)
+        setDescription(r.description)
+        setSportId(r.sport?.id ?? "")
+        setGender(r.gender || "all")
+        setEventDate("")
+        setApplicationDeadline("")
+        setMaxApplications(r.max_applications != null ? String(r.max_applications) : "")
+        const groups = mapInitialAgeCategories(r).map(g => ({ ...g, serverId: undefined }))
+        setAgeCategories(groups)
+        setAllAges(groups.length === 0)
+        setEligibilityCriteria(mapInitialEligibilityCriteria(r))
+        setVenueName(r.venue_name)
+        setVenueLink(r.venue_link)
+        setLocation(mapInitialLocation(r))
+        const pos = mapInitialPositions(r)
+        setAnyPosition(pos.any)
+        setSelectedPositions(pos.list)
+        setQuestions(mapInitialQuestions(r))
+        setBenefits(mapInitialBenefits(r))
+        setRequirements(mapInitialRequirements(r))
+        setContacts(mapInitialContacts(r))
+        setApplyMethod(r.apply_method)
+        setExternalApplyUrl(r.external_apply_url)
+        setMediaEntries([])
+        setIsPaid(r.is_paid)
+        setFeeAmount(r.fee_amount != null ? String(r.fee_amount) : "")
+        setFeeCurrency(r.fee_currency || "INR")
+        setPaymentNote(r.payment_note)
+        setFieldErrors({})
+        setScreen("wizard")
+        setStep(0)
+        const photos = r.media?.length ?? 0
+        toast.show({
+            title: `Repeating “${r.title}”`,
+            message: photos > 0
+                ? `Dates cleared. The original had ${photos} photo${photos > 1 ? "s" : ""} — add them again on The pitch.`
+                : "Dates cleared — set the new ones on When & where.",
+            variant: "success",
+        })
+    }
+
+    const handleClone = async (r: Recruitment) => {
+        setCloning(r.id)
+        try {
+            // The list row is thin; the detail carries everything.
+            const detail = await fetchRecruitmentDetailApi(r.id)
+            cloneFrom(detail)
+        } catch (err) {
+            toast.show({ title: "Couldn't load that recruitment", message: getApiErrorMessage(err, "Please try again."), variant: "error" })
+        } finally {
+            setCloning(null)
+        }
+    }
+
+    const applyTemplate = (t: RecruitmentTemplate) => {
+        const year = currentYear()
+        setRecruitmentType(t.type)
+        if (t.title) setTitle(t.title)
+        if (t.shortDesc) setShortDesc(t.shortDesc)
+        const sport = t.sportName ? sports.find(sx => sx.name.toLowerCase() === t.sportName!.toLowerCase()) : undefined
+        if (sport) {
+            setSportId(sport.id)
+            const wanted = (t.positionNames ?? []).map(n => n.toLowerCase())
+            const picked = (sport.positions ?? []).filter(px => wanted.includes(px.name.toLowerCase()))
+            setAnyPosition(picked.length === 0)
+            setSelectedPositions(picked.map(px => ({ position_id: px.id, name: px.name })))
+        }
+        const groups: AgeGroupDraft[] = t.ageGroups.map((g, idx) => {
+            if ("preset" in g) {
+                const { min_birth_year, max_birth_year } = ageToYears(g.preset, year)
+                return { id: uid(), title: `U${g.preset}`, min_birth_year, max_birth_year, reporting_time: "", showReportingTime: false, display_order: idx }
+            }
+            return {
+                id: uid(),
+                title: g.title,
+                min_birth_year: g.maxAge != null ? year - g.maxAge : null,
+                max_birth_year: g.minAge != null ? year - g.minAge : null,
+                reporting_time: "",
+                showReportingTime: false,
+                display_order: idx,
+            }
+        })
+        setAgeCategories(groups)
+        setAllAges(groups.length === 0)
+        setRequirements(t.requirements.map((r, idx) => ({ id: uid(), title: r.title, is_mandatory: r.mandatory ?? true, display_order: idx })))
+        setQuestions(t.questions.map(q => ({
+            id: uid(),
+            question: q.question,
+            field_type: q.field_type,
+            is_required: q.is_required,
+            options: (q.options ?? []).map(value => ({ value })),
+        })))
+        if (t.benefits) setBenefits(t.benefits.map((b, idx) => ({ id: uid(), title: b.title, icon_name: b.icon, display_order: idx })))
+        if (t.criteria) setEligibilityCriteria(t.criteria.map((title, idx) => ({ id: uid(), title, display_order: idx })))
+        setFieldErrors({})
+        setScreen("wizard")
+        setStep(0)
     }
 
     // Jump to an arbitrary step (from the step bar). Going back is free; going
@@ -1567,15 +2000,25 @@ export default function CreateRecruitmentModal({
             return
         }
         for (let s = step; s < target; s++) {
-            const err = validateStep(s)
-            if (err) {
-                showFormError(err)
-                setStep(s)
+            const problem = validateStep(s)
+            if (problem) {
+                reportProblem(s, problem)
                 return
             }
         }
         setFieldErrors({})
         setStep(Math.min(TOTAL_STEPS - 1, target))
+    }
+
+    // From the review step's "still missing" list and the preview's prompts.
+    const jumpToField = (field: string) => {
+        const key = FIELD_STEP_KEY[field]
+        const s = key ? stepKeys.indexOf(key) : -1
+        if (s === -1) return
+        setFieldErrors({})
+        setScreen("wizard")
+        setStep(s)
+        focusFieldNow(field)
     }
 
     // ── Media ─────────────────────────────────────────────────────
@@ -1621,81 +2064,62 @@ export default function CreateRecruitmentModal({
     }
 
     // ── Build the API payload from current wizard state ───────────
-    // Shared by create and edit; `media` is passed in because it is
-    // resolved asynchronously during submit (existing + freshly uploaded).
-    const buildPayload = (
-        media: CreateRecruitmentMediaPayload[],
-        submitStatus?: "draft" | "active",
-    ): CreateRecruitmentPayload => ({
-        title: title.trim(),
-        short_description: shortDesc.trim(),
-        description: description.trim() || undefined,
-        recruitment_type: recruitmentType,
-        visibility,
-        gender,
-        sport_id: sportId,
-        experience_level: experienceLevel || undefined,
-        application_deadline: localInputToISO(applicationDeadline),
-        event_date: localInputToISO(eventDate),
-        max_applications: maxApplications ? Number(maxApplications) : undefined,
-        is_paid: isPaid,
-        fee_amount: isPaid && feeAmount ? feeAmount : undefined,
-        fee_currency: isPaid ? feeCurrency : undefined,
-        payment_note: isPaid && paymentNote ? paymentNote.trim() : undefined,
-        apply_method: applyMethod,
-        external_apply_url: applyMethod === "external" ? (externalApplyUrl.trim() || undefined) : undefined,
-        // status: create-only draft/publish; omitted entirely in edit mode.
-        ...(submitStatus ? { status: submitStatus } : {}),
-        venue_name: venueName.trim() || undefined,
-        venue_link: venueLink.trim() || undefined,
-        location: location ? {
-            // provider + external_id are NEW here: this payload used to drop
-            // the place id entirely, so every recruitment minted its own
-            // Location row and none of them could ever be refreshed by id.
-            provider: location.provider,
-            external_id: location.external_id,
-            name: location.name,
-            type: location.place_type,
-            // `city` must never be undefined — the nested serializer treats a
-            // missing city as a validation error. Google usually resolves a
-            // real locality now; the place name is the fallback when it does
-            // not (a ground outside any named town).
-            city: location.city || location.name,
-            state: location.state,
-            country: location.country,
-            country_code: location.country_code,
-            latitude: location.latitude,
-            longitude: location.longitude,
-        } : undefined,
-        // send [] if "Any" is selected, otherwise the selected list
-        positions: anyPosition
-            ? []
-            : selectedPositions.map(p => ({ position_id: p.position_id })),
-        // "Open to all ages" → an empty list. Otherwise every already-saved
-        // group carries its server id so the backend updates it in place.
-        age_categories: buildAgeCategoriesPayload(ageCategories, allAges),
-        eligibility_criteria: eligibilityCriteria
-            .filter(c => c.title.trim())
-            .map((c, idx) => ({ title: c.title.trim(), display_order: idx })),
-        benefits: benefits
-            .filter(b => b.title.trim())
-            .map((b, idx) => ({ title: b.title.trim(), icon_name: b.icon_name, display_order: idx })),
-        requirements: requirements
-            .filter(r => r.title.trim())
-            .map((r, idx) => ({ title: r.title.trim(), is_mandatory: r.is_mandatory, display_order: idx })),
-        contacts: contacts
-            .filter(c => c.value.trim())
-            .map(c => ({ name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
-        questions: questions
-            .filter(q => q.question.trim())
-            .map(q => ({
-                question: q.question.trim(),
-                field_type: q.field_type,
-                is_required: q.is_required,
-                options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
-            })),
-        media: media.length > 0 ? media : undefined,
+    // The draft object is the modal's state, flattened — see ./draft.ts.
+    const draft: RecruitmentDraft = {
+        title, shortDesc, description, recruitmentType, visibility, gender, sportId,
+        experienceLevel, applicationDeadline, eventDate, maxApplications,
+        isPaid, feeAmount, feeCurrency, paymentNote, applyMethod, externalApplyUrl,
+        venueName, venueLink, location, anyPosition, selectedPositions,
+        ageCategories, allAges, eligibilityCriteria, benefits, requirements,
+        contacts, questions,
+    }
+
+    // ── Preview ───────────────────────────────────────────────────
+    // The listing as the player will see it, from the same draft the payload
+    // is built from. Un-uploaded photos preview through their object URLs.
+    const previewRecruitment = draftToPreviewRecruitment(draft, {
+        organization: {
+            id: orgId,
+            name: displayName || username,
+            username,
+            type: "",
+            logo: userAvatarUrl ?? "",
+            headline: "",
+            is_verified: false,
+        },
+        sport: (() => {
+            const sp = sports.find(sx => sx.id === sportId)
+            return sp ? { id: sp.id, name: sp.name, icon_name: sp.icon_name ?? "", icon_url: sp.icon_url ?? "" } : null
+        })(),
+        mediaPreviews: mediaEntries.map(m => m.preview),
+        id: init?.id,
+        status: isEdit ? init?.status : undefined,
+        createdAt: init?.created_at,
     })
+    const missing = missingFromDraft(draft, mediaEntries.length)
+
+    // The live preview trails typing by ~200ms: re-laying out the card on
+    // every keystroke is wasted work and makes the column flicker. Keyed on
+    // the dirty-check snapshot, which already changes exactly when the draft
+    // does. The review step reads the immediate draft instead.
+    const [liveDraft, setLiveDraft] = useState<{ draft: RecruitmentDraft; media: string[] } | null>(null)
+    useEffect(() => {
+        const t = window.setTimeout(() => setLiveDraft({ draft, media: mediaEntries.map(m => m.preview) }), 200)
+        return () => window.clearTimeout(t)
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `snapshot` is the draft's identity; `draft` itself is a fresh object every render
+    }, [snapshot])
+    const livePreview = liveDraft
+        ? draftToPreviewRecruitment(liveDraft.draft, {
+            organization: previewRecruitment.organization,
+            sport: sports.find(sx => sx.id === liveDraft.draft.sportId)
+                ? (() => { const sp = sports.find(sx => sx.id === liveDraft.draft.sportId)!; return { id: sp.id, name: sp.name, icon_name: sp.icon_name ?? "", icon_url: sp.icon_url ?? "" } })()
+                : null,
+            mediaPreviews: liveDraft.media,
+            id: init?.id,
+            status: isEdit ? init?.status : undefined,
+            createdAt: init?.created_at,
+        })
+        : previewRecruitment
 
     // Map a 400's field errors onto the wizard: show inline + jump to the step.
     const applyServerFieldErrors = (err: unknown): void => {
@@ -1704,28 +2128,35 @@ export default function CreateRecruitmentModal({
         const known: Record<string, string> = {}
         let jumpStep: number | null = null
         for (const [key, msg] of Object.entries(errors)) {
-            if (key in FIELD_STEP) {
-                known[key] = msg
-                const s = FIELD_STEP[key]
-                if (jumpStep === null || s < jumpStep) jumpStep = s
-            }
+            const stepKey = FIELD_STEP_KEY[key]
+            if (!stepKey) continue
+            known[key] = msg
+            // Resolved against THIS type's step list, not a fixed index.
+            const s = stepKeys.indexOf(stepKey)
+            if (s !== -1 && (jumpStep === null || s < jumpStep)) jumpStep = s
         }
         if (Object.keys(known).length > 0) {
             setFieldErrors(known)
-            if (jumpStep !== null) setStep(jumpStep)
+            setScreen("wizard")
+            if (jumpStep !== null) {
+                setStep(jumpStep)
+                const first = Object.keys(known).find(k => FIELD_STEP_KEY[k] === stepKeys[jumpStep as number])
+                if (first) focusFieldNow(first)
+            }
         }
     }
 
     // ── Submit (create or update) ─────────────────────────────────
-    // submitStatus is only meaningful on create: "draft" saves a draft,
-    // "active"/undefined publishes. Edit never sends a status.
+    // submitStatus: "draft" saves a draft, "active" publishes. On create it
+    // always goes in the body. On edit it is sent only when a saved DRAFT is
+    // being published ("active"); editing a live recruitment sends none.
     const handleSubmit = async (submitStatus?: "draft" | "active") => {
+        const savingDraft = submitStatus === "draft"
         // Full pre-flight: check every step, not just the current one, so nothing
         // required slips through to the backend as a nameless error.
-        const problem = validateAll()
-        if (problem) {
-            setStep(problem.step)
-            showFormError(problem.error)
+        const failed = validateAll(savingDraft)
+        if (failed) {
+            reportProblem(failed.step, failed.problem)
             return
         }
         setFieldErrors({})
@@ -1773,8 +2204,18 @@ export default function CreateRecruitmentModal({
                     try {
                         if (!fullEntry || !thumbEntry) throw new Error("Upload config mismatch")
 
-                        await putToR2(full, fullEntry)
-                        await putToR2(thumb, thumbEntry)
+                        // The full image is nearly all of the bytes; the thumb
+                        // is the last stretch. Per-entry progress feeds the
+                        // aggregate bar, so it moves with the bytes rather
+                        // than jumping once per file.
+                        const setProgress = (pct: number) =>
+                            setMediaEntries(prev => prev.map(e =>
+                                e.id === entryId ? { ...e, progress: Math.min(99, Math.max(e.progress, pct)) } : e
+                            ))
+                        await putToR2(full, fullEntry, (loaded, total) =>
+                            setProgress(Math.round((loaded / total) * 90)))
+                        await putToR2(thumb, thumbEntry, (loaded, total) =>
+                            setProgress(90 + Math.round((loaded / total) * 10)))
 
                         const uploaded: UploadedMedia = {
                             file_url: fullEntry.public_url,
@@ -1818,16 +2259,30 @@ export default function CreateRecruitmentModal({
         setPhase("posting")
 
         try {
-            // Edit never sends status; create publishes unless saving a draft.
-            const payload = buildPayload(finalMedia, isEdit ? undefined : submitStatus)
+            // Publishing a saved draft is the one edit that carries a status.
+            const publishingDraft = isDraftRecord && submitStatus === "active"
+            const payload = buildPayload(
+                draft,
+                finalMedia,
+                isEdit ? (publishingDraft ? "active" : undefined) : submitStatus,
+            )
 
             if (isEdit && init) {
                 await updateRecruitment({ recruitmentId: init.id, payload })
+                // The update endpoint drops `status` (draft → active is a state
+                // machine transition, not a field), so the publish itself goes
+                // through the status endpoint — same call the admin page makes.
+                if (publishingDraft) await changeStatus({ recruitmentId: init.id, status: "active" })
+                setDraftSaved(isDraftRecord && !publishingDraft)
                 setPhase("done")
-                toast.show({ title: "Recruitment updated", variant: "success" })
+                toast.show({
+                    title: publishingDraft ? "Recruitment published"
+                        : isDraftRecord ? "Draft saved" : "Recruitment updated",
+                    variant: "success",
+                })
                 setTimeout(() => {
                     onUpdated?.(init.id)
-                    onClose()
+                    closeNow()
                 }, 1500)
             } else {
                 const res = await createRecruitment(payload)
@@ -1839,10 +2294,16 @@ export default function CreateRecruitmentModal({
                     variant: "success",
                 })
                 setTimeout(() => {
+                    // Land on the org's recruitments list after posting/drafting.
+                    // navigateAway pops the wizard's history entry BEFORE the
+                    // push, so back from the list does not reopen a ghost.
+                    const href = `/organization/admin/${orgId}/recruitments`
+                    const back = backRef.current
+                    closingRef.current = true
                     onCreated?.(res.recruitment_id)
                     onClose()
-                    // Land on the org's recruitments list after posting/drafting.
-                    router.push(`/organization/admin/${orgId}/recruitments`)
+                    if (back) back.navigateAway(href)
+                    else router.push(href)
                 }, 2000)
             }
         } catch (submitErr) {
@@ -1863,496 +2324,624 @@ export default function CreateRecruitmentModal({
 
     const isLastStep = step === TOTAL_STEPS - 1
 
+    // Aggregate of the entries actually being uploaded — existing media is
+    // already at 100 and would otherwise start the bar most of the way along.
+    const uploadingEntries = mediaEntries.filter(e => !e.existing)
+    const uploadPercent = uploadingEntries.length === 0
+        ? 100
+        : Math.round(uploadingEntries.reduce((sum, e) => sum + e.progress, 0) / uploadingEntries.length)
+
     // ── Render steps ──────────────────────────────────────────────
-    const renderStep = () => {
-        switch (step) {
-            // ── Step 0: Basics ────────────────────────────────────────
-            case 0:
-                return (
-                    <div className={styles.stepContent}>
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Title <span className={styles.required}>*</span></label>
-                            <input className={styles.fieldInput} placeholder="e.g. U17 Open Football Trials" value={title} onChange={e => { setTitle(e.target.value); clearFieldError("title") }} maxLength={120} disabled={isSubmitting} />
-                            <span className={styles.fieldHint}>{title.length}/120</span>
-                            {renderFieldError("title")}
-                        </div>
+    // Six rooms, same for every type; a type may hide a block inside one.
+    const hidden = (f: HideableField) => typeCfg.hideFields?.includes(f) ?? false
 
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Short Description <span className={styles.optionalTag}>Optional</span></label>
-                            <input className={styles.fieldInput} placeholder="Brief tagline shown on the card" value={shortDesc} onChange={e => { setShortDesc(e.target.value); clearFieldError("short_description") }} maxLength={200} disabled={isSubmitting} />
-                            <span className={styles.fieldHint}>{shortDesc.length}/200</span>
-                            {renderFieldError("short_description")}
-                        </div>
+    const stepIntro = (key: StepKey) => (
+        <div className={styles.stepIntro}>
+            <h3 className={styles.stepIntroTitle}>{STEP_META[key].title}</h3>
+            <p className={styles.stepIntroBlurb}>{STEP_META[key].blurb}</p>
+        </div>
+    )
 
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Full Description</label>
-                            <textarea className={styles.fieldTextarea} placeholder="Describe the trial — what to expect, what to bring, selection process…" value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={3000} disabled={isSubmitting} />
-                        </div>
+    // ── 1. The basics ─────────────────────────────────────────────
+    const renderBasics = () => (
+        <div className={styles.stepContent}>
+            {stepIntro("basics")}
 
-                        <div className={styles.fieldRow}>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Type <span className={styles.required}>*</span></label>
-                                <select className={styles.fieldSelect} value={recruitmentType} onChange={e => setRecruitmentType(e.target.value as RecruitmentType)} disabled={isSubmitting}>
-                                    <option value="open_trial">Open Trial</option>
-                                    <option value="player_looking">Player Looking</option>
-                                    <option value="direct_recruitment">Direct Recruitment</option>
-                                    <option value="scholarship">Scholarship</option>
-                                </select>
-                            </div>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Sport <span className={styles.required}>*</span></label>
-                                <select className={styles.fieldSelect} value={sportId} onChange={e => handleSportChange(e.target.value)} disabled={isSubmitting}>
-                                    <option value="">— Select sport —</option>
-                                    {sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
-                        </div>
+            {/* Sport first: the title reads better once the sport is known,
+                and the positions list further in hangs off it. */}
+            <div className={styles.fieldGroup} data-field="sport_id">
+                <label className={styles.fieldLabel}>Sport <span className={styles.required}>*</span></label>
+                {/* handleSportChange, not setSportId — changing the
+                    sport clears the positions picked under the old one. */}
+                <Select
+                    size="sm"
+                    aria-label="Sport"
+                    sheetTitle="Sport"
+                    placeholder="— Select sport —"
+                    value={sportId}
+                    onChange={v => { handleSportChange(v); clearFieldError("sport_id") }}
+                    onBlur={() => touchField("sport_id")}
+                    disabled={isSubmitting}
+                    options={sports.map(s => ({ value: s.id, label: s.name }))}
+                />
+                {renderFieldError("sport_id")}
+            </div>
 
-                        {/* Gender lives on the Eligibility step — it is part of
-                            "who can attend", not a basic. */}
-                        <div className={styles.fieldRow}>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Experience Level</label>
-                                <select className={styles.fieldSelect} value={experienceLevel} onChange={e => setExperienceLevel(e.target.value)} disabled={isSubmitting}>
-                                    <option value="">— Any —</option>
-                                    <option value="beginner">Beginner</option>
-                                    <option value="district">District</option>
-                                    <option value="state">State</option>
-                                    <option value="national">National</option>
-                                    <option value="international">International</option>
-                                </select>
-                            </div>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Visibility</label>
-                                <select className={styles.fieldSelect} value={visibility} onChange={e => setVisibility(e.target.value as RecruitmentVisibility)} disabled={isSubmitting}>
-                                    <option value="public">Public</option>
-                                    <option value="followers_only">Followers Only</option>
-                                    <option value="private">Private</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className={styles.fieldRow}>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Trial / Event Date <span className={styles.required}>*</span></label>
-                                <DateTimeField value={eventDate} onChange={v => { setEventDate(v); clearFieldError("event_date") }} disabled={isSubmitting} />
-                                {renderFieldError("event_date")}
-                            </div>
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Application Deadline <span className={styles.optionalTag}>Optional</span></label>
-                                <DateTimeField value={applicationDeadline} onChange={v => { setApplicationDeadline(v); clearFieldError("application_deadline") }} disabled={isSubmitting} />
-                                {renderFieldError("application_deadline")}
-                            </div>
-                        </div>
-
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Max Applications</label>
-                            <input className={styles.fieldInput} type="number" min={1} placeholder="e.g. 300 (leave blank for unlimited)" value={maxApplications} onChange={e => setMaxApplications(e.target.value)} disabled={isSubmitting} />
-                        </div>
+            <div className={styles.fieldGroup} data-field="title">
+                <label className={styles.fieldLabel}>Title <span className={styles.required}>*</span></label>
+                <input className={`${styles.fieldInput} ${fieldErrors.title ? styles.fieldInputInvalid : ""}`} placeholder="e.g. U17 Open Football Trials" value={title} onChange={e => { setTitle(e.target.value); clearFieldError("title") }} onBlur={() => touchField("title")} maxLength={120} disabled={isSubmitting} aria-invalid={!!fieldErrors.title} />
+                {suggestedTitle && suggestedTitle !== title.trim() && (
+                    <div className={styles.chipRow}>
+                        <button
+                            type="button"
+                            className={styles.insertChip}
+                            onClick={() => { setTitle(suggestedTitle); clearFieldError("title") }}
+                            disabled={isSubmitting}
+                        >
+                            <Icon icon="mdi:auto-fix" width={13} height={13} />
+                            {suggestedTitle}
+                        </button>
                     </div>
-                )
+                )}
+                <span className={styles.fieldHint}>{title.length}/120</span>
+                {renderFieldError("title")}
+            </div>
 
-            // ── Step 1: Eligibility + Venue ───────────────────────────
-            case 1:
-                return (
-                    <div className={styles.stepContent}>
-                        {/* Eligibility — who can attend. Displayed on the
-                            listing exactly as written; Goatza never checks a
-                            player against it. */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Eligibility</label>
-                            <p className={styles.fieldSubLabel}>
-                                Tell players who this trial is for. It&rsquo;s shown on the listing —
-                                you verify it at the venue.
-                            </p>
-                        </div>
+            <div className={styles.fieldGroup} data-field="short_description">
+                <label className={styles.fieldLabel}>Card tagline <span className={styles.optionalTag}>Optional</span></label>
+                <p className={styles.fieldSubLabel}>One line under the title on the card — not a paragraph.</p>
+                <input className={`${styles.fieldInput} ${fieldErrors.short_description ? styles.fieldInputInvalid : ""}`} placeholder="e.g. Two-day selection for the U17 academy squad" value={shortDesc} onChange={e => { setShortDesc(e.target.value); clearFieldError("short_description") }} onBlur={() => touchField("short_description")} maxLength={200} disabled={isSubmitting} aria-invalid={!!fieldErrors.short_description} />
+                <span className={styles.fieldHint}>{shortDesc.length}/200</span>
+                {renderFieldError("short_description")}
+            </div>
 
-                        {/* Age policy */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabelMuted}>Age</label>
-                            <AgeCategoryBuilder
-                                categories={ageCategories}
-                                onChange={setAgeCategories}
+        </div>
+    )
+
+    // ── 2. When & where ───────────────────────────────────────────
+    const renderWhenWhere = () => (
+        <div className={styles.stepContent}>
+            {stepIntro("when_where")}
+
+            <div className={styles.fieldRow}>
+                <div className={styles.fieldGroup} data-field="event_date">
+                    <label className={styles.fieldLabel}>{typeCfg.dateLabel} <span className={styles.required}>*</span></label>
+                    <div className={styles.chipRow} role="group" aria-label="Date presets">
+                        {[
+                            { label: "This Saturday", value: upcomingWeekday(6) },
+                            { label: "Next Sunday", value: upcomingWeekday(0, 1) },
+                        ].map(pr => (
+                            <button
+                                key={pr.label}
+                                type="button"
+                                className={`${styles.choiceChip} ${eventDate.slice(0, 10) === pr.value ? styles.choiceChipActive : ""}`}
+                                onClick={() => { setEventDate(pr.value); clearFieldError("event_date") }}
                                 disabled={isSubmitting}
-                                allAges={allAges}
-                                onAllAgesChange={setAllAges}
-                            />
-                        </div>
-
-                        {/* Gender */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabelMuted}>Gender</label>
-                            <select className={styles.fieldSelect} value={gender} onChange={e => setGender(e.target.value as RecruitmentGender)} disabled={isSubmitting}>
-                                <option value="all">Open to all</option>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                            </select>
-                        </div>
-
-                        {/* Other criteria */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabelMuted}>
-                                Other criteria <span className={styles.optionalTag}>Optional</span>
-                            </label>
-                            <p className={styles.fieldSubLabel}>
-                                Anything else that decides who can turn up — residency, experience, paperwork.
-                            </p>
-                            <EligibilityCriteriaBuilder
-                                criteria={eligibilityCriteria}
-                                onChange={setEligibilityCriteria}
-                                disabled={isSubmitting}
-                            />
-                        </div>
-
-                        <div className={styles.sectionDivider} />
-
-                        {/* Location */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>City / Location</label>
-                            {location ? (
-                                <div className={styles.locationPill}>
-                                    <Icon icon="mdi:map-marker" width={15} height={15} />
-                                    <div className={styles.locationPillText}>
-                                        <span className={styles.locationPillName}>{location.name}</span>
-                                        <span className={styles.locationPillSub}>{[location.state, location.country_code].filter(Boolean).join(", ")}</span>
-                                    </div>
-                                    <button className={styles.locationPillRemove} onClick={() => setLocation(null)} type="button">
-                                        <Icon icon="mdi:close" width={13} height={13} />
-                                    </button>
-                                </div>
-                            ) : (
+                            >
+                                {pr.label}
+                            </button>
+                        ))}
+                        <button
+                            type="button"
+                            className={styles.choiceChip}
+                            onClick={() => {
+                                const el = eventDateRef.current
+                                if (!el) return
+                                el.focus()
+                                if (typeof el.showPicker === "function") { try { el.showPicker() } catch { /* needs a user gesture on some engines */ } }
+                            }}
+                            disabled={isSubmitting}
+                        >
+                            <Icon icon="mdi:calendar-outline" width={13} height={13} />
+                            Pick a date
+                        </button>
+                    </div>
+                    <DateTimeField value={eventDate} onChange={v => { setEventDate(v); clearFieldError("event_date") }} onBlur={() => touchField("event_date")} disabled={isSubmitting} dateRef={eventDateRef} invalid={!!fieldErrors.event_date} />
+                    {renderFieldError("event_date")}
+                </div>
+                <div className={styles.fieldGroup} data-field="application_deadline">
+                    <label className={styles.fieldLabel}>{typeCfg.deadlineLabel} <span className={styles.optionalTag}>Optional</span></label>
+                    {/* Relative to the event: that is how a recruiter thinks
+                        about it, and it cannot land after the event. */}
+                    <div className={styles.chipRow} role="group" aria-label="Deadline presets">
+                        {DEADLINE_PRESETS.map(pr => {
+                            const v = eventDate ? daysBefore(eventDate, pr.days) : ""
+                            return (
                                 <button
-                                    className={`${styles.locationPickerBtn} ${locationOpen ? styles.locationPickerBtnActive : ""}`}
-                                    onClick={() => setLocationOpen(v => !v)}
+                                    key={pr.label}
                                     type="button"
+                                    className={`${styles.choiceChip} ${v && applicationDeadline === v ? styles.choiceChipActive : ""}`}
+                                    onClick={() => { setApplicationDeadline(v); clearFieldError("application_deadline") }}
+                                    disabled={isSubmitting || !eventDate}
+                                    title={eventDate ? undefined : `Set the ${typeCfg.dateLabel.toLowerCase()} first`}
                                 >
-                                    <Icon icon="mdi:map-search-outline" width={16} height={16} />
-                                    Search city or area…
+                                    {pr.label}
                                 </button>
-                            )}
-                            {/* Full-screen search, portalled above this modal.
-                                It closes itself on pick; the pill above keeps
-                                its own remove. */}
-                            {locationOpen && (
-                                <PostLocationPicker
-                                    value={location}
-                                    onChange={setLocation}
-                                    onClose={() => setLocationOpen(false)}
-                                    disabled={isSubmitting}
-                                    bias={placeBias}
-                                />
-                            )}
-                        </div>
-
-                        {/* Venue details */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Venue Name</label>
-                            <input
-                                className={styles.fieldInput}
-                                placeholder="e.g. Kannur Municipal Stadium"
-                                value={venueName}
-                                onChange={e => setVenueName(e.target.value)}
-                                maxLength={200}
-                                disabled={isSubmitting}
-                            />
-                        </div>
-
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>
-                                Venue Map Link <span className={styles.optionalTag}>Optional</span>
-                            </label>
-                            <div className={styles.venueMapInputWrap}>
-                                <Icon icon="mdi:map-outline" width={15} height={15} className={styles.venueMapIcon} />
-                                <input
-                                    className={`${styles.fieldInput} ${styles.venueMapInput}`}
-                                    placeholder="Google Maps or any map URL"
-                                    value={venueLink}
-                                    onChange={e => setVenueLink(e.target.value)}
-                                    type="url"
-                                    disabled={isSubmitting}
-                                />
-                            </div>
-                        </div>
+                            )
+                        })}
+                        <button
+                            type="button"
+                            className={`${styles.choiceChip} ${!applicationDeadline ? styles.choiceChipActive : ""}`}
+                            onClick={() => { setApplicationDeadline(""); clearFieldError("application_deadline") }}
+                            disabled={isSubmitting}
+                        >
+                            No deadline
+                        </button>
                     </div>
-                )
+                    <DateTimeField value={applicationDeadline} onChange={v => { setApplicationDeadline(v); clearFieldError("application_deadline") }} onBlur={() => touchField("application_deadline")} disabled={isSubmitting} invalid={!!fieldErrors.application_deadline} />
+                    {renderFieldError("application_deadline")}
+                </div>
+            </div>
 
-            // ── Step 2: Positions, Questions, Benefits, Requirements, Contacts
-            case 2:
-                return (
-                    <div className={styles.stepContent}>
-                        {/* Positions */}
-                        {positions.length > 0 && (
-                            <div className={styles.fieldGroup}>
-                                <label className={styles.fieldLabel}>Positions Needed</label>
-                                <div className={styles.positionGrid}>
-                                    {/* Any chip */}
-                                    <div className={`${styles.positionChip} ${anyPosition ? styles.positionChipSelected : ""}`}>
-                                        <button
-                                            className={styles.positionChipBtn}
-                                            onClick={() => { setAnyPosition(true); setSelectedPositions([]) }}
-                                            type="button"
-                                            disabled={isSubmitting}
-                                        >
-                                            {anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
-                                            Any
-                                        </button>
-                                    </div>
-                                    {positions.map(p => {
-                                        const sel = selectedPositions.find(sp => sp.position_id === p.id)
-                                        return (
-                                            <div key={p.id} className={`${styles.positionChip} ${sel && !anyPosition ? styles.positionChipSelected : ""}`}>
-                                                <button
-                                                    className={styles.positionChipBtn}
-                                                    onClick={() => { setAnyPosition(false); togglePosition(p.id, p.name) }}
-                                                    type="button"
-                                                    disabled={isSubmitting}
-                                                >
-                                                    {sel && !anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
-                                                    {p.name}
-                                                </button>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )}
+            <div className={styles.sectionDivider} />
 
-                        <div className={styles.sectionDivider} />
-
-                        {/* Application Questions */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>
-                                Application Questions
-                                <span className={styles.fieldLabelMuted}> — optional</span>
-                            </label>
-                            <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
-                            <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
+            {/* Location */}
+            <div className={styles.fieldGroup} data-field="location">
+                <label className={styles.fieldLabel}>City / Location</label>
+                <p className={styles.fieldSubLabel}>Players nearby find this listing by its location. Without one it only shows up in search.</p>
+                {location ? (
+                    <div className={styles.locationPill}>
+                        <Icon icon="mdi:map-marker" width={15} height={15} />
+                        <div className={styles.locationPillText}>
+                            <span className={styles.locationPillName}>{location.name}</span>
+                            <span className={styles.locationPillSub}>{[location.state, location.country_code].filter(Boolean).join(", ")}</span>
                         </div>
+                        <button className={styles.locationPillRemove} onClick={() => setLocation(null)} type="button">
+                            <Icon icon="mdi:close" width={13} height={13} />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        className={`${styles.locationPickerBtn} ${locationOpen ? styles.locationPickerBtnActive : ""}`}
+                        onClick={() => setLocationOpen(v => !v)}
+                        type="button"
+                    >
+                        <Icon icon="mdi:map-search-outline" width={16} height={16} />
+                        Search city or area…
+                    </button>
+                )}
+                {renderFieldError("location")}
+                {/* Full-screen search, portalled above this modal.
+                    It closes itself on pick; the pill above keeps
+                    its own remove. */}
+                {locationOpen && (
+                    <PostLocationPicker
+                        value={location}
+                        onChange={pickLocation}
+                        onClose={() => setLocationOpen(false)}
+                        disabled={isSubmitting}
+                        bias={placeBias}
+                    />
+                )}
+            </div>
 
-                        <div className={styles.sectionDivider} />
+            {/* Venue details */}
+            <div className={styles.fieldGroup} data-field="venue_name">
+                <label className={styles.fieldLabel}>Venue Name <span className={styles.optionalTag}>Optional</span></label>
+                <input
+                    className={styles.fieldInput}
+                    placeholder="e.g. Kannur Municipal Stadium"
+                    value={venueName}
+                    onChange={e => { setVenueName(e.target.value); clearFieldError("venue_name") }}
+                    maxLength={200}
+                    disabled={isSubmitting}
+                />
+                {renderFieldError("venue_name")}
+            </div>
 
-                        {/* Benefits */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>
-                                Benefits
-                                <span className={styles.fieldLabelMuted}> — what selected players get</span>
-                            </label>
-                            <BenefitsBuilder benefits={benefits} onChange={setBenefits} disabled={isSubmitting} />
+            <div className={styles.fieldGroup} data-field="venue_link">
+                <label className={styles.fieldLabel}>
+                    Venue Map Link <span className={styles.optionalTag}>Optional</span>
+                </label>
+                <div className={styles.venueMapInputWrap}>
+                    <Icon icon="mdi:map-outline" width={15} height={15} className={styles.venueMapIcon} />
+                    <input
+                        className={`${styles.fieldInput} ${styles.venueMapInput} ${fieldErrors.venue_link ? styles.fieldInputInvalid : ""}`}
+                        placeholder="Google Maps or any map URL"
+                        value={venueLink}
+                        onChange={e => { setVenueLink(e.target.value); clearFieldError("venue_link") }}
+                        onBlur={() => touchField("venue_link")}
+                        aria-invalid={!!fieldErrors.venue_link}
+                        type="url"
+                        disabled={isSubmitting}
+                    />
+                </div>
+                {renderFieldError("venue_link")}
+            </div>
+
+            {!hidden("requirements") && (
+                <>
+                    <div className={styles.sectionDivider} />
+
+                    {/* What to bring on the day. Sits with the venue because
+                        that is when it matters. */}
+                    <div className={styles.fieldGroup} data-field="requirements">
+                        <label className={styles.fieldLabel}>
+                            What to bring <span className={styles.optionalTag}>Optional</span>
+                        </label>
+                        <p className={styles.fieldSubLabel}>Documents, kit, certificates — tap the asterisk to make one optional.</p>
+                        <RequirementsBuilder requirements={requirements} onChange={setRequirements} disabled={isSubmitting} />
+                        {renderFieldError("requirements")}
+                    </div>
+                </>
+            )}
+        </div>
+    )
+
+    // ── 3. Who can come ───────────────────────────────────────────
+    const renderWho = () => (
+        <div className={styles.stepContent}>
+            {stepIntro("who")}
+
+            {/* Age policy */}
+            <div className={styles.fieldGroup} data-field="age_categories">
+                <label className={styles.fieldLabelMuted}>Age</label>
+                <AgeCategoryBuilder
+                    categories={ageCategories}
+                    onChange={setAgeCategories}
+                    disabled={isSubmitting}
+                    allAges={allAges}
+                    onAllAgesChange={setAllAges}
+                />
+                {renderFieldError("age_categories")}
+            </div>
+
+            {/* Gender — three chips, one tap */}
+            <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabelMuted}>Gender</label>
+                <ChoiceChips
+                    ariaLabel="Gender"
+                    value={gender}
+                    onChange={v => setGender(v as RecruitmentGender)}
+                    disabled={isSubmitting}
+                    options={[
+                        { value: "all", label: "Open to all", icon: "mdi:gender-male-female" },
+                        { value: "male", label: "Male", icon: "mdi:gender-male" },
+                        { value: "female", label: "Female", icon: "mdi:gender-female" },
+                    ]}
+                />
+            </div>
+
+            {/* Positions — or why there are none to pick */}
+            {!hidden("positions") && positions.length === 0 && (
+                <div className={styles.fieldGroup}>
+                    <label className={styles.fieldLabelMuted}>Positions Needed</label>
+                    <p className={styles.emptyHint}>
+                        <Icon icon="mdi:information-outline" width={13} height={13} />
+                        {sportName
+                            ? `${sportName} doesn't have positions on Goatza yet — everyone applies to the same pool.`
+                            : "Pick a sport on the Basics step to choose positions."}
+                    </p>
+                </div>
+            )}
+            {!hidden("positions") && positions.length > 0 && (
+                <div className={styles.fieldGroup} data-field="positions">
+                    <label className={styles.fieldLabelMuted}>Positions Needed</label>
+                    <div className={styles.positionGrid}>
+                        {/* Any chip */}
+                        <div className={`${styles.positionChip} ${anyPosition ? styles.positionChipSelected : ""}`}>
+                            <button
+                                className={styles.positionChipBtn}
+                                onClick={() => { setAnyPosition(true); setSelectedPositions([]) }}
+                                type="button"
+                                disabled={isSubmitting}
+                            >
+                                {anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
+                                Any
+                            </button>
                         </div>
-
-                        <div className={styles.sectionDivider} />
-
-                        {/* Requirements */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>
-                                Requirements
-                                <span className={styles.fieldLabelMuted}> — what players must bring</span>
-                            </label>
-                            <RequirementsBuilder requirements={requirements} onChange={setRequirements} disabled={isSubmitting} />
-                        </div>
-
-                        <div className={styles.sectionDivider} />
-
-                        {/* How players apply */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>How players apply</label>
-                            <div className={styles.applyMethodRow}>
-                                {APPLY_METHODS.map(m => (
+                        {positions.map(p => {
+                            const sel = selectedPositions.find(sp => sp.position_id === p.id)
+                            return (
+                                <div key={p.id} className={`${styles.positionChip} ${sel && !anyPosition ? styles.positionChipSelected : ""}`}>
                                     <button
-                                        key={m.value}
+                                        className={styles.positionChipBtn}
+                                        onClick={() => { setAnyPosition(false); togglePosition(p.id, p.name) }}
                                         type="button"
-                                        className={`${styles.applyMethodChip} ${applyMethod === m.value ? styles.applyMethodChipActive : ""}`}
-                                        onClick={() => { setApplyMethod(m.value); clearFieldError("external_apply_url") }}
                                         disabled={isSubmitting}
                                     >
-                                        <Icon icon={m.icon} width={16} height={16} />
-                                        {m.label}
+                                        {sel && !anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
+                                        {p.name}
                                     </button>
-                                ))}
-                            </div>
-
-                            <div className={styles.applyMethodDesc}>
-                                <Icon icon="mdi:information-outline" width={15} height={15} className={styles.applyMethodDescIcon} />
-                                <p>{APPLY_METHOD_DESC[applyMethod]}</p>
-                            </div>
-
-                            {applyMethod === "external" && (
-                                <div className={styles.applyMethodDetail}>
-                                    <input
-                                        className={styles.fieldInput}
-                                        placeholder="https://yourclub.com/apply"
-                                        value={externalApplyUrl}
-                                        onChange={e => { setExternalApplyUrl(e.target.value); clearFieldError("external_apply_url") }}
-                                        type="url"
-                                        disabled={isSubmitting}
-                                    />
-                                    {renderFieldError("external_apply_url")}
                                 </div>
-                            )}
-                        </div>
-
-                        <div className={styles.sectionDivider} />
-
-                        {/* Contacts */}
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>
-                                Contact Info
-                                <span className={styles.fieldLabelMuted}>
-                                    {applyMethod === "contact" ? " — required" : " — optional"}
-                                </span>
-                            </label>
-                            <ContactsBuilder contacts={contacts} onChange={setContacts} disabled={isSubmitting} />
-                            {renderFieldError("contacts")}
-                        </div>
+                            )
+                        })}
                     </div>
-                )
+                    {renderFieldError("positions")}
+                </div>
+            )}
 
-            // ── Step 3: Media + Payment ───────────────────────────────
-            case 3:
-                return (
-                    <div className={styles.stepContent}>
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>Banner / Photos</label>
-                            <p className={styles.fieldSubLabel}>Up to 5 photos. Photos display in 4:5 portrait — anything wider is centred and cropped to fit. Tap Adjust to reframe each one, or switch the whole set to square.</p>
-                            <MediaPreview entries={mediaEntries} onRemove={removeMedia} onCropEntry={cropMedia} disabled={isSubmitting} />
-                            {renderFieldError("media")}
-                            {mediaEntries.length < 5 && (
-                                <button className={styles.mediaAddBtn} onClick={() => fileInputRef.current?.click()} type="button" disabled={isSubmitting}>
-                                    <Icon icon="mdi:image-plus-outline" width={18} height={18} />
-                                    {mediaEntries.length === 0 ? "Add Photos" : `Add More (${mediaEntries.length}/5)`}
+            {/* Who can attend — free-text lines */}
+            <div className={styles.fieldGroup} data-field="eligibility_criteria">
+                <label className={styles.fieldLabelMuted}>
+                    Who can attend <span className={styles.optionalTag}>Optional</span>
+                </label>
+                <p className={styles.fieldSubLabel}>
+                    Anything else that decides who can turn up — experience, residency, paperwork.
+                </p>
+                <EligibilityCriteriaBuilder
+                    criteria={eligibilityCriteria}
+                    onChange={setEligibilityCriteria}
+                    disabled={isSubmitting}
+                />
+                {renderFieldError("eligibility_criteria")}
+            </div>
+        </div>
+    )
+
+    // ── 4. The pitch ──────────────────────────────────────────────
+    const renderPitch = () => (
+        <div className={styles.stepContent}>
+            {stepIntro("pitch")}
+
+            <div className={styles.fieldGroup} data-field="media">
+                <label className={styles.fieldLabel}>Banner / Photos</label>
+                <p className={styles.fieldSubLabel}>Up to 5 photos, shown in 4:5 portrait — anything wider is centred and cropped to fit. Tap Adjust to reframe one.</p>
+                <MediaPreview entries={mediaEntries} onRemove={removeMedia} onCropEntry={cropMedia} disabled={isSubmitting} />
+                {renderFieldError("media")}
+                {mediaEntries.length < 5 && (
+                    <button className={styles.mediaAddBtn} onClick={() => fileInputRef.current?.click()} type="button" disabled={isSubmitting}>
+                        <Icon icon="mdi:image-plus-outline" width={18} height={18} />
+                        {mediaEntries.length === 0 ? "Add Photos" : `Add More (${mediaEntries.length}/5)`}
+                    </button>
+                )}
+            </div>
+
+            <div className={styles.sectionDivider} />
+
+            <div className={styles.fieldGroup} data-field="description">
+                <label className={styles.fieldLabel}>Full Description <span className={styles.optionalTag}>Optional</span></label>
+                {/* Headings on tap instead of a placeholder that lists them:
+                    the placeholder vanished on the first keystroke, and the
+                    three lines are what a good description is built from. */}
+                <div className={styles.chipRow} role="group" aria-label="Insert a heading">
+                    {DESCRIPTION_HEADINGS.map(h => (
+                        <button
+                            key={h}
+                            type="button"
+                            className={styles.insertChip}
+                            onClick={() => insertHeading(h)}
+                            disabled={isSubmitting || description.includes(h)}
+                        >
+                            <Icon icon="mdi:plus" width={12} height={12} />
+                            {h}
+                        </button>
+                    ))}
+                </div>
+                <textarea
+                    ref={descriptionRef}
+                    className={styles.fieldTextarea}
+                    placeholder="Tell players the full story…"
+                    value={description}
+                    onChange={e => { setDescription(e.target.value); clearFieldError("description") }}
+                    rows={5}
+                    maxLength={3000}
+                    disabled={isSubmitting}
+                />
+                <span className={styles.fieldHint}>{description.length}/3000</span>
+                {renderFieldError("description")}
+            </div>
+
+            <div className={styles.sectionDivider} />
+
+            {/* Benefits */}
+            <div className={styles.fieldGroup} data-field="benefits">
+                <label className={styles.fieldLabel}>
+                    Benefits
+                    <span className={styles.fieldLabelMuted}> — what selected players get</span>
+                </label>
+                <BenefitsBuilder benefits={benefits} onChange={setBenefits} disabled={isSubmitting} />
+                {renderFieldError("benefits")}
+            </div>
+        </div>
+    )
+
+    // ── 5. How they apply ─────────────────────────────────────────
+    const renderApply = () => (
+        <div className={styles.stepContent}>
+            {stepIntro("apply")}
+
+            {/* How players apply */}
+            <div className={styles.fieldGroup} data-field="external_apply_url">
+                <label className={styles.fieldLabel}>How players apply</label>
+                <div className={styles.applyMethodRow}>
+                    {APPLY_METHODS.map(m => (
+                        <button
+                            key={m.value}
+                            type="button"
+                            className={`${styles.applyMethodChip} ${applyMethod === m.value ? styles.applyMethodChipActive : ""}`}
+                            onClick={() => { setApplyMethod(m.value); clearFieldError("external_apply_url") }}
+                            disabled={isSubmitting}
+                        >
+                            <Icon icon={m.icon} width={16} height={16} />
+                            {m.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className={styles.applyMethodDesc}>
+                    <Icon icon="mdi:information-outline" width={15} height={15} className={styles.applyMethodDescIcon} />
+                    <p>{APPLY_METHOD_DESC[applyMethod]}</p>
+                </div>
+
+                {applyMethod === "external" && (
+                    <div className={styles.applyMethodDetail}>
+                        <input
+                            className={`${styles.fieldInput} ${fieldErrors.external_apply_url ? styles.fieldInputInvalid : ""}`}
+                            placeholder="https://yourclub.com/apply"
+                            value={externalApplyUrl}
+                            onChange={e => { setExternalApplyUrl(e.target.value); clearFieldError("external_apply_url") }}
+                            onBlur={() => touchField("external_apply_url")}
+                            aria-invalid={!!fieldErrors.external_apply_url}
+                            type="url"
+                            disabled={isSubmitting}
+                        />
+                        {renderFieldError("external_apply_url")}
+                    </div>
+                )}
+            </div>
+
+            <div className={styles.sectionDivider} />
+
+            {/* Application Questions */}
+            <div className={styles.fieldGroup} data-field="questions">
+                <label className={styles.fieldLabel}>
+                    Application Questions
+                    <span className={styles.fieldLabelMuted}> — optional</span>
+                </label>
+                <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
+                <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
+                {renderFieldError("questions")}
+            </div>
+
+            <div className={styles.sectionDivider} />
+
+            {/* Contacts */}
+            <div className={styles.fieldGroup} data-field="contacts">
+                <label className={styles.fieldLabel}>
+                    Contact Info
+                    <span className={styles.fieldLabelMuted}>
+                        {applyMethod === "contact" ? " — required" : " — optional"}
+                    </span>
+                </label>
+                <ContactsBuilder contacts={contacts} onChange={setContacts} disabled={isSubmitting} suggestions={savedContacts} />
+                {renderFieldError("contacts")}
+            </div>
+
+            {!hidden("entry_fee") && (
+                <>
+                    <div className={styles.sectionDivider} />
+
+                    <div className={styles.fieldGroup} data-field="fee_amount">
+                        <label className={styles.fieldLabel}>
+                            <span className={styles.toggleRow}>
+                                Entry Fee
+                                <button className={`${styles.toggleBtn} ${isPaid ? styles.toggleBtnOn : ""}`} onClick={() => setIsPaid(v => !v)} type="button" disabled={isSubmitting}>
+                                    <span className={styles.toggleKnob} />
                                 </button>
-                            )}
-                        </div>
+                            </span>
+                        </label>
 
-                        <div className={styles.sectionDivider} />
-
-                        <div className={styles.fieldGroup}>
-                            <label className={styles.fieldLabel}>
-                                <span className={styles.toggleRow}>
-                                    Entry Fee
-                                    <button className={`${styles.toggleBtn} ${isPaid ? styles.toggleBtnOn : ""}`} onClick={() => setIsPaid(v => !v)} type="button" disabled={isSubmitting}>
-                                        <span className={styles.toggleKnob} />
-                                    </button>
-                                </span>
-                            </label>
-
-                            {isPaid && (
-                                <>
-                                    <div className={styles.paymentDisclaimer}>
-                                        <Icon icon="mdi:information-outline" width={15} height={15} className={styles.paymentDisclaimerIcon} />
-                                        <div>
-                                            <strong>Goatza does not manage payments.</strong>
-                                            <p>Fee info is shown to applicants only. Collect payment directly from participants.</p>
-                                        </div>
+                        {isPaid && (
+                            <>
+                                <div className={styles.paymentDisclaimer}>
+                                    <Icon icon="mdi:information-outline" width={15} height={15} className={styles.paymentDisclaimerIcon} />
+                                    <div>
+                                        <strong>Goatza does not manage payments.</strong>
+                                        <p>Fee info is shown to applicants only. Collect payment directly from participants.</p>
                                     </div>
-                                    <div className={styles.fieldRow}>
-                                        <div className={styles.fieldGroup} style={{ flex: "0 0 90px" }}>
-                                            <label className={styles.fieldLabel}>Currency</label>
-                                            <select className={styles.fieldSelect} value={feeCurrency} onChange={e => setFeeCurrency(e.target.value)} disabled={isSubmitting}>
-                                                <option value="INR">INR</option>
-                                                <option value="USD">USD</option>
-                                                <option value="EUR">EUR</option>
-                                                <option value="GBP">GBP</option>
-                                            </select>
-                                        </div>
-                                        <div className={styles.fieldGroup}>
-                                            <label className={styles.fieldLabel}>Amount <span className={styles.required}>*</span></label>
-                                            <input className={styles.fieldInput} type="number" min={0} step="0.01" placeholder="e.g. 300" value={feeAmount} onChange={e => { setFeeAmount(e.target.value); clearFieldError("fee_amount") }} disabled={isSubmitting} />
-                                            {renderFieldError("fee_amount")}
-                                        </div>
+                                </div>
+                                <div className={styles.fieldRow}>
+                                    <div className={styles.fieldGroup} style={{ flex: "0 0 90px" }}>
+                                        <label className={styles.fieldLabel}>Currency</label>
+                                        <Select
+                                            size="sm"
+                                            searchable={false}
+                                            aria-label="Currency"
+                                            sheetTitle="Currency"
+                                            value={feeCurrency}
+                                            onChange={setFeeCurrency}
+                                            disabled={isSubmitting}
+                                            options={[
+                                                { value: "INR", label: "INR" },
+                                                { value: "USD", label: "USD" },
+                                                { value: "EUR", label: "EUR" },
+                                                { value: "GBP", label: "GBP" },
+                                            ]}
+                                        />
                                     </div>
                                     <div className={styles.fieldGroup}>
-                                        <label className={styles.fieldLabel}>Payment Note</label>
-                                        <input className={styles.fieldInput} placeholder="e.g. Payment collected on event day" value={paymentNote} onChange={e => setPaymentNote(e.target.value)} maxLength={300} disabled={isSubmitting} />
+                                        <label className={styles.fieldLabel}>Amount <span className={styles.required}>*</span></label>
+                                        <input className={`${styles.fieldInput} ${fieldErrors.fee_amount ? styles.fieldInputInvalid : ""}`} type="number" min={0} step="0.01" placeholder="e.g. 300" value={feeAmount} onChange={e => { setFeeAmount(e.target.value); clearFieldError("fee_amount") }} onBlur={() => touchField("fee_amount")} disabled={isSubmitting} aria-invalid={!!fieldErrors.fee_amount} />
+                                        {renderFieldError("fee_amount")}
                                     </div>
-                                </>
-                            )}
-                        </div>
+                                </div>
+                                <div className={styles.fieldGroup}>
+                                    <label className={styles.fieldLabel}>Payment Note</label>
+                                    <input className={styles.fieldInput} placeholder="e.g. Payment collected on event day" value={paymentNote} onChange={e => setPaymentNote(e.target.value)} maxLength={300} disabled={isSubmitting} />
+                                </div>
+                            </>
+                        )}
                     </div>
-                )
+                </>
+            )}
 
-            // ── Step 4: Review ────────────────────────────────────────
-            case 4:
-                return (
-                    <div className={styles.stepContent}>
-                        <div className={styles.reviewHeader}>
-                            <Icon icon="mdi:clipboard-check-outline" width={20} height={20} />
-                            <span>{isEdit ? "Review your changes" : "Review before publishing"}</span>
-                        </div>
+            <div className={styles.sectionDivider} />
 
-                        <div className={styles.reviewSection}>
-                            <p className={styles.reviewSectionTitle}>Basics</p>
-                            <ReviewRow icon="mdi:format-title" label="Title" value={title} />
-                            <ReviewRow icon="mdi:text-short" label="Short Desc." value={shortDesc} />
-                            <ReviewRow icon="mdi:soccer" label="Sport" value={sports.find(s => s.id === sportId)?.name} />
-                            <ReviewRow icon="mdi:tag-outline" label="Type" value={recruitmentType.replace(/_/g, " ")} />
-                            <ReviewRow icon="mdi:eye-outline" label="Visibility" value={visibility.replace(/_/g, " ")} />
-                            <ReviewRow icon="mdi:calendar" label="Event Date" value={fmtWizardDate(eventDate)} />
-                            <ReviewRow icon="mdi:calendar-clock" label="Deadline" value={fmtWizardDate(applicationDeadline)} />
-                        </div>
+            <div className={styles.fieldGroup} data-field="max_applications">
+                <label className={styles.fieldLabel}>Max Applications <span className={styles.optionalTag}>Optional</span></label>
+                <input className={`${styles.fieldInput} ${fieldErrors.max_applications ? styles.fieldInputInvalid : ""}`} type="number" min={1} placeholder="e.g. 300 (leave blank for unlimited)" value={maxApplications} onChange={e => { setMaxApplications(e.target.value); clearFieldError("max_applications") }} onBlur={() => touchField("max_applications")} disabled={isSubmitting} aria-invalid={!!fieldErrors.max_applications} />
+                {renderFieldError("max_applications")}
+            </div>
+        </div>
+    )
 
-                        <div className={styles.reviewSection}>
-                            <p className={styles.reviewSectionTitle}>Eligibility</p>
-                            <ReviewRow
-                                icon="mdi:cake-variant-outline"
-                                label="Age"
-                                value={allAges || ageCategories.length === 0
-                                    ? "All ages"
-                                    : `${ageCategories.length} group${ageCategories.length > 1 ? "s" : ""}`}
-                            />
-                            {!allAges && ageCategories.map(c => (
-                                <ReviewRow
-                                    key={c.id}
-                                    icon="mdi:account-group-outline"
-                                    label={c.title || "Untitled group"}
-                                    value={`${formatBirthYears(c.min_birth_year, c.max_birth_year)}${c.showReportingTime && c.reporting_time ? ` · Reporting ${c.reporting_time}` : ""}`}
-                                />
-                            ))}
-                            <ReviewRow
-                                icon="mdi:gender-male-female"
-                                label="Gender"
-                                value={gender === "all" ? "Open" : gender}
-                            />
-                            <ReviewRow
-                                icon="mdi:clipboard-text-outline"
-                                label="Other criteria"
-                                value={eligibilityCriteria.filter(c => c.title.trim()).length > 0
-                                    ? eligibilityCriteria.filter(c => c.title.trim()).map(c => c.title.trim()).join(", ")
-                                    : null}
-                            />
-                        </div>
+    // ── 6. Publish ────────────────────────────────────────────────
+    // The real card and a detail-style block, built from the draft — not a
+    // list of counts. What is still missing is listed under it with a jump
+    // to the step; informational, never blocking.
+    const renderPublish = () => (
+        <div className={styles.stepContent}>
+            <div className={styles.reviewHeader}>
+                <Icon icon="mdi:eye-outline" width={20} height={20} />
+                <span>{isEdit && !isDraftRecord ? "This is what players see" : "This is what players will see"}</span>
+            </div>
 
-                        <div className={styles.reviewSection}>
-                            <p className={styles.reviewSectionTitle}>Venue</p>
-                            <ReviewRow icon="mdi:map-marker-outline" label="City" value={location?.name} />
-                            <ReviewRow icon="mdi:stadium-outline" label="Venue" value={venueName || null} />
-                            <ReviewRow icon="mdi:map-outline" label="Map Link" value={venueLink ? "Added" : null} />
-                        </div>
+            {!isWide && (
+                <RecruitmentPreview
+                    recruitment={previewRecruitment}
+                    dateLabel={typeCfg.dateLabel}
+                    onJump={target => jumpToField(PREVIEW_JUMP_FIELD[target])}
+                />
+            )}
 
-                        <div className={styles.reviewSection}>
-                            <p className={styles.reviewSectionTitle}>Positions & Questions</p>
-                            <ReviewRow icon="mdi:run" label="Positions" value={anyPosition ? "Any" : selectedPositions.map(p => p.name).join(", ")} />
-                            <ReviewRow icon="mdi:send-outline" label="Apply via" value={applyMethod === "goatza" ? "Goatza app" : applyMethod === "external" ? "External link" : "Contact"} />
-                            <ReviewRow icon="mdi:help-circle-outline" label="Questions" value={questions.length > 0 ? `${questions.length} question${questions.length > 1 ? "s" : ""}` : null} />
-                            <ReviewRow icon="mdi:gift-outline" label="Benefits" value={benefits.length > 0 ? `${benefits.length} benefit${benefits.length > 1 ? "s" : ""}` : null} />
-                            <ReviewRow icon="mdi:clipboard-list-outline" label="Requirements" value={requirements.length > 0 ? `${requirements.length} item${requirements.length > 1 ? "s" : ""}` : null} />
-                            <ReviewRow icon="mdi:phone-outline" label="Contacts" value={contacts.length > 0 ? `${contacts.length} contact${contacts.length > 1 ? "s" : ""}` : null} />
-                        </div>
+            {missing.length > 0 && (
+                <div className={styles.missingBox} data-field="missing">
+                    <p className={styles.missingTitle}>
+                        <Icon icon="mdi:progress-check" width={14} height={14} />
+                        Still missing
+                        <span className={styles.fieldLabelMuted}> — optional, but each one helps</span>
+                    </p>
+                    <ul className={styles.missingList}>
+                        {missing.map(m => (
+                            <li key={m.key}>
+                                <button
+                                    type="button"
+                                    className={styles.missingLink}
+                                    onClick={() => jumpToField(MISSING_FIELD[m.key])}
+                                    disabled={isSubmitting}
+                                >
+                                    <span>{m.label}</span>
+                                    <span className={styles.missingJump}>
+                                        {STEP_META[FIELD_STEP_KEY[MISSING_FIELD[m.key]]]?.label}
+                                        <Icon icon="mdi:arrow-right" width={12} height={12} />
+                                    </span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
-                        <div className={styles.reviewSection}>
-                            <p className={styles.reviewSectionTitle}>Media & Payment</p>
-                            <ReviewRow icon="mdi:image-multiple-outline" label="Photos" value={mediaEntries.length > 0 ? `${mediaEntries.length} photo${mediaEntries.length > 1 ? "s" : ""}` : "None"} />
-                            <ReviewRow icon="mdi:currency-inr" label="Entry Fee" value={isPaid ? `${feeCurrency} ${feeAmount}` : "Free"} />
-                        </div>
+            <div className={styles.reviewPublishNote}>
+                <Icon icon="mdi:rocket-launch-outline" width={14} height={14} />
+                {isEdit && !isDraftRecord
+                    ? `Looks good? Save your changes — visibility stays ${VISIBILITY_LABEL[visibility].toLowerCase()} unless you change it below.`
+                    : `Looks good? Publish ${VISIBILITY_ADVERB[visibility]} — or pick who sees it from the arrow next to Publish.`}
+            </div>
+        </div>
+    )
 
-                        <div className={styles.reviewPublishNote}>
-                            <Icon icon="mdi:rocket-launch-outline" width={14} height={14} />
-                            {isEdit ? "Looks good? Save your changes." : "Looks good? Hit Publish to make it live."}
-                        </div>
-                    </div>
-                )
-        }
+    const STEP_RENDER: Record<StepKey, () => React.ReactNode> = {
+        basics: renderBasics,
+        when_where: renderWhenWhere,
+        who: renderWho,
+        pitch: renderPitch,
+        apply: renderApply,
+        publish: renderPublish,
     }
+
+    const renderStep = () => STEP_RENDER[stepKeys[step] ?? "basics"]()
 
     // ── Done state ────────────────────────────────────────────────
     if (phase === "done") {
@@ -2361,7 +2950,7 @@ export default function CreateRecruitmentModal({
                 <div className={styles.modal}>
                     <div className={styles.doneState}>
                         <span className={styles.doneTick}><Icon icon="mdi:check-circle" width={52} height={52} /></span>
-                        <span className={styles.doneLabel}>{isEdit ? "Changes Saved!" : draftSaved ? "Draft Saved!" : "Recruitment Published!"}</span>
+                        <span className={styles.doneLabel}>{draftSaved ? "Draft Saved!" : isEdit && !isDraftRecord ? "Changes Saved!" : "Recruitment Published!"}</span>
                         <p className={styles.doneSubtitle}>{isEdit ? "Updating…" : "Redirecting…"}</p>
                     </div>
                 </div>
@@ -2369,14 +2958,18 @@ export default function CreateRecruitmentModal({
         )
     }
 
+    const onTypeScreen = screen === "type"
+
     return (
         <div
             className={styles.backdrop}
+            ref={backdropRef}
             onClick={e => { if (e.target === e.currentTarget && composing) requestClose() }}
             role="dialog"
             aria-modal="true"
-            aria-label="Create recruitment"
+            aria-label={isEdit ? "Edit recruitment" : "Create recruitment"}
         >
+            <BackGuard key={backEpoch} onBack={handleBackGesture} controlRef={backRef} />
             <div className={styles.modal}>
                 {/* Header */}
                 <div className={styles.header}>
@@ -2384,7 +2977,9 @@ export default function CreateRecruitmentModal({
                         <Avatar src={userAvatarUrl} initials={userInitials} size="sm" />
                         <div>
                             <h2 className={styles.headerTitle}>{isEdit ? "Edit Recruitment" : "Post Recruitment"}</h2>
-                            <span className={styles.headerSub}>{displayName || username}</span>
+                            <span className={styles.headerSub}>
+                                {onTypeScreen ? (displayName || username) : `${typeCfg.label} · ${displayName || username}`}
+                            </span>
                         </div>
                     </div>
                     <button className={styles.closeBtn} onClick={requestClose} disabled={isSubmitting} type="button" aria-label="Close">
@@ -2392,12 +2987,59 @@ export default function CreateRecruitmentModal({
                     </button>
                 </div>
 
-                {/* Step bar */}
-                <StepBar step={step} onStepClick={goToStep} disabled={isSubmitting} />
+                {/* Step bar — not on the type screen, which comes before the steps. */}
+                {!onTypeScreen && (
+                    <StepBar step={step} labels={STEP_LABELS} onStepClick={goToStep} disabled={isSubmitting} />
+                )}
 
-                {/* Body */}
+                {/* Preview strip (narrow only): the card's title + date, one
+                    tap to see the whole thing. Not on the type screen (nothing
+                    to preview yet) and not on Publish (the review IS the
+                    preview there). */}
+                {!isWide && !onTypeScreen && !isLastStep && (
+                    <button
+                        type="button"
+                        className={styles.previewStrip}
+                        onClick={() => setPreviewSheetOpen(v => !v)}
+                        aria-expanded={previewSheetOpen}
+                        aria-controls="recruitment-preview-sheet"
+                    >
+                        {livePreview.media_previews[0] ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- local object URL
+                            <img src={livePreview.media_previews[0]} alt="" className={styles.previewStripThumb} />
+                        ) : (
+                            <span className={styles.previewStripIcon}><Icon icon="mdi:eye-outline" width={16} height={16} /></span>
+                        )}
+                        <span className={styles.previewStripText}>
+                            <span className={styles.previewStripTitle}>{livePreview.title || "Untitled recruitment"}</span>
+                            <span className={styles.previewStripSub}>
+                                {livePreview.event_date
+                                    ? dayjs(livePreview.event_date).format("ddd, D MMM")
+                                    : `No ${typeCfg.dateLabel.toLowerCase()} yet`}
+                                {livePreview.location_name ? ` · ${livePreview.location_name}` : " · No location"}
+                            </span>
+                        </span>
+                        <span className={styles.previewStripCta}>
+                            {previewSheetOpen ? "Close" : "Preview"}
+                            <Icon icon={previewSheetOpen ? "mdi:chevron-down" : "mdi:chevron-up"} width={14} height={14} />
+                        </span>
+                    </button>
+                )}
+
+                {/* Form + (wide) preview column */}
+                <div className={styles.split}>
                 <div className={styles.body} ref={bodyRef}>
-                    {renderStep()}
+                    {onTypeScreen ? (
+                        <TypePicker
+                            onPick={pickType}
+                            onClone={handleClone}
+                            onTemplate={applyTemplate}
+                            past={pastRecruitments}
+                            pastLoading={pastLoading}
+                            cloning={cloning}
+                            disabled={isSubmitting}
+                        />
+                    ) : renderStep()}
 
                     {phase === "uploading" && (
                         <div className={styles.uploadOverlay}>
@@ -2405,7 +3047,7 @@ export default function CreateRecruitmentModal({
                                 <Icon icon="mdi:cloud-upload-outline" width={28} height={28} />
                                 <span>Uploading media…</span>
                                 <div className={styles.uploadBarWrap}>
-                                    <div className={styles.uploadBar} style={{ width: `${mediaEntries.length === 0 ? 100 : Math.round(mediaEntries.reduce((s, e) => s + e.progress, 0) / mediaEntries.length)}%` }} />
+                                    <div className={styles.uploadBar} style={{ width: `${uploadPercent}%` }} />
                                 </div>
                             </div>
                         </div>
@@ -2421,39 +3063,120 @@ export default function CreateRecruitmentModal({
                     )}
                 </div>
 
+                {/* Wide: the preview beside the form, scrolling on its own. */}
+                {isWide && !onTypeScreen && (
+                    <aside className={styles.previewCol} aria-label="Live preview">
+                        <p className={styles.previewColTitle}>
+                            <Icon icon="mdi:eye-outline" width={14} height={14} />
+                            Live preview
+                        </p>
+                        <RecruitmentPreview
+                            recruitment={livePreview}
+                            dateLabel={typeCfg.dateLabel}
+                            onJump={target => jumpToField(PREVIEW_JUMP_FIELD[target])}
+                            compact
+                        />
+                    </aside>
+                )}
+
+                {/* Narrow: the preview as a sheet over the form. */}
+                {!isWide && previewSheetOpen && !onTypeScreen && (
+                    <div className={styles.previewSheet} id="recruitment-preview-sheet" role="region" aria-label="Preview">
+                        <div className={styles.previewSheetHead}>
+                            <span className={styles.previewColTitle}>
+                                <Icon icon="mdi:eye-outline" width={14} height={14} />
+                                Preview
+                            </span>
+                            <button type="button" className={styles.closeBtn} onClick={() => setPreviewSheetOpen(false)} aria-label="Close preview">
+                                <Icon icon="mdi:chevron-down" width={22} height={22} />
+                            </button>
+                        </div>
+                        <div className={styles.previewSheetBody}>
+                            <RecruitmentPreview
+                                recruitment={livePreview}
+                                dateLabel={typeCfg.dateLabel}
+                                onJump={target => { setPreviewSheetOpen(false); jumpToField(PREVIEW_JUMP_FIELD[target]) }}
+                                compact
+                            />
+                        </div>
+                    </div>
+                )}
+                </div>
+
                 {/* Footer */}
                 <div className={styles.footer}>
-                    <button className={styles.backBtn} onClick={step === 0 ? requestClose : goPrev} disabled={isSubmitting} type="button">
-                        {step === 0 ? "Cancel" : <><Icon icon="mdi:chevron-left" width={16} height={16} /> Back</>}
+                    <button className={styles.backBtn} onClick={onFirstScreen ? requestClose : goPrev} disabled={isSubmitting} type="button">
+                        {onFirstScreen ? "Cancel" : <><Icon icon="mdi:chevron-left" width={16} height={16} /> Back</>}
                     </button>
-                    <div className={styles.footerRight}>
-                        <span className={styles.stepCounter}>{step + 1} / {TOTAL_STEPS}</span>
-                        {isLastStep ? (
-                            <>
-                                {!isEdit && (
-                                    <button className={styles.draftBtn} onClick={() => handleSubmit("draft")} disabled={isSubmitting} type="button">
-                                        <Icon icon="mdi:content-save-edit-outline" width={15} height={15} />
-                                        <span className={styles.btnLabelFull}>Save Draft</span>
-                                        <span className={styles.btnLabelShort}>Draft</span>
-                                    </button>
-                                )}
-                                <button
-                                    className={styles.publishBtn}
-                                    onClick={() => (isEdit ? handleSubmit() : handleSubmit("active"))}
-                                    disabled={isSubmitting}
-                                    type="button"
-                                >
-                                    <Icon icon={isEdit ? "mdi:content-save-outline" : "mdi:whistle-outline"} width={15} height={15} />
-                                    <span className={styles.btnLabelFull}>{isEdit ? "Save Changes" : "Publish"}</span>
-                                    <span className={styles.btnLabelShort}>{isEdit ? "Save" : "Submit"}</span>
+                    {!onTypeScreen && (
+                        <div className={styles.footerRight}>
+                            <span className={styles.stepCounter}>{step + 1} / {TOTAL_STEPS}</span>
+                            {/* Save Draft from ANY step: a half-written trial is
+                                worth keeping, and a draft is where you come back
+                                to finish it. */}
+                            {canSaveDraft && (
+                                <button className={styles.draftBtn} onClick={() => handleSubmit("draft")} disabled={isSubmitting} type="button">
+                                    <Icon icon="mdi:content-save-edit-outline" width={15} height={15} />
+                                    <span className={styles.btnLabelFull}>Save Draft</span>
+                                    <span className={styles.btnLabelShort}>Draft</span>
                                 </button>
-                            </>
-                        ) : (
-                            <button className={styles.nextBtn} onClick={goNext} disabled={isSubmitting} type="button">
-                                Next <Icon icon="mdi:chevron-right" width={16} height={16} />
-                            </button>
-                        )}
-                    </div>
+                            )}
+                            {isLastStep ? (
+                                <div className={styles.publishSplit} ref={publishMenuRef}>
+                                    <button
+                                        className={`${styles.publishBtn} ${styles.publishMain}`}
+                                        onClick={() => (isEdit && !isDraftRecord ? handleSubmit() : handleSubmit("active"))}
+                                        disabled={isSubmitting}
+                                        type="button"
+                                    >
+                                        <Icon icon={isEdit && !isDraftRecord ? "mdi:content-save-outline" : "mdi:whistle-outline"} width={15} height={15} />
+                                        <span className={styles.btnLabelFull}>
+                                            {isEdit && !isDraftRecord ? "Save Changes" : `Publish ${VISIBILITY_ADVERB[visibility]}`}
+                                        </span>
+                                        <span className={styles.btnLabelShort}>{isEdit && !isDraftRecord ? "Save" : "Publish"}</span>
+                                    </button>
+                                    {/* Visibility rides on the publish button: it is a
+                                        publishing decision, not a "basic". */}
+                                    <button
+                                        className={`${styles.publishBtn} ${styles.publishCaret}`}
+                                        onClick={() => setPublishMenuOpen(v => !v)}
+                                        disabled={isSubmitting}
+                                        type="button"
+                                        aria-haspopup="menu"
+                                        aria-expanded={publishMenuOpen}
+                                        aria-label={`Visibility: ${VISIBILITY_LABEL[visibility]}`}
+                                    >
+                                        <Icon icon={publishMenuOpen ? "mdi:chevron-down" : "mdi:chevron-up"} width={16} height={16} />
+                                    </button>
+                                    {publishMenuOpen && (
+                                        <div className={styles.publishMenu} role="menu" aria-label="Who can see this" data-field="visibility">
+                                            {VISIBILITY_OPTIONS.map(o => (
+                                                <button
+                                                    key={o.value}
+                                                    type="button"
+                                                    role="menuitemradio"
+                                                    aria-checked={visibility === o.value}
+                                                    className={`${styles.publishMenuItem} ${visibility === o.value ? styles.publishMenuItemActive : ""}`}
+                                                    onClick={() => { setVisibility(o.value); clearFieldError("visibility"); setPublishMenuOpen(false) }}
+                                                >
+                                                    <Icon icon={o.icon} width={16} height={16} />
+                                                    <span className={styles.publishMenuText}>
+                                                        <span>{isEdit && !isDraftRecord ? VISIBILITY_LABEL[o.value] : o.label}</span>
+                                                        <span className={styles.publishMenuHint}>{o.hint}</span>
+                                                    </span>
+                                                    {visibility === o.value && <Icon icon="mdi:check" width={14} height={14} />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <button className={styles.nextBtn} onClick={goNext} disabled={isSubmitting} type="button">
+                                    Next <Icon icon="mdi:chevron-right" width={16} height={16} />
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -2480,7 +3203,7 @@ export default function CreateRecruitmentModal({
                             <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmDiscard(false)}>
                                 Keep editing
                             </button>
-                            <button type="button" className={styles.confirmDiscardBtn} onClick={() => { setConfirmDiscard(false); onClose() }}>
+                            <button type="button" className={styles.confirmDiscardBtn} onClick={() => { setConfirmDiscard(false); closeNow() }}>
                                 Discard
                             </button>
                         </div>

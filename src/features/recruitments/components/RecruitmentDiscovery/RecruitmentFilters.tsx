@@ -11,6 +11,7 @@ import {
   EMPTY_DISCOVERY_FILTERS,
   type DiscoveryFilters,
 } from "../../filterOptions"
+import Select from "@/shared/components/ui/Select/Select"
 import styles from "./RecruitmentFilters.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -169,54 +170,53 @@ export default function RecruitmentFilters({
           />
         </label>
 
-        <select
+        <Select
           className={styles.fieldSelect}
+          size="sm"
           value={draft.sport_id}
-          onChange={(e) => onSelectChange({ sport_id: e.target.value })}
+          onChange={(sport_id) => onSelectChange({ sport_id })}
           aria-label="Filter by sport"
-        >
-          <option value="">All sports</option>
-          {sports.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          sheetTitle="Sport"
+          options={[
+            { value: "", label: "All sports" },
+            ...sports.map((s) => ({ value: s.id, label: s.name })),
+          ]}
+        />
 
-        <select
+        <Select
           className={styles.fieldSelect}
+          size="sm"
+          searchable={false}
           value={draft.recruitment_type}
-          onChange={(e) =>
+          onChange={(value) =>
             onSelectChange({
-              recruitment_type: e.target.value as DiscoveryFilters["recruitment_type"],
+              recruitment_type: value as DiscoveryFilters["recruitment_type"],
             })
           }
           aria-label="Filter by recruitment type"
-        >
-          <option value="">All types</option>
-          {RECRUITMENT_TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          sheetTitle="Recruitment type"
+          options={[
+            { value: "", label: "All types" },
+            ...RECRUITMENT_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+          ]}
+        />
 
-        <select
+        <Select
           className={styles.fieldSelect}
+          size="sm"
           value={draft.positionId}
-          onChange={(e) => onSelectChange({ positionId: e.target.value })}
+          onChange={(positionId) => onSelectChange({ positionId })}
           disabled={!draft.sport_id}
           aria-label="Filter by position"
-        >
-          <option value="">
-            {draft.sport_id ? "Any position" : "Pick a sport first"}
-          </option>
-          {draftPositions.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          sheetTitle="Position"
+          options={[
+            {
+              value: "",
+              label: draft.sport_id ? "Any position" : "Pick a sport first",
+            },
+            ...draftPositions.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+        />
 
         <input
           type="text"
@@ -228,34 +228,34 @@ export default function RecruitmentFilters({
         />
 
         {canFilterByDistance && (
-          <select
+          <Select
             className={styles.fieldSelect}
+            size="sm"
+            searchable={false}
             value={draft.distanceKm}
-            onChange={(e) => onSelectChange({ distanceKm: e.target.value })}
+            onChange={(distanceKm) => onSelectChange({ distanceKm })}
             aria-label="Filter by distance"
-          >
-            <option value="">Any distance</option>
-            {DISTANCE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            sheetTitle="Distance"
+            options={[
+              { value: "", label: "Any distance" },
+              ...DISTANCE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+            ]}
+          />
         )}
 
-        <select
+        <Select
           className={styles.fieldSelect}
+          size="sm"
+          searchable={false}
           value={draft.experience_level}
-          onChange={(e) => onSelectChange({ experience_level: e.target.value })}
+          onChange={(experience_level) => onSelectChange({ experience_level })}
           aria-label="Filter by experience level"
-        >
-          <option value="">Any level</option>
-          {EXPERIENCE_LEVEL_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          sheetTitle="Experience level"
+          options={[
+            { value: "", label: "Any level" },
+            ...EXPERIENCE_LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+          ]}
+        />
 
         <input
           type="number"
@@ -372,65 +372,63 @@ export default function RecruitmentFilters({
                 <label className={styles.sheetLabel} htmlFor="sheet-sport">
                   Sport
                 </label>
-                <select
+                <Select
                   id="sheet-sport"
                   className={styles.fieldSelect}
                   value={sheetDraft.sport_id}
-                  onChange={(e) => patchSheet({ sport_id: e.target.value })}
-                >
-                  <option value="">All sports</option>
-                  {sports.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(sport_id) => patchSheet({ sport_id })}
+                  sheetTitle="Sport"
+                  options={[
+                    { value: "", label: "All sports" },
+                    ...sports.map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                />
               </div>
 
               <div className={styles.sheetField}>
                 <label className={styles.sheetLabel} htmlFor="sheet-position">
                   Position
                 </label>
-                <select
+                <Select
                   id="sheet-position"
                   className={styles.fieldSelect}
                   value={sheetDraft.positionId}
-                  onChange={(e) => patchSheet({ positionId: e.target.value })}
+                  onChange={(positionId) => patchSheet({ positionId })}
                   disabled={!sheetDraft.sport_id}
-                >
-                  <option value="">
-                    {sheetDraft.sport_id ? "Any position" : "Pick a sport first"}
-                  </option>
-                  {sheetPositions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  sheetTitle="Position"
+                  options={[
+                    {
+                      value: "",
+                      label: sheetDraft.sport_id ? "Any position" : "Pick a sport first",
+                    },
+                    ...sheetPositions.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                />
               </div>
 
               <div className={styles.sheetField}>
                 <label className={styles.sheetLabel} htmlFor="sheet-type">
                   Recruitment type
                 </label>
-                <select
+                <Select
                   id="sheet-type"
                   className={styles.fieldSelect}
+                  searchable={false}
                   value={sheetDraft.recruitment_type}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     patchSheet({
-                      recruitment_type:
-                        e.target.value as DiscoveryFilters["recruitment_type"],
+                      recruitment_type: value as DiscoveryFilters["recruitment_type"],
                     })
                   }
-                >
-                  <option value="">All types</option>
-                  {RECRUITMENT_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  sheetTitle="Recruitment type"
+                  options={[
+                    { value: "", label: "All types" },
+                    ...RECRUITMENT_TYPE_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                    })),
+                  ]}
+                />
               </div>
 
               <div className={styles.sheetField}>
@@ -452,19 +450,18 @@ export default function RecruitmentFilters({
                   <label className={styles.sheetLabel} htmlFor="sheet-distance">
                     Distance
                   </label>
-                  <select
+                  <Select
                     id="sheet-distance"
                     className={styles.fieldSelect}
+                    searchable={false}
                     value={sheetDraft.distanceKm}
-                    onChange={(e) => patchSheet({ distanceKm: e.target.value })}
-                  >
-                    <option value="">Any distance</option>
-                    {DISTANCE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(distanceKm) => patchSheet({ distanceKm })}
+                    sheetTitle="Distance"
+                    options={[
+                      { value: "", label: "Any distance" },
+                      ...DISTANCE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+                    ]}
+                  />
                 </div>
               )}
 
@@ -472,19 +469,21 @@ export default function RecruitmentFilters({
                 <label className={styles.sheetLabel} htmlFor="sheet-experience">
                   Experience level
                 </label>
-                <select
+                <Select
                   id="sheet-experience"
                   className={styles.fieldSelect}
+                  searchable={false}
                   value={sheetDraft.experience_level}
-                  onChange={(e) => patchSheet({ experience_level: e.target.value })}
-                >
-                  <option value="">Any level</option>
-                  {EXPERIENCE_LEVEL_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(experience_level) => patchSheet({ experience_level })}
+                  sheetTitle="Experience level"
+                  options={[
+                    { value: "", label: "Any level" },
+                    ...EXPERIENCE_LEVEL_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                    })),
+                  ]}
+                />
               </div>
 
               <div className={styles.sheetField}>

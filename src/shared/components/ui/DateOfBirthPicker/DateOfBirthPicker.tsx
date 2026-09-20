@@ -1,6 +1,7 @@
 "use client"
 
 import { useId, useMemo, useState } from "react"
+import Select from "../Select/Select"
 import styles from "./DateOfBirthPicker.module.css"
 
 const MONTHS = [
@@ -52,7 +53,7 @@ interface DateOfBirthPickerProps {
   /** Emits "YYYY-MM-DD" once all three parts form a valid past date, else null. */
   onChange: (value: string | null) => void
   disabled?: boolean
-  /** Wires the day <select> to an external <label htmlFor>. */
+  /** Wires the Day field's trigger to an external label's htmlFor. */
   id?: string
 }
 
@@ -91,45 +92,45 @@ export default function DateOfBirthPicker({
 
   return (
     <div className={styles.row} role="group" aria-label="Date of birth">
-      <select
+      <Select
         id={baseId}
-        className={styles.select}
-        value={parts.d}
-        disabled={disabled}
-        onChange={(e) => update({ ...parts, d: e.target.value })}
+        size="sm"
         aria-label="Day"
-      >
-        <option value="">Day</option>
-        {days.map((d) => (
-          <option key={d} value={d}>{d}</option>
-        ))}
-      </select>
-
-      <select
-        className={styles.select}
-        value={parts.m}
+        placeholder="Day"
+        // 31 rows at most, all of them one or two characters: a search box
+        // would be a bigger thing to read than the list it filters.
+        searchable={false}
+        sheetTitle="Day"
         disabled={disabled}
-        onChange={(e) => update({ ...parts, m: e.target.value })}
+        value={parts.d}
+        onChange={(d) => update({ ...parts, d })}
+        options={days.map((d) => ({ value: String(d), label: String(d) }))}
+      />
+
+      <Select
+        size="sm"
         aria-label="Month"
-      >
-        <option value="">Month</option>
-        {MONTHS.map((name, i) => (
-          <option key={name} value={i + 1}>{name}</option>
-        ))}
-      </select>
-
-      <select
-        className={styles.select}
-        value={parts.y}
+        placeholder="Month"
+        searchable={false}
+        sheetTitle="Month"
         disabled={disabled}
-        onChange={(e) => update({ ...parts, y: e.target.value })}
+        value={parts.m}
+        onChange={(m) => update({ ...parts, m })}
+        options={MONTHS.map((name, i) => ({ value: String(i + 1), label: name }))}
+      />
+
+      <Select
+        size="sm"
         aria-label="Year"
-      >
-        <option value="">Year</option>
-        {years.map((y) => (
-          <option key={y} value={y}>{y}</option>
-        ))}
-      </select>
+        placeholder="Year"
+        // A hundred-odd years: this is the one of the three that earns the
+        // search box, and it gets it from the auto rule.
+        sheetTitle="Year"
+        disabled={disabled}
+        value={parts.y}
+        onChange={(y) => update({ ...parts, y })}
+        options={years.map((y) => ({ value: String(y), label: String(y) }))}
+      />
     </div>
   )
 }

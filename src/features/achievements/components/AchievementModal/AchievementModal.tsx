@@ -19,7 +19,7 @@
  */
 
 import { useMemo, useState } from "react"
-import { useForm, type Resolver, type SubmitHandler } from "react-hook-form"
+import { Controller, useForm, type Resolver, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
 import { toast } from "sonner"
@@ -36,6 +36,7 @@ import {
 } from "@/features/profile/hooks/useSportsQueries"
 import type { Sport } from "@/features/profile/services/sports.api"
 import Portal from "@/shared/components/ui/Portal/Portal"
+import Select from "@/shared/components/ui/Select/Select"
 import { useAuthStore } from "@/store/auth.store"
 import {
     ACHIEVEMENT_LEVEL_LABELS,
@@ -287,6 +288,7 @@ function AchievementForm({
 
     const {
         register,
+        control,
         handleSubmit,
         watch,
         setValue,
@@ -507,34 +509,45 @@ function AchievementForm({
 
                     <div className={styles.row2}>
                         <Field label="Sport" required error={errors.sport?.message}>
-                            <select
-                                className={styles.selectField}
+                            <Select
                                 value={watchedSport}
-                                onChange={(e) => handleSportChange(e.target.value)}
+                                onChange={handleSportChange}
                                 disabled={saving}
-                            >
-                                <option value="">Select sport</option>
-                                {sports.map((sport) => (
-                                    <option key={sport.id} value={sport.id}>
-                                        {sport.name}
-                                    </option>
-                                ))}
-                            </select>
+                                aria-label="Sport"
+                                sheetTitle="Sport"
+                                placeholder="Select sport"
+                                options={sports.map((sport) => ({
+                                    value: sport.id,
+                                    label: sport.name,
+                                }))}
+                            />
                         </Field>
 
                         <Field label="Level" error={errors.level?.message}>
-                            <select
-                                className={styles.selectField}
-                                {...register("level")}
-                                disabled={saving}
-                            >
-                                <option value="">Not specified</option>
-                                {ACHIEVEMENT_LEVELS.map((level) => (
-                                    <option key={level} value={level}>
-                                        {ACHIEVEMENT_LEVEL_LABELS[level]}
-                                    </option>
-                                ))}
-                            </select>
+                            {/* "" is an answer here ("Not specified"), not a
+                                placeholder — it stays in the list. */}
+                            <Controller
+                                name="level"
+                                control={control}
+                                render={({ field }) => (
+                                    <Select
+                                        aria-label="Level"
+                                        sheetTitle="Level"
+                                        searchable={false}
+                                        disabled={saving}
+                                        value={field.value ?? ""}
+                                        onChange={field.onChange}
+                                        onBlur={field.onBlur}
+                                        options={[
+                                            { value: "", label: "Not specified" },
+                                            ...ACHIEVEMENT_LEVELS.map((level) => ({
+                                                value: level,
+                                                label: ACHIEVEMENT_LEVEL_LABELS[level],
+                                            })),
+                                        ]}
+                                    />
+                                )}
+                            />
                         </Field>
                     </div>
 
@@ -607,29 +620,34 @@ function AchievementForm({
                                 : "Optional — tie this to the stint you won it in."
                         }
                     >
-                        <select
-                            className={styles.selectField}
+                        <Select
                             value={careerEntryId}
-                            onChange={(e) => handleCareerEntryChange(e.target.value)}
+                            onChange={handleCareerEntryChange}
                             disabled={saving || !watchedSport}
-                        >
-                            <option value="">Not linked</option>
-                            {careerOptions.map((entry) => (
-                                <option key={entry.id} value={entry.id}>
-                                    {entry.organization_name} — {entry.title} (
-                                    {formatCareerRange(entry)})
-                                </option>
-                            ))}
-                            {/* The sport moved under an existing link. Shown so the
-                                select isn't blank while the form holds a value, and
-                                the Zod rule explains why it's invalid. */}
-                            {orphanedEntry && (
-                                <option value={orphanedEntry.id}>
-                                    {orphanedEntry.organization_name} —{" "}
-                                    {orphanedEntry.title} ({orphanedEntry.sport.name})
-                                </option>
-                            )}
-                        </select>
+                            aria-label="Career entry"
+                            sheetTitle="Link to a career entry"
+                            options={[
+                                { value: "", label: "Not linked" },
+                                ...careerOptions.map((entry) => ({
+                                    value: entry.id,
+                                    label: `${entry.organization_name} — ${entry.title}`,
+                                    hint: formatCareerRange(entry),
+                                })),
+                                // The sport moved under an existing link. Kept in
+                                // the list so the field isn't blank while the form
+                                // holds a value, and the Zod rule explains why
+                                // it's invalid.
+                                ...(orphanedEntry
+                                    ? [
+                                          {
+                                              value: orphanedEntry.id,
+                                              label: `${orphanedEntry.organization_name} — ${orphanedEntry.title}`,
+                                              hint: orphanedEntry.sport.name,
+                                          },
+                                      ]
+                                    : []),
+                            ]}
+                        />
                     </Field>
                 </div>
 

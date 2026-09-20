@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useState } from "react"
-import { useForm, type Resolver, type SubmitHandler } from "react-hook-form"
+import { Controller, useForm, type Resolver, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
 import { toast } from "sonner"
@@ -27,6 +27,7 @@ import {
 } from "@/features/profile/hooks/useSportsQueries"
 import type { Sport } from "@/features/profile/services/sports.api"
 import Portal from "@/shared/components/ui/Portal/Portal"
+import Select from "@/shared/components/ui/Select/Select"
 import type { UserRole } from "@/shared/constants/roles"
 import { useAuthStore } from "@/store/auth.store"
 import {
@@ -191,34 +192,30 @@ function MonthYearField({
 
     return (
         <div className={styles.monthYear}>
-            <select
-                className={styles.selectField}
+            <Select
+                size="sm"
                 value={month}
-                onChange={(e) => emit(year, e.target.value)}
+                onChange={(nextMonth) => emit(year, nextMonth)}
                 disabled={disabled}
                 aria-label={`${ariaLabel} month`}
-            >
-                <option value="">Month</option>
-                {MONTHS.map((label, index) => (
-                    <option key={label} value={String(index + 1).padStart(2, "0")}>
-                        {label}
-                    </option>
-                ))}
-            </select>
-            <select
-                className={styles.selectField}
+                sheetTitle="Month"
+                placeholder="Month"
+                searchable={false}
+                options={MONTHS.map((label, index) => ({
+                    value: String(index + 1).padStart(2, "0"),
+                    label,
+                }))}
+            />
+            <Select
+                size="sm"
                 value={year}
-                onChange={(e) => emit(e.target.value, month)}
+                onChange={(nextYear) => emit(nextYear, month)}
                 disabled={disabled}
                 aria-label={`${ariaLabel} year`}
-            >
-                <option value="">Year</option>
-                {years.map((y) => (
-                    <option key={y} value={String(y)}>
-                        {y}
-                    </option>
-                ))}
-            </select>
+                sheetTitle="Year"
+                placeholder="Year"
+                options={years.map((y) => ({ value: String(y), label: String(y) }))}
+            />
         </div>
     )
 }
@@ -400,6 +397,7 @@ function CareerEntryForm({
 
     const {
         register,
+        control,
         handleSubmit,
         watch,
         setValue,
@@ -570,19 +568,18 @@ function CareerEntryForm({
                             </Field>
 
                             <Field label="Sport" required error={errors.sport?.message}>
-                                <select
-                                    className={styles.selectField}
+                                <Select
                                     value={watchedSport}
-                                    onChange={(e) => handleSportChange(e.target.value)}
+                                    onChange={handleSportChange}
                                     disabled={saving}
-                                >
-                                    <option value="">Select sport</option>
-                                    {sports.map((sport) => (
-                                        <option key={sport.id} value={sport.id}>
-                                            {sport.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    aria-label="Sport"
+                                    sheetTitle="Sport"
+                                    placeholder="Select sport"
+                                    options={sports.map((sport) => ({
+                                        value: sport.id,
+                                        label: sport.name,
+                                    }))}
+                                />
                             </Field>
 
                             {showPositions && positionOptions.length > 0 && (
@@ -616,32 +613,52 @@ function CareerEntryForm({
 
                             <div className={styles.row2}>
                                 <Field label="Type" error={errors.entry_type?.message}>
-                                    <select
-                                        className={styles.selectField}
-                                        {...register("entry_type")}
-                                        disabled={saving}
-                                    >
-                                        {CAREER_ENTRY_TYPES.map((type) => (
-                                            <option key={type} value={type}>
-                                                {CAREER_ENTRY_TYPE_LABELS[type]}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <Controller
+                                        name="entry_type"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Select
+                                                aria-label="Type"
+                                                sheetTitle="Type"
+                                                searchable={false}
+                                                disabled={saving}
+                                                value={field.value ?? ""}
+                                                onChange={field.onChange}
+                                                onBlur={field.onBlur}
+                                                options={CAREER_ENTRY_TYPES.map((type) => ({
+                                                    value: type,
+                                                    label: CAREER_ENTRY_TYPE_LABELS[type],
+                                                }))}
+                                            />
+                                        )}
+                                    />
                                 </Field>
 
                                 <Field label="Squad" error={errors.squad_level?.message}>
-                                    <select
-                                        className={styles.selectField}
-                                        {...register("squad_level")}
-                                        disabled={saving}
-                                    >
-                                        <option value="">Not specified</option>
-                                        {CAREER_SQUAD_LEVELS.map((level) => (
-                                            <option key={level} value={level}>
-                                                {CAREER_SQUAD_LEVEL_LABELS[level]}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {/* "" is an answer here ("Not specified"),
+                                        not a placeholder — it stays in the list. */}
+                                    <Controller
+                                        name="squad_level"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Select
+                                                aria-label="Squad"
+                                                sheetTitle="Squad"
+                                                searchable={false}
+                                                disabled={saving}
+                                                value={field.value ?? ""}
+                                                onChange={field.onChange}
+                                                onBlur={field.onBlur}
+                                                options={[
+                                                    { value: "", label: "Not specified" },
+                                                    ...CAREER_SQUAD_LEVELS.map((level) => ({
+                                                        value: level,
+                                                        label: CAREER_SQUAD_LEVEL_LABELS[level],
+                                                    })),
+                                                ]}
+                                            />
+                                        )}
+                                    />
                                 </Field>
                             </div>
 

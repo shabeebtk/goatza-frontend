@@ -34,6 +34,7 @@ import { Icon } from "@iconify/react"
 import { formatStatValue } from "../../matchDiaryMeta"
 import type { MatchSummary } from "../../types"
 import FormTrend from "../FormTrend/FormTrend"
+import Select from "@/shared/components/ui/Select/Select"
 import styles from "./SeasonSummaryCard.module.css"
 
 /** Below this it is not a streak, and calling it one cheapens the word. */
@@ -187,31 +188,24 @@ export default function SeasonSummaryCard({
 
                     {years.length > 1 && onYearChange && (
                         <>
-                            <label
-                                className="sr-only"
-                                htmlFor="match-summary-year"
-                            >
-                                Show a different year
-                            </label>
-                            <select
+                            <Select
                                 id="match-summary-year"
                                 className={styles.yearSelect}
-                                value={year ?? ""}
-                                onChange={(event) =>
-                                    onYearChange(
-                                        event.target.value
-                                            ? Number(event.target.value)
-                                            : null
-                                    )
+                                size="sm"
+                                aria-label="Show a different year"
+                                sheetTitle="Season"
+                                value={year != null ? String(year) : ""}
+                                onChange={(value) =>
+                                    onYearChange(value ? Number(value) : null)
                                 }
-                            >
-                                <option value="">All time</option>
-                                {years.map((option) => (
-                                    <option key={option} value={option}>
-                                        {option}
-                                    </option>
-                                ))}
-                            </select>
+                                options={[
+                                    { value: "", label: "All time" },
+                                    ...years.map((option) => ({
+                                        value: String(option),
+                                        label: String(option),
+                                    })),
+                                ]}
+                            />
                         </>
                     )}
                 </div>

@@ -26,6 +26,7 @@ import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/
 import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageCropper"
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
+import Select from "@/shared/components/ui/Select/Select"
 import styles from "./CreatePostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -744,16 +745,20 @@ export default function CreatePostModal({
                   
                   {/* Sport Select */}
                   {mySports && mySports.length > 0 && (
-                    <div className={styles.badgeSelectWrap}>
-                      <Icon icon="mdi:trophy-outline" width={12} height={12} className={styles.badgeSelectIcon} />
-                      <select className={styles.badgeSelect} value={sportId}
-                        onChange={e => setSportId(e.target.value)} aria-label="Tag a sport">
-                        <option value="">SELECT SPORT</option>
-                        {mySports.map(ms => (
-                          <option key={ms.sport.id} value={ms.sport.id}>{ms.sport.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <Select
+                      className={styles.sportField}
+                      size="sm"
+                      aria-label="Tag a sport"
+                      sheetTitle="Tag a sport"
+                      placeholder="Select sport"
+                      value={sportId}
+                      onChange={setSportId}
+                      options={mySports.map(ms => ({
+                        value: ms.sport.id,
+                        label: ms.sport.name,
+                        icon: "mdi:trophy-outline",
+                      }))}
+                    />
                   )}
 
                   {/* Location Toggle / Pill */}

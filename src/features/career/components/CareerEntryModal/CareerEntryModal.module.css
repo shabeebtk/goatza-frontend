@@ -206,13 +206,11 @@
   color: var(--color-error);
 }
 
-.fieldError .input,
-.fieldError .selectField { border-color: var(--color-error); }
+.fieldError .input { border-color: var(--color-error); }
 
 /* ── Inputs ──────────────────────────────────────────────────── */
 
-.input,
-.selectField {
+.input {
   width: 100%;
   padding: 11px var(--space-3);
   background: var(--color-surface);
@@ -227,22 +225,18 @@
 
 .input::placeholder { color: var(--color-text-muted); }
 
-.input:focus,
-.selectField:focus {
+.input:focus {
   border-color: var(--color-brand);
   box-shadow: 0 0 0 3px var(--color-brand-subtle);
 }
 
-.input:disabled,
-.selectField:disabled { opacity: 0.5; cursor: not-allowed; }
+.input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .textarea {
   resize: vertical;
   min-height: 96px;
   line-height: var(--leading-normal);
 }
-
-.selectField { cursor: pointer; }
 
 /* ── Rows ────────────────────────────────────────────────────── */
 

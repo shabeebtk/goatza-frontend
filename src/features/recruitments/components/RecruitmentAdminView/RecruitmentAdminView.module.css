@@ -8,13 +8,28 @@
   gap: var(--space-4);
 }
 
+/* The page around this is 1180px wide, because RecruitmentDetail's desktop
+   grid needs the room. A two-item segmented control does not: capped and
+   centred it stays a control instead of becoming a 1180px pill. */
 .tabBar {
   display: flex;
   gap: var(--space-1);
+  width: 100%;
+  max-width: 520px;
+  margin-inline: auto;
   padding: 4px;
   background: var(--color-surface-raised);
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-full);
+}
+
+/* Only the Details tab wants the full 1180. The applicants list is a column of
+   rows, and stretching it that wide reads as broken, so it keeps the width the
+   page had before the poster layout moved in. */
+.applicantsPanel {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
 }
 
 .tab {
