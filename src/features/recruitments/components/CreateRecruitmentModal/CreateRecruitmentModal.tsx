@@ -11,10 +11,13 @@ import PostLocationPicker from "@/features/posts/components/PostLocationPicker/P
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
 import { imageFileName, makeThumb, preferredImageType } from "@/shared/services/imageVariants"
 import {
+    UPLOAD_CANCELLED,
     describeBlob,
     getUploadConfigApi,
     putToR2,
 } from "@/shared/services/mediaUpload"
+import { isUploadCancellation } from "@/shared/services/apiError"
+import UploadOverlay from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { useAuthStore } from "@/store/auth.store"
@@ -53,6 +56,7 @@ import { buildPayload } from "./buildPayload"
 import { isoToLocalInput, parseLocalInput } from "./wizardDate"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { useFocusedFieldVisible } from "@/shared/hooks/useFocusedFieldVisible"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { useBackToClose, type BackToClose } from "@/shared/hooks/useBackToClose"
 import { BENEFIT_ICON_OPTIONS, VISIBILITY_LABEL } from "../../recruitmentCopy"
@@ -1469,6 +1473,14 @@ export default function CreateRecruitmentModal({
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const [draftSaved, setDraftSaved] = useState(false)
     const [confirmDiscard, setConfirmDiscard] = useState(false)
+    // "Cancel upload?" — asked before an in-flight media upload is thrown away.
+    const [confirmCancel, setConfirmCancel] = useState(false)
+    // The upload in flight, so Cancel (and unmount) can pull the plug on the
+    // signature request and the PUTs rather than let them finish unseen.
+    const abortRef = useRef<AbortController | null>(null)
+    // What the overlay says while the request is in flight: set by
+    // handleSubmit, read at render.
+    const [postingLabel, setPostingLabel] = useState("Publishing…")
     // The visibility menu on the publish button.
     const [publishMenuOpen, setPublishMenuOpen] = useState(false)
     const publishMenuRef = useRef<HTMLDivElement>(null)
@@ -1584,6 +1596,26 @@ export default function CreateRecruitmentModal({
         else closeNow()
     }
 
+    // ── Cancel an in-flight upload ────────────────────────────────
+    // Aborts the signature request / PUTs; the catch in handleSubmit sees
+    // the cancellation and stays silent. The draft (every step, the picked
+    // photos) is untouched — only the upload progress is thrown away.
+    const cancelUpload = () => {
+        setConfirmCancel(false)
+        const controller = abortRef.current
+        abortRef.current = null
+        controller?.abort(new Error(UPLOAD_CANCELLED))
+        setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "idle", progress: 0, error: null })))
+        setPhase("idle")
+    }
+
+    // Closing the sheet mid-upload must not leave PUTs running for a
+    // recruitment that will never be created.
+    useEffect(() => () => {
+        abortRef.current?.abort(new Error(UPLOAD_CANCELLED))
+        abortRef.current = null
+    }, [])
+
     // Escape = one back press. Bubble phase on purpose: the Select sheet, the
     // place picker and the other overlays that stack above capture Escape
     // and stop it, so a press inside them never reaches this.
@@ -1596,6 +1628,10 @@ export default function CreateRecruitmentModal({
             if (owner && !backdropRef.current?.contains(owner)) return
             e.preventDefault()
             if (confirmDiscard) { setConfirmDiscard(false); return }
+            // Mid-upload, Esc asks to cancel (and closes that question again).
+            // "Publishing…" cannot be un-sent, so Esc does nothing there.
+            if (phase === "uploading") { setConfirmCancel(open => !open); return }
+            if (phase !== "idle") return
             if (backRef.current) backRef.current.requestClose()
             else handleBackGesture()
         }
@@ -1625,6 +1661,9 @@ export default function CreateRecruitmentModal({
         bodyRef.current?.scrollTo({ top: 0, behavior: "auto" })
         setPreviewSheetOpen(false)
     }, [step, screen])
+    // The keyboard shrinks the sheet but not the body's scroll offset, so the
+    // field just tapped can end up under the footer: keep it in view.
+    useFocusedFieldVisible(bodyRef)
 
     const { data: sports = [] } = useSportsList()
     const sportName = sports.find(s => s.id === sportId)?.name ?? ""
@@ -2166,8 +2205,13 @@ export default function CreateRecruitmentModal({
         const newEntries = mediaEntries.filter(e => !e.existing)
 
         if (newEntries.length > 0) {
+            abortRef.current?.abort(new Error(UPLOAD_CANCELLED))
+            const controller = new AbortController()
+            abortRef.current = controller
+            const { signal } = controller
+
             setPhase("uploading")
-            setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "uploading", progress: 0 })))
+            setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "uploading", progress: 0, error: null })))
             try {
                 // Compress + derive a thumb for every new entry FIRST, so the
                 // whole batch can be signed in one request: `temp_post_id`
@@ -2184,6 +2228,8 @@ export default function CreateRecruitmentModal({
                     const type = compressed.type || fileType
                     const full = new File([compressed], imageFileName(file.name || "photo", type), { type })
                     prepared.push({ entryId: entry.id, full, thumb: await makeThumb(full) })
+                    // Compression is not abortable; stop between files instead.
+                    if (signal.aborted) throw new Error(UPLOAD_CANCELLED)
                 }
 
                 // files: [img0, thumb0, img1, thumb1, …] → image i at 2i.
@@ -2193,7 +2239,8 @@ export default function CreateRecruitmentModal({
                         describeBlob(p.full, "image"),
                         describeBlob(p.thumb, "thumb"),
                     ]),
-                    orgId
+                    orgId,
+                    signal
                 )
                 const uploads = sigRes.uploads
 
@@ -2208,14 +2255,18 @@ export default function CreateRecruitmentModal({
                         // is the last stretch. Per-entry progress feeds the
                         // aggregate bar, so it moves with the bytes rather
                         // than jumping once per file.
-                        const setProgress = (pct: number) =>
+                        // A late progress event from a cancelled upload must
+                        // not touch the composer the cancel just put back.
+                        const setProgress = (pct: number) => {
+                            if (signal.aborted) return
                             setMediaEntries(prev => prev.map(e =>
                                 e.id === entryId ? { ...e, progress: Math.min(99, Math.max(e.progress, pct)) } : e
                             ))
+                        }
                         await putToR2(full, fullEntry, (loaded, total) =>
-                            setProgress(Math.round((loaded / total) * 90)))
+                            setProgress(Math.round((loaded / total) * 90)), signal)
                         await putToR2(thumb, thumbEntry, (loaded, total) =>
-                            setProgress(90 + Math.round((loaded / total) * 10)))
+                            setProgress(90 + Math.round((loaded / total) * 10)), signal)
 
                         const uploaded: UploadedMedia = {
                             file_url: fullEntry.public_url,
@@ -2229,16 +2280,22 @@ export default function CreateRecruitmentModal({
                             e.id === entryId ? { ...e, status: "done", progress: 100, result: uploaded } : e
                         ))
                     } catch (uploadErr) {
+                        if (signal.aborted || isUploadCancellation(uploadErr)) throw uploadErr
                         const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
                         setMediaEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: "error", error: msg } : e))
                         throw new Error(msg)
                     }
                 }
             } catch (uploadErr) {
+                // The author cancelled: cancelUpload has already put the
+                // composer back, so there is nothing to report.
+                if (signal.aborted || isUploadCancellation(uploadErr)) return
                 const msg = getApiErrorMessage(uploadErr, "Media upload failed. Please try again.")
                 toast.show({ title: "Media upload failed", message: msg, variant: "error" })
                 setPhase("idle")
                 return
+            } finally {
+                if (abortRef.current === controller) abortRef.current = null
             }
         }
 
@@ -2256,11 +2313,16 @@ export default function CreateRecruitmentModal({
             })
         })
 
+        // Publishing a saved draft is the one edit that carries a status.
+        const publishingDraft = isDraftRecord && submitStatus === "active"
+        setPostingLabel(
+            savingDraft ? "Saving draft…"
+            : isEdit && !publishingDraft ? "Saving changes…"
+            : "Publishing…"
+        )
         setPhase("posting")
 
         try {
-            // Publishing a saved draft is the one edit that carries a status.
-            const publishingDraft = isDraftRecord && submitStatus === "active"
             const payload = buildPayload(
                 draft,
                 finalMedia,
@@ -2323,13 +2385,6 @@ export default function CreateRecruitmentModal({
     }
 
     const isLastStep = step === TOTAL_STEPS - 1
-
-    // Aggregate of the entries actually being uploaded — existing media is
-    // already at 100 and would otherwise start the bar most of the way along.
-    const uploadingEntries = mediaEntries.filter(e => !e.existing)
-    const uploadPercent = uploadingEntries.length === 0
-        ? 100
-        : Math.round(uploadingEntries.reduce((sum, e) => sum + e.progress, 0) / uploadingEntries.length)
 
     // ── Render steps ──────────────────────────────────────────────
     // Six rooms, same for every type; a type may hide a block inside one.
@@ -2943,21 +2998,6 @@ export default function CreateRecruitmentModal({
 
     const renderStep = () => STEP_RENDER[stepKeys[step] ?? "basics"]()
 
-    // ── Done state ────────────────────────────────────────────────
-    if (phase === "done") {
-        return (
-            <div className={styles.backdrop} role="dialog" aria-modal="true">
-                <div className={styles.modal}>
-                    <div className={styles.doneState}>
-                        <span className={styles.doneTick}><Icon icon="mdi:check-circle" width={52} height={52} /></span>
-                        <span className={styles.doneLabel}>{draftSaved ? "Draft Saved!" : isEdit && !isDraftRecord ? "Changes Saved!" : "Recruitment Published!"}</span>
-                        <p className={styles.doneSubtitle}>{isEdit ? "Updating…" : "Redirecting…"}</p>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     const onTypeScreen = screen === "type"
 
     return (
@@ -3040,27 +3080,6 @@ export default function CreateRecruitmentModal({
                             disabled={isSubmitting}
                         />
                     ) : renderStep()}
-
-                    {phase === "uploading" && (
-                        <div className={styles.uploadOverlay}>
-                            <div className={styles.uploadOverlayInner}>
-                                <Icon icon="mdi:cloud-upload-outline" width={28} height={28} />
-                                <span>Uploading media…</span>
-                                <div className={styles.uploadBarWrap}>
-                                    <div className={styles.uploadBar} style={{ width: `${uploadPercent}%` }} />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {phase === "posting" && (
-                        <div className={styles.uploadOverlay}>
-                            <div className={styles.uploadOverlayInner}>
-                                <Icon icon="mdi:send-outline" width={28} height={28} />
-                                <span>{isEdit ? "Saving changes…" : "Publishing…"}</span>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Wide: the preview beside the form, scrolling on its own. */}
@@ -3102,6 +3121,20 @@ export default function CreateRecruitmentModal({
                     </div>
                 )}
                 </div>
+
+                {/* ── Full-sheet upload / publishing / done overlay ── */}
+                {phase !== "idle" && (
+                    <UploadOverlay
+                        entries={mediaEntries.filter(e => !e.existing).map(e => ({
+                            preview: e.preview, progress: e.progress, status: e.status, size: e.file?.size ?? 0,
+                        }))}
+                        phase={phase}
+                        postingLabel={postingLabel}
+                        doneLabel={draftSaved ? "Draft Saved!" : isEdit && !isDraftRecord ? "Changes Saved!" : "Recruitment Published!"}
+                        doneHint={isEdit ? "Updating…" : "Redirecting…"}
+                        onCancel={() => setConfirmCancel(true)}
+                    />
+                )}
 
                 {/* Footer */}
                 <div className={styles.footer}>
@@ -3181,6 +3214,35 @@ export default function CreateRecruitmentModal({
             </div>
 
             <input ref={fileInputRef} type="file" hidden multiple accept="image/*" onChange={handleFileChange} />
+
+            {/* Cancel the upload in flight — the draft stays */}
+            {confirmCancel && phase === "uploading" && (
+                <div className={styles.confirmOverlay} onClick={() => setConfirmCancel(false)}>
+                    <div
+                        className={styles.confirmDialog}
+                        onClick={e => e.stopPropagation()}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-label="Cancel upload"
+                    >
+                        <span className={styles.confirmIcon}>
+                            <Icon icon="mdi:cloud-off-outline" width={26} height={26} />
+                        </span>
+                        <h3 className={styles.confirmTitle}>Cancel upload?</h3>
+                        <p className={styles.confirmText}>
+                            The photos uploaded so far will be thrown away. Everything you&rsquo;ve filled in stays.
+                        </p>
+                        <div className={styles.confirmActions}>
+                            <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmCancel(false)}>
+                                Keep uploading
+                            </button>
+                            <button type="button" className={styles.confirmDiscardBtn} onClick={cancelUpload}>
+                                Cancel upload
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Discard-changes confirmation */}
             {confirmDiscard && (

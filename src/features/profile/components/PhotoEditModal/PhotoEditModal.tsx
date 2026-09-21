@@ -15,13 +15,15 @@
  *   currentSrc — existing photo URL (shown in view mode)
  *   username   — passed to usePhotoUpload for cache invalidation
  *   onClose    — called when modal should close
- *   onDelete   — optional, called when user taps "Remove photo"
+ *
+ * "Remove Photo" (owner, when a photo is set) deletes it in place through
+ * usePhotoDelete — no confirmation step, the same as the org modal.
  */
 
 import { useCallback, useRef, useState } from "react"
 import Cropper from "react-easy-crop"
 import { Icon } from "@iconify/react"
-import { usePhotoUpload } from "@/features/profile/hooks/usePhotoUpload"
+import { usePhotoDelete, usePhotoUpload } from "@/features/profile/hooks/usePhotoUpload"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
 import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./PhotoEditModal.module.css"
@@ -37,7 +39,6 @@ interface PhotoEditModalProps {
   username: string
   isOwn?: boolean          // hide edit actions when viewing another user
   onClose: () => void
-  onDelete?: () => void   // wire to your delete API when ready
 }
 
 // ── Aspect ratios per type ────────────────────────────────────
@@ -60,10 +61,10 @@ export default function PhotoEditModal({
   username,
   isOwn = false,
   onClose,
-  onDelete,
 }: PhotoEditModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const upload       = usePhotoUpload(username)
+  const remove       = usePhotoDelete(username)
 
   const [state, setState]           = useState<ModalState>("view")
   const [imageSrc, setImageSrc]     = useState<string>("")
@@ -124,6 +125,18 @@ export default function PhotoEditModal({
       const msg = err instanceof Error ? err.message : "Upload failed. Please try again."
       setError(msg)
       setState("crop")
+    }
+  }
+
+  // ── Remove current photo ──────────────────────────────────
+
+  const handleDelete = async () => {
+    setError(null)
+    try {
+      await remove.mutateAsync(type)
+      onClose()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to remove photo.")
     }
   }
 
@@ -203,17 +216,34 @@ export default function PhotoEditModal({
                     {currentSrc ? `Change ${LABELS[type]}` : `Add ${LABELS[type]}`}
                   </button>
 
-                  {currentSrc && onDelete && (
+                  {currentSrc && (
                     <button
                       className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                      onClick={onDelete}
+                      onClick={handleDelete}
+                      disabled={remove.isPending}
                       type="button"
                     >
-                      <Icon icon="mdi:trash-can-outline" width={20} height={20} />
-                      Remove Photo
+                      {remove.isPending ? (
+                        <>
+                          <span className={styles.spinner} aria-hidden="true" />
+                          Removing…
+                        </>
+                      ) : (
+                        <>
+                          <Icon icon="mdi:trash-can-outline" width={20} height={20} />
+                          Remove Photo
+                        </>
+                      )}
                     </button>
                   )}
                 </>
+              )}
+
+              {error && (
+                <p className={styles.errorMsg} role="alert">
+                  <Icon icon="mdi:alert-circle-outline" width={14} height={14} />
+                  {error}
+                </p>
               )}
 
               <button
