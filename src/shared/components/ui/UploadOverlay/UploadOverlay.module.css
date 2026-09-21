@@ -1,0 +1,178 @@
+/* ════════════════════════════════════════════════════════════
+   UploadOverlay — full-sheet upload / publishing / done screen.
+   Always dark: it sits over the author's own media, so the colours
+   here are fixed rather than theme-flipped; the ring and tick use
+   brand.
+   ══════════════════════════════════════════════════════════ */
+
+@keyframes uoFadeIn {
+  from { opacity: 0 }
+  to   { opacity: 1 }
+}
+
+@keyframes uoSpin {
+  to { transform: rotate(-90deg) rotate(360deg) }
+}
+
+@keyframes uoTickPop {
+  0%   { opacity: 0; transform: scale(0.5) }
+  60%  { transform: scale(1.25) }
+  100% { opacity: 1; transform: scale(1) }
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: calc(var(--space-6) + var(--safe-top)) var(--space-5) calc(var(--space-6) + var(--safe-bottom));
+  background: var(--primitive-ink-950);
+  color: #ffffff;
+  overflow: hidden;
+  animation: uoFadeIn 0.2s var(--ease-out) both;
+}
+
+/* The author's media, dimmed and softened behind the ring */
+.bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bgMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.4;
+  filter: blur(18px) saturate(0.85);
+  /* Hides the blur's soft edges */
+  transform: scale(1.1);
+}
+
+.bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.35), rgba(10, 10, 10, 0.78));
+}
+
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+/* Progress ring */
+.ringWrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ringSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Progress starts at 12 o'clock */
+  transform: rotate(-90deg);
+}
+
+.ringTrack {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.ringFill {
+  stroke: var(--color-brand);
+  transition: stroke-dashoffset 0.25s linear;
+  filter: drop-shadow(0 0 8px var(--color-brand-glow));
+}
+
+/* "Publishing…" has no progress to show — the full ring turns instead */
+.ringIndeterminate .ringSvg {
+  animation: uoSpin 1.1s linear infinite;
+}
+
+.ringPct {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.done {
+  position: relative;
+  display: flex;
+  color: var(--color-brand);
+  animation: uoTickPop 0.5s var(--ease-spring) both;
+  filter: drop-shadow(0 0 12px var(--color-brand-glow));
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.meta {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Cancel — only while optimizing or uploading */
+.cancelBtn {
+  position: relative;
+  margin-top: var(--space-2);
+  padding: 10px var(--space-6);
+  min-height: 44px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.cancelBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .done,
+  .ringIndeterminate .ringSvg {
+    animation: none;
+  }
+
+  .ringFill {
+    transition: none;
+  }
+}

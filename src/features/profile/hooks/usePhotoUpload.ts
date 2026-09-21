@@ -9,6 +9,7 @@ import {
 } from "@/shared/services/mediaUpload"
 import { profileKeys } from "@/features/profile/hooks/useProfileQueries"
 import type { UserProfile } from "@/features/profile/services/profile.api"
+import { useAuthStore } from "@/store/auth.store"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -28,6 +29,34 @@ const COMPRESSION_OPTIONS = {
   initialQuality: 0.9,      // near-lossless starting quality
   useWebWorker: true,
   fileType: "image/webp",   // modern format
+}
+
+// ── Cache sync ───────────────────────────────────────────────
+//
+// Both profile queries plus the auth store: the nav avatar and the account
+// switcher read the store, not the profile query, so a change / remove has
+// to land there too or the old photo lingers in the header.
+
+const PHOTO_FIELD: Record<"profile" | "cover", "profile_photo" | "cover_photo"> = {
+  profile: "profile_photo",
+  cover: "cover_photo",
+}
+
+const writePhoto = (
+  qc: ReturnType<typeof useQueryClient>,
+  username: string,
+  type: "profile" | "cover",
+  url: string
+) => {
+  const field = PHOTO_FIELD[type]
+  const patch = (old: UserProfile | undefined) => (old ? { ...old, [field]: url } : old)
+  qc.setQueryData<UserProfile>(profileKeys.user(username), patch)
+  qc.setQueryData<UserProfile>(profileKeys.me(), patch)
+
+  if (type === "profile") {
+    const { user, updateUser } = useAuthStore.getState()
+    if (user && user.username === username) updateUser({ ...user, profile_photo: url })
+  }
 }
 
 // ── Hook ─────────────────────────────────────────────────────
@@ -82,18 +111,24 @@ export const usePhotoUpload = (username: string) => {
 
     // Optimistic cache update so the avatar/cover refreshes immediately
     onSuccess: ({ type, secure_url }) => {
-      qc.setQueryData<UserProfile>(profileKeys.user(username), (old) => {
-        if (!old) return old
-        return type === "profile"
-          ? { ...old, profile_photo: secure_url }
-          : { ...old, cover_photo: secure_url }
-      })
-      qc.setQueryData<UserProfile>(profileKeys.me(), (old) => {
-        if (!old) return old
-        return type === "profile"
-          ? { ...old, profile_photo: secure_url }
-          : { ...old, cover_photo: secure_url }
-      })
+      if (type === "profile" || type === "cover") writePhoto(qc, username, type, secure_url)
     },
+  })
+}
+
+// ── Remove ───────────────────────────────────────────────────
+//
+// Same endpoint, flag instead of URL: the server deletes the object from
+// storage and blanks the column, so an empty string is what the caches get.
+
+export const usePhotoDelete = (username: string) => {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (type: "profile" | "cover") => {
+      await updateMediaApi(type === "profile" ? { is_delete_profile: true } : { is_delete_cover: true })
+      return type
+    },
+    onSuccess: (type) => writePhoto(qc, username, type, ""),
   })
 }

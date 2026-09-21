@@ -27,6 +27,7 @@ import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageC
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import Select from "@/shared/components/ui/Select/Select"
+import UploadOverlay from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import styles from "./CreatePostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -316,110 +317,6 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
 }
 
 // ── Upload overlay ────────────────────────────────────────────
-
-/** Circumference of the progress ring (r = 56). */
-const RING_R = 56
-const RING_C = 2 * Math.PI * RING_R
-
-/**
- * Covers the composer from Post until the redirect: one ring for the whole
- * batch, the media dimmed behind it, and Cancel for as long as cancelling is
- * safe. Once the create-post request is in flight ("Publishing…") the post
- * cannot be un-sent, so Cancel goes with it.
- */
-function UploadOverlay({ entries, phase, onCancel, onDone }: {
-  entries:  FileEntry[]
-  phase:    SubmitPhase
-  onCancel: () => void
-  onDone:   () => void
-}) {
-  const total      = entries.length
-  const doneCount  = entries.filter(e => e.status === "done").length
-  const overallPct = total === 0 ? 100 : Math.round(entries.reduce((s, e) => s + e.progress, 0) / total)
-  const totalBytes = entries.reduce((s, e) => s + e.file.size, 0)
-  const isPosting  = phase === "posting"
-  const isDone     = phase === "done"
-  // A video spends the first 70% of its bar being encoded, which on a phone is
-  // the slower half — saying "Uploading" through it reads as a stall.
-  const isOptimizing = entries.some((e) => e.optimizing)
-  const canCancel    = phase === "uploading"
-  const first        = entries[0]
-
-  useEffect(() => {
-    if (isDone) {
-      const t = setTimeout(onDone, 1800)
-      return () => clearTimeout(t)
-    }
-  }, [isDone, onDone])
-
-  const label = isDone ? "Posted!"
-    : isPosting || total === 0 ? "Publishing…"
-    : isOptimizing ? OPTIMIZING_LABEL
-    : `Uploading ${Math.min(doneCount + 1, total)}/${total}`
-
-  const pct = isPosting || isDone ? 100 : overallPct
-
-  return (
-    <div className={styles.uploadOverlay} role="status" aria-live="polite">
-      {/* The post's own media, dimmed and softened, so the screen still reads
-          as "your post" rather than a blank progress page. */}
-      {first && (
-        <div className={styles.uploadOverlayBg} aria-hidden="true">
-          {first.isVideo ? (
-            // `#t=0.001` makes Safari paint the first frame of a paused,
-            // metadata-only video instead of leaving the box black.
-            <video
-              src={`${first.preview}#t=0.001`}
-              className={styles.uploadOverlayBgMedia}
-              muted
-              playsInline
-              preload="metadata"
-              tabIndex={-1}
-            />
-          ) : (
-            <img src={first.preview} className={styles.uploadOverlayBgMedia} alt="" />
-          )}
-        </div>
-      )}
-
-      <div className={styles.uploadOverlayContent}>
-        <div className={`${styles.uploadRingWrap} ${isPosting ? styles.uploadRingIndeterminate : ""}`}>
-          <svg viewBox="0 0 128 128" className={styles.uploadRingSvg} aria-hidden="true">
-            <circle cx="64" cy="64" r={RING_R} fill="none" strokeWidth="6" className={styles.uploadRingTrack} />
-            <circle
-              cx="64" cy="64" r={RING_R} fill="none" strokeWidth="6" strokeLinecap="round"
-              className={styles.uploadRingFill}
-              strokeDasharray={RING_C}
-              strokeDashoffset={RING_C * (1 - pct / 100)}
-            />
-          </svg>
-          {isDone ? (
-            <span className={styles.uploadOverlayDone}>
-              <Icon icon="mdi:check-circle" width={56} height={56} />
-            </span>
-          ) : (
-            <span className={styles.uploadRingPct}>{isPosting ? "" : `${overallPct}%`}</span>
-          )}
-        </div>
-
-        <span className={styles.uploadOverlayLabel}>{label}</span>
-
-        {!isDone && total > 0 && (
-          <span className={styles.uploadOverlayMeta}>
-            {total > 1 ? `${total} files · ` : ""}{fmtBytes(totalBytes)}
-            {!isPosting ? ` · ${overallPct}%` : ""}
-          </span>
-        )}
-      </div>
-
-      {canCancel && (
-        <button type="button" className={styles.uploadCancelBtn} onClick={onCancel}>
-          Cancel
-        </button>
-      )}
-    </div>
-  )
-}
 
 // ── Main CreatePostModal ──────────────────────────────────────
 
@@ -862,8 +759,12 @@ export default function CreatePostModal({
         {/* ── Full-screen upload / publishing / posted overlay ── */}
         {phase !== "idle" && (
           <UploadOverlay
-            entries={entries}
+            entries={entries.map(e => ({
+              preview: e.preview, isVideo: e.isVideo, progress: e.progress,
+              status: e.status, size: e.file.size, optimizing: e.optimizing,
+            }))}
             phase={phase}
+            optimizingLabel={OPTIMIZING_LABEL}
             onCancel={() => setConfirmCancel(true)}
             onDone={handleDoneRedirect}
           />

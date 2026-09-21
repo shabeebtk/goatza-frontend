@@ -28,6 +28,9 @@ export type UpdateMediaPayload = {
   profile_photo_public_id?: string
   cover_photo?: string
   cover_photo_public_id?: string
+  /** Remove flags: the server deletes the stored file and clears the URL. */
+  is_delete_profile?: boolean
+  is_delete_cover?: boolean
 }
 
 // ── Attach: save the uploaded URL + key to the profile ────────
