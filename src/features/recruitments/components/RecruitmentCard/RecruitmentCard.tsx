@@ -19,17 +19,10 @@ import {
 } from "../../matchContext"
 import { useToggleSaveRecruitment } from "../../hooks/useRecruitments"
 import { isTrialOver } from "../../trialEnded"
+import { TYPE_LABEL } from "../../recruitmentCopy"
 import { Recruitment } from "../../services/recruitments.api"
 
 // ── Helpers ───────────────────────────────────────────────────
-
-const TYPE_LABEL: Record<string, string> = {
-  open_trial: "Open Trial",
-  player_looking: "Player Looking",
-  private_trial: "Private Trial",
-  direct_recruitment: "Direct Recruitment",
-  scholarship: "Scholarship",
-}
 
 const STATUS_META: Record<string, { label: string; colorClass: string }> = {
   active: { label: "Active", colorClass: "statusActive" },

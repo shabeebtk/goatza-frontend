@@ -5,17 +5,9 @@ import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { TYPE_LABEL } from "@/features/recruitments/recruitmentCopy"
 import type { SharedRecruitmentPreview } from "../../services/conversations.api"
 import styles from "./SharedRecruitmentMessage.module.css"
-
-// recruitment_type → short chip label. Mirrors TYPE_META elsewhere but kept
-// local + tiny; the chat card only needs the label.
-const TYPE_LABEL: Record<string, string> = {
-  open_trial: "Open Trial",
-  player_looking: "Player Looking",
-  direct_recruitment: "Direct Recruitment",
-  scholarship: "Scholarship",
-}
 
 // Statuses that mute the card and show a tag. `active` renders normally.
 const CLOSED_TAG: Record<string, string> = {

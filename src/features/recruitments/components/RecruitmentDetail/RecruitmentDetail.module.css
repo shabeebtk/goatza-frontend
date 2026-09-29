@@ -1193,3 +1193,22 @@ a.kvRow:focus-visible {
     align-items: start;
   }
 }
+
+.trialDates {
+  margin: var(--space-3) 0;
+}
+
+/* The trial-feedback prompt, under the status row it belongs to. Full width of
+   the content column; the prompt's own styles carry the rest. */
+.feedbackPrompt {
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+/* The star beside the trial rating in the organiser stat row. --color-warn is
+   the same hue StarRating uses, so the number and the control agree. */
+.statStar {
+  color: var(--color-warn);
+  margin-left: 3px;
+  vertical-align: -1px;
+}

@@ -21,8 +21,11 @@ import {
   fetchRecruitmentApplicantsApi,
   fetchApplicationDetailApi,
   withdrawApplicationApi,
+  submitTrialFeedbackApi,
   bulkUpdateApplicationStatusApi,
   updateApplicationStatusApi,
+  updateApplicationFeeApi,
+  bulkUpdateApplicationFeeApi,
   type CreateRecruitmentPayload,
   type RecruitmentPayload,
   type RecruitmentStatus,
@@ -31,6 +34,7 @@ import {
   type FetchRecruitmentApplicantsParams,
   type BulkStatusTarget,
   type SingleStatusTarget,
+  type TrialFeedbackPayload,
   type Recruitment,
   type RecruitmentDetail,
 } from "../services/recruitments.api"
@@ -345,6 +349,15 @@ export const useRecruitmentApplicants = (
     status?: FetchRecruitmentApplicantsParams["status"]
     search?: string
     age_category?: string
+    fee_paid?: boolean
+    // How old they ARE, not the group they applied UNDER.
+    birth_year_min?: number
+    birth_year_max?: number
+    age_mismatch?: boolean
+    // What the PLAYER said about the trial, as opposed to `status` above,
+    // which is what the org decided.
+    self_outcome?: FetchRecruitmentApplicantsParams["self_outcome"]
+    sort?: FetchRecruitmentApplicantsParams["sort"]
   } = {}
 ) =>
   useInfiniteQuery<RecruitmentApplicantsResponse, Error>({
@@ -471,6 +484,97 @@ export const useUpdateApplicationStatus = () => {
       if (variables.recruitmentId) {
         queryClient.invalidateQueries({
           queryKey: ["recruitments", "applicants", variables.recruitmentId],
+        })
+      }
+    },
+  })
+}
+
+// ── Trial fee (org) ───────────────────────────────────────────
+//
+// Any org member may mark a fee. Both mutations invalidate the whole
+// applicants tree for the recruitment, the same way a status change does:
+// the flag shows on the row, and the fee filter's result set moves with it.
+
+export const useUpdateApplicationFee = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      feePaid,
+    }: {
+      applicationId: string
+      recruitmentId?: string
+      feePaid: boolean
+    }) => updateApplicationFeeApi(applicationId, feePaid),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: applicantKeys.detail(variables.applicationId),
+      })
+      if (variables.recruitmentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["recruitments", "applicants", variables.recruitmentId],
+        })
+      }
+    },
+  })
+}
+
+export const useBulkUpdateApplicationFee = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recruitmentId,
+      applicationIds,
+      feePaid,
+    }: {
+      recruitmentId: string
+      applicationIds: string[]
+      feePaid: boolean
+    }) =>
+      bulkUpdateApplicationFeeApi(recruitmentId, { applicationIds, feePaid }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["recruitments", "applicants", variables.recruitmentId],
+      })
+    },
+  })
+}
+
+
+
+// ── The player's own account of a trial ───────────────────────
+//
+// INVALIDATE-ONLY, no optimistic flip: the same policy every other write here
+// follows (see statusTransitions.ts — the server stays authoritative and a 400
+// must never leave a flipped answer on screen).
+//
+// Both the list and the detail carry `can_give_feedback`, so both have to be
+// refetched or the prompt stays up next to the answer it just accepted.
+
+export const useSubmitTrialFeedback = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      payload,
+    }: {
+      applicationId: string
+      /** Present when submitted from the recruitment page, so that detail
+       *  (which embeds `my_application`) is refetched too. */
+      recruitmentId?: string
+      payload: TrialFeedbackPayload
+    }) => submitTrialFeedbackApi(applicationId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["recruitments", "my-applications"],
+      })
+      if (variables.recruitmentId) {
+        queryClient.invalidateQueries({
+          queryKey: recruitmentKeys.detail(variables.recruitmentId),
         })
       }
     },

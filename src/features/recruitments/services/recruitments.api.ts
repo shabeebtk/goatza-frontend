@@ -2,11 +2,14 @@ import api from "@/core/api/axios"
 
 // ── Enums ─────────────────────────────────────────────────────
 
-export type RecruitmentType =
-  | "open_trial"
-  | "player_looking"
-  | "direct_recruitment"
-  | "scholarship"
+// Creatable today — what the wizard offers and create/update accepts.
+export type RecruitmentType = "open_trial" | "player_looking"
+
+// Anything the API may still return, including pre-migration rows. The data
+// migration (migrate_recruitment_v3) folds the two legacy values into the
+// creatable ones; until it has run everywhere, read paths must still label them.
+export type RecruitmentTypeValue =
+  | RecruitmentType
 
 export type RecruitmentStatus = "draft" | "active" | "closed" | "cancelled"
 
@@ -14,18 +17,24 @@ export type RecruitmentVisibility = "public" | "followers_only" | "private"
 
 export type RecruitmentGender = "male" | "female" | "all"
 
+// Every value the API may return, including pre-migration rows.
 export type ApplicationStatus =
   | "applied"
   | "reviewing"
   | "shortlisted"
-  | "invited"
+  | "trial_confirmed"
+  | "not_shortlisted"
   | "selected"
-  | "rejected"
+  | "not_selected"
   | "withdrawn"
 
 export type QuestionFieldType =
   | "short_text"
   | "long_text"
+  // LEGACY, READ-ONLY. The wizard has not offered a raw dropdown for a long
+  // time and normalises this to "radio" on load, but stored rows still carry
+  // it and the backend still lists it in its choices — so the apply modal has
+  // to keep rendering it.
   | "select"
   | "radio"
   | "checkbox"
@@ -91,21 +100,125 @@ export type ApplicationAgeCategory = {
   reporting_time: string | null   // "HH:MM:SS" | null
 }
 
-export type MyApplication = {
-  id: string
-  status: ApplicationStatus
-  applied_at: string
-  updated_at: string
-  age_category: ApplicationAgeCategory | null
+/**
+ * THE PLAYER'S OWN ACCOUNT of how a trial went — a HINT for the org, never a
+ * status. `attended_self_reported` is null until they answer;
+ * `outcome_self_reported` is "" when they did not attend or have not answered.
+ *
+ * Every field is optional: a payload cached before this shipped has none of
+ * them, and the prompt and the summary row must both behave then.
+ */
+export type SelfReportedOutcome = "selected" | "not_selected" | "waiting"
+
+export type TrialSelfReport = {
+  attended_self_reported?: boolean | null
+  outcome_self_reported?: SelfReportedOutcome | ""
+  /** The player's rating. DETAIL/player-only — never on the org's list row. */
+  trial_rating?: number | null
+  /** Their written note. Owning org only; see the backend model docstring. */
+  trial_feedback?: string
+  /** Stamped on every accepted answer, including "I did not attend". */
+  feedback_at?: string | null
 }
+
+/**
+ * WHETHER TO ASK, computed by the server. Do NOT re-derive it from dates and
+ * statuses on the client: getting it subtly different from the server is how
+ * a prompt appears that then 400s.
+ *
+ *   can_give_feedback     right status, trial over, not answered yet
+ *   feedback_window_open  the trial ended within the last 30 days
+ *
+ * The prompt shows when BOTH are true. The endpoint itself stays open
+ * indefinitely and accepts a resubmit — a player who said "waiting" and
+ * later hears back is exactly the answer most worth having.
+ */
+export type TrialFeedbackEligibility = {
+  can_give_feedback?: boolean
+  feedback_window_open?: boolean
+}
+
+export type MyApplication = TrialSelfReport &
+  TrialFeedbackEligibility & {
+    id: string
+    status: ApplicationStatus
+    applied_at: string
+    updated_at: string
+    age_category: ApplicationAgeCategory | null
+    /** The date they picked. Null unless the trial is choose_one. */
+    session?: ApplicationSession | null
+  }
 
 // ── List item (lightweight) ───────────────────────────────────
 
-export type Recruitment = {
+// ── Trial dates ────────────────────────────────────────
+
+/**
+ * How a multi-date trial is attended — and therefore when applications close.
+ *
+ *   all         every date is one trial, so applications close on the FIRST
+ *   choose_one  each date is its own round, so they close on the LAST
+ *
+ * Only meaningful with two or more dates; the server forces "all" below that.
+ */
+export type SessionMode = "all" | "choose_one"
+
+/**
+ * ONE date an open trial is held on. The venue fields arrive RESOLVED: the
+ * server has already substituted the recruitment's venue wherever the date
+ * did not set its own, so nothing on the client has to fall back.
+ */
+export type TrialSession = {
+  id: string
+  title: string
+  date: string            // "YYYY-MM-DD"
+  start_time: string | null   // "HH:MM:SS" | null
+  end_time: string | null
+  is_cancelled: boolean
+  venue_name: string
+  venue_link: string
+  city: string
+  latitude: number | null
+  longitude: number | null
+}
+
+/** The chosen date on an application. Null unless the trial is choose_one. */
+export type ApplicationSession = {
+  id: string
+  title: string
+  date: string
+  start_time: string | null
+  venue_name: string
+  venue_link: string
+  city: string
+}
+
+/**
+ * The trial-window fields every recruitment payload now carries.
+ *
+ * `event_date` is unchanged and still the FIRST date. What is new is that it
+ * is no longer the whole story: `trial_end_date` is when the trial is OVER,
+ * and `applications_close_at` is when applications STOP — which on an
+ * "attend every date" trial is day one, not the last day.
+ *
+ * Every field is optional: a payload cached before sessions shipped has none
+ * of them, and both `isTrialOver` and the detail view fall back to
+ * `event_date` on their own.
+ */
+export type RecruitmentTrialWindow = {
+  sessions?: TrialSession[]
+  session_mode?: SessionMode
+  trial_end_date?: string | null
+  applications_close_at?: string | null
+  /** Everyone who applies is confirmed instantly. Open trial only. */
+  auto_confirm?: boolean
+}
+
+export type Recruitment = RecruitmentTrialWindow & {
   id: string
   title: string
   short_description: string
-  recruitment_type: RecruitmentType
+  recruitment_type: RecruitmentTypeValue
   status: RecruitmentStatus
   visibility: RecruitmentVisibility
   city: string
@@ -267,15 +380,21 @@ export type RecruitmentContact = {
  
 // ── Detail (full — user + org-owner fields) ───────────────────
  
-export type RecruitmentDetail = {
+export type RecruitmentDetail = RecruitmentTrialWindow & {
   id: string
   title: string
   short_description: string
   description: string
-  recruitment_type: RecruitmentType
+  recruitment_type: RecruitmentTypeValue
   visibility: RecruitmentVisibility
   apply_method: "goatza" | "external" | "contact"
   gender: RecruitmentGender | ""
+  /**
+   * RETIRED FROM THE UI. The server still sends it and pre-migration rows
+   * still carry a value, but nothing renders or filters on it any more — the
+   * five levels became free-text eligibility criteria. Kept because this type
+   * describes what the server sends, not what the client happens to read.
+   */
   experience_level: string
   application_deadline: string | null
   event_date: string | null
@@ -317,11 +436,18 @@ export type RecruitmentDetail = {
   is_saved?: boolean
   /** The trial day is over — same flag the card carries; see `isTrialOver`. */
   is_trial_over?: boolean
+  /**
+   * The VIEWER's own profile birth year — only on the authenticated detail,
+   * never the public one. null for an org actor or when no birthdate is on
+   * file; absent on older cached payloads. Drives the apply modal's age-group
+   * warning and nothing else.
+   */
+  viewer_birth_year?: number | null
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
   max_applications?: number | null
-  shortlisted_count?: number
+  confirmed_count?: number
   selected_count?: number
   views_count?: number
   /**
@@ -330,6 +456,13 @@ export type RecruitmentDetail = {
    * saver. Absent (not zero) on a non-owner payload.
    */
   saves_count?: number
+  /**
+   * How the players rated the trial. Owner-only and an AGGREGATE — an
+   * individual rating stays between the player and the org that ran the
+   * trial. `rating_average` is null until somebody rates.
+   */
+  rating_average?: number | null
+  rating_count?: number
   published_at?: string | null
   updated_at?: string
 }
@@ -386,6 +519,27 @@ export type CreateRecruitmentLocationPayload = {
   longitude?: number
 }
 
+/**
+ * One trial date on the way OUT.
+ *
+ * `id` is the load-bearing field on an edit: the server DIFF-SYNCS on it,
+ * so a row that keeps its id is updated in place and a row that loses one
+ * is deleted and recreated — which SET_NULLs the date every applicant
+ * picked. New rows omit it; rows loaded from the API must carry it back.
+ */
+export type CreateTrialSessionPayload = {
+  id?: string
+  title?: string
+  date: string              // "YYYY-MM-DD"
+  start_time?: string       // "HH:MM"
+  end_time?: string
+  venue_name?: string
+  venue_link?: string
+  location?: CreateRecruitmentLocationPayload
+  is_cancelled?: boolean
+  display_order?: number
+}
+
 export type CreateRecruitmentAgeCategoryPayload = {
   // Present ONLY for a group that already exists on the server. The backend
   // diff-syncs on it, so echoing the id back on edit is what keeps the group
@@ -435,6 +589,8 @@ export type CreateRecruitmentPayload = {
   visibility: RecruitmentVisibility
   gender?: RecruitmentGender | "all"
   sport_id: string
+  /** Still ACCEPTED by the server; no longer SENT — the wizard has no setter
+   *  for it, and an omitted key leaves a stored value untouched. */
   experience_level?: string
   application_deadline?: string    // ISO 8601
   event_date?: string              // ISO 8601
@@ -457,6 +613,11 @@ export type CreateRecruitmentPayload = {
   positions?: CreateRecruitmentPositionPayload[]        // [] means "Any"
   // [] means "open to all ages" — there is no separate flag.
   age_categories?: CreateRecruitmentAgeCategoryPayload[]
+  // The trial's dates. An open trial sends at least one; every other
+  // type sends none at all.
+  sessions?: CreateTrialSessionPayload[]
+  session_mode?: SessionMode
+  auto_confirm?: boolean
   benefits?: CreateRecruitmentBenefitPayload[]
   requirements?: CreateRecruitmentRequirementPayload[]
   eligibility_criteria?: CreateRecruitmentEligibilityCriteriaPayload[]
@@ -467,6 +628,16 @@ export type CreateRecruitmentPayload = {
 
 export type CreateRecruitmentResponse = {
   recruitment_id: string
+  /**
+   * What changed that applicants would want to hear about — any date, time,
+   * venue, or a date added / removed / cancelled.
+   *
+   * Editing a recruitment notifies NOBODY by itself; this is the nudge that
+   * stops a moved date going untold. EMPTY when nothing schedule-related
+   * changed AND empty when there are no applicants, because there is then
+   * nobody to tell. Absent on a create.
+   */
+  schedule_changed_fields?: string[]
 }
 
 // ── List response ─────────────────────────────────────────────
@@ -489,6 +660,8 @@ export type FetchRecruitmentsParams = {
   // junk values, so unset filters are simply omitted from the request.
   search?: string
   city?: string
+  /** A live server filter that the UI no longer offers: it could only ever
+   *  match pre-migration rows. Kept because the param still works. */
   experience_level?: string
   birth_year?: number
   apply_method?: ApplyMethod
@@ -585,25 +758,38 @@ export type ApplicationOrgSummary = {
 export type MyApplicationRecruitment = {
   id: string
   title: string
-  recruitment_type: RecruitmentType
+  recruitment_type: RecruitmentTypeValue
   status: RecruitmentStatus
   city: string
   event_date: string | null
   application_deadline: string | null
   /** The trial day is over — see `isTrialOver`. Optional: older payloads. */
   is_trial_over?: boolean
+  /** The LAST date. `isTrialOver` reads this before event_date. */
+  trial_end_date?: string | null
+  applications_close_at?: string | null
+  session_mode?: SessionMode
+  /** The fee line only renders when there is a fee to show. */
+  is_paid?: boolean
+  fee_amount?: string | null
+  fee_currency?: string
   organization: ApplicationOrgSummary
   sport: RecruitmentSport
 }
 
-export type MyApplicationListItem = {
-  id: string
-  status: ApplicationStatus
-  applied_at: string
-  updated_at: string
-  recruitment: MyApplicationRecruitment
-  age_category: ApplicationAgeCategory | null
-}
+export type MyApplicationListItem = TrialSelfReport &
+  TrialFeedbackEligibility & {
+    id: string
+    status: ApplicationStatus
+    applied_at: string
+    updated_at: string
+    recruitment: MyApplicationRecruitment
+    age_category: ApplicationAgeCategory | null
+    /** The date they picked. Null unless the trial is choose_one. */
+    session?: ApplicationSession | null
+    /** Whether the org marked the trial fee collected. Read-only here. */
+    fee_paid?: boolean
+  }
 
 export type MyApplicationsResponse = {
   count: number
@@ -686,6 +872,9 @@ export type ApplyRecruitmentPayload = {
   // Which age group the player is applying under. Omitted when the
   // recruitment has no groups. Never derived from their profile.
   age_category?: string
+  // Which DATE they are attending. Required by the server on a
+  // choose_one trial, ignored entirely on every other posting.
+  session?: string
   answers: ApplyAnswerPayload[]
 }
 
@@ -728,6 +917,31 @@ export type ApplicantListItem = {
    */
   highlights_count?: number | null
   age_category: ApplicationAgeCategory | null
+  /** The date they picked. Null unless the trial is choose_one. */
+  session?: ApplicationSession | null
+  /**
+   * The trial fee, as the org recorded it at the gate. INFORMATION, never
+   * a gate: nothing in the pipeline reads it, and an unpaid applicant can
+   * still be confirmed and selected.
+   */
+  fee_paid?: boolean
+  fee_paid_at?: string | null
+  fee_marked_by?: { id: string; name: string } | null
+  /**
+   * WHAT THE PLAYER SAID about the trial — a claim, never a status. The LIST
+   * carries only these three (enough for a chip); the rating and the written
+   * note are on the DETAIL payload, so a list the org scans does not put a
+   * number beside a face.
+   */
+  attended_self_reported?: boolean | null
+  outcome_self_reported?: SelfReportedOutcome | ""
+  feedback_at?: string | null
+  /**
+   * The profile birth year sat outside `age_category`'s band when they
+   * applied. Computed server-side, frozen at apply time; never blocks anything.
+   * Optional only for older cached payloads.
+   */
+  age_mismatch_at_apply?: boolean
 }
 
 export type ApplicationAnswer = {
@@ -737,8 +951,31 @@ export type ApplicationAnswer = {
   selected_options: string[]
 }
 
+// One move in an application's pipeline, newest first on the detail payload.
+// Org-internal: the note is the org's own reason and never reaches the player.
+export type ApplicationStatusHistoryEntry = {
+  id: string
+  from_status: ApplicationStatus | ""
+  to_status: ApplicationStatus
+  note: string
+  created_at: string
+  /** The org member who made the move; null for the applicant's own moves
+   *  (apply, withdraw) and for automatic writes such as the data migration. */
+  changed_by: { id: string; name: string } | null
+}
+
 export type ApplicationDetail = ApplicantListItem & {
   answers: ApplicationAnswer[]
+  /**
+   * THE OWNING ORG ONLY — the server gates this by serializer, not by a
+   * column, so it appears on the detail payload and nowhere else.
+   */
+  trial_rating?: number | null
+  trial_feedback?: string
+  /** The LIVE profile birth year (null when not on file), set beside the
+   *  frozen `age_mismatch_at_apply` so a later correction is visible. */
+  applicant_birth_year?: number | null
+  status_history?: ApplicationStatusHistoryEntry[]
 }
 
 // Every application status → count for the recruitment (zeros included).
@@ -750,13 +987,44 @@ export type RecruitmentApplicantsResponse = {
   offset: number
   results: ApplicantListItem[]
   status_counts: ApplicationStatusCounts
+  /**
+   * How many applicants a birth-year range is HIDING, because they have
+   * no birth year on file. 0 when no range is active. Without rendering
+   * it, a range filter silently loses people and the org never knows.
+   */
+  no_birth_year_count?: number
 }
 
 export type FetchRecruitmentApplicantsParams = {
-  status?: ApplicationStatus
+  /**
+   * One status, or several — a stage tab of the pipeline. Several go out as
+   * ONE comma-separated `status` param; the backend filters with status__in
+   * and drops unknown values, so pagination and `count` stay server-side.
+   */
+  status?: ApplicationStatus | ApplicationStatus[]
   search?: string
   // Age-group id. The backend ignores an id it doesn't own, same as status.
   age_category?: string
+  /** Whether the trial fee was collected. Absent means no filter. */
+  fee_paid?: boolean
+  /**
+   * How old the applicant ACTUALLY is, which is a different question from
+   * `age_category` (the group they applied UNDER). Birth years throughout,
+   * never ages: the groups are modelled in birth years, and mixing the two
+   * produces an off-by-one every January.
+   */
+  birth_year_min?: number
+  birth_year_max?: number
+  /** "true" narrows to the mismatched rows. Never widens to the rest. */
+  age_mismatch?: boolean
+  /**
+   * WHAT THE PLAYER SAID, which is a different question from `status` (what
+   * the org decided). This is the filter the whole self-report feature exists
+   * for: narrow to "says selected", select all, mark Selected.
+   */
+  self_outcome?: SelfReportedOutcome | "attended" | "not_attended"
+  /** Newest first by default; birth_year sorts unknowns LAST either way. */
+  sort?: "birth_year" | "-birth_year"
   limit?: number
   offset?: number
 }
@@ -765,7 +1033,19 @@ export const fetchRecruitmentApplicantsApi = async (
   recruitmentId: string,
   params: FetchRecruitmentApplicantsParams
 ): Promise<RecruitmentApplicantsResponse> => {
-  const res = await api.get(`/recruitments/${recruitmentId}/applications`, { params })
+  const { status, fee_paid, age_mismatch, self_outcome, ...rest } = params
+  const res = await api.get(`/recruitments/${recruitmentId}/applications`, {
+    params: {
+      ...rest,
+      status: Array.isArray(status) ? status.join(",") || undefined : status,
+      // Booleans go out as the strings the backend reads; `undefined`
+      // keeps the key off the query string entirely.
+      fee_paid: fee_paid === undefined ? undefined : String(fee_paid),
+      age_mismatch: age_mismatch ? "true" : undefined,
+      // "all" is not a value the server knows; it is the absence of a filter.
+      self_outcome: self_outcome || undefined,
+    },
+  })
   return res.data.data
 }
 
@@ -775,6 +1055,45 @@ export const fetchApplicationDetailApi = async (
   const res = await api.get(`/recruitments/applications/${applicationId}/details`)
   return res.data.data
 }
+
+// ── Trial feedback (player) ─────────────────────────────────
+
+/**
+ * The player's own account of the trial.
+ *
+ * `attended: false` is a COMPLETE answer on its own - the server forces the
+ * outcome blank and the rating null for it, so the client sends nothing else
+ * and never makes somebody who missed the trial fill in a form about it.
+ *
+ * With `attended: true` the server requires BOTH an outcome and a rating.
+ * A resubmit is allowed and updates in place.
+ */
+export type TrialFeedbackPayload = {
+  attended: boolean
+  outcome?: SelfReportedOutcome
+  rating?: number
+  feedback?: string
+}
+
+export type TrialFeedbackResponse = {
+  attended_self_reported: boolean | null
+  outcome_self_reported: SelfReportedOutcome | ""
+  trial_rating: number | null
+  trial_feedback: string
+  feedback_at: string | null
+}
+
+export const submitTrialFeedbackApi = async (
+  applicationId: string,
+  payload: TrialFeedbackPayload
+): Promise<TrialFeedbackResponse> => {
+  const res = await api.post(
+    `/recruitments/applications/${applicationId}/feedback`,
+    payload
+  )
+  return res.data.data
+}
+
 
 // ── Withdraw (player) ─────────────────────────────────────────
 
@@ -794,10 +1113,20 @@ export const withdrawApplicationApi = async (
 
 // ── Org status changes (bulk + single) ────────────────────────
 
-// Org status targets — bulk + single share the same set. `invited` is NOT an
-// org target (reserved for the future personal-invite feature).
-export type BulkStatusTarget = "reviewing" | "shortlisted" | "selected" | "rejected"
-export type SingleStatusTarget = "reviewing" | "shortlisted" | "selected" | "rejected"
+// What an org may SET — matches the backend's STATUS_CHANGE_TARGETS.
+//
+// The retired `invited` / `rejected` are not here and not in
+// ApplicationStatus either. The SERVER still accepts them from a stale PWA
+// and maps them (backend legacy_status.py); this client never sends them.
+export type BulkStatusTarget =
+  | "reviewing"
+  | "shortlisted"
+  | "trial_confirmed"
+  | "not_shortlisted"
+  | "selected"
+  | "not_selected"
+
+export type SingleStatusTarget = BulkStatusTarget
 
 export type StatusChangeSkip = {
   id: string
@@ -838,6 +1167,45 @@ export const updateApplicationStatusApi = async (
   const res = await api.post(
     `/recruitments/applications/${applicationId}/status`,
     { status: body.status, note: body.note ?? "" }
+  )
+  return res.data.data
+}
+
+// ── Trial fee (org) ─────────────────────────────────────
+//
+// Any org member may mark a fee — it is the person on the gate who knows,
+// not the admin. Nothing anywhere reads these to decide whether somebody may
+// be confirmed or selected.
+
+export type ApplicationFeeResponse = {
+  application_id: string
+  fee_paid: boolean
+  fee_paid_at: string | null
+}
+
+export const updateApplicationFeeApi = async (
+  applicationId: string,
+  feePaid: boolean,
+): Promise<ApplicationFeeResponse> => {
+  const res = await api.patch(
+    `/recruitments/applications/${applicationId}/fee`,
+    { fee_paid: feePaid },
+  )
+  return res.data.data
+}
+
+export type BulkFeeResponse = {
+  updated: string[]
+  skipped: StatusChangeSkip[]
+}
+
+export const bulkUpdateApplicationFeeApi = async (
+  recruitmentId: string,
+  body: { applicationIds: string[]; feePaid: boolean },
+): Promise<BulkFeeResponse> => {
+  const res = await api.post(
+    `/recruitments/${recruitmentId}/applications/bulk-fee`,
+    { application_ids: body.applicationIds, fee_paid: body.feePaid },
   )
   return res.data.data
 }

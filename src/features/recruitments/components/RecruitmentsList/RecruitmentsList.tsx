@@ -49,7 +49,7 @@ function EmptyState({
             {isOwn ? (
                 <>
                     <p className={styles.emptyBody}>
-                        Post open trials, private trials, or scholarship calls to find the best talent.
+                        Post an open trial, or say which players your squad is looking for.
                     </p>
                     <CreateRecruitmentTrigger>
                         {(open) => (

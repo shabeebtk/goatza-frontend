@@ -20,6 +20,7 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import { useRecruitmentApplicants } from "../../hooks/useRecruitments"
+import type { RecruitmentTypeValue } from "../../services/recruitments.api"
 import styles from "./LatestApplicants.module.css"
 
 /** The mockup shows three. More than that is the applicants list's job. */
@@ -27,6 +28,8 @@ const PREVIEW_COUNT = 3
 
 interface LatestApplicantsProps {
     recruitmentId: string
+    /** Picks the per-type wording of a confirmed applicant's badge. */
+    recruitmentType?: RecruitmentTypeValue
     /** Total, straight off the recruitment — not the page length. */
     total: number
     /** Where "View applicants" goes; the org-admin applicants tab. */
@@ -35,6 +38,7 @@ interface LatestApplicantsProps {
 
 export default function LatestApplicants({
     recruitmentId,
+    recruitmentType,
     total,
     applicantsHref,
 }: LatestApplicantsProps) {
@@ -77,7 +81,7 @@ export default function LatestApplicants({
                                         <span className={styles.rowDetail}>{detail}</span>
                                     )}
                                 </span>
-                                <StatusBadge status={item.status} />
+                                <StatusBadge status={item.status} recruitmentType={recruitmentType} />
                             </div>
                         )
                     })}

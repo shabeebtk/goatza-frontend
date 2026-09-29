@@ -26,8 +26,9 @@ import type {
 import type { RecruitmentDraft } from "./draft"
 import { localInputToISO } from "./wizardDate"
 
-/** The bits of the listing the draft does not know about. */
-export type PreviewContext = {
+/** The bits of the listing the draft does not know about. Module-private:
+ *  callers pass an object literal to draftToPreviewRecruitment. */
+type PreviewContext = {
     organization: RecruitmentOrganization
     /** The chosen sport, or null while none is picked. */
     sport: RecruitmentSport | null
@@ -61,7 +62,8 @@ export type PreviewRecruitment = Recruitment & {
     location_name: string
 }
 
-export const PREVIEW_ID = "preview"
+// Module-private: the id only matters inside the preview it names.
+const PREVIEW_ID = "preview"
 
 const PLACEHOLDER_SPORT: RecruitmentSport = { id: "", name: "", icon_name: "", icon_url: "" }
 

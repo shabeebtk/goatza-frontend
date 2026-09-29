@@ -26,8 +26,9 @@ export type PreviewJumpTarget =
 
 export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, compact = false }: {
     recruitment: PreviewRecruitment
-    /** "Trial date" / "Start date" … from the type config. */
-    dateLabel: string
+    /** "Trial date" from the type config; null for a type with no trial day,
+     *  which drops the date line rather than prompting for a hidden field. */
+    dateLabel: string | null
     onJump?: (target: PreviewJumpTarget) => void
     /** The live side/strip preview: tighter spacing, shorter hero. */
     compact?: boolean
@@ -81,10 +82,12 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
 
             {/* ── Meta row ── */}
             <div className={styles.meta}>
-                <span className={styles.metaItem}>
-                    <Icon icon="mdi:calendar" width={13} height={13} />
-                    {date ? <>{dateLabel}: <strong>{date}</strong></> : prompt("date", `Add a ${dateLabel.toLowerCase()}`)}
-                </span>
+                {dateLabel !== null && (
+                    <span className={styles.metaItem}>
+                        <Icon icon="mdi:calendar" width={13} height={13} />
+                        {date ? <>{dateLabel}: <strong>{date}</strong></> : prompt("date", `Add a ${dateLabel.toLowerCase()}`)}
+                    </span>
+                )}
                 <span className={styles.metaItem}>
                     <Icon icon="mdi:map-marker-outline" width={13} height={13} />
                     {r.location_name

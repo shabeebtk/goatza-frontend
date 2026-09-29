@@ -17,7 +17,18 @@ import { describe, expect, it } from "vitest"
 
 import { buildPayload } from "./buildPayload"
 import type { RecruitmentDraft } from "./draft"
+import {
+    initialSessionDrafts,
+    newSessionDraft,
+    validateSessions,
+} from "./sessions"
+import type { SessionDraft } from "./sessions"
 import type { CreateRecruitmentMediaPayload } from "../../services/recruitments.api"
+
+/** A date row, stated as briefly as a test needs it. */
+function sessionDraft(overrides: Partial<SessionDraft>): SessionDraft {
+    return { ...newSessionDraft(), ...overrides }
+}
 
 const endOfDayISO = (y: number, m: number, d: number) =>
     new Date(y, m - 1, d, 23, 59, 0, 0).toISOString()
@@ -33,9 +44,13 @@ function emptyDraft(): RecruitmentDraft {
         visibility: "public",
         gender: "all",
         sportId: "",
-        experienceLevel: "",
         applicationDeadline: "",
         eventDate: "",
+        // What the modal starts an open trial with: exactly ONE empty
+        // date row, which sends nothing until it is filled in.
+        sessions: initialSessionDrafts(),
+        sessionMode: "all",
+        autoConfirm: false,
         maxApplications: "",
         isPaid: false,
         feeAmount: "",
@@ -67,9 +82,21 @@ function fullDraft(): RecruitmentDraft {
         visibility: "followers_only",
         gender: "male",
         sportId: "sport-football",
-        experienceLevel: "district",
         applicationDeadline: "2026-10-08T18:30",
         eventDate: "2026-10-10",
+        // Two dates, each its own round. `id` on the first is a row that
+        // came back from the API and MUST go back out carrying it.
+        sessions: [
+            sessionDraft({ id: "sess-1", date: "2026-10-10", startTime: "09:00" }),
+            sessionDraft({
+                date: "2026-10-11",
+                title: "  Day 2  ",
+                endTime: "17:00",
+                venueName: "  Kozhikode Corporation Stadium ",
+            }),
+        ],
+        sessionMode: "choose_one",
+        autoConfirm: true,
         maxApplications: "150",
         isPaid: true,
         feeAmount: "300",
@@ -186,9 +213,25 @@ describe("buildPayload", () => {
             visibility: "followers_only",
             gender: "male",
             sport_id: "sport-football",
-            experience_level: "district",
             application_deadline: timedISO("2026-10-08T18:30"),
             event_date: endOfDayISO(2026, 10, 10),
+            sessions: [
+                {
+                    id: "sess-1",
+                    date: "2026-10-10",
+                    start_time: "09:00",
+                    display_order: 0,
+                },
+                {
+                    date: "2026-10-11",
+                    title: "Day 2",
+                    end_time: "17:00",
+                    venue_name: "Kozhikode Corporation Stadium",
+                    display_order: 1,
+                },
+            ],
+            session_mode: "choose_one",
+            auto_confirm: true,
             max_applications: 150,
             is_paid: true,
             fee_amount: "300",
@@ -283,9 +326,13 @@ describe("buildPayload", () => {
             visibility: "public",
             gender: "all",
             sport_id: "sport-cricket",
-            experience_level: undefined,
             application_deadline: undefined,
             event_date: endOfDayISO(2026, 11, 1),
+            // The one blank row carries no date, so nothing is sent for
+            // it - and with fewer than two dates the mode is always all.
+            sessions: [],
+            session_mode: "all",
+            auto_confirm: false,
             max_applications: undefined,
             is_paid: false,
             fee_amount: undefined,
@@ -311,6 +358,93 @@ describe("buildPayload", () => {
     it("minimal draft saved as a draft carries status: draft", () => {
         const draft = { ...emptyDraft(), title: "Open trial", sportId: "s", eventDate: "2026-11-01" }
         expect(buildPayload(draft, [], "draft").status).toBe("draft")
+    })
+
+    // ── Trial dates ──────────────────────────────────────────────
+
+    it("a date row loaded from the API keeps its id — the whole edit contract", () => {
+        // The backend DIFF-SYNCS on this id. A row that arrives without one
+        // is created, and the row it replaced is DELETED — which SET_NULLs
+        // the date every applicant picked. This assertion is the guard.
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            title: "City tour",
+            sportId: "sport-football",
+            sessions: [
+                sessionDraft({ id: "sess-kochi", date: "2026-10-10" }),
+                sessionDraft({ id: "sess-calicut", date: "2026-10-17" }),
+                sessionDraft({ date: "2026-10-24" }),
+            ],
+            sessionMode: "choose_one",
+        }
+
+        expect(buildPayload(draft, []).sessions).toEqual([
+            { id: "sess-kochi", date: "2026-10-10", display_order: 0 },
+            { id: "sess-calicut", date: "2026-10-17", display_order: 1 },
+            { date: "2026-10-24", display_order: 2 },
+        ])
+    })
+
+    it("forces `all` below two live dates, and honours the choice above", () => {
+        const one: RecruitmentDraft = {
+            ...emptyDraft(),
+            sessions: [sessionDraft({ date: "2026-10-10" })],
+            sessionMode: "choose_one",
+        }
+        expect(buildPayload(one, []).session_mode).toBe("all")
+
+        const two: RecruitmentDraft = {
+            ...one,
+            sessions: [
+                sessionDraft({ date: "2026-10-10" }),
+                sessionDraft({ date: "2026-10-11" }),
+            ],
+        }
+        expect(buildPayload(two, []).session_mode).toBe("choose_one")
+
+        // A cancelled second date is not a second date.
+        const cancelled: RecruitmentDraft = {
+            ...one,
+            sessions: [
+                sessionDraft({ date: "2026-10-10" }),
+                sessionDraft({ date: "2026-10-11", isCancelled: true }),
+            ],
+        }
+        expect(buildPayload(cancelled, []).session_mode).toBe("all")
+    })
+
+    it("a `looking for players` post sends no dates and no trial settings", () => {
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            recruitmentType: "player_looking",
+            title: "Goalkeeper wanted",
+            sportId: "sport-football",
+            // Left over from a switch away from open_trial: none of it rides
+            // along.
+            sessions: [sessionDraft({ date: "2026-10-10" })],
+            sessionMode: "choose_one",
+            autoConfirm: true,
+        }
+
+        const payload = buildPayload(draft, [])
+        expect(payload.sessions).toBeUndefined()
+        expect(payload.session_mode).toBeUndefined()
+        expect(payload.auto_confirm).toBeUndefined()
+        expect(payload.event_date).toBeUndefined()
+    })
+
+    it("a cancelled date is sent, not dropped — applicants still see it", () => {
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            sessions: [
+                sessionDraft({ id: "sess-1", date: "2026-10-10" }),
+                sessionDraft({ id: "sess-2", date: "2026-10-11", isCancelled: true }),
+            ],
+        }
+        expect(buildPayload(draft, []).sessions).toEqual([
+            { id: "sess-1", date: "2026-10-10", display_order: 0 },
+            { id: "sess-2", date: "2026-10-11", is_cancelled: true, display_order: 1 },
+        ])
     })
 
     it("edit draft — pre-existing age groups keep their server id, new ones do not", () => {
@@ -466,5 +600,52 @@ describe("buildPayload", () => {
         const payload = buildPayload(draft, [])
         expect(payload.event_date).toBe(endOfDayISO(2026, 10, 10))
         expect(payload.application_deadline).toBe(timedISO("2026-10-10T09:00"))
+    })
+})
+describe("validateSessions", () => {
+    it("wants at least one live date", () => {
+        expect(validateSessions(initialSessionDrafts(), "")).toBe(
+            "Add at least one trial date.",
+        )
+        expect(
+            validateSessions([sessionDraft({ date: "2026-10-10", isCancelled: true })], ""),
+        ).toBe("Add at least one trial date.")
+        expect(validateSessions([sessionDraft({ date: "2026-10-10" })], "")).toBeNull()
+    })
+
+    it("refuses two dates at the same date AND time", () => {
+        const same = [
+            sessionDraft({ date: "2026-10-10", startTime: "09:00" }),
+            sessionDraft({ date: "2026-10-10", startTime: "09:00" }),
+        ]
+        expect(validateSessions(same, "")).toBe(
+            "Two trial dates are the same. Remove the duplicate.",
+        )
+
+        // A second slot on the same day is a real thing — morning and
+        // afternoon rounds.
+        const differentTimes = [
+            sessionDraft({ date: "2026-10-10", startTime: "09:00" }),
+            sessionDraft({ date: "2026-10-10", startTime: "14:00" }),
+        ]
+        expect(validateSessions(differentTimes, "")).toBeNull()
+    })
+
+    it("keeps the deadline on or before the FIRST date", () => {
+        // Rows in any order: the earliest one is the trial's start.
+        const rows = [
+            sessionDraft({ date: "2026-10-17" }),
+            sessionDraft({ date: "2026-10-10" }),
+        ]
+
+        expect(validateSessions(rows, "2026-10-08")).toBeNull()
+        // ...on the day itself is fine (a date-only deadline is end of day,
+        // and so is a date-only trial).
+        expect(validateSessions(rows, "2026-10-10")).toBeNull()
+
+        expect(validateSessions(rows, "2026-10-12")).toBe(
+            "The application deadline is after the first trial date. " +
+            "Move the deadline to on or before 10 Oct 2026.",
+        )
     })
 })

@@ -593,3 +593,7 @@
 .panelActions .btnPrimary {
   flex: none;
 }
+
+.trialDates {
+  margin: var(--space-3) 0;
+}

@@ -16,7 +16,7 @@ interface CreateRecruitmentTriggerProps {
     /** "edit" opens the modal prefilled from initialRecruitment and PATCHes on save. */
     mode?: "create" | "edit"
     initialRecruitment?: RecruitmentDetail
-    onUpdated?: (recruitmentId: string) => void
+    onUpdated?: (recruitmentId: string, scheduleChangedFields: string[]) => void
 }
 
 export default function CreateRecruitmentTrigger({
@@ -65,9 +65,9 @@ export default function CreateRecruitmentTrigger({
                         setOpen(false)
                         onCreated?.(id)
                     }}
-                    onUpdated={(id) => {
+                    onUpdated={(id, scheduleChangedFields) => {
                         setOpen(false)
-                        onUpdated?.(id)
+                        onUpdated?.(id, scheduleChangedFields)
                     }}
                 />,
                 document.body

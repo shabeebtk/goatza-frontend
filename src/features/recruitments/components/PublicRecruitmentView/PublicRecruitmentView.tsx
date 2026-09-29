@@ -57,12 +57,13 @@ import { isTrialOver } from "../../trialEnded"
 import {
   APPLY_METHOD_LABEL,
   BENEFIT_ICONS,
-  EXPERIENCE_LABEL,
   GENDER_LABEL,
   TYPE_LABEL,
 } from "../../recruitmentCopy"
 import type { PublicRecruitmentDetail } from "../../services/publicRecruitment.api"
 import RecruitmentShareMenu from "../RecruitmentShareMenu/RecruitmentShareMenu"
+import TrialDatesList from "../TrialDatesList/TrialDatesList"
+import AnnouncementList from "../AnnouncementList/AnnouncementList"
 import styles from "./PublicRecruitmentView.module.css"
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -191,6 +192,9 @@ export default function PublicRecruitmentView({
   const eligibilityCriteria = r.eligibility_criteria ?? []
 
   const fee = formatFee(r)
+  // How many dates are still on. event_date is the first of them.
+  const liveDateCount = (r.sessions ?? []).filter(x => !x.is_cancelled).length
+
   const venuePrimary = r.venue_name?.trim() || r.city?.trim() || ""
 
   // `status` is owner-only and never on this payload, so
@@ -264,9 +268,7 @@ export default function PublicRecruitmentView({
             <span className={styles.orgText}>
               <span className={styles.orgName}>{r.organization.name}</span>
               <span className={styles.orgSub}>
-                {[r.city?.trim(), EXPERIENCE_LABEL[r.experience_level]]
-                  .filter(Boolean)
-                  .join(" · ") || `@${r.organization.username}`}
+                {r.city?.trim() || `@${r.organization.username}`}
               </span>
             </span>
           </Link>
@@ -278,12 +280,18 @@ export default function PublicRecruitmentView({
       <div className={styles.facts}>
         {r.event_date && (
           <div className={styles.fact}>
-            <span className={styles.factK}>Trial</span>
+            {/* event_date is the FIRST date. TrialDatesList below carries
+                the rest whenever there is more than one. */}
+            <span className={styles.factK}>{liveDateCount > 1 ? "First date" : "Trial"}</span>
             <b className={styles.factV}>
               {dayjs(r.event_date).format("D MMM").toUpperCase()}
             </b>
-            {fmtTimeOrNull(r.event_date) && (
-              <small className={styles.factSub}>{fmtTimeOrNull(r.event_date)}</small>
+            {(liveDateCount > 1 || fmtTimeOrNull(r.event_date)) && (
+              <small className={styles.factSub}>
+                {liveDateCount > 1
+                  ? `+${liveDateCount - 1} more`
+                  : fmtTimeOrNull(r.event_date)}
+              </small>
             )}
           </div>
         )}
@@ -308,6 +316,13 @@ export default function PublicRecruitmentView({
           </div>
         )}
       </div>
+
+      {/* Renders itself only when there are 2+ dates. */}
+      <TrialDatesList recruitment={r} className={styles.trialDates} />
+
+      {/* The public page is anonymous, so only "all applicants" updates
+          appear here — that is the server's rule, not a prop. */}
+      <AnnouncementList recruitmentId={r.id} />
 
       {trialOver && (
         <div className={styles.endedBanner} role="status">
@@ -438,14 +453,6 @@ export default function PublicRecruitmentView({
       <section className={styles.section}>
         <Sect>Details</Sect>
         <div className={styles.kvList}>
-          {r.experience_level && (
-            <div className={styles.kvRow}>
-              <span className={styles.k}>Level</span>
-              <span className={styles.v}>
-                {EXPERIENCE_LABEL[r.experience_level] ?? r.experience_level}
-              </span>
-            </div>
-          )}
           {(r.city || r.location_name) && (
             <div className={styles.kvRow}>
               <span className={styles.k}>Location</span>

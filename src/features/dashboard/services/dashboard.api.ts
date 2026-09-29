@@ -12,14 +12,24 @@ export type DashboardStats = {
   total_recruitment_views: number
 }
 
-export type PipelineCounts = {
-  applied: number
-  reviewing: number
-  shortlisted: number
-  invited: number
-  selected: number
-  rejected: number
-  withdrawn: number
+/**
+ * {status: count}, zero-filled by the server for every status it still
+ * has choices for.
+ *
+ * INDEXED, not a fixed shape. The retired `invited` / `rejected` keys
+ * appear only for an org whose rows the backfill has not reached, and
+ * naming them as required fields would render `undefined` for everybody
+ * else. Every read goes through a `?? 0`.
+ */
+export type PipelineCounts = Record<string, number | undefined> & {
+  applied?: number
+  reviewing?: number
+  shortlisted?: number
+  trial_confirmed?: number
+  not_shortlisted?: number
+  selected?: number
+  not_selected?: number
+  withdrawn?: number
 }
 
 export type DeadlineSoon = {
@@ -54,7 +64,7 @@ export type RecruitmentRow = {
   status: string
   views_count: number
   applications_count: number
-  shortlisted_count: number
+  confirmed_count: number
   selected_count: number
   conversion: number
   application_deadline: string | null

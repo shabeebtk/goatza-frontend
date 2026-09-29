@@ -2,8 +2,10 @@
  * Eligibility — the recruiter's own words about who may attend.
  *
  * Goatza DISPLAYS eligibility, it never enforces it: nothing in here reads the
- * viewer's birthdate, gender or profile, and no surface tells a player they
- * are or aren't eligible. Verification happens at the venue.
+ * viewer's profile, and no surface refuses a player for their age.
+ * Verification happens at the venue. The one comparison, `birthYearInGroup`,
+ * powers a WARNING the player acknowledges and the org-side age flag — never
+ * a gate, never a pre-selection.
  *
  * Two ideas the whole feature rests on:
  *  - An EMPTY age-group list means "open to all ages". There is no flag; the
@@ -181,6 +183,25 @@ export function ageGroupApplyPayload(
 ): { age_category?: string } {
     if (!isAgeGroupRequired(groups) || !selectedId) return {}
     return { age_category: selectedId }
+}
+
+/**
+ * Whether a birth year falls inside ONE group's band.
+ *
+ * Read EXACTLY the way the backend does (birth_year_in_category in
+ * apps/recruitments/services/eligibility_service.py, which the stored
+ * age_mismatch_at_apply flag and the ranking badge both use): a null bound
+ * never excludes, and both bounds belong to THIS group row. If the two ever
+ * disagreed, an org would see a mismatch badge the player was never warned
+ * about — or the other way round.
+ */
+export function birthYearInGroup(
+    group: Pick<RecruitmentAgeCategory, "min_birth_year" | "max_birth_year">,
+    birthYear: number,
+): boolean {
+    if (group.min_birth_year != null && group.min_birth_year > birthYear) return false
+    if (group.max_birth_year != null && group.max_birth_year < birthYear) return false
+    return true
 }
 
 /** The option label in the apply modal's group select. */

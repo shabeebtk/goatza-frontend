@@ -42,6 +42,7 @@ import HeroThumbs from "../RecruitmentHeroCarousel/HeroThumbs"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
 import StatusBadge from "../StatusBadge/StatusBadge"
+import TrialFeedbackPrompt from "../TrialFeedback/TrialFeedbackPrompt"
 import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import RecruitmentShareMenu from "../RecruitmentShareMenu/RecruitmentShareMenu"
@@ -54,10 +55,10 @@ import {
 } from "../../hooks/useRecruitments"
 import { useShareRecruitment } from "../../hooks/useShareRecruitment"
 import { STATUS_TRANSITIONS } from "../../statusTransitions"
+import { playerStatusLabel } from "../../applicationStatus"
 import {
   APPLY_METHOD_LABEL,
   BENEFIT_ICONS,
-  EXPERIENCE_LABEL,
   GENDER_LABEL,
   TYPE_LABEL,
   VISIBILITY_LABEL,
@@ -65,6 +66,8 @@ import {
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
 import { isTrialOver } from "../../trialEnded"
+import TrialDatesList from "../TrialDatesList/TrialDatesList"
+import AnnouncementList from "../AnnouncementList/AnnouncementList"
 import type {
   RecruitmentDetail as TRecruitmentDetail,
   RecruitmentMedia,
@@ -537,11 +540,17 @@ export default function RecruitmentDetail({
   // Built as a list and filtered, so an absent fact collapses the grid rather
   // than leaving an empty cell (Part 1 §2).
   const facts: Fact[] = []
+  // event_date is the FIRST date. With more than one, the cell says so and
+  // TrialDatesList below carries the rest — the strip has one line per fact
+  // and a list of five dates is not a fact.
+  const dateCount = (r.sessions ?? []).filter(s => !s.is_cancelled).length
   if (r.event_date) {
     facts.push({
-      label: "Trial",
+      label: dateCount > 1 ? "First date" : "Trial",
       value: dayjs(r.event_date).format("D MMM").toUpperCase(),
-      sub: fmtTimeOrNull(r.event_date),
+      sub: dateCount > 1
+        ? `+${dateCount - 1} more`
+        : fmtTimeOrNull(r.event_date),
     })
   }
   if (asOrganiser && r.application_deadline) {
@@ -583,9 +592,7 @@ export default function RecruitmentDetail({
 
   const orgTagline = asOrganiser
     ? `Posted by you · ${fmtDate(r.published_at ?? r.created_at)}`
-    : [r.city?.trim(), EXPERIENCE_LABEL[r.experience_level]]
-        .filter(Boolean)
-        .join(" · ") ||
+    : r.city?.trim() ||
       r.organization.headline ||
       ""
 
@@ -765,14 +772,6 @@ export default function RecruitmentDetail({
     <section className={styles.section}>
       <Sect>Details</Sect>
       <div className={styles.kvList}>
-        {r.experience_level && (
-          <div className={styles.kvRow}>
-            <span className={styles.k}>Level</span>
-            <span className={styles.v}>
-              {EXPERIENCE_LABEL[r.experience_level] ?? r.experience_level}
-            </span>
-          </div>
-        )}
         {(r.city || r.location_name) && (
           <div className={styles.kvRow}>
             <span className={styles.k}>Location</span>
@@ -987,6 +986,21 @@ export default function RecruitmentDetail({
         <b>{fmtCount(r.saves_count ?? 0)}</b>
         <span>saves</span>
       </div>
+      {/* HOW THE PLAYERS RATED IT. Owner-only — this whole row is behind
+          asOrganiser — and ABSENT rather than "no ratings yet" when nobody
+          has rated: an empty stat in a row of numbers reads as a zero. */}
+      {(r.rating_count ?? 0) > 0 && r.rating_average != null && (
+        <div className={`${styles.stat} ${styles.statWide}`}>
+          <b>
+            {r.rating_average.toFixed(1)}
+            <Icon icon="mdi:star" width={14} height={14} className={styles.statStar} />
+          </b>
+          <span>
+            trial rating ({fmtCount(r.rating_count ?? 0)}{" "}
+            {r.rating_count === 1 ? "rating" : "ratings"})
+          </span>
+        </div>
+      )}
       {capacityPct != null && (
         <div className={`${styles.stat} ${styles.statWide}`}>
           <b>{capacityPct}%</b>
@@ -1127,7 +1141,7 @@ export default function RecruitmentDetail({
                       ` · ${fmtDate(r.my_application.applied_at)}`}
                   </span>
                   <span className={styles.appliedT2}>
-                    Current status: <StatusBadge status={r.my_application!.status} /> — you&apos;ll
+                    Current status: <StatusBadge status={r.my_application!.status} recruitmentType={r.recruitment_type} audience="player" /> — you&apos;ll
                     be notified on any change
                   </span>
                 </span>
@@ -1253,12 +1267,24 @@ export default function RecruitmentDetail({
             meta, and the mockup's desktop frames show no strip. ── */}
         <FactsStrip facts={facts} />
 
+        {/* Renders itself only when there are 2+ dates. */}
+        <TrialDatesList recruitment={r} className={styles.trialDates} />
+
+        {/* Pinned updates. Everyone who can see the posting sees the
+            "all applicants" ones; a targeted announcement only reaches its
+            own audience, and the server decides which is which. The org
+            additionally gets each one's delivery summary. */}
+        <AnnouncementList
+          recruitmentId={r.id}
+          canManage={asOrganiser}
+        />
+
         <div className={styles.statusRow}>
           {asOrganiser && trialOver && <span className={styles.endedBadge}>Ended</span>}
           <CountdownChip countdown={countdown} />
           {hasApplied ? (
             <>
-              <StatusBadge status={r.my_application!.status} />
+              <StatusBadge status={r.my_application!.status} recruitmentType={r.recruitment_type} audience="player" />
               {r.my_application?.applied_at && (
                 <span className={styles.statusNote}>
                   You applied {fmtDate(r.my_application.applied_at)}
@@ -1274,6 +1300,21 @@ export default function RecruitmentDetail({
           )}
         </div>
 
+        {/* HOW DID IT GO? Beside the status it is about, and the SAME component
+            the application card mounts — one prompt, one sheet, one
+            suppression rule. It renders nothing unless the server says to ask,
+            so no guard is needed here beyond having an application at all. */}
+        {hasApplied && r.my_application && (
+          <TrialFeedbackPrompt
+            applicationId={r.my_application.id}
+            application={r.my_application}
+            recruitmentId={r.id}
+            orgName={r.organization?.name}
+            subtitle={r.city || null}
+            className={styles.feedbackPrompt}
+          />
+        )}
+
         {/* Organiser's stats live above the sections on mobile too. */}
         {asOrganiser && (
           <div className={styles.orgStats}>
@@ -1287,6 +1328,7 @@ export default function RecruitmentDetail({
         {asOrganiser && (
           <LatestApplicants
             recruitmentId={r.id}
+            recruitmentType={r.recruitment_type}
             total={r.applications_count ?? 0}
             applicantsHref={applicantsHref}
           />
@@ -1455,7 +1497,7 @@ export default function RecruitmentDetail({
               <span className={styles.appliedText}>
                 <span className={styles.appliedT1}>Applied</span>
                 <span className={styles.appliedT2}>
-                  Status: {r.my_application!.status}
+                  Status: {playerStatusLabel(r.my_application!.status, r.recruitment_type)}
                 </span>
               </span>
             </div>
