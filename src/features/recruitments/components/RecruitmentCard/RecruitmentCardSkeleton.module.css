@@ -1,8 +1,8 @@
 /* ============================================================
    GOATZA — RecruitmentCardSkeleton
 
-   A structural mirror of RecruitmentCard: identical grid areas, gaps,
-   padding and container breakpoint.
+   A structural mirror of RecruitmentCard's media-left row: identical
+   media box, padding, gaps and container breakpoint.
 
    Text bars are a line box (.line — real typography, holding an nbsp)
    with the visible bar (.bar) painted inside it absolutely. The bar can
@@ -37,214 +37,221 @@
   color: transparent;
 }
 
-/* Inset top and bottom so the bar reads as a bar rather than a filled
-   line, without changing the line box it sits in. */
+/* Inset top and bottom so the bar reads as a bar rather than a filled row,
+   without the inset reaching the line box's height. */
 .bar {
   position: absolute;
-  inset-block: 12%;
-  inset-inline: 0;
+  inset: 15% 0;
 }
-
-/* ── Container + card (mirrors RecruitmentCard) ───────────────── */
-
-.cardWrap {
-  container-type: inline-size;
-  container-name: recskeleton;
-  height: 100%;
-}
-
-.card {
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto 1fr auto;
-  grid-template-areas:
-    "head head"
-    "body body"
-    "urg  cta";
-  gap: var(--space-3);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-}
-
-/* ── Head ─────────────────────────────────────────────────────── */
-
-.head {
-  grid-area: head;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.headTop {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--color-surface-raised);
-  flex-shrink: 0;
-}
-
-.orgBar {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  width: 130px;
-}
-
-/* Two lines — matching the real title's fixed two-line box. */
-.titleBlock {
-  display: flex;
-  flex-direction: column;
-}
-
-.titleLine {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  line-height: var(--leading-snug);
-  width: 100%;
-}
-
-.titleLineShort {
-  width: 62%;
-}
-
-/* ── Spec grid ────────────────────────────────────────────────── */
-
-.body {
-  grid-area: body;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-block: 1px solid var(--color-border-subtle);
-  min-width: 0;
-}
-
-.cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.labelBar {
-  font-family: var(--font-ui);
-  font-size: 0.6rem;
-  letter-spacing: var(--tracking-widest);
-  width: 58%;
-}
-
-.valueBar {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  width: 85%;
-}
-
-/* Mirrors a position tag's box: text-xs in a pill with 2px padding and a
-   1.5px border, which stands taller than a plain line of text. */
-.valueBarTags {
-  font-size: var(--text-xs);
-  min-height: calc(var(--text-xs) * var(--leading-normal) + 7px);
-  width: 70%;
-}
-
-/* ── Urgency + footer ─────────────────────────────────────────── */
-
-.urg {
-  grid-area: urg;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-
-.urgBar {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  width: 118px;
-}
-
-.meta {
-  grid-area: meta;
-  display: none;
-  align-items: center;
-  min-width: 0;
-}
-
-.metaBar {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  width: 140px;
-}
-
-.cta {
-  grid-area: cta;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.shareBar {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-full);
-  flex-shrink: 0;
-}
-
-/* Padded exactly like the real View button, so the footer row matches. */
-.viewBar {
-  display: block;
-  color: transparent;
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wide);
-  padding: 8px 14px;
-  border-radius: var(--radius-md);
-  width: 78px;
-}
-
-/* ── Wide container — matches the card's own breakpoint ───────── */
-
-@container recskeleton (min-width: 480px) {
-  .card {
-    grid-template-areas:
-      "head urg"
-      "body body"
-      "meta cta";
-  }
-
-  .urg {
-    justify-self: end;
-    align-self: start;
-    min-height: 32px;
-    justify-content: center;
-  }
-
-  /* Body stays 2 × 2 at every width, mirroring the card. */
-  .meta {
-    display: flex;
-  }
-}
-
-/* ── Reduced motion ───────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
 
   .shimmer,
   .bar {
     animation: none;
+  }
+}
+
+/* ── The row — mirrors RecruitmentCard ────────────────────────── */
+
+.cardWrap {
+  container-type: inline-size;
+  container-name: recskel;
+  height: 100%;
+}
+
+.card {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: 18px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.media {
+  flex: 0 0 auto;
+  width: 92px;
+  /* A MINIMUM, and a stretch. The width is fixed and the height is reserved
+     before anything loads, so an arriving image still shifts nothing — but the
+     box then grows with the row instead of leaving a hole under itself when the
+     content beside it runs to three lines. */
+  min-height: 116px;
+  align-self: stretch;
+  border-radius: 12px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowTop {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+
+.titleLine {
+  width: 80%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: var(--leading-snug);
+}
+
+.pillBar {
+  width: 64px;
+  height: 19px;
+  border-radius: var(--radius-full);
+}
+
+.orgRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.orgBar {
+  width: 96px;
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.factBar {
+  width: 55%;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+}
+
+.factBarWide {
+  width: 75%;
+}
+
+.tagRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tagBar {
+  width: 58px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.quietBar {
+  width: 88px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.spacer {
+  flex: 1;
+  min-height: 2px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px var(--space-2);
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.countBar {
+  width: 72px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.iconBar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+}
+
+.actionBar {
+  display: inline-block;
+  width: 78px;
+  height: 30px;
+  border-radius: var(--radius-md);
+}
+
+/* ── Wide container — same 400px step the real card takes ─────── */
+
+@container recskel (min-width: 400px) {
+  .card {
+    gap: var(--space-4);
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .media {
+    width: 132px;
+    min-height: 158px;
+    border-radius: 13px;
+  }
+
+  .rowTop {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .titleLine {
+    flex: 1;
+    width: auto;
+    font-size: 17px;
+  }
+
+  .facts {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px var(--space-4);
+  }
+
+  .factBar {
+    width: 110px;
+  }
+
+  .factBarWide {
+    width: 150px;
   }
 }

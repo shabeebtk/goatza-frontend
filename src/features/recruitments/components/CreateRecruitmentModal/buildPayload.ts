@@ -122,14 +122,21 @@ export function buildPayload(
         contacts: contacts
             .filter(c => c.value.trim())
             .map(c => ({ name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
-        questions: questions
-            .filter(q => q.question.trim())
-            .map(q => ({
-                question: q.question.trim(),
-                field_type: q.field_type,
-                is_required: q.is_required,
-                options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
-            })),
+        // Custom questions are collected by the in-app apply form and nowhere
+        // else, so any other method sends no `questions` key at all rather than
+        // an empty array: the wizard keeps whatever was typed (a switch back to
+        // Goatza restores it), and an edit that omits the key leaves a stored
+        // set untouched — the same rule the other conditional fields follow.
+        questions: applyMethod === "goatza"
+            ? questions
+                .filter(q => q.question.trim())
+                .map(q => ({
+                    question: q.question.trim(),
+                    field_type: q.field_type,
+                    is_required: q.is_required,
+                    options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
+                }))
+            : undefined,
         media: media.length > 0 ? media : undefined,
     }
 }

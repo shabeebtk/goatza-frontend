@@ -1203,6 +1203,14 @@
   margin-top: -2px;
 }
 
+/* A note UNDER an input (not between label and control, which is
+   .fieldSubLabel and carries a negative top margin for that spot). */
+.fieldHelpNote {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 /* ── Field-level (server) error ─────────────────────────────── */
 .fieldErrorText {
   display: inline-flex;

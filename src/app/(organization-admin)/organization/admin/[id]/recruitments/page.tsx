@@ -21,7 +21,7 @@ export default function OrgRecruitmentsPage({
   if (!organization?.username) return null
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto", padding: "var(--space-4)" }}>
+    <div style={{ maxWidth: 1120, margin: "0 auto", padding: "var(--space-4)" }}>
       <RecruitmentsList
         username={organization.username}
         isOwn

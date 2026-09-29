@@ -127,7 +127,11 @@ export function draftToPreviewRecruitment(
         contacts: draft.contacts
             .filter(c => c.value.trim())
             .map(c => ({ id: c.id, name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
-        questions_count: draft.questions.filter(q => q.question.trim()).length,
+        // Only the in-app flow asks them, so only it counts them — same rule
+        // as `external_apply_url` above, and the same rule buildPayload sends.
+        questions_count: draft.applyMethod === "goatza"
+            ? draft.questions.filter(q => q.question.trim()).length
+            : 0,
         media_previews: ctx.mediaPreviews,
         location_name: draft.location?.name ?? "",
     }

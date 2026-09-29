@@ -22,6 +22,7 @@ import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { useAuthStore } from "@/store/auth.store"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
+import { useOrgDetail } from "@/features/organization/hooks/useOrganizations"
 import styles from "./CreateRecruitmentModal.module.css"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
@@ -76,6 +77,7 @@ import TypePicker from "./TypePicker"
 import type { RecruitmentTemplate } from "./templates"
 import RecruitmentPreview, { type PreviewJumpTarget } from "./RecruitmentPreview"
 import { draftToPreviewRecruitment, missingFromDraft, type MissingItem } from "./draftToPreviewRecruitment"
+import { clipboardToMarkdownLite } from "../../pasteToMarkdownLite"
 import {
     TYPE_CONFIG,
     STEP_META,
@@ -155,13 +157,6 @@ const TIME_OPTIONS: { value: string; label: string }[] = (() => {
     }
     return out
 })()
-
-/** A Google Maps URL for a picked place — by place id when we have one. */
-function mapLinkFor(place: PlaceResult): string {
-    const q = `${place.latitude},${place.longitude}`
-    const pid = place.external_id ? `&query_place_id=${encodeURIComponent(place.external_id)}` : ""
-    return `https://www.google.com/maps/search/?api=1&query=${q}${pid}`
-}
 
 function isValidHttpUrl(value: string): boolean {
     try {
@@ -258,6 +253,10 @@ const VISIBILITY_OPTIONS: { value: RecruitmentVisibility; label: string; hint: s
 // The three headings a good description is built from. Inserted, not
 // suggested in a placeholder: they stay in the text.
 const DESCRIPTION_HEADINGS = ["What to expect", "What to bring", "How selection works"]
+
+// The stored limit, unchanged. Markdown characters count toward it, which is
+// correct: they are characters in the field.
+const DESCRIPTION_MAX = 3000
 
 const APPLY_METHODS: { value: ApplyMethod; label: string; icon: string }[] = [
     { value: "goatza", label: "On Goatza", icon: "mdi:cellphone-check" },
@@ -720,20 +719,25 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
 // Free-text lines about who may attend. Mirrors RequirementsBuilder (the org
 // is writing a list either way) minus the mandatory toggle — a criterion is
 // never "optional", and none of it is ever checked against an applicant.
-// The five experience levels the wizard used to offer as a dropdown live here
-// now: nothing matched or filtered on the field, and a line of text says the
-// same thing in the recruiter's own words. (Existing records keep their
-// stored `experience_level` — the column and the server's filter param both
-// remain — but nothing in the UI writes, filters on, or renders it any more.)
+// The experience levels the wizard used to offer as a dropdown live here now:
+// nothing matched or filtered on the field, and a line of text says the same
+// thing in the recruiter's own words. (Existing records keep their stored
+// `experience_level` — the column and the server's filter param both remain —
+// but nothing in the UI writes, filters on, or renders it any more.)
+//
+// QUICK-FILL ONLY, and deliberately LOCATION-NEUTRAL: these chips are shown to
+// every org in the product, so none of them may name a state, a country, a
+// region or a governing body. That is not a vocabulary — the field is free
+// text and an org that means "Kerala residents only", or any other specific
+// place, types it. A preset would put one state's wording in front of every
+// org that has nothing to do with it.
 const CRITERIA_PRESETS = [
     "Beginners welcome",
-    "District-level experience required",
-    "State-level experience required",
-    "National-level experience required",
-    "International experience required",
-    "Kerala residents only",
+    "Some competitive experience required",
+    "Club or academy experience required",
     "School / college students only",
-    "Registered with the state association",
+    "Local residents only",
+    "Open to players from any region",
 ]
 
 function EligibilityCriteriaBuilder({ criteria, onChange, disabled }: {
@@ -799,7 +803,7 @@ function EligibilityCriteriaBuilder({ criteria, onChange, disabled }: {
                     </div>
                     <input
                         className={`${styles.fieldInput} ${styles.listBuilderInput}`}
-                        placeholder="e.g. Kerala residents only"
+                        placeholder="e.g. Players from our district only"
                         value={c.title}
                         onChange={e => update(c.id, { title: e.target.value })}
                         disabled={disabled}
@@ -1474,13 +1478,13 @@ export default function CreateRecruitmentModal({
     // Cache-only: never fetches, and null is a perfectly normal answer.
     const placeBias = useProfileBias()
 
-    // A picked place always has coordinates (the picker refuses to build one
-    // without), so the map link can be written for the recruiter — but only
-    // into an EMPTY field: a link they typed themselves is theirs.
+    // The picker answers a CITY; "Venue map link" asks for a GROUND. The two
+    // are not the same question, and a generated city-level maps link in that
+    // field is worse than an empty one — it looks deliberate, so nobody
+    // corrects it, and players navigate to the wrong place. Manual entry only.
     const pickLocation = (place: PlaceResult | null) => {
         setLocation(place)
         clearFieldError("location")
-        if (place && !venueLink.trim()) setVenueLink(mapLinkFor(place))
     }
 
     // ── Step 2: Positions + Questions ────────────────────────────
@@ -1581,6 +1585,41 @@ export default function CreateRecruitmentModal({
     }
 
     // Append a heading line to the description and leave the caret under it.
+    /**
+     * Paste into the description, converted to markdown-lite instead of
+     * flattened.
+     *
+     * A description is usually written in Word, Docs or WhatsApp first. The
+     * clipboard carries that formatting as `text/html`, which a textarea drops
+     * on the floor — bullets and bold gone, one wall of text left. So the HTML
+     * is read for its STRUCTURE and turned into the grammar the detail page
+     * renders (see pasteToMarkdownLite.ts). Nothing pasted is ever stored or
+     * rendered as markup.
+     *
+     * Falls through to the browser's own paste when the clipboard offers
+     * nothing usable, and respects the 3,000-character limit by hand —
+     * `maxLength` does not apply to a programmatic value change.
+     */
+    const handleDescriptionPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const converted = clipboardToMarkdownLite(e.clipboardData)
+        if (converted === null) return
+
+        e.preventDefault()
+        const ta = e.currentTarget
+        const start = ta.selectionStart ?? description.length
+        const end = ta.selectionEnd ?? start
+        const room = DESCRIPTION_MAX - (description.length - (end - start))
+        const inserted = converted.slice(0, Math.max(0, room))
+        const next = description.slice(0, start) + inserted + description.slice(end)
+
+        setDescription(next)
+        clearFieldError("description")
+        const caret = start + inserted.length
+        requestAnimationFrame(() => {
+            descriptionRef.current?.setSelectionRange(caret, caret)
+        })
+    }
+
     const insertHeading = (heading: string) => {
         const base = description.replace(/\s+$/, "")
         const next = `${base ? base + "\n\n" : ""}${heading}\n`
@@ -1728,6 +1767,37 @@ export default function CreateRecruitmentModal({
     useFocusedFieldVisible(bodyRef)
 
     const { data: sports = [] } = useSportsList()
+
+    // ── The acting org's own sports ──────────────────────────────
+    // An org that plays one sport picks it on every single posting. Read from
+    // the org detail the admin area already has in cache (no new endpoint, and
+    // OrganizationMini in the store carries no sports); CREATE only, so an edit
+    // never fires it at all.
+    const { data: actingOrg } = useOrgDetail(orgId, "id", !isEdit && !!orgId)
+
+    /**
+     * Prefill the sport ONCE, and only into an empty field.
+     *
+     * A DEFAULT, not a correction: the functional updater keeps whatever is
+     * already there, which is what protects a template and a "repeat a past
+     * recruitment" clone — both run before this resolves and both set a sport
+     * of their own. The ref makes it one-shot, so clearing the select back to
+     * "Choose a sport" stays cleared. Editing never reaches here: `init`'s
+     * sport is the state's initial value and the query is disabled.
+     *
+     * No primary flag on file → the first sport, which for a single-sport org
+     * is the same answer. No sports at all → nothing happens, exactly as today.
+     */
+    const sportPrefilled = useRef(false)
+    useEffect(() => {
+        if (isEdit || sportPrefilled.current) return
+        const orgSports = actingOrg?.sports ?? []
+        if (orgSports.length === 0) return
+        const preferred = orgSports.find(s => s.is_primary) ?? orgSports[0]
+        sportPrefilled.current = true
+        setSportId(current => current || preferred.id)
+    }, [isEdit, actingOrg])
+
     const sportName = sports.find(s => s.id === sportId)?.name ?? ""
     const positions = sports.find(s => s.id === sportId)?.positions ?? []
 
@@ -1840,6 +1910,10 @@ export default function CreateRecruitmentModal({
                 if (ageCategories.length === 0) return "Add an age group, or choose “Open to all ages”."
                 return validateAgeGroups(ageCategories, currentYear())
             case "questions":
+                // Hidden for every method but Goatza, and an error on a field
+                // nobody can see is a dead end — jumpToField has nothing to
+                // focus. The drafts are kept, just not sent.
+                if (applyMethod !== "goatza") return null
                 for (const q of questions) {
                     if (!q.question.trim()) return "All questions must have text."
                     const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
@@ -2867,6 +2941,9 @@ export default function CreateRecruitmentModal({
                         disabled={isSubmitting}
                     />
                 </div>
+                <p className={styles.fieldHelpNote}>
+                    Paste a Google Maps link to the exact ground, if you have one.
+                </p>
                 {renderFieldError("venue_link")}
             </div>
 
@@ -3051,11 +3128,15 @@ export default function CreateRecruitmentModal({
                     placeholder="Tell players the full story…"
                     value={description}
                     onChange={e => { setDescription(e.target.value); clearFieldError("description") }}
+                    onPaste={handleDescriptionPaste}
                     rows={5}
-                    maxLength={3000}
+                    maxLength={DESCRIPTION_MAX}
                     disabled={isSubmitting}
                 />
-                <span className={styles.fieldHint}>{description.length}/3000</span>
+                <p className={styles.fieldHelpNote}>
+                    You can use **bold**, *italic* and - bullet points.
+                </p>
+                <span className={styles.fieldHint}>{description.length}/{DESCRIPTION_MAX}</span>
                 {renderFieldError("description")}
             </div>
 
@@ -3118,18 +3199,27 @@ export default function CreateRecruitmentModal({
                 )}
             </div>
 
-            <div className={styles.sectionDivider} />
+            {/* Application Questions — only the in-app flow ever asks them.
+                With "external" or "contact" the player never sees this form,
+                so offering the builder would be offering a setting that does
+                nothing. Anything already typed STAYS in state (and comes back
+                on a switch to Goatza); it is only hidden, and buildPayload
+                drops it from the request. */}
+            {applyMethod === "goatza" && (
+                <>
+                    <div className={styles.sectionDivider} />
 
-            {/* Application Questions */}
-            <div className={styles.fieldGroup} data-field="questions">
-                <label className={styles.fieldLabel}>
-                    Application Questions
-                    <span className={styles.fieldLabelMuted}> — optional</span>
-                </label>
-                <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
-                <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
-                {renderFieldError("questions")}
-            </div>
+                    <div className={styles.fieldGroup} data-field="questions">
+                        <label className={styles.fieldLabel}>
+                            Application Questions
+                            <span className={styles.fieldLabelMuted}> — optional</span>
+                        </label>
+                        <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
+                        <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
+                        {renderFieldError("questions")}
+                    </div>
+                </>
+            )}
 
             <div className={styles.sectionDivider} />
 

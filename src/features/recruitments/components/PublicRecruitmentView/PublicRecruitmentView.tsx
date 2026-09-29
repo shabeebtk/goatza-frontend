@@ -61,6 +61,7 @@ import {
   TYPE_LABEL,
 } from "../../recruitmentCopy"
 import type { PublicRecruitmentDetail } from "../../services/publicRecruitment.api"
+import MarkdownLite from "../MarkdownLite/MarkdownLite"
 import RecruitmentShareMenu from "../RecruitmentShareMenu/RecruitmentShareMenu"
 import TrialDatesList from "../TrialDatesList/TrialDatesList"
 import AnnouncementList from "../AnnouncementList/AnnouncementList"
@@ -354,7 +355,7 @@ export default function PublicRecruitmentView({
       {(r.description || r.short_description) && (
         <section className={styles.section}>
           <Sect>About</Sect>
-          <p className={styles.about}>{r.description || r.short_description}</p>
+          <MarkdownLite text={r.description || r.short_description} className={styles.about} />
         </section>
       )}
 

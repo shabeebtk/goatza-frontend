@@ -282,13 +282,13 @@
   background: linear-gradient(90deg, var(--color-border), transparent);
 }
 
+/* Typography for the rendered description — layout lives in MarkdownLite. */
 .about {
   margin: 0;
   font-family: var(--font-body);
   font-size: 0.92rem;
   line-height: 1.65;
   color: var(--color-text-secondary);
-  white-space: pre-wrap;
 }
 
 .chipWrap {

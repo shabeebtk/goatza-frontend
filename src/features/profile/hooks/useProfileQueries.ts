@@ -15,6 +15,7 @@ import {
   type UpdateProfileDataPayload,
   type UserProfile,
 } from "../services/profile.api"
+import { invalidateProfileScoredRecruitments } from "@/features/recruitments/hooks/useRecruitments"
 
 // ── Query keys ───────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ export const useUpdateProfile = () => {
     mutationFn: (data: UpdateProfileLegacyPayload) => updateProfileApi(data),
     onSuccess:  (updated) => {
       qc.setQueryData<UserProfile>(profileKeys.me(), updated)
+      invalidateProfileScoredRecruitments(qc)
     },
   })
 }
@@ -77,6 +79,11 @@ export const useUpdateProfileData = (username: string) => {
       if (updated.username !== username) {
         qc.setQueryData<UserProfile>(profileKeys.user(updated.username), updated)
       }
+
+      // Birthdate and location are scored — the recruitment surfaces built
+      // from them (and the "complete your profile" prompt naming them) are
+      // stale the moment this succeeds.
+      invalidateProfileScoredRecruitments(qc)
     },
   })
 }

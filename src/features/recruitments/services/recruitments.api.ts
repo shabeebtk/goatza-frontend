@@ -251,6 +251,14 @@ export type Recruitment = RecruitmentTrialWindow & {
    */
   is_saved?: boolean
   /**
+   * The FIRST photo, as the card's media slot renders it. Shipped by the list
+   * serializer since the card was built and never read until now — which is why
+   * a card with five uploaded photos used to show none of them.
+   */
+  cover_media?: RecruitmentCoverMedia | null
+  /** How many photos there are, for the "1/4" badge. */
+  media_count?: number
+  /**
    * The trial day is over (its calendar day has ended in Asia/Kolkata). The
    * server hides such trials from the player lists but the org, a shortlist
    * and an application still carry them. Optional: older cached payloads
@@ -262,6 +270,13 @@ export type Recruitment = RecruitmentTrialWindow & {
   // Every field is optional for exactly that reason — a card must render fine
   // with none of them.
   match?: RecruitmentMatchContext
+}
+
+/** The list payload's `cover_media` — a `MediaLike`, so mediaDelivery reads it. */
+export type RecruitmentCoverMedia = {
+  media_type: string
+  file_url: string
+  thumbnail_url: string | null
 }
 
 // ── Match context (§3/§5) ─────────────────────────────────────

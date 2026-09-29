@@ -8,12 +8,31 @@
   gap: var(--space-4);
 }
 
-/* ── List ─────────────────────────────────────────────────────── */
+/* ── List ─────────────────────────────────────────────────────
+   One column, and TWO once the viewport has the room — a single ~400px
+   column centred in a 1440px screen left voids down both sides while the
+   reader scrolled past what would have fitted beside it.
+
+   `auto-fill` + `minmax` rather than a hard `1fr 1fr`: the breakpoint is the
+   viewport, but the COLUMN COUNT is whatever the container can actually give
+   a card without cramping it. A list inside a narrow page (the org profile
+   tab) therefore stays at one column on a wide screen, instead of splitting
+   into two half-width cards.
+
+   Shared with SavedRecruitmentsList, which imports this stylesheet. */
 
 .list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-3);
+  align-items: stretch;
+}
+
+@media (min-width: 1100px) {
+  .list {
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 20px;
+  }
 }
 
 /* ── Preview header ───────────────────────────────────────────── */

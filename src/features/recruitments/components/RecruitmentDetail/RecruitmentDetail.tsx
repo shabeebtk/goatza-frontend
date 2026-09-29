@@ -37,6 +37,7 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import MediaLightbox from "@/shared/components/ImageLightbox/MediaLightbox"
+import MarkdownLite from "../MarkdownLite/MarkdownLite"
 import RecruitmentHeroCarousel from "../RecruitmentHeroCarousel/RecruitmentHeroCarousel"
 import HeroThumbs from "../RecruitmentHeroCarousel/HeroThumbs"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
@@ -646,7 +647,7 @@ export default function RecruitmentDetail({
   const aboutSection = (r.description || r.short_description) && (
     <section className={styles.section}>
       <Sect>About</Sect>
-      <p className={styles.aboutP}>{r.description || r.short_description}</p>
+      <MarkdownLite text={r.description || r.short_description} className={styles.aboutP} />
     </section>
   )
 

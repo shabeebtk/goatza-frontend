@@ -67,10 +67,15 @@
   color: var(--color-text-muted);
 }
 
+/* A single readable column. Capped because the page around it widens on a
+   large screen for the Saved tab's grid, and a full-width row card is not
+   what this list wants. */
 .list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  width: 100%;
+  max-width: var(--container-tight);
 }
 
 /* ── Load more ─────────────────────────────────────────────────── */

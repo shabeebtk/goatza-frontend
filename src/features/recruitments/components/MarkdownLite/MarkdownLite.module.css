@@ -1,0 +1,47 @@
+/* ============================================================
+   GOATZA — MarkdownLite
+   Layout for a rendered description. Typography (size, colour,
+   family) stays with the SURFACE and arrives as a className;
+   what lives here is the spacing long text needs, so the three
+   surfaces rendering the same description cannot drift apart.
+   ============================================================ */
+
+.root {
+  min-width: 0;
+  /* A readable measure on a wide screen. Characters, not pixels: it tracks
+     whatever font the surface chose. Narrow screens are already under it. */
+  max-width: 68ch;
+}
+
+/* Margins, not a flex gap: a caller may need to put its own `display` on this
+   element (the wizard's compact preview clamps it), and a layout that depends
+   on `display: flex` here would break the moment one did. */
+.root > * + * {
+  margin-top: var(--space-3);
+}
+
+.p {
+  margin: 0;
+  /* The grammar carries its own line breaks as <br>, so nothing here needs
+     `pre-wrap` — and with it off, no stray indentation can reach the page. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.list {
+  margin: 0;
+  /* Room for the marker plus a comfortable gutter before the text. */
+  padding-left: 1.35em;
+}
+
+.li {
+  overflow-wrap: anywhere;
+}
+
+.li + .li {
+  margin-top: var(--space-1);
+}
+
+.li::marker {
+  color: var(--color-text-muted);
+}

@@ -12,7 +12,11 @@ import {
   type FetchMyApplicationsParams,
   type MyApplicationsResponse,
 } from "../services/recruitments.api"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query"
 import {
   createRecruitmentApi,
   updateRecruitmentApi,
@@ -55,6 +59,24 @@ export const recruitmentKeys = {
   // other way round) out of cache.
   discover: (actorKey: string, p: { max_distance_km?: number }) =>
     ["recruitments", "discover", actorKey, p] as const,
+}
+
+/**
+ * Every recruitment surface whose CONTENTS depend on the viewer's profile.
+ *
+ * Discover and the ranked "All" tab are scored from the four profile fields
+ * (sport, positions, birthdate, location) — sport alone is worth +40 of a ~100
+ * point scale — and the same four now key the server's own 10-minute cache, so
+ * a profile edit misses there and rebuilds. This is the client half of that:
+ * without it the query cache would keep serving the old payload, prompt and
+ * ranking included, until its own staleTime lapsed.
+ *
+ * Prefix keys on purpose: discover is additionally scoped by actor and by the
+ * distance filter, and every one of those variants is equally stale.
+ */
+export const invalidateProfileScoredRecruitments = (qc: QueryClient) => {
+  qc.invalidateQueries({ queryKey: ["recruitments", "discover"] })
+  qc.invalidateQueries({ queryKey: ["recruitments", "list"] })
 }
 
 export const applicantKeys = {

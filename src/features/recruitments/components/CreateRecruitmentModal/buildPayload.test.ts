@@ -548,6 +548,39 @@ describe("buildPayload", () => {
         expect(payload.contacts).toEqual([{ name: "", contact_type: "phone", value: "9876543210" }])
     })
 
+    /**
+     * Custom questions are only ever ASKED by the in-app apply form. Sending
+     * them with any other method half-configures a posting that can never
+     * collect an answer, and on an edit it would write rows nothing reads.
+     * The wizard keeps them in its draft state — a toggle must not destroy
+     * typed work — so the payload is the one place they are dropped.
+     */
+    const withQuestions = (applyMethod: RecruitmentDraft["applyMethod"]): RecruitmentDraft => ({
+        ...emptyDraft(),
+        applyMethod,
+        externalApplyUrl: "https://club.example/apply",
+        contacts: [{ id: "1", name: "", contact_type: "phone", value: "9876543210" }],
+        questions: [
+            { id: "q1", question: " Which foot? ", field_type: "short_text", is_required: true, options: [] },
+        ],
+    })
+
+    it('apply_method: "goatza" sends the questions', () => {
+        expect(buildPayload(withQuestions("goatza"), []).questions).toEqual([
+            { question: "Which foot?", field_type: "short_text", is_required: true, options: [] },
+        ])
+    })
+
+    it("omits `questions` entirely for every apply method but goatza", () => {
+        for (const method of ["external", "contact"] as const) {
+            const payload = buildPayload(withQuestions(method), [])
+            expect(payload.questions).toBeUndefined()
+            // Omitted, not emptied: an UPDATE that sends [] would be an
+            // instruction to delete, and an empty array is not "no opinion".
+            expect("questions" in payload && payload.questions !== undefined).toBe(false)
+        }
+    })
+
     it("a free recruitment sends no fee fields even when they were typed", () => {
         const draft: RecruitmentDraft = {
             ...emptyDraft(),

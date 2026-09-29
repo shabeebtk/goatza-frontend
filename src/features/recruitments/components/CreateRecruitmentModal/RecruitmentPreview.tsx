@@ -2,6 +2,7 @@
 
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
+import MarkdownLite from "../MarkdownLite/MarkdownLite"
 import RecruitmentCard from "../RecruitmentCard/RecruitmentCard"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import {
@@ -30,7 +31,8 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
      *  which drops the date line rather than prompting for a hidden field. */
     dateLabel: string | null
     onJump?: (target: PreviewJumpTarget) => void
-    /** The live side/strip preview: tighter spacing, shorter hero. */
+    /** The live side/strip preview: tighter spacing. The hero keeps the real
+     *  4:5 poster frame in both modes — see the CSS. */
     compact?: boolean
 }) {
     const prompt = (target: PreviewJumpTarget, label: string, icon = "mdi:plus-circle-outline") => (
@@ -102,7 +104,11 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
 
             {/* ── The real card ── */}
             <div className={styles.cardWrap} inert>
-                <RecruitmentCard recruitment={r} showOrg ownerView />
+                {/* variant="viewer" on purpose: the acting actor IS this org,
+                    but the block is headed "what players will see", so the card
+                    has to be the players' one — Apply, the bookmark, and the
+                    count they would read. */}
+                <RecruitmentCard recruitment={r} showOrg variant="viewer" />
             </div>
 
             {/* ── Detail block ── */}
@@ -113,7 +119,7 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
                         ? <p className={styles.tagline}>{r.short_description}</p>
                         : prompt("tagline", "Add a card tagline")}
                     {r.description
-                        ? <p className={styles.body}>{r.description}</p>
+                        ? <MarkdownLite text={r.description} className={`${styles.body} ${styles.bodyClamp}`} />
                         : prompt("description", "Add a full description")}
                 </section>
 
