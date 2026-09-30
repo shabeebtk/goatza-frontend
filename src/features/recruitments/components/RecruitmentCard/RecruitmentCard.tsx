@@ -5,7 +5,7 @@ import Link from "next/link"
 import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
-import { thumbSrc } from "@/shared/services/mediaDelivery"
+import { useProgressiveSrc } from "@/shared/hooks/useProgressiveSrc"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { recruitmentUrl } from "@/shared/services/recruitmentUrl"
 import { useAuthStore } from "@/store/auth.store"
@@ -13,7 +13,8 @@ import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import RecruitmentSharePreview from "../RecruitmentSharePreview/RecruitmentSharePreview"
 import styles from "./RecruitmentCard.module.css"
 import { summarizeAgeGroups } from "../../eligibility"
-import { daysToDeadline, formatDistance } from "../../matchContext"
+import { formatDistance } from "../../matchContext"
+import { daysToApply, isAcceptingApplications } from "../../accepting"
 import { useToggleSaveRecruitment } from "../../hooks/useRecruitments"
 import { isTrialOver } from "../../trialEnded"
 import { Recruitment } from "../../services/recruitments.api"
@@ -29,6 +30,19 @@ import { Recruitment } from "../../services/recruitments.api"
  * proof, and the bookmark is theirs.
  */
 export type RecruitmentCardVariant = "owner" | "viewer"
+
+// ── Image weight ──────────────────────────────────────────────
+
+/**
+ * How many cards get the thumb→full swap (`useProgressiveSrc`).
+ *
+ * The cover is a 640px thumb on everything uploaded so far, and the poster
+ * card hands it the whole width of the phone — so the top of the list is
+ * worth upgrading. Doing it to the WHOLE list would download both copies of
+ * every row, and these lists are read on mobile data. Two is the top of the
+ * first screen in a vertical list and the visible pair in a horizontal rail.
+ */
+const PROGRESSIVE_CARDS = 2
 
 // ── Status pill ───────────────────────────────────────────────
 
@@ -123,6 +137,13 @@ interface RecruitmentCardProps {
    * what a PLAYER will see.
    */
   variant?: RecruitmentCardVariant
+  /**
+   * Position in the list this card is part of, and the ONLY thing that
+   * decides how hard its cover is fetched: card 0 loads eagerly, cards 0-1
+   * upgrade their thumb to the full file, everything below stays lazy on the
+   * thumb. Left off (a preview, a one-off) the card takes the cheap path.
+   */
+  index?: number
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -131,6 +152,7 @@ export default function RecruitmentCard({
   recruitment,
   showOrg = true,
   variant,
+  index,
 }: RecruitmentCardProps) {
   const { toRecruitment, toProfile } = useNavigation()
   const [shareOpen, setShareOpen] = useState(false)
@@ -138,6 +160,16 @@ export default function RecruitmentCard({
 
   const actorType = useAuthStore((s) => s.actorType)
   const actorId = useAuthStore((s) => s.actorId)
+
+  const cover = recruitment.cover_media ?? null
+
+  // Hooks before the early return below, always — a draft that renders null
+  // for a viewer must not change how many hooks ran.
+  const isFirstCard = index === 0
+  const coverSrc = useProgressiveSrc(
+    cover,
+    index !== undefined && index < PROGRESSIVE_CARDS
+  )
 
   /**
    * The variant comes from WHO IS ACTING, never from which page the card is
@@ -169,21 +201,11 @@ export default function RecruitmentCard({
   // shortlist keeps what was saved and the org keeps everything.
   const trialOver = isTrialOver(recruitment)
 
-  // Derived from the deadline itself whenever we have one, and only otherwise
-  // from the server's count: `days_to_deadline` is computed at request time,
-  // so a cached page open across the deadline would keep counting past it.
-  const days =
-    daysToDeadline(recruitment.application_deadline) ??
-    match?.days_to_deadline ??
-    null
-
-  /**
-   * Whether somebody can still apply — the same three conditions the backend's
-   * listing bucket 1 uses (active, trial window open, deadline not passed), so
-   * the pill and the server's ordering can never disagree about one row.
-   */
-  const accepting =
-    recruitment.status === "active" && !trialOver && (days === null || days >= 0)
+  // Both read through `accepting.ts`, which is the ONE definition of the
+  // application window — the Recommended page lists by exactly this rule, and
+  // a second copy here is how the pill and that page start disagreeing.
+  const days = daysToApply(recruitment)
+  const accepting = isAcceptingApplications(recruitment)
 
   const pill = pickPill({ isDraft, trialOver, accepting, days })
 
@@ -240,8 +262,7 @@ export default function RecruitmentCard({
   // says why. Nothing here touches Apply — that stays server-derived.
   const isMuted = match?.is_eligible === false
 
-  const cover = recruitment.cover_media ?? null
-  const coverSrc = cover ? thumbSrc(cover) : ""
+  const hasCover = !!coverSrc
   const photoCount = recruitment.media_count ?? 0
   const isLookingForPlayers = recruitment.recruitment_type === "player_looking"
 
@@ -261,22 +282,39 @@ export default function RecruitmentCard({
 
   return (
     <div className={styles.cardWrap}>
+      {/*
+        ONE LINK AND THREE BUTTONS, never a nested set. The card itself is a
+        plain positioned element; the TITLE is the <a> and stretches itself
+        over the whole card with ::after, and save / share / apply sit above
+        that overlay on z-index as controls of their own. Nothing here is a
+        div with a role and an onClick.
+      */}
       <article
         className={[
           styles.card,
+          hasCover ? "" : styles.cardNoMedia,
           isMuted ? styles.cardMuted : "",
           isDraft ? styles.cardDraft : "",
           trialOver ? styles.cardEnded : "",
         ].filter(Boolean).join(" ")}
         aria-labelledby={titleId}
       >
-        {/* ── Media ── Fixed size in BOTH dimensions, so nothing on the card
-            moves when the image arrives, or when it never does. ── */}
+        {/* ── Media ──
+            As a ROW its box is fixed in both dimensions, so nothing moves
+            when the image arrives or when it never does. As a POSTER it IS
+            the card: the aspect-ratio on the card reserves the whole box
+            before the image lands, and the image fills it. ── */}
         <div className={styles.media}>
-          {coverSrc ? (
+          {hasCover ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- media-domain URL, no loader */}
-              <img src={coverSrc} alt="" className={styles.mediaImg} loading="lazy" />
+              <img
+                src={coverSrc}
+                alt=""
+                className={styles.mediaImg}
+                loading={isFirstCard ? "eager" : "lazy"}
+                decoding="async"
+              />
               <span className={styles.mediaScrim} aria-hidden="true" />
               {ageSummary && (
                 <span className={`${styles.ageBand} ${styles.ageBandOnPhoto}`}>
@@ -301,7 +339,7 @@ export default function RecruitmentCard({
             // cornered — so the two types are told apart before the title is
             // read.
             <span className={styles.mediaSeeking}>
-              <Icon icon="mdi:account-search-outline" width={26} height={26} />
+              <Icon icon="mdi:account-search-outline" className={styles.mediaSeekingIcon} />
               <span className={styles.mediaSeekingText}>Looking for players</span>
             </span>
           ) : (
@@ -319,11 +357,18 @@ export default function RecruitmentCard({
           )}
         </div>
 
+        {/* THE SCRIM. Poster only, and it is the whole job: white text over a
+            photograph nobody vetted. A near-solid panel that fades out, not a
+            wash — see the gradient in the stylesheet, which is set against a
+            WHITE image rather than the dark sample. */}
+        <span className={styles.posterScrim} aria-hidden="true" />
+
         {/* ── Content ── */}
         <div className={styles.content}>
-          {/* DOM order is title-then-pill so it READS that way; the narrow
-              layout lifts the pill above with column-reverse, which leaves the
-              title its full width without reordering what is announced. */}
+          {/* DOM order is title-then-pill so it READS that way. The poster
+              lifts the pill to the card's top-left corner and the org row
+              above the title, both with CSS only — the markup keeps the
+              order that belongs in it. */}
           <div className={styles.rowTop}>
             <Link href={toRecruitment(recruitment.id)} className={styles.titleLink}>
               <h3 id={titleId} className={styles.title}>
@@ -347,6 +392,7 @@ export default function RecruitmentCard({
                 src={recruitment.organization.logo}
                 initials={recruitment.organization.name?.slice(0, 2).toUpperCase()}
                 size="xs"
+                className={styles.orgAvatar}
               />
               <span className={styles.orgNameText}>
                 {recruitment.organization.name}
@@ -367,14 +413,14 @@ export default function RecruitmentCard({
               labels across eleven cards doing no work at all. ── */}
           <div className={styles.facts}>
             {date && (
-              <span className={styles.fact}>
+              <span className={`${styles.fact} ${styles.factDate}`}>
                 <Icon icon="mdi:calendar-blank-outline" width={13} height={13} />
                 <span className={styles.factText}>{date}</span>
               </span>
             )}
             {venueValue && (
               <span
-                className={styles.fact}
+                className={`${styles.fact} ${styles.factVenue}`}
                 title={venueName && city ? city : venueValue}
               >
                 <Icon icon="mdi:map-marker-outline" width={13} height={13} />
@@ -411,42 +457,52 @@ export default function RecruitmentCard({
           </div>
 
           {/* Pushes the footer to the bottom so two cards side by side line
-              their action rows up whatever their content length. */}
+              their action rows up whatever their content length. On the
+              poster it is what holds the text block against the bottom edge,
+              where the scrim is solid. */}
           <div className={styles.spacer} aria-hidden="true" />
 
           <div className={styles.footer}>
             <span className={styles.count}>{countLabel}</span>
 
             <div className={styles.actions}>
-              {/* Bookmark — viewer only; saving your own posting is
-                  meaningless. Outside the card's stretched link, or it would
-                  swallow the tap. */}
-              {!isOwner && (
+              {/* Save + share travel together: beside Apply in the row, and
+                  lifted to the poster's top-right corner — on their own dark
+                  backing, because a translucent control vanishes on a bright
+                  poster. */}
+              <div className={styles.quickActions}>
+                {/* Bookmark — viewer only; saving your own posting is
+                    meaningless. Outside the card's stretched link, or it would
+                    swallow the tap. */}
+                {!isOwner && (
+                  <button
+                    type="button"
+                    className={`${styles.iconBtn} ${isSaved ? styles.iconBtnOn : ""}`}
+                    onClick={() => toggleSave.mutate(recruitment.id)}
+                    aria-pressed={isSaved}
+                    aria-label={isSaved ? "Remove from saved" : "Save recruitment"}
+                    title={isSaved ? "Saved" : "Save"}
+                  >
+                    <Icon
+                      icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"}
+                      className={styles.iconBtnGlyph}
+                    />
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  className={`${styles.iconBtn} ${isSaved ? styles.iconBtnOn : ""}`}
-                  onClick={() => toggleSave.mutate(recruitment.id)}
-                  aria-pressed={isSaved}
-                  aria-label={isSaved ? "Remove from saved" : "Save recruitment"}
-                  title={isSaved ? "Saved" : "Save"}
+                  className={styles.iconBtn}
+                  onClick={() => setShareOpen(true)}
+                  aria-label="Share recruitment"
+                  title="Share"
                 >
                   <Icon
-                    icon={isSaved ? "mdi:bookmark" : "mdi:bookmark-outline"}
-                    width={16}
-                    height={16}
+                    icon="mdi:share-variant-outline"
+                    className={styles.iconBtnGlyph}
                   />
                 </button>
-              )}
-
-              <button
-                type="button"
-                className={styles.iconBtn}
-                onClick={() => setShareOpen(true)}
-                aria-label="Share recruitment"
-                title="Share"
-              >
-                <Icon icon="mdi:share-variant-outline" width={16} height={16} />
-              </button>
+              </div>
 
               <Link href={toRecruitment(recruitment.id)} className={styles.actionBtn}>
                 {actionLabel}

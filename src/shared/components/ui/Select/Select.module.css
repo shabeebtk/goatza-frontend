@@ -124,6 +124,12 @@
   font-size: var(--text-lg);
 }
 
+/* Only ever rendered when `leadingIcon` is passed — see the prop's note. */
+.triggerIcon {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
 .value {
   flex: 1;
   min-width: 0;

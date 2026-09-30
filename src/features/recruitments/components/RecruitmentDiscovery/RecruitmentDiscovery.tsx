@@ -311,7 +311,10 @@ export default function RecruitmentDiscovery() {
             subtitle="Your best matches right now"
             icon="mdi:star-four-points-outline"
             items={discover.recommended}
-            seeAllHref={railHref({})}
+            // Its own page, not railHref({}) — with no filter to apply that
+            // produced the URL the reader was already on plus "#all", so the
+            // one "See all" with nothing to narrow did nothing when tapped.
+            seeAllHref="/recruitments/recommended"
           />
           <RecruitmentRail
             title="Closing soon"
@@ -423,8 +426,8 @@ export default function RecruitmentDiscovery() {
             </p>
 
             <div className={styles.list}>
-              {items.map((item) => (
-                <RecruitmentCard key={item.id} recruitment={item} />
+              {items.map((item, i) => (
+                <RecruitmentCard key={item.id} recruitment={item} index={i} />
               ))}
             </div>
 

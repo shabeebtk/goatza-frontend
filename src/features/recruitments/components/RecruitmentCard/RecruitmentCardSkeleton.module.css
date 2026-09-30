@@ -52,7 +52,11 @@
   }
 }
 
-/* ── The row — mirrors RecruitmentCard ────────────────────────── */
+/* ── The card — mirrors RecruitmentCard's TWO layouts ──────────
+   Narrow it is the poster's 4:5 box, wide it is the media-left row,
+   switching on the same 400px container width the real card does. The
+   whole point is that the box it reserves is the box the card lands in,
+   so the list does not jump when the data arrives. */
 
 .cardWrap {
   container-type: inline-size;
@@ -60,32 +64,27 @@
   height: 100%;
 }
 
+/* POSTER: the card IS the media box, so the shimmer is the whole of it.
+   The text bars below are hidden rather than drawn — on the real card
+   they sit on a dark scrim over a photo, and there is no honest way to
+   draw that in the page's own theme colours. The ratio is what the
+   skeleton is actually for. */
 .card {
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-3);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
-  border-radius: 18px;
-  padding: 12px;
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 20px;
+  overflow: hidden;
   min-width: 0;
 }
 
 .media {
-  flex: 0 0 auto;
-  width: 92px;
-  /* A MINIMUM, and a stretch. The width is fixed and the height is reserved
-     before anything loads, so an arriving image still shifts nothing — but the
-     box then grows with the row instead of leaving a hole under itself when the
-     content beside it runs to three lines. */
-  min-height: 116px;
-  align-self: stretch;
-  border-radius: 12px;
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
 }
 
 .content {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
@@ -213,19 +212,34 @@
   border-radius: var(--radius-md);
 }
 
-/* ── Wide container — same 400px step the real card takes ─────── */
+/* ── Wide container — the media-left row, same 400px step ─────── */
 
 @container recskel (min-width: 400px) {
   .card {
+    aspect-ratio: auto;
+    height: 100%;
+    display: flex;
+    align-items: stretch;
     gap: var(--space-4);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
     border-radius: 20px;
     padding: 14px;
+    overflow: visible;
   }
 
   .media {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
     width: 132px;
     min-height: 158px;
+    align-self: stretch;
     border-radius: 13px;
+  }
+
+  .content {
+    display: flex;
   }
 
   .rowTop {

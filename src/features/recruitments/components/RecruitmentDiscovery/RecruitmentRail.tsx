@@ -33,6 +33,14 @@ export default function RecruitmentRail({
 }: RecruitmentRailProps) {
   if (items.length === 0) return null
 
+  /**
+   * The filter rails link back into THIS page with a hash, and scrolling
+   * there would yank the reader off the rail they just tapped. A rail whose
+   * "See all" is a real route (Recommended) is an ordinary navigation and
+   * has to land at the top of the page it opens.
+   */
+  const samePage = seeAllHref.includes("#")
+
   return (
     <section className={styles.rail} aria-label={title}>
       <header className={styles.header}>
@@ -46,7 +54,14 @@ export default function RecruitmentRail({
           </div>
         </div>
 
-        <Link href={seeAllHref} className={styles.seeAll} scroll={false}>
+        <Link
+          href={seeAllHref}
+          className={styles.seeAll}
+          scroll={!samePage}
+          // Four rails, four links reading "See all" — the name has to say
+          // which one.
+          aria-label={`See all: ${title}`}
+        >
           See all
           <Icon icon="mdi:arrow-right" width={14} height={14} />
         </Link>
@@ -54,9 +69,9 @@ export default function RecruitmentRail({
 
       {/* Overflow scrolls inside the rail, never the page. */}
       <div className={styles.track}>
-        {items.map((item) => (
+        {items.map((item, i) => (
           <div key={item.id} className={styles.slide}>
-            <RecruitmentCard recruitment={item} />
+            <RecruitmentCard recruitment={item} index={i} />
           </div>
         ))}
       </div>

@@ -9,7 +9,12 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Select from "@/shared/components/ui/Select/Select"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
-import { imageFileName, makeThumb, preferredImageType } from "@/shared/services/imageVariants"
+import {
+    POSTER_THUMB_MAX_DIMENSION,
+    imageFileName,
+    makeThumb,
+    preferredImageType,
+} from "@/shared/services/imageVariants"
 import {
     UPLOAD_CANCELLED,
     describeBlob,
@@ -2394,7 +2399,15 @@ export default function CreateRecruitmentModal({
                     const compressed = await imageCompression(file, { ...IMAGE_COMPRESSION_OPTIONS, fileType })
                     const type = compressed.type || fileType
                     const full = new File([compressed], imageFileName(file.name || "photo", type), { type })
-                    prepared.push({ entryId: entry.id, full, thumb: await makeThumb(full) })
+                    // The thumb is the picture here, not a placeholder for
+                    // it: the poster card renders this file full-bleed at
+                    // the width of the phone, so it is built at 1080 rather
+                    // than the app-wide 640.
+                    prepared.push({
+                        entryId: entry.id,
+                        full,
+                        thumb: await makeThumb(full, signal, POSTER_THUMB_MAX_DIMENSION),
+                    })
                     // Compression is not abortable; stop between files instead.
                     if (signal.aborted) throw new Error(UPLOAD_CANCELLED)
                 }

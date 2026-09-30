@@ -173,10 +173,12 @@ export default function RecruitmentsList({
     // ── Loading ───────────────────────────────────────────────────
     if (isLoading) {
         return (
-            <div className={styles.list}>
-                {Array.from({ length: 3 }).map((_, i) => (
-                    <RecruitmentCardSkeleton key={i} />
-                ))}
+            <div className={styles.wrapper}>
+                <div className={styles.list}>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <RecruitmentCardSkeleton key={i} />
+                    ))}
+                </div>
             </div>
         )
     }
@@ -233,11 +235,12 @@ export default function RecruitmentsList({
 
 
             <div className={styles.list}>
-                {displayItems.map((item) => (
+                {displayItems.map((item, i) => (
                     <RecruitmentCard
                         key={item.id}
                         recruitment={item}
                         showOrg={showOrg}
+                        index={i}
                     />
                 ))}
             </div>

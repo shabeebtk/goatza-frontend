@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "../PostLocationPicker/PostLocationPicker"
-import { useCreatePost, useMyPostSports } from "@/features/posts/hooks/usePostMutations"
+import { useCreatePost } from "@/features/posts/hooks/usePostMutations"
+import { CLEAR_SPORT, sportOptions, usePostSports } from "@/features/posts/hooks/usePostSports"
 import {
   validateMediaFiles,
   uploadMediaFile,
@@ -333,7 +334,9 @@ export default function CreatePostModal({
 }: CreatePostModalProps) {
   const router     = useRouter()
   const createPost = useCreatePost()
-  const { data: mySports } = useMyPostSports()
+  // The ACTOR's sports, not the person's — an org composer must not offer
+  // the sports of whoever happens to be signed in behind it.
+  const { sports: actorSports, primarySportId } = usePostSports()
   const { toPostsList } = useNavigation()
   const actorType = useAuthStore(s => s.actorType)
 
@@ -352,6 +355,28 @@ export default function CreatePostModal({
   // The upload in flight, so Cancel (and unmount) can pull the plug on the
   // compressor, the encoder, the signature request and every PUT at once.
   const abortRef = useRef<AbortController | null>(null)
+
+  /**
+   * PRESELECTED, not forced. Most people post about the one sport they are
+   * on file as playing, so the composer starts there and they change it on
+   * the rare post that is about something else.
+   *
+   * `sportTouched` is what makes it a default rather than a correction: once
+   * the author has picked anything — including clearing it — this stops
+   * having an opinion, so a sport they deliberately removed does not come
+   * back on the next render.
+   */
+  const [sportTouched, setSportTouched] = useState(false)
+
+  useEffect(() => {
+    if (sportTouched || !primarySportId) return
+    setSportId(primarySportId)
+  }, [primarySportId, sportTouched])
+
+  const chooseSport = (next: string) => {
+    setSportTouched(true)
+    setSportId(next === CLEAR_SPORT ? "" : next)
+  }
 
   // Location state — managed outside any form library
   const [postLocation,  setPostLocation]  = useState<PlaceResult | null>(null)
@@ -374,7 +399,10 @@ export default function CreatePostModal({
     content.trim() !== "" ||
     entries.length > 0 ||
     postLocation !== null ||
-    sportId !== "" ||
+    // The PRESELECTED sport is not a change the author made, so an untouched
+    // composer is not dirty and closing it must not ask them to discard
+    // anything. Moving off that default is.
+    sportId !== (primarySportId ?? "") ||
     visibility !== "public"
 
   // Close, but confirm first if the user has started composing.
@@ -640,21 +668,19 @@ export default function CreatePostModal({
                 <div className={styles.authorBadges}>
                   <VisibilityBtn value={visibility} onChange={setVisibility} />
                   
-                  {/* Sport Select */}
-                  {mySports && mySports.length > 0 && (
+                  {/* Sport — a Select wearing a badge, so the row reads as
+                      three chips rather than two chips and a form field. */}
+                  {actorSports.length > 0 && (
                     <Select
                       className={styles.sportField}
                       size="sm"
                       aria-label="Tag a sport"
                       sheetTitle="Tag a sport"
-                      placeholder="Select sport"
+                      placeholder="Sport"
+                      leadingIcon="mdi:shape-outline"
                       value={sportId}
-                      onChange={setSportId}
-                      options={mySports.map(ms => ({
-                        value: ms.sport.id,
-                        label: ms.sport.name,
-                        icon: "mdi:trophy-outline",
-                      }))}
+                      onChange={chooseSport}
+                      options={sportOptions(actorSports, sportId)}
                     />
                   )}
 

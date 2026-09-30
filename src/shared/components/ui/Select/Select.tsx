@@ -83,6 +83,20 @@ export interface SelectProps {
   searchable?: boolean
   /** Sheet/dropdown heading on mobile; defaults to `label`. */
   sheetTitle?: string
+  /**
+   * An Iconify name to draw at the START of the trigger, which otherwise
+   * carries only its value and its chevron. Opt-in, and off everywhere it is
+   * not passed — the selects in this app are form fields with a label above
+   * them and want no glyph.
+   *
+   * Passing it also lets the SELECTED option's own `icon` through, so a
+   * trigger that shows a sport shows that sport's glyph and falls back to
+   * this one while nothing is chosen. That pairing is the whole point: it is
+   * what lets a Select stand in a row of badge chips (the post composer's
+   * Public · Sport · Location) without looking like a form field dropped
+   * between two of them.
+   */
+  leadingIcon?: string
   /** So react-hook-form can mark the field touched. */
   onBlur?: () => void
   "aria-label"?: string
@@ -132,6 +146,7 @@ export default function Select({
   name,
   id,
   className,
+  leadingIcon,
   searchable,
   sheetTitle,
   onBlur,
@@ -566,6 +581,15 @@ export default function Select({
         aria-label={ariaLabel}
         aria-describedby={describedBy}
       >
+        {leadingIcon && (
+          <Icon
+            icon={selected?.icon || leadingIcon}
+            width={13}
+            height={13}
+            className={styles.triggerIcon}
+            aria-hidden="true"
+          />
+        )}
         <span className={clsx(styles.value, !selected && styles.placeholder)}>
           {selected?.label ?? placeholder ?? ""}
         </span>
