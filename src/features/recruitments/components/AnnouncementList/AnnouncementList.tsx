@@ -31,6 +31,7 @@ import {
 } from "../../hooks/useAnnouncements"
 import type { Announcement, DeliverySummary } from "../../services/announcements.api"
 import { formatSessionDate } from "../../sessionDisplay"
+import { FALLBACK_TRIAL_TIME_ZONE } from "../../trialEnded"
 import styles from "./AnnouncementList.module.css"
 
 /** The sentence under an announcement, for the org only. */
@@ -53,11 +54,13 @@ function AnnouncementRow({
     canManage,
     onDelete,
     deleting,
+    timeZone,
 }: {
     announcement: Announcement
     canManage: boolean
     onDelete: (id: string) => void
     deleting: boolean
+    timeZone: string
 }) {
     const [confirming, setConfirming] = useState(false)
     const summary = announcement.delivery_summary
@@ -76,7 +79,7 @@ function AnnouncementRow({
             {announcement.session && (
                 <p className={styles.scope}>
                     <Icon icon="mdi:calendar-check" width={12} height={12} />
-                    About {formatSessionDate(announcement.session.date)}
+                    About {formatSessionDate(announcement.session.date, timeZone)}
                     {announcement.session.title ? ` · ${announcement.session.title}` : ""}
                 </p>
             )}
@@ -145,8 +148,15 @@ export default function AnnouncementList({
     canManage = false,
     onWatchRef,
     emptyLabel,
+    timeZone = FALLBACK_TRIAL_TIME_ZONE,
 }: {
     recruitmentId: string
+    /**
+     * The recruitment's own zone, for the "About <date>" line. Defaulted
+     * rather than required because this component is handed only an id —
+     * every caller does hold the recruitment and passes it.
+     */
+    timeZone?: string
     /** Owner / admin: shows the delivery summary and the remove control. */
     canManage?: boolean
     /** Hands the parent the "watch the outbox drain" callback after a send. */
@@ -201,6 +211,7 @@ export default function AnnouncementList({
                     canManage={canManage}
                     onDelete={onDelete}
                     deleting={deleting}
+                    timeZone={timeZone}
                 />
             ))}
         </section>

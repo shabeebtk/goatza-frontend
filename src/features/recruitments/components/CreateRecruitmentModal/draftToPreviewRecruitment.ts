@@ -23,6 +23,7 @@ import type {
     RecruitmentSport,
     RecruitmentStatus,
 } from "../../services/recruitments.api"
+import { FALLBACK_TRIAL_TIME_ZONE } from "../../trialEnded"
 import type { RecruitmentDraft } from "./draft"
 import { localInputToISO } from "./wizardDate"
 
@@ -93,6 +94,11 @@ export function draftToPreviewRecruitment(
         city,
         applications_count: 0,
         event_date: localInputToISO(draft.eventDate) ?? "",
+        // The wizard has no timezone setter — the server copies the org's own
+        // onto the row. The preview's dates are the bare days just typed,
+        // which read the same in any zone within half a day of UTC, so the
+        // fallback here is honest rather than a guess at the org's zone.
+        timezone: FALLBACK_TRIAL_TIME_ZONE,
         created_at: ctx.createdAt ?? new Date().toISOString(),
         organization: ctx.organization,
         sport: ctx.sport ?? PLACEHOLDER_SPORT,

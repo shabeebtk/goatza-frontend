@@ -28,6 +28,7 @@ import { useAuthStore } from "@/store/auth.store"
 
 import type { TrialPass as TrialPassData } from "../../services/announcements.api"
 import { formatSessionDate, formatSessionTime } from "../../sessionDisplay"
+import { FALLBACK_TRIAL_TIME_ZONE } from "../../trialEnded"
 import { passImageUrl } from "../../utils/passImageUrl"
 import { waLink } from "../../whatsapp/waLink"
 import { passMessage } from "../../whatsapp/whatsappTemplates"
@@ -45,6 +46,9 @@ export default function TrialPass({ pass }: { pass: TrialPassData }) {
     const accessToken = useAuthStore((state) => state.accessToken)
 
     const reportingTime = formatSessionTime(pass.age_group?.reporting_time)
+    // See TrialPass.recruitment.timezone in announcements.api.ts: the pass
+    // endpoint does not send this yet, so today this is the fallback.
+    const passTimeZone = pass.recruitment.timezone || FALLBACK_TRIAL_TIME_ZONE
 
     const shareUrl =
         typeof window === "undefined"
@@ -56,6 +60,7 @@ export default function TrialPass({ pass }: { pass: TrialPassData }) {
         recruitmentTitle: pass.recruitment.title,
         orgName: pass.organization.name,
         sessions: pass.sessions,
+        timeZone: passTimeZone,
         ageGroup: pass.age_group?.title,
         reportingTime: pass.age_group?.reporting_time,
         url: shareUrl,
@@ -117,7 +122,7 @@ export default function TrialPass({ pass }: { pass: TrialPassData }) {
                     {pass.sessions.map((session) => (
                         <div key={session.id} className={styles.session}>
                             <span className={styles.date}>
-                                {formatSessionDate(session.date)}
+                                {formatSessionDate(session.date, passTimeZone)}
                             </span>
                             <span className={styles.sessionMeta}>
                                 {[

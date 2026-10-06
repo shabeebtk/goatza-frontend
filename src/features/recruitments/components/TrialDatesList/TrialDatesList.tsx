@@ -30,7 +30,7 @@ import styles from "./TrialDatesList.module.css"
 type Props = {
     recruitment: Pick<
         RecruitmentDetail | Recruitment,
-        "sessions" | "session_mode" | "venue_name" | "city"
+        "sessions" | "session_mode" | "venue_name" | "city" | "timezone"
     >
     className?: string
 }
@@ -61,7 +61,10 @@ export default function TrialDatesList({ recruitment, className }: Props) {
                             className={`${styles.item} ${session.is_cancelled ? styles.itemCancelled : ""}`}
                         >
                             <span className={styles.date}>
-                                {formatSessionDate(session.date)}
+                                {formatSessionDate(
+                                    session.date,
+                                    recruitment.timezone,
+                                )}
                             </span>
                             <span className={styles.meta}>
                                 {[session.title?.trim() || null, time, place]

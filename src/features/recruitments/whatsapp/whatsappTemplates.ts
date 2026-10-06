@@ -21,19 +21,30 @@ type Session = {
     city?: string
 }
 
-/** "Sat 10 Oct" — the venue's calendar, matching the rest of the product. */
-function day(date: string): string {
+/**
+ * "Sat 10 Oct" — THE VENUE's calendar, matching the rest of the product.
+ *
+ * `timeZone` is the recruitment's own. It matters more here than almost
+ * anywhere else: this string is pasted into a chat and read by somebody who
+ * will turn up on the day it names, with nothing on screen to correct it.
+ */
+function day(date: string, timeZone: string): string {
     const parsed = new Date(`${date}T12:00:00Z`)
     if (Number.isNaN(parsed.getTime())) return date
     return new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Asia/Kolkata",
+        timeZone,
         weekday: "short",
         day: "numeric",
         month: "short",
     }).format(parsed)
 }
 
-/** "9:00 am" from "09:00:00". Empty when there is no time. */
+/**
+ * "9:00 am" from "09:00:00". Empty when there is no time.
+ *
+ * No zone: the stored time is already the wall clock at the venue, so there
+ * is nothing to convert — see formatSessionTime in sessionDisplay.ts.
+ */
 function clock(time?: string | null): string {
     if (!time) return ""
     const [hours, minutes] = time.split(":")
@@ -43,8 +54,12 @@ function clock(time?: string | null): string {
     return `${hour % 12 === 0 ? 12 : hour % 12}:${minutes ?? "00"} ${suffix}`
 }
 
-function sessionLine(session: Session): string {
-    return [day(session.date), clock(session.start_time), session.venue_name || session.city]
+function sessionLine(session: Session, timeZone: string): string {
+    return [
+        day(session.date, timeZone),
+        clock(session.start_time),
+        session.venue_name || session.city,
+    ]
         .filter(Boolean)
         .join(" · ")
 }
@@ -105,11 +120,15 @@ export function passMessage(args: {
     recruitmentTitle: string
     orgName: string
     sessions: Session[]
+    /** The recruitment's own IANA zone — the calendar these dates are on. */
+    timeZone: string
     ageGroup?: string | null
     reportingTime?: string | null
     url: string
 }): string {
-    const when = args.sessions.map(sessionLine).filter(Boolean)
+    const when = args.sessions
+        .map((session) => sessionLine(session, args.timeZone))
+        .filter(Boolean)
     const reporting = clock(args.reportingTime)
 
     return [

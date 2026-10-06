@@ -24,10 +24,30 @@ import {
 } from "./sessions"
 import type { SessionDraft } from "./sessions"
 import type { CreateRecruitmentMediaPayload } from "../../services/recruitments.api"
+import type { PlaceResult } from "@/shared/services/places.service"
 
 /** A date row, stated as briefly as a test needs it. */
 function sessionDraft(overrides: Partial<SessionDraft>): SessionDraft {
     return { ...newSessionDraft(), ...overrides }
+}
+
+/** A picked place, as PostLocationPicker hands one over. */
+function place(overrides: Partial<PlaceResult> = {}): PlaceResult {
+    return {
+        provider: "google",
+        place_type: "place",
+        label: "North Ground, Kerala, IN",
+        name: "North Ground",
+        city: "Kannur",
+        state: "Kerala",
+        country: "India",
+        country_code: "IN",
+        latitude: 11.8745,
+        longitude: 75.3704,
+        external_id: "ChIJ-north",
+        types: ["stadium"],
+        ...overrides,
+    }
 }
 
 const endOfDayISO = (y: number, m: number, d: number) =>
@@ -433,6 +453,162 @@ describe("buildPayload", () => {
         expect(payload.event_date).toBeUndefined()
     })
 
+    it("multi_place — every centre sends its own location block", () => {
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            title: "Zone trials",
+            sportId: "sport-football",
+            trialShape: "multi_place",
+            sessions: [
+                sessionDraft({
+                    date: "2026-10-10", startTime: "09:00",
+                    venueName: " North Ground ",
+                    location: place({
+                        external_id: "ChIJ-north", name: "North Ground",
+                        city: "Kannur",
+                    }),
+                }),
+                sessionDraft({
+                    date: "2026-10-10", startTime: "09:00",
+                    location: place({
+                        external_id: "ChIJ-south", name: "South Ground",
+                        // A ground outside any named locality: the serializer
+                        // reads a MISSING city as a validation error, so the
+                        // place name has to stand in.
+                        city: "",
+                    }),
+                }),
+            ],
+        }
+
+        const sessions = buildPayload(draft, []).sessions!
+
+        expect(sessions[0].location).toEqual({
+            provider: "google",
+            external_id: "ChIJ-north",
+            name: "North Ground",
+            type: "place",
+            city: "Kannur",
+            state: "Kerala",
+            country: "India",
+            country_code: "IN",
+            latitude: 11.8745,
+            longitude: 75.3704,
+        })
+        // `city` is NEVER undefined — it falls back to the place name.
+        expect(sessions[1].location!.city).toBe("South Ground")
+        expect(sessions[1].location!.city).not.toBeUndefined()
+    })
+
+    it("multi_place — the mode is choose_one, whatever the radios said", () => {
+        // Several CENTRES is a pick-one by definition: a player attends one
+        // ground, not all of them.
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            trialShape: "multi_place",
+            sessionMode: "all",
+            sessions: [
+                sessionDraft({ date: "2026-10-10", location: place() }),
+                sessionDraft({
+                    date: "2026-10-17",
+                    location: place({ external_id: "ChIJ-south" }),
+                }),
+            ],
+        }
+
+        expect(buildPayload(draft, []).session_mode).toBe("choose_one")
+    })
+
+    it("single — the mode is `all` and no centre sends a location", () => {
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            trialShape: "single",
+            // Left behind by a switch out of multi_place: none of it rides
+            // along, because one day has no per-row venue at all.
+            sessionMode: "choose_one",
+            sessions: [sessionDraft({ date: "2026-10-10" })],
+        }
+
+        const payload = buildPayload(draft, [])
+
+        expect(payload.session_mode).toBe("all")
+        expect(payload.sessions).toEqual([
+            { date: "2026-10-10", display_order: 0 },
+        ])
+        expect(payload.sessions![0].location).toBeUndefined()
+    })
+
+    it("multi_day — the org's own answer survives", () => {
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            trialShape: "multi_day",
+            sessionMode: "choose_one",
+            sessions: [
+                sessionDraft({ date: "2026-10-10" }),
+                sessionDraft({ date: "2026-10-17" }),
+            ],
+        }
+        expect(buildPayload(draft, []).session_mode).toBe("choose_one")
+
+        expect(
+            buildPayload({ ...draft, sessionMode: "all" }, []).session_mode,
+        ).toBe("all")
+    })
+
+    it("a draft with NO shape reads it back off its rows", () => {
+        // `trialShape` is optional and derivable — a row with its own venue
+        // is a centre, which makes the trial multi_place and the mode a
+        // pick-one even though nothing said so.
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            sessionMode: "all",
+            sessions: [
+                sessionDraft({ date: "2026-10-10", location: place() }),
+                sessionDraft({ date: "2026-10-17" }),
+            ],
+        }
+        expect(draft.trialShape).toBeUndefined()
+        expect(buildPayload(draft, []).session_mode).toBe("choose_one")
+    })
+
+    it("edit — a centre's server id round-trips WITH its location", () => {
+        // THE DESTRUCTIVE CASE the module docstring warns about: the backend
+        // diff-syncs on `id`, so a row that arrives without one is created
+        // and the row it replaced is DELETED — which SET_NULLs the centre
+        // every applicant picked. Adding a location block must not cost the
+        // id.
+        const draft: RecruitmentDraft = {
+            ...emptyDraft(),
+            trialShape: "multi_place",
+            sessions: [
+                sessionDraft({
+                    id: "sess-north", date: "2026-10-10",
+                    location: place({ external_id: "ChIJ-north" }),
+                }),
+                sessionDraft({
+                    id: "sess-south", date: "2026-10-17",
+                    location: place({ external_id: "ChIJ-south" }),
+                }),
+                // A centre the org just added: no id, so the server creates it.
+                sessionDraft({
+                    date: "2026-10-24",
+                    location: place({ external_id: "ChIJ-east" }),
+                }),
+            ],
+        }
+
+        const sessions = buildPayload(draft, []).sessions!
+
+        expect(sessions.map((s) => s.id)).toEqual([
+            "sess-north", "sess-south", undefined,
+        ])
+        expect(sessions.map((s) => s.location!.external_id)).toEqual([
+            "ChIJ-north", "ChIJ-south", "ChIJ-east",
+        ])
+        // ...and display_order still says which is which.
+        expect(sessions.map((s) => s.display_order)).toEqual([0, 1, 2])
+    })
+
     it("a cancelled date is sent, not dropped — applicants still see it", () => {
         const draft: RecruitmentDraft = {
             ...emptyDraft(),
@@ -646,13 +822,16 @@ describe("validateSessions", () => {
         expect(validateSessions([sessionDraft({ date: "2026-10-10" })], "")).toBeNull()
     })
 
-    it("refuses two dates at the same date AND time", () => {
+    it("refuses two dates at the same date, time AND venue", () => {
+        // Both rows inherit the trial's venue, so there is one place and one
+        // slot: the second row is a mistake, not a second centre.
         const same = [
             sessionDraft({ date: "2026-10-10", startTime: "09:00" }),
             sessionDraft({ date: "2026-10-10", startTime: "09:00" }),
         ]
         expect(validateSessions(same, "")).toBe(
-            "Two trial dates are the same. Remove the duplicate.",
+            "Two trial dates are the same date, time and venue. " +
+            "Remove the duplicate.",
         )
 
         // A second slot on the same day is a real thing — morning and
@@ -662,6 +841,48 @@ describe("validateSessions", () => {
             sessionDraft({ date: "2026-10-10", startTime: "14:00" }),
         ]
         expect(validateSessions(differentTimes, "")).toBeNull()
+    })
+
+    it("allows two VENUES at one date and time — a North and a South zone", () => {
+        // The format the old rule refused outright. Two grounds sharing a
+        // Saturday morning are two centres.
+        const twoPlaces = [
+            sessionDraft({
+                date: "2026-10-10", startTime: "09:00",
+                location: place({ external_id: "ChIJ-north", name: "North Ground" }),
+            }),
+            sessionDraft({
+                date: "2026-10-10", startTime: "09:00",
+                location: place({ external_id: "ChIJ-south", name: "South Ground" }),
+            }),
+        ]
+        expect(validateSessions(twoPlaces, "")).toBeNull()
+
+        // Typed by hand instead of picked: still two venues.
+        const twoNames = [
+            sessionDraft({ date: "2026-10-10", startTime: "09:00", venueName: "North Ground" }),
+            sessionDraft({ date: "2026-10-10", startTime: "09:00", venueName: "South Ground" }),
+        ]
+        expect(validateSessions(twoNames, "")).toBeNull()
+    })
+
+    it("still refuses the SAME venue twice at one slot", () => {
+        const samePlace = [
+            sessionDraft({
+                date: "2026-10-10", startTime: "09:00", location: place(),
+            }),
+            sessionDraft({
+                date: "2026-10-10", startTime: "09:00", location: place(),
+            }),
+        ]
+        expect(validateSessions(samePlace, "")).not.toBeNull()
+
+        // Normalized, so case and padding do not mint a second centre.
+        const sameName = [
+            sessionDraft({ date: "2026-10-10", startTime: "09:00", venueName: "North Ground" }),
+            sessionDraft({ date: "2026-10-10", startTime: "09:00", venueName: "  north ground " }),
+        ]
+        expect(validateSessions(sameName, "")).not.toBeNull()
     })
 
     it("keeps the deadline on or before the FIRST date", () => {

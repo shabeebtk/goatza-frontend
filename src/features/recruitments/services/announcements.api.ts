@@ -154,7 +154,21 @@ export type TrialPass = {
         logo: string
         is_verified: boolean
     }
-    recruitment: { id: string; title: string }
+    recruitment: {
+        id: string
+        title: string
+        /**
+         * The VENUE's zone, which every date on this pass must be read in.
+         *
+         * OPTIONAL BECAUSE THE SERVER DOES NOT SEND IT YET. `build_trial_pass`
+         * puts only `id` and `title` in this block, so the pass falls back to
+         * FALLBACK_TRIAL_TIME_ZONE and a London trial's pass still names an
+         * Indian day. The wiring is here so that adding `"timezone":
+         * recruitment.timezone` to that dict is the whole fix, with no
+         * further frontend change.
+         */
+        timezone?: string
+    }
     player: { name: string; username: string; photo: string }
     age_group: {
         id: string

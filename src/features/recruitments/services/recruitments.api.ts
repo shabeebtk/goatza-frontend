@@ -164,9 +164,38 @@ export type MyApplication = TrialSelfReport &
 export type SessionMode = "all" | "choose_one"
 
 /**
+ * The Location row a date is held at, as the EDITOR reads it back. Mirrors
+ * `own_location` in trial_session_payload.
+ *
+ * Coordinates are nullable here, unlike on a PlaceResult: a stored Location's
+ * point is a cache that can expire, and the server sends what it has.
+ */
+export type TrialSessionLocation = {
+  id: string
+  name: string
+  city: string
+  state: string
+  country: string
+  country_code: string
+  latitude: number | null
+  longitude: number | null
+  /** The Google place_id. "" on a Location that was never geocoded by id. */
+  external_id: string
+  provider: string
+  place_type: "city" | "place"
+}
+
+/**
  * ONE date an open trial is held on. The venue fields arrive RESOLVED: the
  * server has already substituted the recruitment's venue wherever the date
  * did not set its own, so nothing on the client has to fall back.
+ *
+ * The `own_*` keys are the UNRESOLVED truth, and exist for one reader: the
+ * wizard. The resolved keys above cannot tell "this centre has a venue of
+ * its own" from "it inherited the trial's", so an editor round-tripping them
+ * would save the inherited value back as a per-date override. These say what
+ * the row itself stores — "" / null where it stores nothing. Optional: a
+ * payload cached before they shipped carries none of them.
  */
 export type TrialSession = {
   id: string
@@ -180,6 +209,18 @@ export type TrialSession = {
   city: string
   latitude: number | null
   longitude: number | null
+  own_venue_name?: string
+  own_venue_link?: string
+  own_location?: TrialSessionLocation | null
+  /**
+   * HOW FAR THE VIEWER IS from THIS centre, in kilometres to one decimal.
+   *
+   * Present only on a payload the server built knowing where the viewer was
+   * — the recruitment DETAIL endpoint, for a signed-in reader. Absent for an
+   * anonymous one, and null where no coordinates resolve: an unknown
+   * distance, never a short one.
+   */
+  distance_km?: number | null
 }
 
 /** The chosen date on an application. Null unless the trial is choose_one. */
@@ -224,6 +265,13 @@ export type Recruitment = RecruitmentTrialWindow & {
   city: string
   applications_count: number
   event_date: string
+  /**
+   * The VENUE's IANA zone, e.g. "Asia/Kolkata" or "Europe/London". EVERY
+   * date and time on this payload must be read in it — the server resolved
+   * them in it, and reading a London trial on an Indian clock names the
+   * wrong calendar day at the ground. Never the viewer's zone.
+   */
+  timezone: string
   created_at: string
   organization: RecruitmentOrganization
   sport: RecruitmentSport
@@ -259,12 +307,36 @@ export type Recruitment = RecruitmentTrialWindow & {
   /** How many photos there are, for the "1/4" badge. */
   media_count?: number
   /**
-   * The trial day is over (its calendar day has ended in Asia/Kolkata). The
-   * server hides such trials from the player lists but the org, a shortlist
-   * and an application still carry them. Optional: older cached payloads
-   * predate it, and `isTrialOver` works it out from `event_date` then.
+   * The trial day is over — its calendar day has ended AT THE VENUE, in this
+   * recruitment's own `timezone`. The server hides such trials from the
+   * player lists but the org, a shortlist and an application still carry
+   * them. Optional: older cached payloads predate it, and `isTrialOver`
+   * works it out from `event_date` then.
    */
   is_trial_over?: boolean
+  /**
+   * HOW FAR THE VIEWER IS from the nearest live centre — or from the trial's
+   * own venue when no centre has coordinates. One decimal, kilometres.
+   *
+   * Present whenever the server knew where the viewer was, which is now every
+   * mount and not only a distance-FILTERED list. Null means "not known", and
+   * null must render as nothing: an absent distance is not a short one.
+   */
+  distance_km?: number | null
+  /**
+   * WHICH CENTRE that distance measures, so the card can name the place the
+   * number belongs to. A trial visiting Kochi and Kannur is geocoded at one
+   * of them, and a Kannur player used to read "Kochi · 6 km" — the right
+   * number against the wrong place.
+   *
+   * The same shape as an entry in `sessions` (one `trial_session_payload`
+   * builds both), plus this viewer's distance to it.
+   *
+   * NULL when the viewer has no location, when no live centre has
+   * coordinates — then `distance_km` is to the trial's own venue, which the
+   * card already names — or when the trial's one centre IS that venue.
+   */
+  nearest_session?: (TrialSession & { distance_km?: number | null }) | null
   // Match context (§5). Present on /discover and on the ranked "All" tab;
   // absent on the org-scoped mounts, which stay newest-first and unscored.
   // Every field is optional for exactly that reason — a card must render fine
@@ -330,10 +402,21 @@ const MATCH_KEYS = [
   "days_to_deadline",
 ] as const
 
+/**
+ * The keys that mean "this payload was RANKED", which is not all of
+ * MATCH_KEYS any more.
+ *
+ * `distance_km` left the discover serializer for the plain list one, so every
+ * unranked row now carries it. Testing it here would build a `match` object
+ * for an org-profile card out of nothing but a distance, and the card would
+ * render a chip row of defaults — an "Eligible" badge nobody scored.
+ */
+const RANKED_KEYS = MATCH_KEYS.filter((key) => key !== "distance_km")
+
 function withMatch(row: RecruitmentApiRow): Recruitment {
   // An unranked payload carries none of these; leave `match` undefined so the
   // card skips the whole chip row rather than rendering empty chips.
-  if (!MATCH_KEYS.some((key) => key in row)) return row as Recruitment
+  if (!RANKED_KEYS.some((key) => key in row)) return row as Recruitment
 
   return {
     ...(row as Recruitment),
@@ -413,6 +496,13 @@ export type RecruitmentDetail = RecruitmentTrialWindow & {
   experience_level: string
   application_deadline: string | null
   event_date: string | null
+  /**
+   * The VENUE's IANA zone, e.g. "Asia/Kolkata" or "Europe/London". EVERY
+   * date and time on this payload must be read in it — the server resolved
+   * them in it, and reading a London trial on an Indian clock names the
+   * wrong calendar day at the ground. Never the viewer's zone.
+   */
+  timezone: string
   is_remote: boolean
   is_paid: boolean
   fee_amount: string | null
@@ -778,6 +868,13 @@ export type MyApplicationRecruitment = {
   city: string
   event_date: string | null
   application_deadline: string | null
+  /**
+   * The VENUE's IANA zone, e.g. "Asia/Kolkata" or "Europe/London". EVERY
+   * date and time on this payload must be read in it — the server resolved
+   * them in it, and reading a London trial on an Indian clock names the
+   * wrong calendar day at the ground. Never the viewer's zone.
+   */
+  timezone: string
   /** The trial day is over — see `isTrialOver`. Optional: older payloads. */
   is_trial_over?: boolean
   /** The LAST date. `isTrialOver` reads this before event_date. */

@@ -18,7 +18,8 @@ import { buildAgeCategoriesPayload } from "../../eligibility"
 import type { RecruitmentDraft } from "./draft"
 import {
     buildSessionsPayload,
-    effectiveSessionMode,
+    sessionModeForShape,
+    shapeFromSessions,
 } from "./sessions"
 import { TYPE_CONFIG } from "./typeConfig"
 import { localInputToISO } from "./wizardDate"
@@ -34,7 +35,7 @@ export function buildPayload(
         isPaid, feeAmount, feeCurrency, paymentNote, applyMethod, externalApplyUrl,
         venueName, venueLink, location, anyPosition, selectedPositions,
         ageCategories, allAges, eligibilityCriteria, benefits, requirements,
-        contacts, questions, sessions, sessionMode, autoConfirm,
+        contacts, questions, sessions, sessionMode, trialShape, autoConfirm,
     } = draft
 
     // Trial DATES. Only a type that has them sends any, and a type that does
@@ -67,8 +68,16 @@ export function buildPayload(
         // Every row keeps its server id, which is what makes an edit a
         // diff-sync instead of a delete-and-recreate — see sessions.ts.
         sessions: hasSessions ? buildSessionsPayload(sessions) : undefined,
+        // The SHAPE decides the mode, not the row count: several centres
+        // are always a pick-one, and one date is always "all". Only
+        // multi_day leaves the question open, and there `sessionMode` is
+        // the org's own answer. A draft that carries no shape has it read
+        // back off its rows.
         session_mode: hasSessions
-            ? effectiveSessionMode(sessions, sessionMode)
+            ? sessionModeForShape(
+                trialShape ?? shapeFromSessions(sessions),
+                sessionMode,
+            )
             : undefined,
         auto_confirm: hasSessions ? autoConfirm : undefined,
         max_applications: maxApplications ? Number(maxApplications) : undefined,

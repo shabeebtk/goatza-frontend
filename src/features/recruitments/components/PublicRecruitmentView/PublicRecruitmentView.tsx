@@ -323,7 +323,7 @@ export default function PublicRecruitmentView({
 
       {/* The public page is anonymous, so only "all applicants" updates
           appear here — that is the server's rule, not a prop. */}
-      <AnnouncementList recruitmentId={r.id} />
+      <AnnouncementList recruitmentId={r.id} timeZone={r.timezone} />
 
       {trialOver && (
         <div className={styles.endedBanner} role="status">

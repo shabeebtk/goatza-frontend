@@ -33,8 +33,10 @@ function liveDates(sessions: TrialSession[] | undefined): TrialSession[] {
     return (sessions ?? []).filter((session) => !session.is_cancelled)
 }
 
-function dateList(sessions: TrialSession[]): string {
-    return sessions.map((session) => formatSessionDate(session.date)).join(", ")
+function dateList(sessions: TrialSession[], timeZone: string): string {
+    return sessions
+        .map((session) => formatSessionDate(session.date, timeZone))
+        .join(", ")
 }
 
 /**
@@ -56,6 +58,10 @@ export function buildReschedulePrefill(
     const set = new Set(changes)
     const oldDates = liveDates(before.sessions)
     const newDates = liveDates(after.sessions)
+    // The zone as the recruitment stands NOW. The org can move a trial's
+    // calendar in the same save that moves its dates, and the announcement
+    // names the dates it has just become.
+    const timeZone = after.timezone || before.timezone
 
     const lines: string[] = []
 
@@ -63,11 +69,14 @@ export function buildReschedulePrefill(
         // The clean, common case: one date, and it moved. Name both ends.
         if (oldDates.length === 1 && newDates.length === 1) {
             lines.push(
-                `The trial has moved from ${formatSessionDate(oldDates[0].date)} ` +
-                    `to ${formatSessionDate(newDates[0].date)}.`,
+                `The trial has moved from ` +
+                    `${formatSessionDate(oldDates[0].date, timeZone)} ` +
+                    `to ${formatSessionDate(newDates[0].date, timeZone)}.`,
             )
         } else if (newDates.length > 0) {
-            lines.push(`The trial dates are now ${dateList(newDates)}.`)
+            lines.push(
+                `The trial dates are now ${dateList(newDates, timeZone)}.`,
+            )
         } else {
             lines.push("The trial dates have changed.")
         }
@@ -78,7 +87,9 @@ export function buildReschedulePrefill(
     }
 
     if (set.has("session_added") && !set.has("session_date")) {
-        lines.push(`A date has been added: ${dateList(newDates)}.`)
+        lines.push(
+            `A date has been added: ${dateList(newDates, timeZone)}.`,
+        )
     }
 
     if (set.has("session_removed") && !set.has("session_cancelled")) {

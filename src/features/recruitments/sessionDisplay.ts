@@ -9,15 +9,22 @@
  * "Corporation Stadium" under all three dates tells a player nothing, while
  * "Kochi / Kozhikode / Kannur" is the entire point of a city tour.
  *
- * Every day comparison goes through `kolkataDay` from trialEnded.ts. There is
- * exactly one calendar on this product and it is the venue's.
+ * THE CALENDAR IS THE VENUE'S, one per recruitment — not one for the
+ * product. Every day comparison goes through `trialDay` from trialEnded.ts
+ * with that recruitment's own `timezone`, so a London trial names London's
+ * calendar day and a Kochi one names Kochi's.
+ *
+ * Which is why the zone is an argument everywhere below rather than a module
+ * constant: a constant is a zone somebody forgets to think about, and the way
+ * it fails is silent — the date renders, it is just the wrong day.
  */
 
 import type {
     ApplicationSession,
     TrialSession,
 } from "./services/recruitments.api"
-import { TRIAL_TIME_ZONE, kolkataDay } from "./trialEnded"
+import { formatDistance } from "./matchContext"
+import { FALLBACK_TRIAL_TIME_ZONE, trialDay } from "./trialEnded"
 
 /** Anything with the date fields — a trial date or the one on an application. */
 type SessionLike = TrialSession | ApplicationSession
@@ -26,23 +33,42 @@ type SessionLike = TrialSession | ApplicationSession
 type VenueContext = {
     venue_name?: string
     city?: string
+    /**
+     * The venue's IANA zone — what its dates are read in. Optional only
+     * because a payload cached before the field shipped has none; anything
+     * holding a live recruitment has it.
+     */
+    timezone?: string
 }
 
-/** "Sat 10 Oct" — a date as the venue reads it. */
-export function formatSessionDate(date: string): string {
+/**
+ * "Sat 10 Oct" — a date as THE VENUE reads it.
+ *
+ * `timeZone` is required and deliberately has no default: this is the
+ * function a new call site reaches for, and a default would let it render an
+ * Indian day for a London trial without anybody noticing.
+ */
+export function formatSessionDate(date: string, timeZone: string): string {
     // A bare "YYYY-MM-DD" is parsed as UTC midnight, so format it in the
     // trial's zone to get the day back out unshifted.
     const parsed = new Date(`${date}T12:00:00Z`)
     if (Number.isNaN(parsed.getTime())) return date
     return new Intl.DateTimeFormat("en-GB", {
-        timeZone: TRIAL_TIME_ZONE,
+        timeZone,
         weekday: "short",
         day: "numeric",
         month: "short",
     }).format(parsed)
 }
 
-/** "9:00 am" from "09:00:00". Null when the date carries no time. */
+/**
+ * "9:00 am" from "09:00:00". Null when the date carries no time.
+ *
+ * NO ZONE, and that is not an omission. `start_time` is a WALL CLOCK at the
+ * venue already — the server stores the time the org typed, not an instant —
+ * so there is nothing to convert, and converting it would be the bug: 9:00 at
+ * a London ground would come out as 2:30 pm on an Indian clock.
+ */
 export function formatSessionTime(time: string | null | undefined): string | null {
     if (!time) return null
     const [hours, minutes] = time.split(":")
@@ -77,32 +103,86 @@ export function sessionPlace(
     return null
 }
 
-/** "Sat 10 Oct · 9:00 am · Kochi" — the apply picker's one-line option. */
+/**
+ * "Sat 10 Oct · 9:00 am · Kochi" — the apply picker's one-line option.
+ *
+ * Takes the zone off the recruitment it is already given, so its callers did
+ * not change when the zone arrived.
+ */
 export function sessionOptionLabel(
     session: SessionLike,
     recruitment: VenueContext,
 ): string {
     return [
-        formatSessionDate(session.date),
+        formatSessionDate(
+            session.date,
+            recruitment.timezone || FALLBACK_TRIAL_TIME_ZONE,
+        ),
         formatSessionTimeRange(session),
         sessionPlace(session, recruitment),
         session.title?.trim() || null,
+        // LAST, and only when the server measured it. The place has to be
+        // read first — "4 km" answers nothing until you know 4 km to where —
+        // and an anonymous reader simply sees the line without it.
+        "distance_km" in session && session.distance_km != null
+            ? formatDistance(session.distance_km)
+            : null,
     ]
         .filter(Boolean)
         .join(" · ")
 }
 
 /**
+ * THE CENTRES, NEAREST FIRST — a copy, sorted; the input is untouched.
+ *
+ * Date order answers "when is this trial", and that is not the question a
+ * player with a four-city tour in front of them is asking. Theirs is "where
+ * can I actually get to", so the centre 4 km away goes first even if its date
+ * is last. The distance is served (the viewer's coordinates live on the
+ * server, not here), so a payload without one sorts exactly as before.
+ *
+ * Centres with no distance go LAST as a group rather than first: an unknown
+ * distance is not a short one. Inside each group the existing date ordering
+ * decides, which is also what the whole list falls back to when the server
+ * measured nothing.
+ */
+export function sessionsByDistance(sessions: TrialSession[]): TrialSession[] {
+    return [...sessions].sort((a, b) => {
+        const da = a.distance_km ?? null
+        const db = b.distance_km ?? null
+
+        if (da !== db) {
+            if (da === null) return 1
+            if (db === null) return -1
+            return da - db
+        }
+
+        // Same distance, or neither measured: the ordering this list already
+        // had. Restated rather than shared with orderedSessions because that
+        // one also groups cancelled dates last, and nothing cancelled ever
+        // reaches here.
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1
+        return (a.start_time ?? "23:59") < (b.start_time ?? "23:59") ? -1 : 1
+    })
+}
+
+/**
  * Dates a player may still pick: not cancelled, not in the past on the
  * venue's calendar. Today counts — a trial at 9am is still pickable at 8am,
  * and the server applies exactly this rule.
+ *
+ * `timeZone` is required, and it is load-bearing rather than cosmetic here:
+ * "today" is a DIFFERENT day either side of midnight at the venue, so the
+ * wrong zone does not misspell a label — it adds or drops a whole date from
+ * what the player is offered.
  */
 export function upcomingSessions(
     sessions: TrialSession[] | undefined,
+    timeZone: string,
     now: Date | number = Date.now(),
 ): TrialSession[] {
     if (!sessions) return []
-    const today = kolkataDay(now)
+    const today = trialDay(now, timeZone)
     return sessions.filter(
         session => !session.is_cancelled && (!today || session.date >= today),
     )

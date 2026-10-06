@@ -36,7 +36,11 @@ import type {
   QuestionFieldType,
   ApplyAnswerPayload,
 } from "../../services/recruitments.api"
-import { sessionOptionLabel, upcomingSessions } from "../../sessionDisplay"
+import {
+  sessionOptionLabel,
+  sessionsByDistance,
+  upcomingSessions,
+} from "../../sessionDisplay"
 import styles from "./ApplyRecruitmentModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -107,14 +111,30 @@ export default function ApplyRecruitmentModal({
   //
   // A date that has already passed is hidden rather than shown disabled:
   // the server refuses it, and an option that cannot be taken is noise.
-  // The comparison is kolkataDay's, never a second one.
+  // The comparison is trialDay's, never a second one — and it is made on the
+  // VENUE's calendar, so a date is offered for exactly as long as the ground
+  // it is at would still call it today.
   const needsSession = recruitment.session_mode === "choose_one"
   // The clock lives inside upcomingSessions, the same way isTrialOver owns
   // its own `now` — reading it in the component body is an impure call
   // during render.
+  //
+  // TWO STEPS, IN THIS ORDER. `upcomingSessions` decides WHICH centres may be
+  // picked — the eligibility rule, unchanged and still the server's — and
+  // `sessionsByDistance` only decides what order they are offered in. A
+  // Kozhikode player stops scrolling past Kochi, Thrissur and Trivandrum to
+  // reach the one 4 km away.
+  //
+  // Nothing is preselected. The ordering is a convenience; auto-picking the
+  // nearest would answer a required question on the player's behalf.
   const sessionOptions = useMemo(
-    () => (needsSession ? upcomingSessions(recruitment.sessions) : []),
-    [needsSession, recruitment.sessions],
+    () =>
+      needsSession
+        ? sessionsByDistance(
+            upcomingSessions(recruitment.sessions, recruitment.timezone),
+          )
+        : [],
+    [needsSession, recruitment.sessions, recruitment.timezone],
   )
   const noDatesLeft = needsSession && sessionOptions.length === 0
 

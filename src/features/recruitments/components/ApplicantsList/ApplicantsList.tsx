@@ -43,7 +43,11 @@ import {
   type PipelineStage,
 } from "../../applicationStatus"
 import { formatBirthYears } from "../../eligibility"
-import { formatTrialDay, isTrialDayAhead } from "../../trialEnded"
+import {
+  FALLBACK_TRIAL_TIME_ZONE,
+  formatTrialDay,
+  isTrialDayAhead,
+} from "../../trialEnded"
 import type {
   ApplicationStatus,
   ApplicantListItem,
@@ -251,9 +255,12 @@ function ApplicantRow({
   onToggle,
   onOpen,
   onOpenHighlights,
+  timeZone,
 }: {
   item: ApplicantListItem
   recruitmentType?: RecruitmentTypeValue
+  /** The trial's own zone — the calendar the chosen date is named on. */
+  timeZone: string
   selectable: boolean
   selected: boolean
   /** Only a trial that HAS a fee shows a fee chip. */
@@ -325,7 +332,7 @@ function ApplicantRow({
             <span className={styles.groupTag}>
               <Icon icon="mdi:calendar-check" width={12} height={12} />
               {item.session
-                ? sessionOptionLabel(item.session, {})
+                ? sessionOptionLabel(item.session, { timezone: timeZone })
                 : "—"}
             </span>
           )}
@@ -381,6 +388,7 @@ export default function ApplicantsList({
   sessionMode,
   recruitmentTitle,
   orgName,
+  timezone = FALLBACK_TRIAL_TIME_ZONE,
 }: {
   recruitmentId: string
   /** The recruitment's own age groups — empty when it is open to all ages. */
@@ -396,6 +404,12 @@ export default function ApplicantsList({
   /** For the Confirmed tab's copyable list. */
   recruitmentTitle?: string
   orgName?: string
+  /**
+   * The trial's OWN zone. Every date on this screen is named in it — the
+   * results gate included, which opens on the trial day at the ground and
+   * not on the organiser's own clock.
+   */
+  timezone?: string
 }) {
   const toast = useToast()
   const noteId = useId()
@@ -471,11 +485,17 @@ export default function ApplicantsList({
   const viewStatuses = stage ? stage.statuses : WITHDRAWN
   const viewActions = stage?.actions ?? []
 
-  // Results open ON the trial day (Kolkata calendar) — the server refuses them
-  // before that too, with the same date. Only an open trial has one; a
-  // looking-for-players post's Result tab is always live.
+  // Results open ON the trial day, on THE VENUE's calendar — the server
+  // refuses them before that too, with the same date and the same zone. Only
+  // an open trial has one; a looking-for-players post's Result tab is always
+  // live.
   const resultsLocked =
-    view === "result" && recruitmentType === "open_trial" && isTrialDayAhead(eventDate)
+    view === "result" &&
+    recruitmentType === "open_trial" &&
+    // `undefined` for `now`, not Date.now(): reading the clock in a render
+    // body is an impure call, and the default inside the function is the
+    // same value taken in the right place.
+    isTrialDayAhead(eventDate, undefined, timezone)
 
   // Debounce search (mirrors ConversationsList).
   useEffect(() => {
@@ -1008,7 +1028,9 @@ export default function ApplicantsList({
           <div className={styles.emptyIcon}>
             <Icon icon="mdi:calendar-clock" width={40} height={40} />
           </div>
-          <p className={styles.emptyTitle}>Results open on {formatTrialDay(eventDate)}</p>
+          <p className={styles.emptyTitle}>
+            Results open on {formatTrialDay(eventDate, timezone)}
+          </p>
           <p className={styles.emptyBody}>If that date is wrong, edit the trial.</p>
         </div>
       ) : isLoading ? (
@@ -1039,6 +1061,7 @@ export default function ApplicantsList({
               <ApplicantRow
                 key={item.id}
                 item={item}
+                timeZone={timezone}
                 recruitmentType={recruitmentType}
                 selectable={selectableSet.has(item.id)}
                 selected={selected.has(item.id)}

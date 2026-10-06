@@ -16,6 +16,7 @@ import { summarizeAgeGroups } from "../../eligibility"
 import { formatDistance } from "../../matchContext"
 import { daysToApply, isAcceptingApplications } from "../../accepting"
 import { useToggleSaveRecruitment } from "../../hooks/useRecruitments"
+import { formatSessionDate, upcomingSessions } from "../../sessionDisplay"
 import { isTrialOver } from "../../trialEnded"
 import { Recruitment } from "../../services/recruitments.api"
 
@@ -216,14 +217,58 @@ export default function RecruitmentCard({
   // draft the way a player would see it) is stating intent, not forgetting.
   if (isDraft && variant === undefined && derived === "viewer") return null
 
-  // The stadium locates a trial, the city only narrows it to a district — so
-  // one wins outright and the other becomes the tooltip.
+  // ── WHERE THIS TRIAL IS, FOR THIS READER ───────────────────
+  //
+  // A city tour is geocoded at ONE of its stops, so naming the recruitment's
+  // own venue showed a Kannur player "Kochi · 6 km": the right number against
+  // the wrong place. When the server has worked out which centre this viewer
+  // is nearest to, that centre wins the line — its city, its distance, its
+  // date — and the same posting reads "Kannur · 6 km · Mon 20 Oct" for one
+  // player and "Kochi · 4 km · Thu 16 Oct" for another.
+  //
+  // With no nearest centre the line is exactly what it always was: the
+  // stadium locates a trial, the city only narrows it to a district, so one
+  // wins outright and the other becomes the tooltip.
   const venueName = recruitment.venue_name?.trim()
   const city = recruitment.city?.trim()
-  const venuePrimary = venueName || city || ""
-  const distance =
-    match?.distance_km != null ? formatDistance(match.distance_km) : null
-  const venueValue = [venuePrimary, distance].filter(Boolean).join(" · ")
+  const nearestCentre = recruitment.nearest_session
+
+  // The distance the payload carries, in whichever shape it arrived. Both are
+  // the same annotation — the plain list reads it off the column, a ranked
+  // card off the match object the scorer rounded — so either answers.
+  const distanceKm = recruitment.distance_km ?? match?.distance_km ?? null
+  const distance = distanceKm != null ? formatDistance(distanceKm) : null
+
+  // The centre's CITY first here, not its venue name: on a tour the city is
+  // what a player is scanning for ("does it come to me?"), and the ground's
+  // name only matters once they have decided to go.
+  const centreName =
+    nearestCentre?.city?.trim() || nearestCentre?.venue_name?.trim() || ""
+
+  const venuePrimary = nearestCentre ? centreName : venueName || city || ""
+  const venueValue = nearestCentre
+    ? [
+        venuePrimary,
+        // The centre carries its own copy of the number; the card-level one
+        // is the same value and the fallback if it is ever absent.
+        nearestCentre.distance_km != null
+          ? formatDistance(nearestCentre.distance_km)
+          : distance,
+        // The stage-4 formatter, on the recruitment's OWN calendar.
+        formatSessionDate(nearestCentre.date, recruitment.timezone),
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : [venuePrimary, distance].filter(Boolean).join(" · ")
+
+  // "+2 more centres" — quiet, and only where there is more than one place to
+  // be. `upcomingSessions` decides what counts as live so this agrees with
+  // the dates the apply picker will actually offer.
+  const liveCentres = upcomingSessions(
+    recruitment.sessions,
+    recruitment.timezone,
+  )
+  const otherCentres = liveCentres.length - 1
 
   // Positions, matched ones first. A stable sort keeps the recruiter's own
   // ordering intact behind the promoted ones.
@@ -421,13 +466,30 @@ export default function RecruitmentCard({
             {venueValue && (
               <span
                 className={`${styles.fact} ${styles.factVenue}`}
-                title={venueName && city ? city : venueValue}
+                title={
+                  nearestCentre
+                    ? [nearestCentre.venue_name?.trim(), venueValue]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : venueName && city
+                      ? city
+                      : venueValue
+                }
               >
                 <Icon icon="mdi:map-marker-outline" width={13} height={13} />
                 <span className={styles.factText}>{venueValue}</span>
               </span>
             )}
           </div>
+
+          {/* Subordinate to the fact above it on purpose: that this trial
+              visits four cities is context, and the one it brings to THIS
+              reader is the fact. */}
+          {otherCentres > 0 && (
+            <p className={styles.moreCentres}>
+              +{otherCentres} more {otherCentres === 1 ? "centre" : "centres"}
+            </p>
+          )}
 
           <div className={styles.tagRow}>
             {positions.length > 0 && (

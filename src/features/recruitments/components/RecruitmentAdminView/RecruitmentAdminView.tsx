@@ -122,6 +122,7 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
             ageCategories={recruitment?.age_categories ?? []}
             recruitmentType={recruitment?.recruitment_type}
             eventDate={recruitment?.event_date ?? null}
+            timezone={recruitment?.timezone}
             hasFee={!!recruitment?.is_paid}
             sessionMode={recruitment?.session_mode}
             recruitmentTitle={recruitment?.title}

@@ -561,6 +561,19 @@
   text-overflow: ellipsis;
 }
 
+/* Under the venue fact, not beside it: one more line of context on a card
+   whose facts row is already nowrap and already truncating. */
+.moreCentres {
+  margin: 1px 0 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-poster-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 /* ── Positions + the quiet line ─────────────────────────────────
    One line on the poster, clipped rather than wrapped: a second chip
    line would push the text block up into the part of the scrim that has

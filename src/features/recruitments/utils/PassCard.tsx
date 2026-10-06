@@ -12,6 +12,7 @@
  * out if they are in the right place.
  */
 
+import { FALLBACK_TRIAL_TIME_ZONE } from "../trialEnded"
 import type { TrialPass } from "../services/announcements.api"
 
 const BRAND = "#00B562"
@@ -19,11 +20,18 @@ const INK = "#111111"
 const MUTED = "#555555"
 const LINE = "#e4eae4"
 
-function day(date: string): string {
+/**
+ * "Sat 10 Oct" on THE VENUE's calendar.
+ *
+ * The zone is read off the payload this route fetched, never off the machine:
+ * this renders server-side in Next, where the host's clock has nothing to do
+ * with the ground the player is walking to.
+ */
+function day(date: string, timeZone: string): string {
     const parsed = new Date(`${date}T12:00:00Z`)
     if (Number.isNaN(parsed.getTime())) return date
     return new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Asia/Kolkata",
+        timeZone,
         weekday: "short",
         day: "numeric",
         month: "short",
@@ -42,6 +50,9 @@ function clock(time: string | null): string {
 export default function PassCard({ pass }: { pass: TrialPass }) {
     const reporting = clock(pass.age_group?.reporting_time ?? null)
     const first = pass.sessions[0]
+    // See TrialPass.recruitment.timezone: the server does not send this yet,
+    // so today this is always the fallback.
+    const timeZone = pass.recruitment.timezone || FALLBACK_TRIAL_TIME_ZONE
 
     return (
         <div
@@ -105,7 +116,7 @@ export default function PassCard({ pass }: { pass: TrialPass }) {
                                 color: INK,
                             }}
                         >
-                            {day(session.date)}
+                            {day(session.date, timeZone)}
                         </div>
                         <div style={{ display: "flex", fontSize: 28, color: MUTED }}>
                             {[clock(session.start_time), session.venue_name || session.city]
@@ -173,7 +184,7 @@ export default function PassCard({ pass }: { pass: TrialPass }) {
                     </div>
                 ) : (
                     <div style={{ display: "flex", fontSize: 24, color: MUTED }}>
-                        {first ? day(first.date) : ""}
+                        {first ? day(first.date, timeZone) : ""}
                     </div>
                 )}
             </div>

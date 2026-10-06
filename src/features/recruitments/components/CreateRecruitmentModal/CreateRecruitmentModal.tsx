@@ -63,14 +63,14 @@ import { buildPayload } from "./buildPayload"
 import {
     firstSession,
     initialSessionDrafts,
-    liveSessions,
     newSessionDraft,
     sessionDateValue,
     sessionsFromApi,
+    shapeFromSessions,
     validateSessions,
     withDateValue,
 } from "./sessions"
-import type { SessionDraft } from "./sessions"
+import type { SessionDraft, TrialShape } from "./sessions"
 import { isoToLocalInput, parseLocalInput } from "./wizardDate"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
@@ -1051,6 +1051,38 @@ const DEADLINE_PRESETS = [
     { label: "1 week before", days: 7 },
 ]
 
+// ── The trial's shape ─────────────────────────────────────────
+// Asked FIRST on the when & where step, because it decides what a date row
+// even asks for. Nothing signalled before this that a trial could be a city
+// tour or two zones on one Saturday, so nobody posted one — the formats
+// existed in the data model and not in the UI. See sessions.ts for what each
+// one means.
+const TRIAL_SHAPES: {
+    value: TrialShape
+    label: string
+    blurb: string
+    icon: string
+}[] = [
+    {
+        value: "single",
+        label: "One day",
+        blurb: "One date at one ground.",
+        icon: "mdi:calendar-today",
+    },
+    {
+        value: "multi_day",
+        label: "Several days, same ground",
+        blurb: "Screening rounds, or a day per district.",
+        icon: "mdi:calendar-multiple",
+    },
+    {
+        value: "multi_place",
+        label: "Several places",
+        blurb: "A different city or ground for each date.",
+        icon: "mdi:map-marker-multiple",
+    },
+]
+
 // ── Contacts builder ──────────────────────────────────────────
 
 type ContactSuggestion = { name: string; contact_type: "phone" | "email"; value: string }
@@ -1423,6 +1455,11 @@ export default function CreateRecruitmentModal({
     const init = mode === "edit" ? (initialRecruitment ?? null) : null
     const isEdit = init !== null
     const initialPositions = init ? mapInitialPositions(init) : null
+    // Built once: both the rows and the shape are seeded from it, and
+    // `sessionsFromApi` mints a fresh React key per row every time it runs.
+    const [initialSessions] = useState<SessionDraft[]>(
+        () => sessionsFromApi(init?.sessions),
+    )
 
     // ── Screen + step ────────────────────────────────────────────
     // Create opens on the type picker; edit already knows its type.
@@ -1455,8 +1492,19 @@ export default function CreateRecruitmentModal({
     // diff-syncs on them, and a row that loses its id is deleted and
     // recreated, which drops the date every applicant picked.
     const [sessions, setSessions] = useState<SessionDraft[]>(
-        () => sessionsFromApi(init?.sessions),
+        () => initialSessions,
     )
+    // WHICH SHAPE — one day, several days at one ground, or several places.
+    // Read back off the loaded rows on an edit (a row with its own venue is
+    // a centre, not another day) so an existing city tour opens on the card
+    // it was built with rather than resetting to a single date.
+    const [trialShape, setTrialShape] = useState<TrialShape>(
+        () => shapeFromSessions(initialSessions),
+    )
+    // Armed by a click on "One day" that would DROP dates — see chooseShape.
+    // Holds nothing itself: the count is derived, this is only the "the org
+    // has been told" flag.
+    const [trimArmed, setTrimArmed] = useState(false)
     const [sessionMode, setSessionMode] = useState<SessionMode>(
         () => init?.session_mode ?? "all",
     )
@@ -1586,6 +1634,86 @@ export default function CreateRecruitmentModal({
         setSessions(rows => (
             rows.length <= 1 ? rows : rows.filter(row => row.key !== key)
         ))
+        clearFieldError("sessions")
+    }
+
+    // ---- the trial's shape ----------------------------------------
+    // Which row has the full-screen place picker up, by session key. One
+    // piece of state rather than a flag per row: the picker is a portal that
+    // owns its own mount, so only one may ever be open.
+    const [locationOpenFor, setLocationOpenFor] = useState<string | null>(null)
+
+    const pickSessionLocation = (key: string, place: PlaceResult | null) => {
+        updateSession(key, { location: place })
+    }
+
+    // The dates "One day" would delete. Rows the org never filled in are not
+    // dates, so they are not counted — and the FIRST date is kept, which is
+    // the one event_date is derived from.
+    const keptSession = firstSession(sessions)
+    const datesTrimmedBySingle = sessions.filter(
+        row => row.date && row.key !== keptSession?.key,
+    ).length
+
+    /**
+     * Keep only the first date, then become a single-date trial.
+     *
+     * DESTRUCTIVE, and never on the first click — see chooseShape. Dropping a
+     * row deletes its TrialSession on save, which SET_NULLs the date every
+     * applicant picked, so the org confirms it explicitly.
+     */
+    const trimToSingle = () => {
+        setSessions(rows => {
+            const keep = firstSession(rows) ?? rows[0]
+            return rows
+                .filter(row => row.key === keep?.key)
+                // One day has no per-row venue UI at all, so anything left
+                // here would be invisible state that still got saved.
+                .map(row => ({
+                    ...row,
+                    location: null,
+                    venueName: "",
+                    venueLink: "",
+                }))
+        })
+        setTrimArmed(false)
+        setLocationOpenFor(null)
+        setTrialShape("single")
+        clearFieldError("sessions")
+    }
+
+    /**
+     * Pick a shape.
+     *
+     * Only the per-row VENUE fields belong to multi_place, so leaving it
+     * clears them — a stale ground on a row nobody can see any more would be
+     * sent on the next save. The dates themselves survive every switch: they
+     * are the one thing the org typed that no shape invalidates.
+     *
+     * The exception is "One day" with dates to lose. That click only ARMS the
+     * warning; `trimToSingle` is what acts on it.
+     */
+    const chooseShape = (next: TrialShape) => {
+        if (next === trialShape) return
+
+        if (next === "single" && datesTrimmedBySingle > 0) {
+            setTrimArmed(true)
+            return
+        }
+
+        setTrimArmed(false)
+        setLocationOpenFor(null)
+
+        if (trialShape === "multi_place") {
+            setSessions(rows => rows.map(row => ({
+                ...row,
+                location: null,
+                venueName: "",
+                venueLink: "",
+            })))
+        }
+
+        setTrialShape(next)
         clearFieldError("sessions")
     }
 
@@ -2070,6 +2198,8 @@ export default function CreateRecruitmentModal({
         if (!TYPE_CONFIG[t].hasSessions) {
             setSessions(initialSessionDrafts())
             setSessionMode("all")
+            setTrialShape("single")
+            setTrimArmed(false)
             setAutoConfirm(false)
         }
         setScreen("wizard")
@@ -2104,6 +2234,12 @@ export default function CreateRecruitmentModal({
         // carry NO ids: those ids belong to the recruitment being copied,
         // and echoing them would try to edit ITS dates.
         setSessions(initialSessionDrafts())
+        // The dates were just cleared, so the shape they implied is gone
+        // with them — a cloned city tour starts as one empty date and the
+        // org picks its shape again. `sessionMode` is still worth carrying:
+        // it is the answer they gave, and it survives until a shape needs it.
+        setTrialShape("single")
+        setTrimArmed(false)
         setSessionMode(r.session_mode ?? "all")
         setAutoConfirm(r.auto_confirm ?? false)
         setApplicationDeadline("")
@@ -2282,7 +2418,7 @@ export default function CreateRecruitmentModal({
         venueName, venueLink, location, anyPosition, selectedPositions,
         ageCategories, allAges, eligibilityCriteria, benefits, requirements,
         contacts, questions,
-        sessions, sessionMode, autoConfirm,
+        sessions, sessionMode, trialShape, autoConfirm,
     }
 
     // ── Preview ───────────────────────────────────────────────────
@@ -2638,6 +2774,11 @@ export default function CreateRecruitmentModal({
     )
 
     // ── 2. When & where ───────────────────────────────────────────
+    // A row is a DATE in two shapes and a CENTRE in the third. One noun, so
+    // the add button, the remove button and every field label agree with the
+    // card the org picked.
+    const rowNoun = trialShape === "multi_place" ? "centre" : "date"
+
     const renderWhenWhere = () => (
         <div className={styles.stepContent}>
             {stepIntro("when_where")}
@@ -2648,6 +2789,76 @@ export default function CreateRecruitmentModal({
                 {typeCfg.hasSessions && (
                 <div className={styles.fieldGroup} data-field="sessions">
                     <label className={styles.fieldLabel}>{typeCfg.dateLabel} <span className={styles.required}>*</span></label>
+
+                    {/* THE SHAPE, asked before any date. The same cards the
+                        type picker uses, because this is the same kind of
+                        question: it decides what a date row asks for. */}
+                    <div className={styles.shapeGrid} role="radiogroup" aria-label="How the trial runs">
+                        {TRIAL_SHAPES.map(shape => {
+                            const picked = trialShape === shape.value
+                            return (
+                                <button
+                                    key={shape.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={picked}
+                                    className={`${styles.typeCard} ${styles.shapeCard} ${picked ? styles.shapeCardActive : ""}`}
+                                    onClick={() => chooseShape(shape.value)}
+                                    disabled={isSubmitting}
+                                >
+                                    <span className={styles.typeCardIcon}>
+                                        <Icon icon={shape.icon} width={20} height={20} />
+                                    </span>
+                                    <span className={styles.typeCardBody}>
+                                        <span className={styles.typeCardLabel}>{shape.label}</span>
+                                        <span className={styles.typeCardBlurb}>{shape.blurb}</span>
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* "One day" with dates to lose. The click that got here
+                        changed NOTHING — deleting a date deletes the centre
+                        every applicant picked, so it takes a second, named
+                        click. */}
+                    {trimArmed && datesTrimmedBySingle > 0 && (
+                        <div className={styles.shapeWarn} role="alert">
+                            <Icon icon="mdi:alert-outline" width={16} height={16} className={styles.shapeWarnIcon} />
+                            <div className={styles.shapeWarnBody}>
+                                <strong className={styles.shapeWarnTitle}>
+                                    {datesTrimmedBySingle === 1
+                                        ? "1 date will be removed."
+                                        : `${datesTrimmedBySingle} dates will be removed.`}
+                                </strong>
+                                <span className={styles.shapeWarnText}>
+                                    Only the first date is kept.
+                                    {(init?.applications_count ?? 0) > 0
+                                        ? " Applicants who picked one of the others lose their chosen date."
+                                        : ""}
+                                </span>
+                                <div className={styles.shapeWarnActions}>
+                                    <button
+                                        type="button"
+                                        className={styles.shapeWarnBtn}
+                                        onClick={trimToSingle}
+                                        disabled={isSubmitting}
+                                    >
+                                        Keep only the first date
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.shapeWarnCancel}
+                                        onClick={() => setTrimArmed(false)}
+                                        disabled={isSubmitting}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ONE date is the default and looks exactly like the
                         single date field always did — presets, then the same
                         date+time control. A second date is opt-in, so a trial
@@ -2708,8 +2919,8 @@ export default function CreateRecruitmentModal({
                                             className={styles.sessionRemove}
                                             onClick={() => removeSession(row.key)}
                                             disabled={isSubmitting}
-                                            aria-label={`Remove date ${idx + 1}`}
-                                            title="Remove this date"
+                                            aria-label={`Remove ${rowNoun} ${idx + 1}`}
+                                            title={`Remove this ${rowNoun}`}
                                         >
                                             <Icon icon="mdi:close" width={15} height={15} />
                                         </button>
@@ -2722,71 +2933,142 @@ export default function CreateRecruitmentModal({
                                     </span>
                                 )}
 
+                                {/* A label is only worth asking for once
+                                    there is more than one row to tell apart.
+                                    One day keeps the date and its end time
+                                    and nothing else. */}
                                 <div className={styles.sessionExtras}>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        maxLength={120}
-                                        placeholder={sessions.length > 1 ? `Label (e.g. "Kochi round")` : "Label (optional)"}
-                                        value={row.title}
-                                        onChange={e => updateSession(row.key, { title: e.target.value })}
-                                        disabled={isSubmitting}
-                                        aria-label={`Label for date ${idx + 1}`}
-                                    />
+                                    {trialShape !== "single" && (
+                                        <input
+                                            className={styles.fieldInput}
+                                            type="text"
+                                            maxLength={120}
+                                            placeholder={trialShape === "multi_place" ? `Label (e.g. "North zone")` : `Label (e.g. "Day 1")`}
+                                            value={row.title}
+                                            onChange={e => updateSession(row.key, { title: e.target.value })}
+                                            disabled={isSubmitting}
+                                            aria-label={`Label for ${rowNoun} ${idx + 1}`}
+                                        />
+                                    )}
                                     <input
                                         className={styles.fieldInput}
                                         type="time"
                                         value={row.endTime}
                                         onChange={e => updateSession(row.key, { endTime: e.target.value })}
                                         disabled={isSubmitting}
-                                        aria-label={`End time for date ${idx + 1}`}
+                                        aria-label={`End time for ${rowNoun} ${idx + 1}`}
                                         title="Ends at (optional)"
                                     />
                                 </div>
 
-                                {/* Blank means INHERIT the trial venue below —
-                                    nothing is copied in, so changing the trial
-                                    venue still moves every date that has none. */}
-                                <div className={styles.sessionExtras}>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        maxLength={255}
-                                        placeholder="Different venue for this date (optional)"
-                                        value={row.venueName}
-                                        onChange={e => updateSession(row.key, { venueName: e.target.value })}
-                                        disabled={isSubmitting}
-                                        aria-label={`Venue for date ${idx + 1}`}
-                                    />
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="url"
-                                        placeholder="Map link (optional)"
-                                        value={row.venueLink}
-                                        onChange={e => updateSession(row.key, { venueLink: e.target.value })}
-                                        disabled={isSubmitting}
-                                        aria-label={`Map link for date ${idx + 1}`}
-                                    />
-                                </div>
+                                {/* THE CENTRE'S OWN GROUND — several places
+                                    only. The other two shapes have one ground,
+                                    set in the trial's own venue fields below,
+                                    and a per-row override there would be a
+                                    second place to look.
+
+                                    The picked place is what puts this centre
+                                    on the map: a player searching the city
+                                    this date visits finds it by these
+                                    coordinates, not the trial's. */}
+                                {trialShape === "multi_place" && (
+                                    <>
+                                        {row.location ? (
+                                            <div className={styles.locationPill}>
+                                                <Icon icon="mdi:map-marker" width={15} height={15} />
+                                                <div className={styles.locationPillText}>
+                                                    <span className={styles.locationPillName}>{row.location.name}</span>
+                                                    <span className={styles.locationPillSub}>{[row.location.state, row.location.country_code].filter(Boolean).join(", ")}</span>
+                                                </div>
+                                                <button
+                                                    className={styles.locationPillRemove}
+                                                    onClick={() => pickSessionLocation(row.key, null)}
+                                                    type="button"
+                                                    disabled={isSubmitting}
+                                                    aria-label={`Remove the place for centre ${idx + 1}`}
+                                                >
+                                                    <Icon icon="mdi:close" width={13} height={13} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                className={`${styles.locationPickerBtn} ${locationOpenFor === row.key ? styles.locationPickerBtnActive : ""}`}
+                                                onClick={() => setLocationOpenFor(
+                                                    open => (open === row.key ? null : row.key),
+                                                )}
+                                                type="button"
+                                                disabled={isSubmitting}
+                                            >
+                                                <Icon icon="mdi:map-search-outline" width={16} height={16} />
+                                                Search this centre&apos;s city or ground…
+                                            </button>
+                                        )}
+
+                                        {/* Full-screen search, portalled above
+                                            this modal. It closes itself on a
+                                            pick; the pill keeps its own
+                                            remove. */}
+                                        {locationOpenFor === row.key && (
+                                            <PostLocationPicker
+                                                value={row.location}
+                                                onChange={place => pickSessionLocation(row.key, place)}
+                                                onClose={() => setLocationOpenFor(null)}
+                                                disabled={isSubmitting}
+                                                bias={placeBias}
+                                            />
+                                        )}
+
+                                        <div className={styles.sessionExtras}>
+                                            <input
+                                                className={styles.fieldInput}
+                                                type="text"
+                                                maxLength={255}
+                                                placeholder="Venue name (optional)"
+                                                value={row.venueName}
+                                                onChange={e => updateSession(row.key, { venueName: e.target.value })}
+                                                disabled={isSubmitting}
+                                                aria-label={`Venue for centre ${idx + 1}`}
+                                            />
+                                            <input
+                                                className={styles.fieldInput}
+                                                type="url"
+                                                placeholder="Map link (optional)"
+                                                value={row.venueLink}
+                                                onChange={e => updateSession(row.key, { venueLink: e.target.value })}
+                                                disabled={isSubmitting}
+                                                aria-label={`Map link for centre ${idx + 1}`}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )
                     })}
 
-                    <button
-                        type="button"
-                        className={styles.sessionAdd}
-                        onClick={addSession}
-                        disabled={isSubmitting}
-                    >
-                        <Icon icon="mdi:plus" width={14} height={14} />
-                        Add another date
-                    </button>
+                    {/* One day has nothing to add — that is the whole
+                        point of the card. */}
+                    {trialShape !== "single" && (
+                        <button
+                            type="button"
+                            className={styles.sessionAdd}
+                            onClick={addSession}
+                            disabled={isSubmitting}
+                        >
+                            <Icon icon="mdi:plus" width={14} height={14} />
+                            Add another {rowNoun}
+                        </button>
+                    )}
 
                     {renderFieldError("sessions")}
                     {renderFieldError("event_date")}
 
-                    {/* Only a question a multi-date trial can answer. */}
-                    {liveSessions(sessions).length >= 2 && (
+                    {/* SEVERAL DAYS AT ONE GROUND is the only shape that
+                        leaves this open, and for it the question is always
+                        on — it no longer appears out of nowhere when a
+                        second row is added. One day has nothing to choose
+                        between, and several places is a pick-one by
+                        definition. */}
+                    {trialShape === "multi_day" && (
                         <div className={styles.sessionModeBox} data-field="session_mode">
                             {([
                                 {
@@ -2816,6 +3098,17 @@ export default function CreateRecruitmentModal({
                                 </label>
                             ))}
                         </div>
+                    )}
+
+                    {/* No question to ask here — several centres IS a
+                        pick-one — but the consequence still has to be on
+                        screen, because it decides when applications close
+                        and what each applicant is asked to choose. */}
+                    {trialShape === "multi_place" && (
+                        <p className={styles.sessionHint}>
+                            <Icon icon="mdi:information-outline" width={14} height={14} />
+                            Players pick one centre.
+                        </p>
                     )}
                 </div>
                 )}

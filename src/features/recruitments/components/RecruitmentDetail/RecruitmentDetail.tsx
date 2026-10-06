@@ -1278,6 +1278,7 @@ export default function RecruitmentDetail({
         <AnnouncementList
           recruitmentId={r.id}
           canManage={asOrganiser}
+          timeZone={r.timezone}
         />
 
         <div className={styles.statusRow}>

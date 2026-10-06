@@ -9,7 +9,7 @@
 
 import type { PlaceResult } from "@/shared/services/places.service"
 import type { ApplyMethod, RecruitmentType, SessionMode } from "../../services/recruitments.api"
-import type { SessionDraft } from "./sessions"
+import type { SessionDraft, TrialShape } from "./sessions"
 import type { AgeGroupDraft } from "../../eligibility"
 
 // The creatable union lives with the API types; re-exported so the wizard's
@@ -81,7 +81,15 @@ export type RecruitmentDraft = {
     eventDate: string
     /** The trial's dates. One row by default; an open trial needs one. */
     sessions: SessionDraft[]
-    /** Only meaningful with 2+ dates; forced to "all" below that. */
+    /**
+     * Which of the three formats this trial is — see sessions.ts. It decides
+     * the mode the payload sends, not just which fields the step shows.
+     *
+     * Optional because it is DERIVABLE: a draft without one falls back to
+     * `shapeFromSessions`, which reads the shape off the rows themselves.
+     */
+    trialShape?: TrialShape
+    /** Only meaningful for multi_day; the other shapes imply their mode. */
     sessionMode: SessionMode
     /** Open trial only. Everyone who applies is confirmed instantly. */
     autoConfirm: boolean

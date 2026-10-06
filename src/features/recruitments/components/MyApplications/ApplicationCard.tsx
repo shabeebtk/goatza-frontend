@@ -7,7 +7,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { formatReportingTime } from "../../eligibility"
 import { playerStatusMeta } from "../../applicationStatus"
-import { isTrialOver, kolkataDay } from "../../trialEnded"
+import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver, trialDay } from "../../trialEnded"
 import {
   formatSessionDate,
   formatSessionTimeRange,
@@ -78,16 +78,17 @@ const TONE_CLASS: Record<Tone, string> = {
  *
  * Both days are pinned to UTC noon before the subtraction so the answer is a
  * count of CALENDAR days and cannot be knocked a day out by the reader's own
- * clock or by a DST boundary between the two. `kolkataDay` first, because
- * there is exactly one calendar on this product and it is the venue's.
+ * clock or by a DST boundary between the two. `trialDay` first, in the
+ * recruitment's own zone: "Tomorrow" has to mean tomorrow at the ground.
  */
 function daysUntil(
   dateIso: string | null | undefined,
+  timeZone: string,
   now: Date | number = Date.now()
 ): number | null {
   if (!dateIso) return null
-  const day = kolkataDay(dateIso)
-  const today = kolkataDay(now)
+  const day = trialDay(dateIso, timeZone)
+  const today = trialDay(now, timeZone)
   if (!day || !today) return null
   const then = new Date(`${day}T12:00:00Z`).getTime()
   const from = new Date(`${today}T12:00:00Z`).getTime()
@@ -122,6 +123,11 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
   const { toRecruitment, toProfile } = useNavigation()
   const r = application.recruitment
 
+  // THE VENUE's calendar, off the recruitment this application is for. Every
+  // date on this card is read in it — a player who applied to a London trial
+  // must not see its day on their own clock.
+  const timeZone = r.timezone || FALLBACK_TRIAL_TIME_ZONE
+
   const meta = playerStatusMeta(application.status, r.recruitment_type)
   const tone = TONE_BY_STATUS[application.status] ?? "neutral"
 
@@ -140,9 +146,9 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
   const session = application.session
   const trialDateIso = session?.date ?? r.event_date
   const trialDate = session
-    ? formatSessionDate(session.date)
+    ? formatSessionDate(session.date, timeZone)
     : r.event_date
-      ? formatSessionDate(r.event_date)
+      ? formatSessionDate(r.event_date, timeZone)
       : null
   const trialTime = session ? formatSessionTimeRange(session) : null
   const dateLine = [trialDate, trialTime].filter(Boolean).join(" · ") || null
@@ -159,7 +165,7 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
    */
   const upcoming =
     application.status === "trial_confirmed" && !trialOver
-      ? countdownLabel(daysUntil(trialDateIso))
+      ? countdownLabel(daysUntil(trialDateIso, timeZone))
       : null
   const contextLine =
     upcoming ?? `Applied ${dayjs(application.applied_at).format("D MMM")}`
@@ -179,7 +185,7 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
   // "How did the trial go?" names WHICH trial without a second line of prose.
   const feedbackSubtitle = [
     r.city,
-    session ? formatSessionDate(session.date) : null,
+    session ? formatSessionDate(session.date, timeZone) : null,
   ]
     .filter(Boolean)
     .join(" · ") || null
@@ -282,7 +288,7 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
       {/* Updates addressed to THIS player. The server decides which ones
           reach them — an "all applicants" notice is public to anyone who can
           see the posting, a targeted one only to its own audience. */}
-      <AnnouncementList recruitmentId={r.id} />
+      <AnnouncementList recruitmentId={r.id} timeZone={timeZone} />
 
       {/* HOW DID IT GO? Inline, at the foot of the card, because this tab is
           where a player actually meets the question. Renders itself only when
