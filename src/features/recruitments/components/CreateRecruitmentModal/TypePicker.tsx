@@ -4,15 +4,17 @@ import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import type { RecruitmentType } from "./draft"
 import type { Recruitment } from "../../services/recruitments.api"
-import { TYPE_CONFIG, TYPE_ORDER } from "./typeConfig"
+import { TYPE_LABEL } from "../../recruitmentCopy"
+import { TYPE_CONFIG, TYPE_ORDER, toCreatableType } from "./typeConfig"
 import { RECRUITMENT_TEMPLATES, type RecruitmentTemplate } from "./templates"
 import styles from "./CreateRecruitmentModal.module.css"
 
 /**
  * Screen 0 — what kind of recruitment is this?
  *
- * Four cards rather than a dropdown: the choice relabels the dates and hides
- * fields further in, so it deserves a sentence each, not a row of words.
+ * Two cards rather than a dropdown: the choice decides whether there is a
+ * trial day at all and reorders the fields further in, so it deserves a
+ * sentence each, not a row of words.
  * Picking one enters the wizard. Edit mode never shows this screen.
  *
  * Above the cards, a faster start: the org's last five recruitments to
@@ -51,13 +53,13 @@ export default function TypePicker({ onPick, onClone, onTemplate, past, pastLoad
                                     disabled={disabled || cloning !== null && cloning !== undefined}
                                 >
                                     <span className={styles.quickStartIcon}>
-                                        <Icon icon={cloning === r.id ? "mdi:loading" : (TYPE_CONFIG[r.recruitment_type]?.icon ?? "mdi:whistle-outline")} width={18} height={18} className={cloning === r.id ? styles.spin : undefined} />
+                                        <Icon icon={cloning === r.id ? "mdi:loading" : TYPE_CONFIG[toCreatableType(r.recruitment_type, r.event_date)].icon} width={18} height={18} className={cloning === r.id ? styles.spin : undefined} />
                                     </span>
                                     <span className={styles.quickStartText}>
                                         <span className={styles.quickStartLabel}>{r.title}</span>
                                         <span className={styles.quickStartSub}>
                                             {[
-                                                TYPE_CONFIG[r.recruitment_type]?.label,
+                                                TYPE_LABEL[r.recruitment_type],
                                                 r.event_date ? dayjs(r.event_date).format("D MMM YYYY") : null,
                                                 r.city || null,
                                             ].filter(Boolean).join(" · ")}

@@ -7,7 +7,9 @@
  *  - a group may be open-ended, so exactly one bound is a complete answer.
  *
  * And one rule by omission: nothing in this module ever takes a birthdate,
- * because Goatza displays eligibility and never judges it.
+ * because Goatza displays eligibility and never judges it. The one exception,
+ * birthYearInGroup, takes a birth YEAR for a warning the player acknowledges —
+ * it never refuses or pre-selects anything.
  */
 
 import { describe, expect, it } from "vitest"
@@ -15,6 +17,7 @@ import { describe, expect, it } from "vitest"
 import {
     ageGroupApplyPayload,
     ageGroupOptionLabel,
+    birthYearInGroup,
     buildAgeCategoriesPayload,
     formatBirthYears,
     formatReportingTime,
@@ -74,6 +77,34 @@ describe("formatBirthYears", () => {
         // group looks like (usually: it can't exist, so this never shows).
         expect(formatBirthYears(null, null)).toBe("")
         expect(formatBirthYears(undefined, undefined)).toBe("")
+    })
+})
+
+// Mirrors the backend's birth_year_in_category bound for bound: a null bound
+// never excludes, and a year on either edge is inside.
+describe("birthYearInGroup", () => {
+    it("is inside a closed range, edges included", () => {
+        const u13 = group({ min_birth_year: 2011, max_birth_year: 2012 })
+        expect(birthYearInGroup(u13, 2011)).toBe(true)
+        expect(birthYearInGroup(u13, 2012)).toBe(true)
+    })
+
+    it("is outside a closed range on either side", () => {
+        const u13 = group({ min_birth_year: 2011, max_birth_year: 2012 })
+        expect(birthYearInGroup(u13, 2008)).toBe(false)
+        expect(birthYearInGroup(u13, 2013)).toBe(false)
+    })
+
+    it("treats a missing min as open-ended backwards", () => {
+        const veterans = group({ min_birth_year: null, max_birth_year: 1991 })
+        expect(birthYearInGroup(veterans, 1960)).toBe(true)
+        expect(birthYearInGroup(veterans, 1992)).toBe(false)
+    })
+
+    it("treats a missing max as open-ended forwards", () => {
+        const u17 = group({ min_birth_year: 2010, max_birth_year: null })
+        expect(birthYearInGroup(u17, 2016)).toBe(true)
+        expect(birthYearInGroup(u17, 2009)).toBe(false)
     })
 })
 

@@ -107,10 +107,18 @@ export const useCreatePost = () => {
     })
 }
 
-export const useMyPostSports = () =>
+/**
+ * The signed-in PERSON's sports. Keyed on `request.user` server-side, so it
+ * is the same answer whichever actor is active — which is exactly why an org
+ * composer must not read it. Go through `usePostSports`, which picks the
+ * right source for the acting actor; `enabled` is there so that hook can
+ * switch this branch off rather than fetch an answer it will not use.
+ */
+export const useMyPostSports = (enabled = true) =>
     useQuery({
         queryKey: ["myPostSports"],
         queryFn: getMyPostSportsApi,
+        enabled,
         staleTime: 1000 * 60 * 10,
     })
 

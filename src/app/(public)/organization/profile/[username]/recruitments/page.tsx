@@ -26,7 +26,7 @@ export default function OrgRecruitmentsPage({
       message={`Join Goatza to browse every opening at @${username} and apply.`}
       nextPath={`/organization/profile/${username}/recruitments`}
     >
-      <div style={{ maxWidth: 680, margin: "0 auto", padding: "var(--space-4)" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "var(--space-4)" }}>
         <RecruitmentsList username={username} showOrg={true} />
       </div>
     </PublicRouteWall>

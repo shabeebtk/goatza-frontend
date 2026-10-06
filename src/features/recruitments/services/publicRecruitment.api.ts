@@ -16,7 +16,7 @@
  * is the PUBLIC serializer's, for every caller including the posting org. That
  * is why the type below is a narrowing of `RecruitmentDetail` rather than an
  * alias: `views_count`, `saves_count`, `status`, `max_applications`,
- * `shortlisted_count` and `selected_count` are owner-only and can never appear
+ * `confirmed_count` and `selected_count` are owner-only and can never appear
  * here.
  */
 
@@ -39,7 +39,7 @@ export type PublicRecruitmentDetail = Omit<
   RecruitmentDetail,
   | "status"
   | "max_applications"
-  | "shortlisted_count"
+  | "confirmed_count"
   | "selected_count"
   | "views_count"
   | "saves_count"

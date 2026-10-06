@@ -18,6 +18,15 @@ export const THUMB_MAX_BYTES = 1024 * 1024
  */
 export const THUMB_MAX_DIMENSION = 640
 
+/**
+ * Longest edge of a thumb that is itself the picture, not a placeholder for
+ * one. A recruitment cover fills the whole width of the phone on the poster
+ * card: roughly a 1060px slot on a 3x screen, which a 640px copy visibly
+ * cannot fill. Compressed WebP at 1080 is a couple of hundred KB — the right
+ * weight for that card, and still a long way below the 2560px original.
+ */
+export const POSTER_THUMB_MAX_DIMENSION = 1080
+
 // ── Which lossy format this browser can actually write ────────
 
 /** The two lossy formats the server signs. PNG is never chosen on purpose. */
@@ -108,10 +117,16 @@ const THUMB_COMPRESSION = {
  * already the image the user will see, so the thumb cannot drift from it.
  *
  * `signal` aborts the compressor mid-pass; it rejects with `signal.reason`.
+ *
+ * `maxDimension` raises the longest edge for a caller whose "thumb" is the
+ * picture rather than a placeholder for one — see
+ * {@link POSTER_THUMB_MAX_DIMENSION}. The 0.5MB bound is unchanged and still
+ * has room at 1080: it is a ceiling under the server's 1MB cap, not a target.
  */
 export async function makeThumb(
     fullBlob: Blob,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    maxDimension: number = THUMB_MAX_DIMENSION
 ): Promise<File> {
     const fileType = await preferredImageType()
 
@@ -124,6 +139,7 @@ export async function makeThumb(
 
     const thumb = await imageCompression(source, {
         ...THUMB_COMPRESSION,
+        maxWidthOrHeight: maxDimension,
         fileType,
         signal,
     })

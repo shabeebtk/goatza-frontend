@@ -11,6 +11,17 @@
   gap: var(--space-4);
 }
 
+/* Room for the Saved tab's second column, which the list takes as soon as it
+   has 864px of its own — 900px of window, once this page's 16px gutters come
+   off. The discover rails keep their horizontal-scroll shape (they simply
+   show more of themselves) and the Applied tab caps its own column so it does
+   not stretch to fill this. */
+@media (min-width: 900px) {
+  .page {
+    max-width: var(--container-max);
+  }
+}
+
 /* ── Header ────────────────────────────────────────────────────── */
 
 .head {

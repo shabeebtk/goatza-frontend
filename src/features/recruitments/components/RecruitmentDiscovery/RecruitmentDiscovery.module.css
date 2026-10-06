@@ -3,6 +3,10 @@
    ============================================================ */
 
 .discovery {
+  /* The grid below asks how wide the FEED is, not how wide the window is —
+     see the note on .list. */
+  container-type: inline-size;
+  container-name: recfeed;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -17,10 +21,25 @@
   color: var(--color-text-muted);
 }
 
+/* The "All" tab's flat feed. Same rule, same numbers and the same reason as
+   RecruitmentsList: one column, two once the feed has 864px of its own (two
+   422px columns, comfortably over the 400px the card switches from poster to
+   row at), capped at two because a third squeezes the row card too narrow. A
+   single ~1090px column on a 1440px screen was one card with a 132px thumb
+   and a sea of empty space beside it. The rails above keep their horizontal
+   scroll. */
 .list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-3);
+  align-items: stretch;
+}
+
+@container recfeed (min-width: 864px) {
+  .list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
 }
 
 /* ── Load more ─────────────────────────────────────────────────── */

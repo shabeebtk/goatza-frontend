@@ -3,17 +3,43 @@
    ============================================================ */
 
 .wrapper {
+  /* The grid below asks how wide the LIST is, not how wide the window is —
+     see the note on .list. */
+  container-type: inline-size;
+  container-name: reclist;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-/* ── List ─────────────────────────────────────────────────────── */
+/* ── List ─────────────────────────────────────────────────────
+   One column, and TWO once there is room — a single ~400px column centred
+   in a 1440px screen left voids down both sides while the reader scrolled
+   past what would have fitted beside it. Capped at two: a third squeezes
+   the media-left row card too narrow to be a row.
+
+   864px is a CONTAINER width, not a viewport one, and the two numbers are
+   tied together: two columns of a 864px list are 422px each, which is
+   comfortably over the 400px the card itself switches from poster to row
+   at. Ask the viewport instead and a list inside a narrow page (the org
+   profile tab, capped at 760px) splits into two ~350px columns on a wide
+   screen — two POSTERS side by side, which is not what a desktop list is
+   for. On the recruitments page this lands at a 900px window.
+
+   Shared with SavedRecruitmentsList, which imports this stylesheet. */
 
 .list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-3);
+  align-items: stretch;
+}
+
+@container reclist (min-width: 864px) {
+  .list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
 }
 
 /* ── Preview header ───────────────────────────────────────────── */

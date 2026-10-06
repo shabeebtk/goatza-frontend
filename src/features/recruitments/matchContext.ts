@@ -14,29 +14,10 @@
 
 import dayjs from "dayjs"
 
-import type { Recruitment, RecruitmentMatchContext } from "./services/recruitments.api"
-
-export type MatchChip = {
-  /** Stable across renders — used as the React key. */
-  key: string
-  label: string
-  icon: string
-}
-
 /** Rounded the way a person would say it: "8 km", "24 km", "<1 km". */
 export function formatDistance(km: number): string {
   if (km < 1) return "<1 km"
   return `${Math.round(km)} km`
-}
-
-/** "Closes today" / "Closes tomorrow" / "Closes in 5 days". */
-export function formatDeadline(days: number): string | null {
-  // Already past. The "Applications closed" badge says it better, and saying
-  // it twice on one card reads as shouting.
-  if (days < 0) return null
-  if (days === 0) return "Closes today"
-  if (days === 1) return "Closes tomorrow"
-  return `Closes in ${days} days`
 }
 
 /** How loudly a deadline should read. Maps to a colour AND to words. */
@@ -68,10 +49,9 @@ export function daysToDeadline(
 }
 
 /**
- * The card's deadline slot. Deliberately NOT a change to `formatDeadline`,
- * which returns null once a deadline has passed — correct for a chip in a row
- * of other chips, wrong for a fixed cell that would otherwise sit empty. The
- * card has room to say "Applications closed" outright, so it does.
+ * The card's deadline slot. It says "Applications closed" outright rather
+ * than going blank: this is a fixed cell, and an empty one reads as missing
+ * data instead of as a closed posting.
  *
  * Red is reserved for the last day. A week out is amber: if everything urgent
  * is red, nothing red is urgent. The tone only ever tints text that already
@@ -86,57 +66,6 @@ export function formatUrgency(
   if (days === 1) return { label: "Closes tomorrow", tone: "soon" }
   if (days <= 7) return { label: `Closes in ${days} days`, tone: "soon" }
   return { label: `Closes in ${days} days`, tone: "calm" }
-}
-
-/**
- * The chip row, left to right, in the order §5 lists them. Anything the server
- * could not determine is simply absent — an unknown is never rendered as a
- * zero, a dash, or a "not specified".
- *
- * No longer read by RecruitmentCard, which moved to a labelled spec grid — but
- * it stays exported as part of this module's public surface.
- */
-export function buildMatchChips(recruitment: Recruitment): MatchChip[] {
-  const match = recruitment.match
-  if (!match) return []
-
-  const chips: MatchChip[] = []
-
-  if (match.sport_match === "primary") {
-    chips.push({ key: "sport", label: "Your sport", icon: "mdi:star-circle-outline" })
-  } else if (match.sport_match === "other") {
-    // Named rather than "You also play this": the sport is the useful word.
-    chips.push({
-      key: "sport",
-      label: recruitment.sport.name,
-      icon: "mdi:star-circle-outline",
-    })
-  }
-
-  if (match.position_match && match.matched_positions.length > 0) {
-    chips.push({
-      key: "position",
-      label: match.matched_positions.slice(0, 2).join(" / "),
-      icon: "mdi:account-star-outline",
-    })
-  }
-
-  if (match.distance_km !== null) {
-    chips.push({
-      key: "distance",
-      label: formatDistance(match.distance_km),
-      icon: "mdi:map-marker-distance",
-    })
-  }
-
-  if (match.days_to_deadline !== null) {
-    const label = formatDeadline(match.days_to_deadline)
-    if (label) {
-      chips.push({ key: "deadline", label, icon: "mdi:timer-sand" })
-    }
-  }
-
-  return chips
 }
 
 // ── Profile completion (§5) ───────────────────────────────────
@@ -177,8 +106,9 @@ export const MISSING_FIELD_META: Record<
   },
 }
 
-/** The own-profile page, where every field editor lives. */
-export const PROFILE_HREF = "/profile"
+/** The own-profile page, where every field editor lives. Module-private:
+ *  callers want `profileFieldHref`, which knows about the anchors. */
+const PROFILE_HREF = "/profile"
 
 /**
  * `username`, when the caller has it, lands on /profile/<username> directly:

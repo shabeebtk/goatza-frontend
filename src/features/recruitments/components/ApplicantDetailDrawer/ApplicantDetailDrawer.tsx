@@ -1,12 +1,14 @@
 "use client"
 
 /**
- * ApplicantDetailDrawer — read-only. Right-side drawer on desktop, bottom
- * sheet on mobile. Shows the shared contact details + every custom-question
- * answer, plus a link to the applicant's public profile.
+ * ApplicantDetailDrawer — right-side drawer on desktop, bottom sheet on
+ * mobile. The shared contact details, the age check, every custom-question
+ * answer, the single status change (only the moves valid at the
+ * application's stage, with an optional internal reason) and the
+ * application's internal history, plus a link to the public profile.
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
@@ -15,53 +17,65 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
+import { waLink } from "../../whatsapp/waLink"
+import { applicantMessage } from "../../whatsapp/whatsappTemplates"
 import { useNavigation } from "@/shared/services/navigation.service"
 import {
   useApplicationDetail,
   useUpdateApplicationStatus,
 } from "../../hooks/useRecruitments"
-import { APPLICATION_STATUS_META } from "../../applicationStatus"
-import { formatReportingTime } from "../../eligibility"
+import {
+  CONFIRM_FIRST,
+  STATUS_ACTION_DESCRIPTION,
+  statusActionLabel,
+  statusLabel,
+  statusMeta,
+  statusTargetsFrom,
+} from "../../applicationStatus"
+import { birthYearInGroup, formatBirthYears, formatReportingTime } from "../../eligibility"
 import type {
   ApplicationAnswer,
   ApplicationStatus,
+  ApplicationStatusHistoryEntry,
+  RecruitmentAgeCategory,
+  RecruitmentTypeValue,
   SingleStatusTarget,
 } from "../../services/recruitments.api"
 import StatusBadge from "../StatusBadge/StatusBadge"
+import StarRating from "../StarRating/StarRating"
 import styles from "./ApplicantDetailDrawer.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 dayjs.extend(relativeTime)
 
-// Org status targets — display label + backend value + one-line description.
-// `invited` is intentionally excluded (reserved for personal invites).
-const STATUS_OPTIONS: {
-  status: SingleStatusTarget
-  label: string
-  description: string
-}[] = [
-  { status: "reviewing", label: "Reviewing", description: "Application is under review" },
-  { status: "shortlisted", label: "Shortlist", description: "Add to the shortlist for a closer look" },
-  { status: "selected", label: "Select", description: "Confirm this player is selected" },
-  { status: "rejected", label: "Reject", description: "Not moving forward — the player is notified" },
-]
+/** History rows shown before "Show all". */
+const HISTORY_PREVIEW = 3
 
 // ── Set-status control (org, single change — select-style dropdown) ──
 
 function SetStatusSection({
   applicationId,
   recruitmentId,
+  recruitmentType,
   currentStatus,
 }: {
   applicationId: string
   recruitmentId: string
+  recruitmentType?: RecruitmentTypeValue
   currentStatus: ApplicationStatus
 }) {
   const toast = useToast()
+  const noteId = useId()
   const [open, setOpen] = useState(false)
-  const [rejectConfirm, setRejectConfirm] = useState(false)
+  // A "not this time" move waiting on its confirm step.
+  const [confirmTarget, setConfirmTarget] = useState<SingleStatusTarget | null>(null)
+  // Internal reason — optional on purpose (a forced one gets "." and "..").
+  const [note, setNote] = useState("")
   const { mutate: updateStatus, isPending } = useUpdateApplicationStatus()
   const ref = useRef<HTMLDivElement>(null)
+
+  // Only the moves valid at this application's stage.
+  const options = statusTargetsFrom(currentStatus)
 
   // Close the menu on outside click / Escape (drawer-local, not a portal).
   useEffect(() => {
@@ -69,13 +83,13 @@ function SetStatusSection({
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
-        setRejectConfirm(false)
+        setConfirmTarget(null)
       }
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false)
-        setRejectConfirm(false)
+        setConfirmTarget(null)
       }
     }
     document.addEventListener("mousedown", onDown)
@@ -88,17 +102,20 @@ function SetStatusSection({
 
   const run = (target: SingleStatusTarget) => {
     updateStatus(
-      { applicationId, recruitmentId, status: target },
+      { applicationId, recruitmentId, status: target, note: note.trim() || undefined },
       {
         onSuccess: () => {
           setOpen(false)
-          setRejectConfirm(false)
+          setConfirmTarget(null)
+          setNote("")
           toast.show({
-            title: `Status updated to ${STATUS_OPTIONS.find((o) => o.status === target)?.label ?? target}`,
+            title: `Status updated to ${statusLabel(target, recruitmentType)}`,
             variant: "success",
           })
         },
         onError: (err) => {
+          // The server's own words — the trial-date guards tell the org
+          // exactly what to do, and a generic line would throw that away.
           toast.show({
             title: getApiErrorMessage(err, "Couldn't update the status."),
             variant: "error",
@@ -115,7 +132,7 @@ function SetStatusSection({
       <div className={styles.statusSelect} ref={ref}>
         <button
           className={styles.statusTrigger}
-          onClick={() => { setOpen((o) => !o); setRejectConfirm(false) }}
+          onClick={() => { setOpen((o) => !o); setConfirmTarget(null) }}
           disabled={isPending}
           type="button"
           aria-haspopup="listbox"
@@ -123,7 +140,7 @@ function SetStatusSection({
         >
           <span className={styles.triggerLabel}>Update status</span>
           <span className={styles.triggerRight}>
-            <StatusBadge status={currentStatus} />
+            <StatusBadge status={currentStatus} recruitmentType={recruitmentType} />
             <Icon
               icon="mdi:chevron-down"
               width={18}
@@ -135,15 +152,16 @@ function SetStatusSection({
 
         {open && (
           <div className={styles.statusMenu} role="listbox">
-            {rejectConfirm ? (
-              <div className={styles.rejectConfirm} role="alertdialog" aria-label="Confirm reject">
+            {confirmTarget ? (
+              <div className={styles.rejectConfirm} role="alertdialog" aria-label="Confirm status change">
                 <p className={styles.rejectConfirmText}>
-                  Reject this application? The applicant will be notified.
+                  Mark this application &ldquo;{statusLabel(confirmTarget, recruitmentType)}&rdquo;?{" "}
+                  {STATUS_ACTION_DESCRIPTION[confirmTarget]}
                 </p>
                 <div className={styles.rejectConfirmActions}>
                   <button
                     className={styles.rejectCancel}
-                    onClick={() => setRejectConfirm(false)}
+                    onClick={() => setConfirmTarget(null)}
                     disabled={isPending}
                     type="button"
                   >
@@ -151,29 +169,29 @@ function SetStatusSection({
                   </button>
                   <button
                     className={styles.rejectConfirmBtn}
-                    onClick={() => run("rejected")}
+                    onClick={() => run(confirmTarget)}
                     disabled={isPending}
                     type="button"
                   >
                     {isPending
                       ? <span className={styles.miniSpinner} aria-hidden="true" />
                       : <Icon icon="mdi:close-circle-outline" width={15} height={15} />}
-                    Reject
+                    {statusActionLabel(confirmTarget, recruitmentType)}
                   </button>
                 </div>
               </div>
             ) : (
-              STATUS_OPTIONS.map((opt) => {
-                const meta = APPLICATION_STATUS_META[opt.status]
-                const isCurrent = currentStatus === opt.status
+              options.map((target) => {
+                const meta = statusMeta(target, recruitmentType)
+                const isCurrent = currentStatus === target
                 return (
                   <button
-                    key={opt.status}
+                    key={target}
                     className={`${styles.statusOption} ${isCurrent ? styles.statusOptionCurrent : ""}`}
                     onClick={() => {
                       if (isCurrent) return
-                      if (opt.status === "rejected") setRejectConfirm(true)
-                      else run(opt.status)
+                      if (CONFIRM_FIRST.includes(target)) setConfirmTarget(target)
+                      else run(target)
                     }}
                     disabled={isCurrent || isPending}
                     role="option"
@@ -184,8 +202,10 @@ function SetStatusSection({
                       <Icon icon={meta.icon} width={18} height={18} />
                     </span>
                     <span className={styles.optionText}>
-                      <span className={styles.optionLabel}>{opt.label}</span>
-                      <span className={styles.optionDesc}>{opt.description}</span>
+                      <span className={styles.optionLabel}>
+                        {statusActionLabel(target, recruitmentType)}
+                      </span>
+                      <span className={styles.optionDesc}>{STATUS_ACTION_DESCRIPTION[target]}</span>
                     </span>
                     {isCurrent && (
                       <Icon icon="mdi:check" width={16} height={16} className={styles.optionCheck} />
@@ -197,6 +217,161 @@ function SetStatusSection({
           </div>
         )}
       </div>
+
+      {/* Prominent, never required. Internal in v1: no player surface — My
+          applications, the applicant's status sheet — ever renders it. */}
+      <div className={styles.noteField}>
+        <label className={styles.noteLabel} htmlFor={noteId}>
+          Reason (internal)
+        </label>
+        <input
+          id={noteId}
+          className={styles.noteInput}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Optional — saved with the next status change"
+          maxLength={1000}
+          disabled={isPending}
+        />
+        <p className={styles.noteHelp}>
+          Only your organization sees this. The player never does.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+// ── Age check ─────────────────────────────────────────────────
+// The group they applied under against the LIVE profile birth year, read by
+// the same rule the apply modal warned with. Reconciled with the flag frozen
+// at apply time, so a corrected profile reads as corrected. Information only —
+// nothing here gates anything.
+
+function AgeBlock({
+  title,
+  reportingTime,
+  group,
+  storedMismatch,
+  birthYear,
+}: {
+  title: string
+  reportingTime: string | null
+  /** The recruitment's own row for the group, which carries the band. */
+  group?: RecruitmentAgeCategory
+  storedMismatch: boolean
+  /** Live; null when the applicant has no birthdate on file. */
+  birthYear: number | null | undefined
+}) {
+  const range = group ? formatBirthYears(group.min_birth_year, group.max_birth_year) : ""
+  const appliedUnder = range
+    ? `${title} (${range.charAt(0).toLowerCase()}${range.slice(1)})`
+    : title
+
+  // No birth year → no verdict at all: the desk checks documents rather than
+  // assume a match, and a missing year is never shown as a mismatch.
+  const known = typeof birthYear === "number"
+  const liveMismatch = known && !!group && !birthYearInGroup(group, birthYear)
+  const drift =
+    known && group
+      ? storedMismatch && !liveMismatch
+        ? "Was mismatched at apply; the profile has since been corrected."
+        : !storedMismatch && liveMismatch
+          ? "The profile birth year has changed since this application."
+          : null
+      : null
+
+  return (
+    <section className={styles.section}>
+      <p className={styles.sectionTitle}>Age</p>
+      <dl className={styles.ageList}>
+        <div className={styles.ageRow}>
+          <dt className={styles.ageKey}>Applied under</dt>
+          <dd className={styles.ageValue}>{appliedUnder}</dd>
+        </div>
+        {reportingTime && (
+          <div className={styles.ageRow}>
+            <dt className={styles.ageKey}>Reports at</dt>
+            <dd className={styles.ageValue}>{formatReportingTime(reportingTime)}</dd>
+          </div>
+        )}
+        <div className={styles.ageRow}>
+          <dt className={styles.ageKey}>Profile birth year</dt>
+          <dd className={styles.ageValue}>
+            {known ? birthYear : <span className={styles.ageUnset}>not set</span>}
+            {liveMismatch && (
+              <span className={styles.ageFlag}>
+                <Icon icon="mdi:alert-outline" width={13} height={13} />
+                outside this group
+              </span>
+            )}
+          </dd>
+        </div>
+      </dl>
+      {drift && (
+        <p className={styles.ageDrift}>
+          <Icon icon="mdi:information-outline" width={13} height={13} />
+          {drift}
+        </p>
+      )}
+    </section>
+  )
+}
+
+// ── History (internal) ────────────────────────────────────────
+
+// Moves the applicant makes themselves carry no org member; everything else
+// without one was written automatically (the data migration, and later the
+// auto-confirm). Only those read "automatic".
+const APPLICANT_MOVES: ApplicationStatus[] = ["applied", "withdrawn"]
+
+function HistoryTimeline({
+  entries,
+  recruitmentType,
+}: {
+  entries: ApplicationStatusHistoryEntry[]
+  recruitmentType?: RecruitmentTypeValue
+}) {
+  const [showAll, setShowAll] = useState(false)
+  const shown = showAll ? entries : entries.slice(0, HISTORY_PREVIEW)
+  const hidden = entries.length - shown.length
+
+  return (
+    <section className={styles.section}>
+      <p className={styles.sectionTitle}>History (internal)</p>
+      <ol className={styles.history}>
+        {shown.map((entry) => {
+          const by = entry.changed_by
+            ? `by ${entry.changed_by.name}`
+            : APPLICANT_MOVES.includes(entry.to_status)
+              ? null
+              : "automatic"
+          return (
+            <li key={entry.id} className={styles.historyItem}>
+              <span className={styles.historyLine}>
+                <strong className={styles.historyStatus}>
+                  {statusLabel(entry.to_status, recruitmentType)}
+                </strong>
+                {" · "}
+                {dayjs(entry.created_at).format("D MMM, h:mm A")}
+                {by && <>{" · "}{by}</>}
+              </span>
+              {entry.note.trim() && (
+                <q className={styles.historyNote}>{entry.note.trim()}</q>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      {entries.length > HISTORY_PREVIEW && (
+        <button
+          type="button"
+          className={styles.historyToggle}
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+        >
+          {showAll ? "Show less" : `Show all (${hidden} more)`}
+        </button>
+      )}
     </section>
   )
 }
@@ -225,10 +400,26 @@ function AnswerBlock({ answer }: { answer: ApplicationAnswer }) {
 interface ApplicantDetailDrawerProps {
   applicationId: string
   recruitmentId: string
+  /** Picks the per-type wording ("Invite to trial" vs "Confirm for trial"). */
+  recruitmentType?: RecruitmentTypeValue
+  /** The recruitment's groups — the application row names its group but not
+   *  the band, so the age check looks the band up here. */
+  ageCategories?: RecruitmentAgeCategory[]
+  /** For the WhatsApp fallback's message body. */
+  recruitmentTitle?: string
+  orgName?: string
   onClose: () => void
 }
 
-export default function ApplicantDetailDrawer({ applicationId, recruitmentId, onClose }: ApplicantDetailDrawerProps) {
+export default function ApplicantDetailDrawer({
+  applicationId,
+  recruitmentId,
+  recruitmentType,
+  ageCategories = [],
+  recruitmentTitle,
+  orgName,
+  onClose,
+}: ApplicantDetailDrawerProps) {
   const { toProfile } = useNavigation()
   const { data, isLoading, isError } = useApplicationDetail(applicationId)
 
@@ -244,6 +435,7 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
   }, [onClose])
 
   const applicant = data?.applicant
+  const history = data?.status_history ?? []
 
   // Portal to <body> so the fixed backdrop/drawer escapes any ancestor
   // containing block (transformed wrappers) and covers the full viewport.
@@ -292,35 +484,12 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
             <>
               {/* Status + applied time */}
               <div className={styles.statusRow}>
-                <StatusBadge status={data.status} />
+                <StatusBadge status={data.status} recruitmentType={recruitmentType} />
                 <span className={styles.appliedAt}>
                   <Icon icon="mdi:clock-outline" width={13} height={13} />
                   Applied {dayjs(data.applied_at).fromNow()}
                 </span>
               </div>
-
-              {/* The age group they applied under — with its reporting time,
-                  which is the detail the org calls them about. Absent when the
-                  recruitment has no groups, or the group was later deleted. */}
-              {data.age_category && (
-                <section className={styles.section}>
-                  <p className={styles.sectionTitle}>Age group</p>
-                  <div className={styles.contactList}>
-                    <div className={styles.contactRow}>
-                      <Icon icon="mdi:account-group-outline" width={16} height={16} className={styles.contactIcon} />
-                      <span className={styles.contactValue}>{data.age_category.title}</span>
-                    </div>
-                    {data.age_category.reporting_time && (
-                      <div className={styles.contactRow}>
-                        <Icon icon="mdi:clock-outline" width={16} height={16} className={styles.contactIcon} />
-                        <span className={styles.contactValue}>
-                          Reports at {formatReportingTime(data.age_category.reporting_time)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )}
 
               {/* Shared contact */}
               <section className={styles.section}>
@@ -343,7 +512,54 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
                     </a>
                   ) : null}
                 </div>
+
+                {/* GOATZA FIRST, WHATSAPP SECOND. Not a style choice: a
+                    Goatza message keeps the conversation where both sides can
+                    find it and where the org does not need the player's phone
+                    number. WhatsApp is the fallback for someone who has not
+                    opened the app, and the order is what says so. */}
+                <div className={styles.contactActions}>
+                  <Link className={styles.contactPrimary} href="/messages">
+                    <Icon icon="mdi:message-text-outline" width={15} height={15} />
+                    Message on Goatza
+                  </Link>
+                  <a
+                    className={styles.contactSecondary}
+                    href={waLink(
+                      data.shared_phone,
+                      applicantMessage({
+                        playerName: data.shared_name || data.applicant.name,
+                        orgName: orgName ?? "",
+                        recruitmentTitle: recruitmentTitle ?? "the trial",
+                        url:
+                          typeof window === "undefined"
+                            ? ""
+                            : `${window.location.origin}/recruitments/${recruitmentId ?? ""}`,
+                      }),
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Message on WhatsApp"
+                    title="Message on WhatsApp"
+                  >
+                    <Icon icon="mdi:whatsapp" width={16} height={16} />
+                  </a>
+                </div>
               </section>
+
+              {/* The age group they applied under, with its reporting time —
+                  the detail the org calls them about — and the age check.
+                  Absent when the recruitment has no groups, or the group was
+                  later deleted. */}
+              {data.age_category && (
+                <AgeBlock
+                  title={data.age_category.title}
+                  reportingTime={data.age_category.reporting_time}
+                  group={ageCategories.find((g) => g.id === data.age_category?.id)}
+                  storedMismatch={!!data.age_mismatch_at_apply}
+                  birthYear={data.applicant_birth_year}
+                />
+              )}
 
               {/* Answers */}
               {data.answers.length > 0 && (
@@ -357,6 +573,61 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
                 </section>
               )}
 
+              {/* WHAT THE PLAYER SAID. Rendered only once they have answered
+                  (`feedback_at`), so an org never sees an empty shell of a
+                  section on the 90% of rows with no answer.
+
+                  It is a CLAIM, not a status: the wording says "Says they
+                  were", and the status controls below are still the only
+                  thing that decides anything. */}
+              {data.feedback_at && (
+                <section className={styles.section}>
+                  <div className={styles.feedbackHead}>
+                    <p className={styles.sectionTitle}>Player&apos;s feedback</p>
+                    <span className={styles.feedbackDate}>
+                      {dayjs(data.feedback_at).format("D MMM")}
+                    </span>
+                  </div>
+
+                  <p className={styles.feedbackClaim}>
+                    {data.attended_self_reported === false
+                      ? "Said they couldn't make it"
+                      : [
+                          "Went to the trial",
+                          data.outcome_self_reported === "selected"
+                            ? "Says they were selected"
+                            : data.outcome_self_reported === "not_selected"
+                              ? "Says they weren't selected"
+                              : data.outcome_self_reported === "waiting"
+                                ? "Still waiting to hear"
+                                : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                  </p>
+
+                  {/* The SAME star component, in display mode — a second
+                      read-only copy is how the two drift apart. */}
+                  {data.trial_rating != null && (
+                    <StarRating
+                      value={data.trial_rating}
+                      label={`Rated ${data.trial_rating} out of 5`}
+                      size="sm"
+                    />
+                  )}
+
+                  {data.trial_feedback && (
+                    <blockquote className={styles.feedbackQuote}>
+                      {data.trial_feedback}
+                    </blockquote>
+                  )}
+
+                  <p className={styles.feedbackPrivacy}>
+                    Only your organization sees this.
+                  </p>
+                </section>
+              )}
+
               {/* Status controls — hidden entirely once withdrawn */}
               {data.status === "withdrawn" ? (
                 <p className={styles.withdrawnNote}>
@@ -367,6 +638,7 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
                 <SetStatusSection
                   applicationId={applicationId}
                   recruitmentId={recruitmentId}
+                  recruitmentType={recruitmentType}
                   currentStatus={data.status}
                 />
               )}
@@ -381,6 +653,11 @@ export default function ApplicantDetailDrawer({ applicationId, recruitmentId, on
                   View public profile
                   <Icon icon="mdi:arrow-right" width={15} height={15} className={styles.profileArrow} />
                 </Link>
+              )}
+
+              {/* The org's own record of every move, with its reasons. */}
+              {history.length > 0 && (
+                <HistoryTimeline entries={history} recruitmentType={recruitmentType} />
               )}
             </>
           )}

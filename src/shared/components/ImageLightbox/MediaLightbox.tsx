@@ -42,7 +42,8 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { useZoomPan } from "@/shared/hooks/useZoomPan"
-import { posterSrc, thumbSrc, videoSrc } from "@/shared/services/mediaDelivery"
+import { useProgressiveSrc } from "@/shared/hooks/useProgressiveSrc"
+import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import { useSoundStore } from "@/store/sound.store"
 
 /**
@@ -80,30 +81,6 @@ const FLASH_MS = 600
 
 /** Desktop control bar fades this long after the last interaction. */
 const CONTROLS_HIDE_MS = 2500
-
-// ── Images: thumbnail first, full file once it has loaded ─────
-
-/**
- * The small copy paints at once — the bubble or the stage behind already has
- * it cached — and the full object replaces it when the browser has it. A
- * row without a thumbnail just shows the full file from the start.
- */
-function useProgressiveSrc(item: MediaLightboxItem): string {
-    const [src, setSrc] = useState(() => thumbSrc(item))
-
-    // The slide is keyed by item, so this runs once per photo.
-    useEffect(() => {
-        const full = item.file_url
-        if (!full || full === thumbSrc(item)) return
-        let cancelled = false
-        const img = new Image()
-        img.onload = () => { if (!cancelled) setSrc(full) }
-        img.src = full
-        return () => { cancelled = true }
-    }, [item])
-
-    return src
-}
 
 // ── Video ─────────────────────────────────────────────────────
 

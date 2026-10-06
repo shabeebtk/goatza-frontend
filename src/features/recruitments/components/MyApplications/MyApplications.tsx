@@ -9,15 +9,17 @@ import type {
   FetchMyApplicationsParams,
 } from "../../services/recruitments.api"
 import {
-  APPLICATION_STATUS_META,
-  APPLICATION_STATUS_ORDER,
+  PLAYER_STATUS_FILTERS,
+  playerStatusLabel,
 } from "../../applicationStatus"
 import ApplicationCard from "./ApplicationCard"
 import RecruitmentCardSkeleton from "../RecruitmentCard/RecruitmentCardSkeleton"
 import styles from "./MyApplications.module.css"
 
+// Only a chip the player is offered survives a URL: `?status=shortlisted`
+// must not become a filter that tells them what their badge does not.
 function isStatus(value: string | null): value is ApplicationStatus {
-  return !!value && (APPLICATION_STATUS_ORDER as string[]).includes(value)
+  return !!value && (PLAYER_STATUS_FILTERS as string[]).includes(value)
 }
 
 const SKELETON_COUNT = 3
@@ -80,7 +82,7 @@ export default function MyApplications({ onBrowse }: MyApplicationsProps) {
         >
           All
         </button>
-        {APPLICATION_STATUS_ORDER.map((s) => (
+        {PLAYER_STATUS_FILTERS.map((s) => (
           <button
             key={s}
             type="button"
@@ -89,7 +91,7 @@ export default function MyApplications({ onBrowse }: MyApplicationsProps) {
             className={`${styles.statusChip} ${status === s ? styles.statusChipActive : ""}`}
             onClick={() => setStatus(s)}
           >
-            {APPLICATION_STATUS_META[s].label}
+            {playerStatusLabel(s)}
           </button>
         ))}
       </div>

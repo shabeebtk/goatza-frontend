@@ -1203,6 +1203,14 @@
   margin-top: -2px;
 }
 
+/* A note UNDER an input (not between label and control, which is
+   .fieldSubLabel and carries a negative top margin for that spot). */
+.fieldHelpNote {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 /* ── Field-level (server) error ─────────────────────────────── */
 .fieldErrorText {
   display: inline-flex;
@@ -2723,4 +2731,261 @@
 /* The two reorder arrows stack: split the 44px between them. */
 .criteriaReorderBtn::before {
   height: 22px;
+}
+
+/* ── Trial dates (the repeater) ───────────────────────────────── */
+/* One date is the default and must look exactly like the single date
+   field always did, so a row carries no chrome of its own until there
+   is more than one of them. */
+
+/* ── The trial's shape ────────────────────────────────────────── */
+
+/* The type picker's cards, three across instead of two and stacked on a
+   phone. Everything else about them (.typeCard and its parts) is reused
+   as-is — this is the same question in the same voice, one step in. */
+.shapeGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .shapeGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Tighter than a type card: this one sits inside a field, not on a screen
+   of its own, and the icon is the smaller of the two sizes. */
+.shapeCard {
+  padding: var(--space-3);
+  gap: var(--space-2);
+}
+
+.shapeCard .typeCardIcon {
+  width: 32px;
+  height: 32px;
+}
+
+/* Picked, not hovered. .typeCard's hover already borrows the brand border,
+   so the chosen card needs the ring to stay distinguishable from the one
+   under the cursor. */
+.shapeCardActive,
+.shapeCardActive:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+/* The armed "One day" trim. Loud on purpose: the click that shows this one
+   changed nothing, and the next one deletes dates applicants have picked. */
+.shapeWarn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1.5px solid var(--color-error);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+.shapeWarnIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-error);
+}
+
+.shapeWarnBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shapeWarnTitle {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-error);
+}
+
+.shapeWarnText {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: var(--leading-loose);
+  color: var(--color-text-secondary);
+}
+
+.shapeWarnActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.shapeWarnBtn,
+.shapeWarnCancel {
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.shapeWarnBtn {
+  border: 1.5px solid var(--color-error);
+  background: var(--color-error);
+  color: var(--color-on-brand);
+}
+
+.shapeWarnBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+.shapeWarnCancel {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.shapeWarnCancel:hover:not(:disabled) {
+  border-color: var(--color-text-secondary);
+  color: var(--color-ink);
+}
+
+.shapeWarnBtn:disabled,
+.shapeWarnCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sessionRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sessionRow + .sessionRow {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border);
+}
+
+.sessionMain {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.sessionMain > *:first-child { flex: 1 1 auto; min-width: 0 }
+
+.sessionRemove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--duration-base), border-color var(--duration-base);
+}
+
+.sessionRemove:hover:not(:disabled) {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.sessionRemove:disabled { opacity: 0.4; cursor: not-allowed }
+
+.sessionExtras {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sessionExtras > * { flex: 1 1 160px; min-width: 0 }
+
+.sessionCancelled {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.sessionAdd {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color var(--duration-base), border-color var(--duration-base);
+}
+
+.sessionAdd:hover:not(:disabled) {
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+.sessionAdd:disabled { opacity: 0.4; cursor: not-allowed }
+
+.sessionHint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ── Attend-every-date vs pick-one ────────────────────────────── */
+
+.sessionModeBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2, transparent);
+}
+
+.sessionModeOption {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.sessionModeOption input { accent-color: var(--color-brand); margin-top: 3px }
+
+.sessionModeOption span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sessionModeOption strong {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.sessionModeOption small {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }

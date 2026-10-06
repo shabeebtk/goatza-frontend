@@ -41,12 +41,3 @@ export function localInputToISO(v: string): string | undefined {
     const d = parseLocalInput(v)
     return d ? d.toISOString() : undefined
 }
-
-// Human display of a wizard date value — time shown only when one was set.
-export function fmtWizardDate(v: string): string | null {
-    const d = parseLocalInput(v)
-    if (!d) return null
-    return v.includes("T")
-        ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
-        : d.toLocaleDateString(undefined, { dateStyle: "medium" } as Intl.DateTimeFormatOptions)
-}

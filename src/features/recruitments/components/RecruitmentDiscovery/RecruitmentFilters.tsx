@@ -6,7 +6,6 @@ import type { Sport, SportPosition } from "@/features/profile/services/sports.ap
 import { useSportPositions } from "@/features/profile/hooks/useSportsQueries"
 import {
   RECRUITMENT_TYPE_OPTIONS,
-  EXPERIENCE_LEVEL_OPTIONS,
   DISTANCE_OPTIONS,
   EMPTY_DISCOVERY_FILTERS,
   type DiscoveryFilters,
@@ -65,12 +64,6 @@ function buildChips(
   if (f.city) chips.push({ key: "city", label: `City: ${f.city}` })
   if (f.distanceKm) {
     chips.push({ key: "distanceKm", label: `Within ${f.distanceKm} km` })
-  }
-  if (f.experience_level) {
-    const label =
-      EXPERIENCE_LEVEL_OPTIONS.find((o) => o.value === f.experience_level)
-        ?.label ?? f.experience_level
-    chips.push({ key: "experience_level", label: `Level: ${label}` })
   }
   if (f.birthYear) chips.push({ key: "birthYear", label: `Birth year: ${f.birthYear}` })
   if (f.closingWithinDays) {
@@ -242,20 +235,6 @@ export default function RecruitmentFilters({
             ]}
           />
         )}
-
-        <Select
-          className={styles.fieldSelect}
-          size="sm"
-          searchable={false}
-          value={draft.experience_level}
-          onChange={(experience_level) => onSelectChange({ experience_level })}
-          aria-label="Filter by experience level"
-          sheetTitle="Experience level"
-          options={[
-            { value: "", label: "Any level" },
-            ...EXPERIENCE_LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
-          ]}
-        />
 
         <input
           type="number"
@@ -464,27 +443,6 @@ export default function RecruitmentFilters({
                   />
                 </div>
               )}
-
-              <div className={styles.sheetField}>
-                <label className={styles.sheetLabel} htmlFor="sheet-experience">
-                  Experience level
-                </label>
-                <Select
-                  id="sheet-experience"
-                  className={styles.fieldSelect}
-                  searchable={false}
-                  value={sheetDraft.experience_level}
-                  onChange={(experience_level) => patchSheet({ experience_level })}
-                  sheetTitle="Experience level"
-                  options={[
-                    { value: "", label: "Any level" },
-                    ...EXPERIENCE_LEVEL_OPTIONS.map((o) => ({
-                      value: o.value,
-                      label: o.label,
-                    })),
-                  ]}
-                />
-              </div>
 
               <div className={styles.sheetField}>
                 <label className={styles.sheetLabel} htmlFor="sheet-birth">

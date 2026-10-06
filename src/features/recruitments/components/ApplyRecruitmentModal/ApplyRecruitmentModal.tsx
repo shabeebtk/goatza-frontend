@@ -13,7 +13,7 @@
  * so closing the modal reveals the application-status banner.
  */
 
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -24,6 +24,8 @@ import { useApplyRecruitment } from "../../hooks/useRecruitments"
 import {
   ageGroupApplyPayload,
   ageGroupOptionLabel,
+  birthYearInGroup,
+  formatBirthYears,
   formatReportingTime,
   isAgeGroupRequired,
   validateAgeGroupChoice,
@@ -34,6 +36,11 @@ import type {
   QuestionFieldType,
   ApplyAnswerPayload,
 } from "../../services/recruitments.api"
+import {
+  sessionOptionLabel,
+  sessionsByDistance,
+  upcomingSessions,
+} from "../../sessionDisplay"
 import styles from "./ApplyRecruitmentModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -98,6 +105,39 @@ export default function ApplyRecruitmentModal({
   const ageGroups = recruitment.age_categories ?? []
   const needsAgeGroup = isAgeGroupRequired(ageGroups)
 
+  // TRIAL DATES. Only a `choose_one` trial asks the player to pick one —
+  // that mode exists so somebody can name the city nearest them. In `all`
+  // mode every date is the same trial and there is nothing to choose.
+  //
+  // A date that has already passed is hidden rather than shown disabled:
+  // the server refuses it, and an option that cannot be taken is noise.
+  // The comparison is trialDay's, never a second one — and it is made on the
+  // VENUE's calendar, so a date is offered for exactly as long as the ground
+  // it is at would still call it today.
+  const needsSession = recruitment.session_mode === "choose_one"
+  // The clock lives inside upcomingSessions, the same way isTrialOver owns
+  // its own `now` — reading it in the component body is an impure call
+  // during render.
+  //
+  // TWO STEPS, IN THIS ORDER. `upcomingSessions` decides WHICH centres may be
+  // picked — the eligibility rule, unchanged and still the server's — and
+  // `sessionsByDistance` only decides what order they are offered in. A
+  // Kozhikode player stops scrolling past Kochi, Thrissur and Trivandrum to
+  // reach the one 4 km away.
+  //
+  // Nothing is preselected. The ordering is a convenience; auto-picking the
+  // nearest would answer a required question on the player's behalf.
+  const sessionOptions = useMemo(
+    () =>
+      needsSession
+        ? sessionsByDistance(
+            upcomingSessions(recruitment.sessions, recruitment.timezone),
+          )
+        : [],
+    [needsSession, recruitment.sessions, recruitment.timezone],
+  )
+  const noDatesLeft = needsSession && sessionOptions.length === 0
+
   const stepOrder: Step[] = useMemo(
     () => (hasQuestions ? ["details", "questions", "success"] : ["details", "success"]),
     [hasQuestions]
@@ -116,7 +156,13 @@ export default function ApplyRecruitmentModal({
   // Deliberately starts empty — pre-selecting from the player's birthdate
   // would make Goatza an eligibility judge, which it is not.
   const [ageGroupId, setAgeGroupId] = useState("")
+  const [sessionId, setSessionId] = useState("")
+  const [sessionTouched, setSessionTouched] = useState(false)
   const [ageGroupTouched, setAgeGroupTouched] = useState(false)
+  // "I've checked — apply anyway". Reset whenever the group changes: an
+  // acknowledgement is about ONE group, not a standing waiver.
+  const [ageAck, setAgeAck] = useState(false)
+  const ageWarningTitleId = useId()
 
   // ── Step 2: answers ────────────────────────────────────────────
   const [answers, setAnswers] = useState<AnswerState>(() => {
@@ -146,7 +192,39 @@ export default function ApplyRecruitmentModal({
   const phoneValid = PHONE_RE.test(normalizedPhone)
   const emailValid = email.trim() === "" || EMAIL_RE.test(email.trim())
   const ageGroupIssue = validateAgeGroupChoice(ageGroups, ageGroupId)
-  const detailsValid = name.trim().length > 0 && phoneValid && ageGroupIssue === null
+
+  // AGE WARNING — the player's own birth year (the server sends it on the
+  // authenticated detail only) against the group they picked, read the same
+  // way the backend's age_mismatch_at_apply is. It makes the player LOOK; it
+  // never refuses: once acknowledged the application goes through exactly as
+  // before, and nothing about it is sent — the server works the flag out
+  // itself. Unknown birth year (null) or an older payload without the field
+  // (undefined): no warning.
+  const viewerBirthYear = recruitment.viewer_birth_year
+  const selectedGroup = ageGroups.find((group) => group.id === ageGroupId)
+  const showAgeWarning =
+    needsAgeGroup &&
+    typeof viewerBirthYear === "number" &&
+    !!selectedGroup &&
+    !birthYearInGroup(selectedGroup, viewerBirthYear)
+  const ageAckMissing = showAgeWarning && !ageAck
+
+  // A date is required exactly when the trial asks for one, and only a
+  // date still on offer counts — the same rule the server applies.
+  const sessionIssue =
+    needsSession && !sessionOptions.some(session => session.id === sessionId)
+      ? (noDatesLeft
+        ? "No dates left on this trial"
+        : "Pick which date you'll attend.")
+      : null
+
+  const detailsValid =
+    name.trim().length > 0 && phoneValid && ageGroupIssue === null
+    && sessionIssue === null && !ageAckMissing
+
+  const sessionError =
+    (sessionTouched || noDatesLeft ? sessionIssue : null)
+    ?? fieldErrors.session ?? null
 
   const ageGroupError =
     (ageGroupTouched ? ageGroupIssue : null) ?? fieldErrors.age_category ?? null
@@ -217,6 +295,9 @@ export default function ApplyRecruitmentModal({
           shared_phone: phone.trim(),
           // Omitted entirely when the recruitment has no age groups.
           ...ageGroupApplyPayload(ageGroups, ageGroupId),
+          // ...and the same for the date: sent only in `choose_one`,
+          // where the server requires it. Nothing at all otherwise.
+          ...(needsSession && sessionId ? { session: sessionId } : {}),
           answers: buildAnswers(),
         },
       })
@@ -227,7 +308,9 @@ export default function ApplyRecruitmentModal({
       const serverErrors = getApiFieldErrors(err)
       if (serverErrors) {
         const known: Record<string, string> = {}
-        for (const key of ["shared_name", "shared_email", "shared_phone", "age_category"]) {
+        for (const key of [
+          "shared_name", "shared_email", "shared_phone", "age_category", "session",
+        ]) {
           if (serverErrors[key]) known[key] = serverErrors[key]
         }
         if (Object.keys(known).length > 0) {
@@ -244,6 +327,7 @@ export default function ApplyRecruitmentModal({
       setPhoneTouched(true)
       setEmailTouched(true)
       setAgeGroupTouched(true)
+      setSessionTouched(true)
       return
     }
     setSubmitError(null)
@@ -516,6 +600,44 @@ export default function ApplyRecruitmentModal({
                 )}
               </div>
 
+              {/* Which DATE — only when each date is its own round. Sits
+                  above the age group because the city is the thing a player
+                  on a tour decides first. */}
+              {needsSession && (
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>
+                    Which date will you attend? <span className={styles.required}>*</span>
+                  </label>
+                  {noDatesLeft ? (
+                    <p className={styles.ageHint}>No dates left on this trial.</p>
+                  ) : (
+                    <Select
+                      aria-label="Trial date"
+                      sheetTitle="Trial date"
+                      placeholder="— Select a date —"
+                      value={sessionId}
+                      onChange={(id) => {
+                        setSessionId(id)
+                        setSessionTouched(true)
+                        clearFieldError("session")
+                      }}
+                      onBlur={() => setSessionTouched(true)}
+                      disabled={isPending}
+                      options={sessionOptions.map((session) => ({
+                        value: session.id,
+                        label: sessionOptionLabel(session, recruitment),
+                      }))}
+                    />
+                  )}
+                  {sessionError && (
+                    <span className={styles.fieldErrorText} role="alert">
+                      <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
+                      {sessionError}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Age group — only when the organiser published groups. */}
               {needsAgeGroup && (
                 <div className={styles.fieldGroup}>
@@ -528,6 +650,7 @@ export default function ApplyRecruitmentModal({
                     placeholder="— Select a group —"
                     value={ageGroupId}
                     onChange={(groupId) => {
+                      if (groupId !== ageGroupId) setAgeAck(false)
                       setAgeGroupId(groupId)
                       setAgeGroupTouched(true)
                       clearFieldError("age_category")
@@ -545,6 +668,13 @@ export default function ApplyRecruitmentModal({
                       {ageGroupError}
                     </span>
                   )}
+                  {/* No birth year on file: never a warning, never a block —
+                      just the one line that would let the org check. */}
+                  {viewerBirthYear === null && (
+                    <p className={styles.ageHint}>
+                      Add your birth year to your profile so organizations can confirm your age group.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -552,6 +682,39 @@ export default function ApplyRecruitmentModal({
                 <Icon icon="mdi:shield-account-outline" width={15} height={15} />
                 These details will be shared with {recruitment.organization.name}.
               </div>
+
+              {/* Directly above the primary button, which stays disabled
+                  until the box is ticked. A block in the form, not a toast:
+                  it has to be read. */}
+              {showAgeWarning && selectedGroup && (
+                <div className={styles.ageWarning} role="group" aria-labelledby={ageWarningTitleId}>
+                  <Icon icon="mdi:alert-outline" width={20} height={20} className={styles.ageWarningIcon} />
+                  <div className={styles.ageWarningBody}>
+                    <p id={ageWarningTitleId} className={styles.ageWarningTitle}>
+                      Check your age group
+                    </p>
+                    <p className={styles.ageWarningText}>
+                      Your profile says you were born in {viewerBirthYear}.
+                      <br />
+                      This group is for players{" "}
+                      {formatBirthYears(selectedGroup.min_birth_year, selectedGroup.max_birth_year).toLowerCase()}.
+                    </p>
+                    <p className={styles.ageWarningText}>
+                      Organizations check age documents at the trial. Applying to the wrong
+                      group usually means being turned away at the gate.
+                    </p>
+                    <label className={styles.ageWarningAck}>
+                      <input
+                        type="checkbox"
+                        checked={ageAck}
+                        onChange={(e) => setAgeAck(e.target.checked)}
+                        disabled={isPending}
+                      />
+                      I&apos;ve checked — apply anyway
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

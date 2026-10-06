@@ -18,6 +18,7 @@ import {
   NEW_THIS_WEEK_DAYS,
   type DiscoveryFilters,
 } from "../../filterOptions"
+import { isRecruitmentType } from "../../recruitmentCopy"
 import { MISSING_FIELD_META, profileFieldHref } from "../../matchContext"
 import RecruitmentCard from "../RecruitmentCard/RecruitmentCard"
 import RecruitmentCardSkeleton from "../RecruitmentCard/RecruitmentCardSkeleton"
@@ -28,13 +29,14 @@ import styles from "./RecruitmentDiscovery.module.css"
 // ── URL <-> filters ───────────────────────────────────────────
 
 function readFilters(sp: URLSearchParams): DiscoveryFilters {
+  // Only a creatable type survives: a saved link with a retired type
+  // (`type=scholarship`) would otherwise filter to an empty list forever.
+  const type = sp.get("type")
   return {
     search: sp.get("search") ?? "",
     sport_id: sp.get("sport") ?? "",
-    recruitment_type: (sp.get("type") ??
-      "") as DiscoveryFilters["recruitment_type"],
+    recruitment_type: isRecruitmentType(type) ? type : "",
     city: sp.get("city") ?? "",
-    experience_level: sp.get("experience") ?? "",
     birthYear: sp.get("birth_year") ?? "",
     goatza: sp.get("goatza") === "1",
     positionId: sp.get("position") ?? "",
@@ -61,7 +63,6 @@ function applyToParams(
   if ("sport_id" in patch) set("sport", patch.sport_id ?? "")
   if ("recruitment_type" in patch) set("type", patch.recruitment_type ?? "")
   if ("city" in patch) set("city", patch.city ?? "")
-  if ("experience_level" in patch) set("experience", patch.experience_level ?? "")
   if ("birthYear" in patch) set("birth_year", patch.birthYear ?? "")
   if ("goatza" in patch) setFlag("goatza", patch.goatza)
   if ("positionId" in patch) set("position", patch.positionId ?? "")
@@ -77,7 +78,6 @@ function toApiParams(f: DiscoveryFilters): FetchRecruitmentsParams {
   if (f.sport_id) params.sport_id = f.sport_id
   if (f.recruitment_type) params.recruitment_type = f.recruitment_type
   if (f.city) params.city = f.city
-  if (f.experience_level) params.experience_level = f.experience_level
   if (/^\d+$/.test(f.birthYear)) params.birth_year = Number(f.birthYear)
   if (f.goatza) params.apply_method = "goatza"
   // A position only makes sense inside a sport; the select is disabled without
@@ -100,7 +100,6 @@ function countActive(f: DiscoveryFilters): number {
     f.sport_id,
     f.recruitment_type,
     f.city,
-    f.experience_level,
     f.birthYear,
     f.positionId,
     f.distanceKm,
@@ -312,7 +311,10 @@ export default function RecruitmentDiscovery() {
             subtitle="Your best matches right now"
             icon="mdi:star-four-points-outline"
             items={discover.recommended}
-            seeAllHref={railHref({})}
+            // Its own page, not railHref({}) — with no filter to apply that
+            // produced the URL the reader was already on plus "#all", so the
+            // one "See all" with nothing to narrow did nothing when tapped.
+            seeAllHref="/recruitments/recommended"
           />
           <RecruitmentRail
             title="Closing soon"
@@ -424,8 +426,8 @@ export default function RecruitmentDiscovery() {
             </p>
 
             <div className={styles.list}>
-              {items.map((item) => (
-                <RecruitmentCard key={item.id} recruitment={item} />
+              {items.map((item, i) => (
+                <RecruitmentCard key={item.id} recruitment={item} index={i} />
               ))}
             </div>
 

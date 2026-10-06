@@ -1,19 +1,36 @@
 /* ============================================================
    GOATZA — RecruitmentCard
 
-   A labelled spec grid. Every value sits in a fixed cell under its own
-   label, so two cards with wildly different content still line their
-   facts up on the same baseline — a grid cannot go ragged.
+   TWO LAYOUTS, ONE COMPONENT:
 
-   Colour carries exactly two meanings here: brand green = a match,
-   the urgency ramp = a deadline. Everything else is neutral on purpose.
+     narrow  A FULL POSTER. The card IS the cover image at 4:5, and
+             everything else is overlaid on a scrim.
+     wide    A MEDIA-LEFT ROW: a fixed photo box on the left,
+             everything else in a column on the right.
+
+   The poster is the BASE and the row is the step up, because the
+   poster is what a phone gets and a phone is what most of these are
+   read on. The row card is otherwise unchanged.
+
+   WHY THE POSTER EXISTS. The row's media box is a fixed 92-132px
+   wide and stretches to whatever height the column beside it grew
+   to — and that column kept growing (org row, date, venue, chips,
+   count, actions), so a 4:5 poster was being squeezed into roughly
+   1:2. Media on TOP fixes it by construction: the width is the
+   card's, and the height follows the ratio rather than the text.
+
+   Colour carries exactly two meanings: brand green = a match or the
+   primary action, amber = a deadline inside a week. Everything else
+   is neutral on purpose, and every value is a token.
    ============================================================ */
 
 /* ── Container ────────────────────────────────────────────────
-   CRITICAL: the breakpoints below are CONTAINER queries, not media
-   queries. This card renders 340px wide inside RecruitmentRail even on
-   a 1920px desktop — a viewport query would fire the 4-column layout
-   inside that 340px box and break exactly what this redesign fixes. */
+   CRITICAL: the breakpoint below is a CONTAINER query, not a media
+   query, and that is also the poster-vs-row switch. This card renders
+   at ~280px inside RecruitmentRail even on a 1920px desktop, and a
+   viewport query would hand that 280px box the media-left row. The
+   question the card is really asking is "how wide am I", and only a
+   container query can answer it. */
 
 .cardWrap {
   container-type: inline-size;
@@ -21,35 +38,39 @@
   height: 100%;
 }
 
-/* ── Card ─────────────────────────────────────────────────────
-   `height: 100%` + `auto 1fr auto` rows: the rail sets
-   `.slide > * { height: 100% }`, so the body absorbs the slack and the
-   footer pins to the bottom. Short cards in a rail still line up. */
+/* ── Card — POSTER ────────────────────────────────────────────
+   The card is the image: a 4:5 box with the photo absolutely filling
+   it, the scrim over that, and the content over both. The aspect
+   ratio reserves the whole box before the image lands, so nothing
+   moves when it arrives.
+
+   `position: relative` and nothing else — this is a plain element.
+   The title's stretched ::after is the card's tap target, and the
+   three controls sit above it. */
 
 .card {
   position: relative;
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto 1fr auto;
-  grid-template-areas:
-    "head head"
-    "body body"
-    "urg  cta";
-  gap: var(--space-3);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  /* Absolutely-positioned media leaves .content the only item in flow,
+     so this is what holds the text block against the bottom edge. */
+  justify-content: flex-end;
+  aspect-ratio: 4 / 5;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 20px;
+  overflow: hidden;
+  /* Behind the photo, and the whole card on a row with no photo. Never
+     white: this surface only ever carries the poster's own text. */
+  background: rgb(var(--color-poster-ground-rgb));
   transition:
     box-shadow var(--duration-base),
-    border-color var(--duration-base),
     transform var(--duration-base);
 }
 
 .card:hover {
   box-shadow: var(--shadow-card);
-  border-color: var(--color-brand-muted);
   transform: translateY(-2px);
 }
 
@@ -63,48 +84,409 @@
   opacity: 1;
 }
 
-/* ── Head ─────────────────────────────────────────────────────── */
+/* Unpublished. On the POSTER that is the DRAFT pill in the top corner and
+   nothing else: a dashed outline around a full-bleed photograph reads as a
+   rendering fault rather than as a state, and the pill already says the
+   word. The row card keeps its dashed edge, where the border is part of
+   the card anyway — see the wide block. */
 
-.head {
-  grid-area: head;
+/* The trial day has been and gone. Dimmed, never hidden — the org still
+   opens it for results, and a player who saved it still finds it. */
+.cardEnded {
+  opacity: 0.8;
+}
+
+.cardEnded:hover {
+  opacity: 1;
+}
+
+/* ── No media ─────────────────────────────────────────────────
+   A 4:5 box holding a watermark and nothing else is WORSE than the card
+   it replaced — at phone width that is a 440px-tall empty rectangle. So
+   a row with no cover drops the ratio, takes a ~200px designed panel on
+   top and puts the same text block under it, on the same dark ground.
+
+   Mixed card heights down a vertical scroll are fine, and read as
+   intentional rather than broken. */
+
+.cardNoMedia {
+  aspect-ratio: auto;
+  justify-content: flex-start;
+}
+
+/* ── Media slot ───────────────────────────────────────────────
+   POSTER: absolutely fills the card, behind everything.
+   Four designed states live in here; none of them is an empty grey
+   rectangle. */
+
+.media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* The panel, when there is no photo: back in flow, a designed band on top
+   of the card rather than the whole of it. */
+.cardNoMedia .media {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  height: 200px;
+}
+
+.mediaImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* The ROW's own small scrim, for the age band that sits on the photo
+   there. The poster has .posterScrim instead — a far stronger one. */
+.mediaScrim {
+  display: none;
+}
+
+/* ── State 2: no photo, open trial. A tinted panel, the sport's glyph as
+   a watermark behind it, the sport named small in the corner. ── */
+.mediaSport {
+  position: absolute;
+  inset: 0;
+  display: block;
+  /* --color-brand-muted rather than -subtle: an 8% tint over a near-black
+     ground is invisible, and the panel has to read as a panel rather than
+     as the top half of one long dark rectangle. */
+  background:
+    linear-gradient(160deg, var(--color-brand-muted), transparent 72%),
+    rgb(var(--color-poster-ground-rgb));
+}
+
+.mediaWatermark {
+  position: absolute;
+  right: -14%;
+  bottom: 6%;
+  width: 78%;
+  height: 78%;
+  color: var(--color-brand);
+  opacity: 0.16;
+}
+
+/* The panel's BOTTOM-left, not its top: on a poster the top-left corner
+   belongs to the status pill and the top-right to save/share, and the
+   panel starts at the card's own top edge — so a sport name up there sits
+   underneath the pill. Down here it is clear of both and reads as a
+   caption to the watermark. */
+.mediaSportName {
+  position: absolute;
+  bottom: 10px;
+  left: 16px;
+  right: 16px;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-poster-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── State 3: no photo, "Looking for players". Deliberately a different
+   SHAPE from the panel above — centred rather than cornered — so the two
+   types are told apart before the title is read. ── */
+.mediaSeeking {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+  color: var(--color-poster-text-muted);
+  background:
+    radial-gradient(70% 55% at 50% 42%, var(--color-brand-muted), transparent 72%),
+    rgb(var(--color-poster-ground-rgb));
 }
 
-.headTop {
+.mediaSeekingIcon {
+  width: 40px;
+  height: 40px;
+}
+
+.mediaSeekingText {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  line-height: 1.25;
+  color: var(--color-poster-text-muted);
+}
+
+/* ── State 4: a draft with no photo. Nothing to show, and it says so. ── */
+.mediaDraft {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: center;
+  border: 1.5px dashed rgba(var(--color-poster-ink-rgb), 0.3);
+  border-radius: inherit;
+  color: var(--color-poster-text-muted);
+  background: rgb(var(--color-poster-ground-rgb));
+}
+
+/* The age band and the photo count belong to the ROW's small media box.
+   On the poster the chip line already says the ages, and the top-right
+   corner is the save/share pair's — a photo count is not worth being the
+   third thing in it. */
+.ageBand,
+.ageBandOnPhoto,
+.photoCount {
+  display: none;
+}
+
+/* ── THE SCRIM ────────────────────────────────────────────────
+   This is the whole job, and everything else on the poster depends on
+   getting it right.
+
+   The text is white over a photograph nobody vetted. The real uploads
+   are text-heavy posters and several of them are BRIGHT — white and
+   pale-yellow grounds. A subtle gradient looks correct on the dark
+   sample in the designs and is unreadable on those, so this is a
+   NEAR-SOLID PANEL THAT FADES OUT, not a wash:
+
+     · it holds at >= 0.94 of the page's dark ground through the whole
+       text block (the bottom 54% — measured with a two-line title, a
+       chip line and the action row at 360px wide), and
+     · eases to transparent by 70% of the card's height.
+
+   Verified against a PURE WHITE image, not the dark sample:
+     white title / date / count / chips  17.1 : 1   (needs 3, then 4.5)
+     muted venue text                     8.9 : 1   (needs 4.5)
+     white text on a 0.14 white chip     11.1 : 1   (needs 4.5)
+
+   If a string ever fails here, STRENGTHEN THIS GRADIENT. Lightening the
+   text to compensate is the same bug one level further down. */
+
+.posterScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    /* THE TOP SHADE. Short and light — its job is to seat the status pill
+       and the save/share pair on something rather than to carry text, so
+       it stops well before the title. Both of those are opaque and pass on
+       their own; this is what stops them looking stuck onto the photo. */
+    linear-gradient(to bottom,
+      rgba(var(--color-poster-ground-rgb), 0.5) 0%,
+      rgba(var(--color-poster-ground-rgb), 0.26) 10%,
+      rgba(var(--color-poster-ground-rgb), 0.07) 18%,
+      rgba(var(--color-poster-ground-rgb), 0) 25%),
+    linear-gradient(to top,
+      rgba(var(--color-poster-ground-rgb), 0.97) 0%,
+      rgba(var(--color-poster-ground-rgb), 0.94) 54%,
+      rgba(var(--color-poster-ground-rgb), 0.82) 59%,
+      rgba(var(--color-poster-ground-rgb), 0.54) 63%,
+      rgba(var(--color-poster-ground-rgb), 0.24) 67%,
+      rgba(var(--color-poster-ground-rgb), 0) 70%);
+}
+
+/* Nothing to scrim: the panel is already on the dark ground, and a
+   gradient over a flat colour is just a band. */
+.cardNoMedia .posterScrim {
+  display: none;
+}
+
+/* ── Content column ─────────────────────────────────────────────
+   A static flex item carrying a z-index, which is legal and is what
+   keeps .card the containing block for the pill, the save/share pair
+   and the title's stretched ::after. Making this `position: relative`
+   would capture all three and pin them to the text block instead of
+   the card. */
+
+.content {
+  position: static;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+}
+
+/* Poster reading order: org, title, date + venue, chips, count + Apply.
+   `order` and not a DOM reorder — the markup's order (title first) is the
+   one that belongs in it, and it reads correctly either way. */
+.spacer {
+  order: -2;
+}
+
+.orgLink {
+  order: -1;
+}
+
+.rowTop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
   min-width: 0;
 }
 
-/* Above the stretched title overlay, so the org still gets its own tap
-   target instead of being swallowed by the card link. */
+.titleLink {
+  text-decoration: none;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The stretched link: one primary tap target over the whole card, without
+   wrapping the card in an <a> — which would nest the org link and the three
+   buttons inside it. Those sit above it on z-index and stay their own
+   controls. */
+.titleLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* The CARD's radius, not the link's — `inherit` here would resolve to 0 and
+     draw a square focus ring around a rounded card. */
+  border-radius: 20px;
+}
+
+/* THE DISPLAY FACE, on purpose. At full-bleed size the title is the thing
+   carrying the card, and Outfit at 31px reads limp against a photograph. */
+.title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 31px;
+  letter-spacing: var(--tracking-normal);
+  line-height: 0.98;
+  color: var(--color-poster-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  transition: color var(--duration-fast);
+}
+
+.titleLink:hover .title {
+  color: var(--color-poster-accent);
+}
+
+/* ── The one status pill ────────────────────────────────────────
+   Poster: the card's top-left corner, and a SOLID fill. A translucent
+   pill is invisible on a white poster, which is most of the real ones. */
+
+.pill {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  max-width: calc(100% - 128px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid transparent;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  /* Never wraps: a two-line pill beside a title is what made the old
+     badges move around the card. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* OPAQUE, and the poster's own ground rather than a theme surface: this
+     chip sits on a card that is dark in both schemes, so it is dark in
+     both too. The TONE is carried by the ink, never by the fill — which
+     is also what keeps it legible, because --color-brand on white is
+     2.7:1 and --color-warn is 3.4:1, and a solid green or amber pill
+     with white on it would fail in light mode. Every tone below clears
+     8.8:1 on this ground. */
+  background: rgb(var(--color-poster-ground-rgb));
+  color: var(--color-poster-text-muted);
+  border-color: transparent;
+}
+
+/* Colour is never the only carrier — the label already says it in words. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.pillDraft {
+  color: var(--color-poster-text-muted);
+  border-color: rgba(var(--color-poster-ink-rgb), 0.4);
+  border-style: dashed;
+}
+
+/* Amber is reserved for THIS one, the only pill whose words change daily.
+   If a week out is already red, the last day has nothing louder left. */
+.pillClosing {
+  color: var(--color-poster-warn);
+}
+
+/* Deliberately quiet: "Live" is the normal state, not an event. Quiet on a
+   poster still has to be solid, so it is the brand pair rather than a tint. */
+.pillLive {
+  color: var(--color-poster-accent);
+}
+
+.pillClosed {
+  color: var(--color-poster-text);
+}
+
+.pillEnded {
+  color: var(--color-poster-text-muted);
+}
+
+/* ── Org line ─────────────────────────────────────────────────── */
+
 .orgLink {
   position: relative;
   z-index: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  align-self: flex-start;
   text-decoration: none;
-  min-width: 0;
-  flex: 1;
-}
-
-.orgName {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
   font-family: var(--font-ui);
+  font-size: 0.655rem;
   font-weight: var(--weight-bold);
-  font-size: var(--text-xs);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: var(--color-poster-text-muted);
   transition: color var(--duration-fast);
+}
+
+.orgLink:hover {
+  color: var(--color-poster-text);
+}
+
+/* Avatar ships an `xs` at 28px and the poster's org row wants 20px. Two
+   classes deep so it outranks the component's own single-class size,
+   whichever stylesheet the bundler emits first. */
+.orgLink .orgAvatar {
+  width: 20px;
+  height: 20px;
+  font-size: 8px;
+  border-width: 1px;
 }
 
 /* A long club name truncates instead of pushing the tick off the card. */
@@ -115,156 +497,98 @@
   text-overflow: ellipsis;
 }
 
-.orgLink:hover .orgName {
-  color: var(--color-brand-hover);
-}
-
 .verifiedBadge {
-  color: var(--color-brand);
+  color: var(--color-poster-accent);
   flex-shrink: 0;
 }
 
-.titleLink {
-  text-decoration: none;
-  min-width: 0;
-}
+/* ── Facts: date + venue, one row ───────────────────────────────
+   The date is the commitment, so it is the white one; the venue is
+   context and is muted. Both icons are dropped on the poster — at 13px
+   over a photo they are noise, and the row needs the width. */
 
-/* The stretched link: one primary tap target covering the whole card,
-   without wrapping the card in an <a> (which would nest the org link
-   inside it — invalid HTML). */
-.titleLink::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius-lg);
-}
-
-.title {
-  font-family: var(--font-body);
-  font-weight: var(--weight-semi);
-  font-size: var(--text-base);
-  letter-spacing: var(--tracking-tight);
-  line-height: var(--leading-snug);
-  color: var(--color-text-primary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  /* Always two lines tall, even for a one-line title. Without this a short
-     title lifts the whole spec grid and the cells stop lining up with the
-     card above — which is the exact raggedness this layout exists to kill. */
-  min-height: calc(var(--text-base) * var(--leading-snug) * 2);
-  transition: color var(--duration-fast);
-}
-
-.titleLink:hover .title {
-  color: var(--color-brand-hover);
-}
-
-/* ── Head badges ──────────────────────────────────────────────── */
-
-.bestMatch,
-.statusBadge {
-  flex-shrink: 0;
-  font-family: var(--font-ui);
-  font-size: 0.6rem;
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  border: 1.5px solid transparent;
-  white-space: nowrap;
-}
-
-.bestMatch {
-  color: var(--color-brand);
-  background: var(--color-brand-subtle);
-  border-color: var(--color-brand-muted);
-}
-
-/* Only rendered off the happy path — see the component. `active` has no
-   class here because an "ACTIVE" badge on every public row is noise. */
-.statusDraft {
-  color: var(--color-text-muted);
-  background: var(--color-surface-raised);
-  border-color: var(--color-border);
-}
-
-.statusClosed {
-  color: var(--color-error);
-  background: rgba(232, 70, 42, 0.08);
-  border-color: rgba(232, 70, 42, 0.18);
-}
-
-.statusCancelled {
-  color: var(--color-text-muted);
-  background: var(--color-surface-raised);
-  border-color: var(--color-border);
-  text-decoration: line-through;
-}
-
-/* The trial day has passed: a fact about the calendar, not a failure, so
-   muted rather than the error red a closed posting wears. */
-.statusEnded {
-  color: var(--color-text-secondary);
-  background: var(--color-surface-raised);
-  border-color: var(--color-border);
-}
-
-/* ── Spec grid ────────────────────────────────────────────────── */
-
-.body {
-  grid-area: body;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-block: 1px solid var(--color-border-subtle);
-  min-width: 0;
-}
-
-.cell {
+.facts {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 8px;
   min-width: 0;
 }
 
-.cellLabel {
-  font-family: var(--font-ui);
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cellValue {
+.fact {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: 13px;
+}
+
+.fact svg {
+  display: none;
+}
+
+.factDate {
+  flex-shrink: 0;
   font-weight: var(--weight-medium);
-  color: var(--color-text-primary);
+  color: var(--color-poster-text);
+}
+
+.factVenue {
+  min-width: 0;
+  color: var(--color-poster-text-muted);
+}
+
+/* Separates the two without an icon or a bullet character in the markup. */
+.factDate + .factVenue::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 3px;
+  height: 3px;
+  align-self: center;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+/* ONE line, always. "Koduvally high school ground" truncates; it never
+   wraps and pushes the row below it down. */
+.factText {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Under the venue fact, not beside it: one more line of context on a card
+   whose facts row is already nowrap and already truncating. */
+.moreCentres {
+  margin: 1px 0 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-poster-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 
-/* A missing fact reads as an em dash, never as a collapsed cell — the
-   alignment only holds because every cell always occupies its slot. */
-.cellEmpty {
-  color: var(--color-text-muted);
-}
-
-/* ── Positions cell ───────────────────────────────────────────── */
+/* ── Positions + the quiet line ─────────────────────────────────
+   One line on the poster, clipped rather than wrapped: a second chip
+   line would push the text block up into the part of the scrim that has
+   already started to fade. */
 
 .tagRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tags {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -276,44 +600,79 @@
 .moreNarrow,
 .moreWide {
   font-family: var(--font-ui);
-  font-size: var(--text-xs);
+  font-size: 0.6rem;
   font-weight: var(--weight-semi);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: var(--radius-full);
-  background: var(--color-surface-raised);
-  color: var(--color-text-secondary);
-  border: 1.5px solid var(--color-border);
+  background: rgba(var(--color-poster-ink-rgb), 0.14);
+  color: var(--color-poster-text);
+  border: 1px solid rgba(var(--color-poster-ink-rgb), 0.16);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 
-/* The one place green means "this matched you". */
+/* The one place green means "this matched you". The ink carries it, for
+   the same reason the pills' does — a solid --color-brand chip with
+   --color-on-brand on it is 2.7:1 in light mode. */
 .hit {
-  background: var(--color-brand-subtle);
-  color: var(--color-brand);
-  border-color: var(--color-brand-muted);
+  color: var(--color-poster-accent);
+  border-color: rgba(var(--color-poster-ink-rgb), 0.28);
 }
 
 .moreNarrow,
 .moreWide {
   flex-shrink: 0;
   border-style: dashed;
-  color: var(--color-text-muted);
+  color: var(--color-poster-text-muted);
 }
 
-/* Narrow: one tag fits. The overflow count for the wide cap is in the DOM
-   but hidden, and vice versa below — both are aria-hidden, so this costs a
-   screen reader nothing (it reads the full list from .srOnly). */
+/* Narrow: one chip fits. Both overflow counts are in the DOM and
+   aria-hidden, so swapping them costs a screen reader nothing — it reads
+   the full list from .srOnly. */
 .tag:nth-child(n + 2) {
   display: none;
 }
 
 .moreWide {
   display: none;
+}
+
+/* "All ages · Free", and the eligibility badge: present, never shouting.
+   On the poster it is a chip like the positions beside it, because a bare
+   muted string over a photograph is the first thing to disappear. */
+.quiet {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  letter-spacing: var(--tracking-wide);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(var(--color-poster-ink-rgb), 0.14);
+  color: var(--color-poster-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.bestMatch {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--color-poster-accent);
+  background: rgba(var(--color-poster-ink-rgb), 0.14);
+  border: 1px solid rgba(var(--color-poster-ink-rgb), 0.28);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .srOnly {
@@ -328,146 +687,135 @@
   border: 0;
 }
 
-/* ── Urgency ──────────────────────────────────────────────────
-   One DOM node. The container query below moves it beside the title on a
-   wide card; on a narrow one it holds the footer's left slot. */
+/* Two cards side by side line their action rows up however long their
+   content is; on the poster it pins the whole block to the bottom. */
+.spacer {
+  flex: 1;
+  min-height: 2px;
+}
 
-.urg {
-  grid-area: urg;
+/* ── Footer ─────────────────────────────────────────────────────
+   Poster: the applied count on the left, Apply on the right. Save and
+   share are lifted out of this row to the card's top corner, but they
+   stay INSIDE it in the markup so the row layout gets all three back
+   together without a second copy of either button. */
+
+.footer {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px var(--space-2);
   min-width: 0;
+  padding-top: 10px;
 }
 
-.urgency {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.count {
+  min-width: 0;
   font-family: var(--font-ui);
   font-size: var(--text-xs);
-  font-weight: var(--weight-semi);
   letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
+  color: var(--color-poster-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Colour is never the only carrier — the label already says it in words. */
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
-}
-
-.toneCalm,
-.toneClosed {
-  color: var(--color-text-muted);
-}
-
-/* Amber, not red: if a week out is already red, the last day has nothing
-   louder left to say. */
-.toneSoon {
-  color: var(--color-warn);
-}
-
-.toneToday {
-  color: var(--color-error);
-}
-
-/* Informational, not prohibitive — neutral ink, no red, no lock icon. The
-   posting says what it is open to; it never tells the viewer what they
-   cannot do, and it never disables anything. */
-.eligibilityBadge {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── Footer ───────────────────────────────────────────────────── */
-
-.meta {
-  grid-area: meta;
-  display: none;
+.actions {
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.metaDot {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--color-border);
+  gap: 12px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
-.cta {
-  grid-area: cta;
+/* The card's top-right corner. Absolute against .card (see .content), so
+   this leaves the footer's flow entirely on the poster. */
+.quickActions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 36px circles on their own dark backing. Not translucent-over-nothing:
+   a white poster would swallow the glyph. */
+.iconBtn {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.shareBtn {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
+  border: none;
+  background: rgba(var(--color-poster-ground-rgb), 0.55);
+  color: var(--color-poster-text);
   cursor: pointer;
   flex-shrink: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition:
     background var(--duration-fast),
     color var(--duration-fast),
     border-color var(--duration-fast);
 }
 
-.viewBtn {
+.iconBtnGlyph {
+  width: 18px;
+  height: 18px;
+}
+
+.iconBtn:hover {
+  background: rgba(var(--color-poster-ground-rgb), 0.75);
+  color: var(--color-poster-accent);
+}
+
+/* Saved: the FILLED bookmark against the outlined one, and nothing else.
+   The obvious move is to turn it brand green, but green on the 0.55
+   backing over a white poster is 2.3:1 — so on the poster the shape is
+   the signal, which it should be anyway: colour is never the only
+   carrier, and aria-pressed says it out loud. */
+.iconBtnOn {
+  color: var(--color-poster-text);
+}
+
+.actionBtn {
   position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--color-on-brand);
-  background: var(--color-brand-hover);
+  /* The brightened brand with the poster's ground as ink: 10.5:1, and the
+     same in both schemes. --color-brand with --color-on-brand on it is
+     2.7:1 in light mode, which is not a button anyone can read. */
+  color: rgb(var(--color-poster-ground-rgb));
+  background: var(--color-poster-accent);
   border-radius: var(--radius-md);
-  padding: 8px 14px;
+  padding: 9px 14px;
   text-decoration: none;
   white-space: nowrap;
+  touch-action: manipulation;
   transition: background var(--duration-fast);
 }
 
-/* Touch targets stay 44×44 while the visible control stays compact. */
-.shareBtn::before,
-.viewBtn::before {
+.actionBtn:hover {
+  background: var(--color-poster-accent-hover);
+}
+
+/* Every control keeps a 44x44 touch target while staying visually compact —
+   the box is centred on the control, so they never overlap each other at the
+   gaps above (36 + 8 = 44, and 32 + 12 = 44 in the row layout). */
+.iconBtn::before,
+.actionBtn::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -479,82 +827,346 @@
   min-height: 44px;
 }
 
-.shareBtn:hover {
-  background: var(--color-brand-subtle);
-  border-color: var(--color-brand);
-  color: var(--color-brand);
-}
-
-.viewBtn:hover {
-  background: var(--color-brand-active);
-}
-
-/* Saved state for the bookmark — it borrows .shareBtn's box (same 34px pill,
-   same 44px touch target) and only changes colour, so the two icon buttons
-   stay one control size. */
-.saveBtnOn {
-  color: var(--color-brand);
-  border-color: var(--color-brand);
-  background: var(--color-brand-subtle);
-}
-
 /* ── Focus ────────────────────────────────────────────────────
-   Tab order reads org → title → share → View, matching DOM order. */
+   Tab order reads title → org → save → share → action, matching DOM. */
 
 .orgLink:focus-visible,
-.shareBtn:focus-visible,
-.viewBtn:focus-visible {
+.iconBtn:focus-visible,
+.actionBtn:focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
   border-radius: var(--radius-md);
 }
 
-/* The title's focus ring is drawn on its overlay, so it frames the whole
-   card the link actually activates. */
+/* The title's ring is drawn on its overlay, so it frames the whole card
+   the link actually activates. */
 .titleLink:focus-visible {
   outline: none;
 }
 
 .titleLink:focus-visible::after {
   outline: 2px solid var(--color-brand);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 
-/* ── Wide container (≥ 480px) ─────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   WIDE CONTAINER — THE MEDIA-LEFT ROW
 
-@container reccard (min-width: 480px) {
+   400px, and a CONTAINER width rather than a viewport one: this is the
+   one switch between the two layouts, and it has to be the card's own
+   width or the rail's 280px slide on a 1920px desktop would get the row.
+
+   On the two lists this lands where it should: they hold one column
+   until the list itself has ~864px, so a card is either the full width
+   of a phone (poster) or half of a desktop list (row, ~420px+), and
+   never something in between.
+   ══════════════════════════════════════════════════════════════ */
+
+@container reccard (min-width: 400px) {
   .card {
-    grid-template-areas:
-      "head urg"
-      "body body"
-      "meta cta";
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: var(--space-4);
+    aspect-ratio: auto;
+    height: 100%;
+    padding: 14px;
+    border: 1.5px solid var(--color-border);
+    border-radius: 20px;
+    background: var(--color-surface);
+    overflow: visible;
+    transition:
+      box-shadow var(--duration-base),
+      border-color var(--duration-base),
+      transform var(--duration-base);
   }
 
-  /* Sits on the head row beside the Best-match pill, so it has to centre on
-     the same 32px avatar line the pill centres on — top-aligning it left the
-     two badges a few pixels out of true. */
-  .urg {
-    justify-self: end;
-    align-self: start;
-    align-items: flex-end;
-    text-align: right;
-    min-height: 32px;
-    justify-content: center;
+  .card:hover {
+    border-color: var(--color-brand-muted);
   }
 
-  /* The cells stay 2 × 2 here, exactly as on mobile. A 4-across strip gave
-     the positions cell about 265px, which truncated every tag to "L…" —
-     two wide columns fit three full tags and keep one structure to read. */
-  .meta {
-    display: flex;
+  .cardDraft {
+    border: 1.5px dashed var(--color-border);
   }
 
-  /* Three tags fit here; the narrow count steps aside for the wide one. */
-  .tag:nth-child(-n + 3) {
+  /* Back to a fixed box on the left. The width is fixed and the height is
+     reserved before anything loads, so an arriving image still shifts
+     nothing — and the box then grows with the row rather than leaving a
+     hole under itself when the content beside it runs to three lines. */
+  .media,
+  .cardNoMedia .media {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 132px;
+    height: auto;
+    min-height: 158px;
+    align-self: stretch;
+    border-radius: 13px;
+    background: var(--color-surface-raised);
+  }
+
+  /* Overlaid text has to stay readable on a photo we have never seen — a
+     white kit against a white sky is a real upload. Small here because the
+     only thing on it is the age band. */
+  .mediaScrim {
+    display: block;
+    position: absolute;
+    inset: 40% 0 0 0;
+    background: linear-gradient(to top, rgba(var(--color-poster-ground-rgb), 0.62), transparent);
+    pointer-events: none;
+  }
+
+  /* The poster's scrim has nothing to do over a 132px thumb. */
+  .posterScrim {
+    display: none;
+  }
+
+  .mediaSport {
+    background:
+      linear-gradient(160deg, var(--color-brand-subtle), transparent 70%),
+      var(--color-surface-raised);
+  }
+
+  .mediaSeeking {
+    gap: 6px;
+    padding: 6px;
+    color: var(--color-text-secondary);
+    background:
+      radial-gradient(70% 55% at 50% 42%, var(--color-brand-subtle), transparent 70%),
+      var(--color-surface-raised);
+  }
+
+  .mediaSeekingIcon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .mediaSeekingText {
+    font-size: 0.6rem;
+    color: var(--color-text-muted);
+  }
+
+  .mediaDraft {
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+    background: var(--color-surface-raised);
+  }
+
+  .mediaSportName {
+    top: 6px;
+    bottom: auto;
+    left: 7px;
+    right: 7px;
+    font-size: 0.6rem;
+    color: var(--color-text-secondary);
+  }
+
+  /* The age band, bottom-left of the slot in both the photo and the tinted
+     state — the same place, so the eye learns one spot for it. */
+  .ageBand {
+    display: block;
+    position: absolute;
+    left: 9px;
+    bottom: 8px;
+    max-width: calc(100% - 18px);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* On a photo it sits on the scrim, so it is white in BOTH themes — the
+     gradient underneath is dark either way. */
+  .ageBandOnPhoto {
+    color: var(--color-text-inverted);
+    text-shadow: 0 1px 2px rgba(var(--color-poster-ground-rgb), 0.45);
+  }
+
+  .photoCount {
+    display: inline-flex;
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+    background: rgba(var(--color-poster-ground-rgb), 0.55);
+    color: var(--color-text-inverted);
+    font-family: var(--font-ui);
+    font-size: 0.6rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .content {
+    flex: 1;
+    padding: 0;
+  }
+
+  /* Back to the markup's own order: title (with its pill), then org. */
+  .spacer,
+  .orgLink {
+    order: 0;
+  }
+
+  /* The pill returns to the right of the title, which is where it belongs
+     when there is width for both. */
+  .rowTop {
+    position: static;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .titleLink {
+    flex: 1;
+  }
+
+  .title {
+    font-family: var(--font-body);
+    font-weight: var(--weight-semi);
+    font-size: 17px;
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-snug);
+    color: var(--color-text-primary);
+  }
+
+  .titleLink:hover .title {
+    color: var(--color-brand-hover);
+  }
+
+  .pill {
+    position: static;
+    max-width: 100%;
+    flex-shrink: 0;
+    padding: 3px 9px;
+    font-size: 0.6rem;
+  }
+
+  .pill {
+    background: transparent;
+  }
+
+  .pillDraft {
+    color: var(--color-text-muted);
+    background: transparent;
+    border-color: var(--color-border);
+    border-style: dashed;
+  }
+
+  .pillClosing {
+    color: var(--color-warn);
+    background: var(--color-surface-raised);
+    border-color: var(--color-warn);
+  }
+
+  .pillLive {
+    color: var(--color-brand);
+    background: var(--color-brand-subtle);
+    border-color: var(--color-brand-muted);
+  }
+
+  .pillClosed {
+    color: var(--color-text-secondary);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
+  }
+
+  .pillEnded {
+    color: var(--color-text-muted);
+    background: transparent;
+    border-color: var(--color-border);
+  }
+
+  .orgLink {
+    gap: 5px;
+    font-size: 0.66rem;
+    color: var(--color-text-secondary);
+  }
+
+  .orgLink:hover {
+    color: var(--color-brand-hover);
+  }
+
+  .verifiedBadge {
+    color: var(--color-brand);
+  }
+
+  .orgLink .orgAvatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+    border-width: 2px;
+  }
+
+  .facts {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px var(--space-4);
+  }
+
+  .fact {
+    align-items: center;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-regular);
+    color: var(--color-text-secondary);
+  }
+
+  .fact svg {
+    display: block;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  /* The venue can take the slack; the date is a fixed short string. */
+  .factVenue {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .factDate + .factVenue::before {
+    display: none;
+  }
+
+  .tagRow {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .tag,
+  .moreNarrow,
+  .moreWide {
+    padding: 2px 7px;
+    background: var(--color-surface-raised);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+  }
+
+  .hit {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand);
+    border-color: var(--color-brand-muted);
+  }
+
+  .moreNarrow,
+  .moreWide {
+    border-style: dashed;
+    color: var(--color-text-muted);
+  }
+
+  /* Two chips fit here; the narrow count steps aside for the wide one. */
+  .tag:nth-child(-n + 2) {
     display: inline-block;
   }
 
-  .tag:nth-child(n + 4) {
+  .tag:nth-child(n + 3) {
     display: none;
   }
 
@@ -564,6 +1176,81 @@
 
   .moreWide {
     display: inline-block;
+  }
+
+  .quiet {
+    flex-shrink: 0;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
+
+  .bestMatch {
+    flex-shrink: 0;
+    padding: 2px 7px;
+    color: var(--color-brand);
+    background: var(--color-brand-subtle);
+    border-color: var(--color-brand-muted);
+  }
+
+  .footer {
+    padding-top: 8px;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .count {
+    color: var(--color-text-muted);
+  }
+
+  /* All three controls back on one row, in the footer where they started.
+     12px, not 6: each carries a 44px touch box centred on a 32px visible
+     button, so anything tighter makes those boxes OVERLAP and the later
+     sibling swallows taps meant for its neighbour. 44 - 32 - 12 = 0 — they
+     meet exactly and never trade taps. */
+  .quickActions {
+    position: static;
+    gap: 12px;
+  }
+
+  .iconBtn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-muted);
+  }
+
+  .iconBtnGlyph {
+    width: 16px;
+    height: 16px;
+  }
+
+  .iconBtn:hover {
+    background: var(--color-brand-subtle);
+    border-color: var(--color-brand);
+    color: var(--color-brand);
+  }
+
+  .iconBtnOn {
+    color: var(--color-brand);
+    border-color: var(--color-brand);
+    background: var(--color-brand-subtle);
+  }
+
+  .actionBtn {
+    padding: 7px 12px;
+    color: var(--color-on-brand);
+    background: var(--color-brand-hover);
+  }
+
+  .actionBtn:hover {
+    background: var(--color-brand-active);
+  }
+
+  .titleLink:focus-visible::after {
+    outline-offset: 3px;
   }
 }
 

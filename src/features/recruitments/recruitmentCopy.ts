@@ -11,34 +11,37 @@
  * on one and "followers_only" on the other is the same drift.
  * `ORG_STATUS_LABEL` stays local to RecruitmentDetail.
  *
- * RecruitmentCard and CreateRecruitmentModal still carry their own copies.
- * Folding those in is a worthwhile tidy and a separate change — the card's
- * labels are sized for a chip and the modal's are option text, so they are not
- * automatically the same strings.
+ * `TYPE_LABEL` is THE recruitment-type wording — the card, the chat card,
+ * the discovery filter, My applications and the create wizard all read it.
+ * There used to be six copies and they had drifted ("Open Trial" here, "Open
+ * trial" there). Sentence case everywhere; a chip that wants capitals gets
+ * them from CSS, never from a forked string.
  */
 
-export const TYPE_LABEL: Record<string, string> = {
+import type {
+  RecruitmentType,
+  RecruitmentTypeValue,
+} from "./services/recruitments.api"
+
+/** The types an org can create today, in the order they are offered. */
+export const RECRUITMENT_TYPES: RecruitmentType[] = ["open_trial", "player_looking"]
+
+/** A value from a URL or a form, narrowed to a creatable type. */
+export function isRecruitmentType(value: string | null | undefined): value is RecruitmentType {
+  return (RECRUITMENT_TYPES as string[]).includes(value ?? "")
+}
+
+export const TYPE_LABEL: Record<RecruitmentTypeValue, string> = {
   open_trial: "Open trial",
-  player_looking: "Player looking",
-  private_trial: "Private trial",
-  direct_recruitment: "Direct recruitment",
-  scholarship: "Scholarship",
+  player_looking: "Looking for players",
+  // Legacy values — kept so pre-migration rows still render a label. Each
+  // reads as the type the data migration folds it into.
 }
 
 export const GENDER_LABEL: Record<string, string> = {
   male: "Male only",
   female: "Female only",
   all: "Open to all",
-}
-
-export const EXPERIENCE_LABEL: Record<string, string> = {
-  district: "District level",
-  state: "State level",
-  national: "National level",
-  international: "International level",
-  beginner: "Beginner",
-  inter: "Intermediate",
-  advanced: "Advanced",
 }
 
 export const VISIBILITY_LABEL: Record<string, string> = {

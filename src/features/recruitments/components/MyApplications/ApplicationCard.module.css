@@ -1,95 +1,207 @@
 /* ============================================================
-   GOATZA — ApplicationCard (player's own application row)
+   GOATZA — ApplicationCard (the player's own application)
+
+   BUILT AROUND THE STATUS. This card used to open with an org logo
+   and a title and carry its status as a small badge in the corner —
+   the least prominent thing on it, and the only reason anybody opens
+   this tab. Now the status is a tinted strip across the top, the
+   card's border takes the tint up where it matters, and the body
+   under it is a fixed thumb plus the four facts a player needs: what
+   it is, who it is with, when, and where.
+
+   Colour means one thing here: brand green = something good has
+   happened, amber = in motion or needs attention, nothing = finished
+   or filed. There is deliberately no red — a red card for "not
+   shortlisted" is a punishment, not a status.
+
+   The amber fills are mixed from the theme's own --color-warn, the
+   same way ApplicantsList and ApplyRecruitmentModal mix theirs, so
+   there is one amber on this product and it follows the theme.
    ============================================================ */
 
 .card {
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  /* The card pads everything; the strip alone reaches back out to the
+     edges with a negative inline margin, so one rule keeps every other
+     child — body, announcements, feedback, actions — on one gutter. */
+  padding: 0 var(--space-4) var(--space-4);
   transition: box-shadow var(--duration-base), border-color var(--duration-base);
 }
 
 .card:hover {
   box-shadow: var(--shadow-card);
+}
+
+/* ── Tones ────────────────────────────────────────────────────
+   Each pair is one rule: what the strip is filled with, and whether
+   the card's own border picks the tint up. */
+
+.toneConfirmed {
   border-color: var(--color-brand-muted);
 }
 
-/* ── Header: org + status ─────────────────────────────────────── */
+.toneConfirmed .strip {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-strong);
+}
 
-.header {
+/* STRONGER, but not LIGHTER. The obvious move is --color-brand-muted, and
+   it was: an 18% green over the dark surface lifts the strip enough that
+   the context line beside the label drops to 4.0:1. So Selected outranks
+   Confirmed by structure instead — the card's full brand border and a
+   brand bar down the strip's edge — and both keep the same 7:1 label. */
+.toneSelected {
+  border-color: var(--color-brand);
+}
+
+.toneSelected .strip {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-strong);
+  box-shadow: inset 3px 0 0 var(--color-brand);
+}
+
+.toneReview .strip {
+  background: color-mix(in srgb, var(--color-warn) 10%, transparent);
+  color: var(--color-warn-strong);
+}
+
+.toneNeutral .strip {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+/* Finished, and not in their favour, or withdrawn. NO TINT at all — the
+   words are enough, and a colour here would only be one for the sake of
+   it. A hairline instead of a fill, so the strip is still a band and is
+   still visibly not the filled one above it. */
+.toneMuted .strip {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+/* ── The status strip ─────────────────────────────────────────── */
+
+.strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  /* Wraps rather than squeezes: at 360px "Not shortlisted · Trial ended"
+     plus "Applied 5 Jul" is wider than the card, and the date dropping to
+     a second line beats either of them clipping. */
+  flex-wrap: wrap;
+  gap: 4px var(--space-3);
+  margin-inline: calc(var(--space-4) * -1);
+  padding: 10px var(--space-4);
+  min-height: 42px;
 }
 
-.badges {
+.stripStatus {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  /* Inherits the tone's colour from .strip. */
+}
+
+.stripStatus svg {
   flex-shrink: 0;
+}
+
+.stripLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The trial day has passed. Muted, beside the application's own status —
    the club may still be deciding, and this is a fact about the calendar. */
 .endedBadge {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
+  background: var(--color-surface);
   color: var(--color-text-secondary);
-  font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-.orgLink {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  text-decoration: none;
-  min-width: 0;
-  flex: 1;
-}
-
-.orgName {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* "in 4 days" on a confirmed trial still ahead, "Applied 5 Jul" otherwise.
+   Deliberately NOT the tone colour: it is context, not the status. */
+.stripContext {
+  flex-shrink: 0;
+  margin-left: auto;
   font-family: var(--font-ui);
-  font-weight: var(--weight-bold);
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--color-ink);
+  color: var(--color-text-secondary);
   white-space: nowrap;
+}
+
+/* ── Body ─────────────────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* FIXED IN BOTH DIMENSIONS. `flex: 0 0 auto` plus an explicit height, and
+   no `align-self: stretch` — this is the bug the recruitment card was
+   rebuilt to fix, where a media box stretched to whatever height the text
+   column beside it grew to and squeezed its own contents out of shape. */
+.thumb {
+  flex: 0 0 auto;
+  width: 66px;
+  height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color var(--duration-fast);
-}
-
-.orgLink:hover .orgName {
-  color: var(--color-brand-hover);
-}
-
-.verified {
   color: var(--color-brand);
-  flex-shrink: 0;
+  background:
+    linear-gradient(160deg, var(--color-brand-subtle), transparent 70%),
+    var(--color-surface-raised);
+}
+
+.thumbGlyph {
+  width: 30px;
+  height: 30px;
+  opacity: 0.75;
+}
+
+.bodyText {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
 }
 
 /* ── Title ────────────────────────────────────────────────────── */
 
 .titleLink {
   text-decoration: none;
+  min-width: 0;
 }
 
 .title {
@@ -98,91 +210,235 @@
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
   color: var(--color-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   transition: color var(--duration-fast);
 }
 
 .titleLink:hover .title {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
-/* ── Meta ─────────────────────────────────────────────────────── */
+/* ── Org ──────────────────────────────────────────────────────── */
 
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-}
-
-.metaItem {
+.orgLink {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  align-self: flex-start;
+  text-decoration: none;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: 0.66rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast);
 }
 
-.metaItem svg {
+.orgLink:hover {
+  color: var(--color-brand-strong);
+}
+
+/* Avatar ships an `xs` at 28px and this row wants 20px. Two classes deep
+   so it outranks the component's own single-class size whichever
+   stylesheet the bundler emits first. */
+.orgLink .orgAvatar {
+  width: 20px;
+  height: 20px;
+  font-size: 8px;
+  border-width: 1px;
+}
+
+.orgName {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.verified {
+  color: var(--color-brand);
   flex-shrink: 0;
+}
+
+/* ── When and where ───────────────────────────────────────────── */
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-top: 1px;
+}
+
+.fact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
   color: var(--color-text-secondary);
 }
 
-/* ── Footer ───────────────────────────────────────────────────── */
-
-.footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
+.fact svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
 }
 
-/* The age group this application was filed under + its reporting time */
-.groupRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 7px 11px;
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
+/* ONE line, always. A long ground name truncates; it never wraps and
+   pushes the row below it down. */
+.factText {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The group they applied under and its reporting time — the one thing
+   they have to remember on the day. */
+.groupLine {
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   color: var(--color-text-secondary);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.groupRow svg {
-  flex-shrink: 0;
+.groupLine strong {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
 }
 
-.applied {
+/* THE ONE THING THEY CAN ACT ON before turning up, so it is the one line
+   in the body that carries a colour. Amber, mixed from the theme's own
+   --color-warn like every other amber on this product. */
+.feeLine {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 1px;
+  font-family: var(--font-ui);
   font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  font-weight: var(--weight-semi);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-warn-strong);
 }
 
-.applied svg {
+.feeLine svg {
   flex-shrink: 0;
 }
 
-.viewBtn {
+/* ── The feedback prompt ──────────────────────────────────────
+   The card is a flex column with its own gap, so this only needs to not
+   add a second one — and nothing shifts when the row appears or is
+   dismissed, because the card's gap collapses with the element rather
+   than reserving space for it. */
+.feedback {
+  width: 100%;
+}
+
+/* ── Actions ──────────────────────────────────────────────────
+   Rendered only where there IS something to do — see hasActions(). An
+   empty row of buttons on a finished application is noise repeated down
+   the whole list. */
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.primaryBtn,
+.secondaryBtn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: center;
+  gap: 6px;
+  /* A real tap target, not a text link squeezed into a row. */
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--color-brand);
   text-decoration: none;
-  transition: color var(--duration-fast), gap var(--duration-fast);
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
 }
 
-.viewBtn:hover {
-  color: var(--color-brand-hover);
-  gap: var(--space-2);
+/* --color-brand-strong and not --color-brand: white on --color-brand is
+   2.7:1 in light mode, which is not a label anybody reads. */
+.primaryBtn {
+  flex: 1;
+  background: var(--color-brand-strong);
+  color: var(--color-on-brand);
+  border: 1.5px solid var(--color-brand-strong);
+}
+
+.primaryBtn:hover {
+  background: var(--color-brand-strong-hover);
+  border-color: var(--color-brand-strong-hover);
+}
+
+.secondaryBtn {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1.5px solid var(--color-border);
+}
+
+.secondaryBtn:hover {
+  color: var(--color-brand-strong);
+  border-color: var(--color-brand);
+}
+
+/* A lone "View" has no primary beside it to balance against, so it does
+   not stretch — a full-width secondary button reads as the main action. */
+.actionRow > .secondaryBtn:only-child {
+  margin-left: auto;
+}
+
+/* ── Focus ────────────────────────────────────────────────────── */
+
+.titleLink:focus-visible,
+.orgLink:focus-visible,
+.primaryBtn:focus-visible,
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* ── 360px ────────────────────────────────────────────────────
+   The thumb holds its size; the action row stacks rather than letting
+   "My trial pass" clip to "My trial pa…". */
+
+@media (max-width: 380px) {
+  .actionRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actionRow > .secondaryBtn:only-child {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
 }

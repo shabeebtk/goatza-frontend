@@ -2,25 +2,16 @@
 // discovery page. Kept in one place so the desktop filter bar, the mobile
 // bottom-sheet, and the active-filter chips all read from the same source.
 import type { RecruitmentType } from "./services/recruitments.api"
+import { RECRUITMENT_TYPES, TYPE_LABEL } from "./recruitmentCopy"
 
+// The two creatable types only. There is deliberately no scholarship filter:
+// a scholarship is now a benefit on a posting, and benefits are not
+// filterable. A saved URL still carrying `type=scholarship` is dropped when
+// the discovery page reads its filters (see readFilters).
 export const RECRUITMENT_TYPE_OPTIONS: {
   value: RecruitmentType
   label: string
-}[] = [
-  { value: "open_trial", label: "Open Trial" },
-  { value: "player_looking", label: "Player Looking" },
-  { value: "direct_recruitment", label: "Direct Recruitment" },
-  { value: "scholarship", label: "Scholarship" },
-]
-
-// Mirrors the exact experience_level options CreateRecruitmentModal offers.
-export const EXPERIENCE_LEVEL_OPTIONS: { value: string; label: string }[] = [
-  { value: "beginner", label: "Beginner" },
-  { value: "district", label: "District" },
-  { value: "state", label: "State" },
-  { value: "national", label: "National" },
-  { value: "international", label: "International" },
-]
+}[] = RECRUITMENT_TYPES.map((value) => ({ value, label: TYPE_LABEL[value] }))
 
 // How far out the "Near you" filter can reach. 50 km is the discover default
 // (§4) and the option the "See all" deep-link lands on.
@@ -44,7 +35,6 @@ export type DiscoveryFilters = {
   sport_id: string
   recruitment_type: RecruitmentType | ""
   city: string
-  experience_level: string
   birthYear: string
   goatza: boolean
   // §4 discovery filters.
@@ -64,7 +54,6 @@ export const EMPTY_DISCOVERY_FILTERS: DiscoveryFilters = {
   sport_id: "",
   recruitment_type: "",
   city: "",
-  experience_level: "",
   birthYear: "",
   goatza: false,
   positionId: "",

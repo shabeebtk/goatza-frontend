@@ -16,6 +16,12 @@ import type {
 } from "../../services/recruitments.api"
 import { buildAgeCategoriesPayload } from "../../eligibility"
 import type { RecruitmentDraft } from "./draft"
+import {
+    buildSessionsPayload,
+    sessionModeForShape,
+    shapeFromSessions,
+} from "./sessions"
+import { TYPE_CONFIG } from "./typeConfig"
 import { localInputToISO } from "./wizardDate"
 
 export function buildPayload(
@@ -25,12 +31,18 @@ export function buildPayload(
 ): CreateRecruitmentPayload {
     const {
         title, shortDesc, description, recruitmentType, visibility, gender, sportId,
-        experienceLevel, applicationDeadline, eventDate, maxApplications,
+        applicationDeadline, eventDate, maxApplications,
         isPaid, feeAmount, feeCurrency, paymentNote, applyMethod, externalApplyUrl,
         venueName, venueLink, location, anyPosition, selectedPositions,
         ageCategories, allAges, eligibilityCriteria, benefits, requirements,
-        contacts, questions,
+        contacts, questions, sessions, sessionMode, trialShape, autoConfirm,
     } = draft
+
+    // Trial DATES. Only a type that has them sends any, and a type that does
+    // not sends the key as undefined rather than an empty array — an empty
+    // array on an open trial is a validation error server-side, and on a
+    // "looking for players" post there is nothing to delete.
+    const hasSessions = TYPE_CONFIG[recruitmentType].hasSessions
 
     return {
         title: title.trim(),
@@ -40,9 +52,34 @@ export function buildPayload(
         visibility,
         gender,
         sport_id: sportId,
-        experience_level: experienceLevel || undefined,
+        // NO experience_level. The wizard retired the field into the criteria
+        // presets and has no setter for it; the column and the server's filter
+        // param both stay, so old rows keep their value — and an UPDATE that
+        // omits the key leaves the stored value untouched (the serializer field
+        // is required=False, so it never reaches update_recruitment's setattr
+        // loop).
         application_deadline: localInputToISO(applicationDeadline),
-        event_date: localInputToISO(eventDate),
+        // Only a type with a trial day sends one. A date picked under another
+        // type before switching must not ride along unseen. (On an edit the
+        // omitted key leaves a stored value untouched.)
+        event_date: TYPE_CONFIG[recruitmentType].hasTrialDate
+            ? localInputToISO(eventDate)
+            : undefined,
+        // Every row keeps its server id, which is what makes an edit a
+        // diff-sync instead of a delete-and-recreate — see sessions.ts.
+        sessions: hasSessions ? buildSessionsPayload(sessions) : undefined,
+        // The SHAPE decides the mode, not the row count: several centres
+        // are always a pick-one, and one date is always "all". Only
+        // multi_day leaves the question open, and there `sessionMode` is
+        // the org's own answer. A draft that carries no shape has it read
+        // back off its rows.
+        session_mode: hasSessions
+            ? sessionModeForShape(
+                trialShape ?? shapeFromSessions(sessions),
+                sessionMode,
+            )
+            : undefined,
+        auto_confirm: hasSessions ? autoConfirm : undefined,
         max_applications: maxApplications ? Number(maxApplications) : undefined,
         is_paid: isPaid,
         fee_amount: isPaid && feeAmount ? feeAmount : undefined,
@@ -94,14 +131,21 @@ export function buildPayload(
         contacts: contacts
             .filter(c => c.value.trim())
             .map(c => ({ name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
-        questions: questions
-            .filter(q => q.question.trim())
-            .map(q => ({
-                question: q.question.trim(),
-                field_type: q.field_type,
-                is_required: q.is_required,
-                options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
-            })),
+        // Custom questions are collected by the in-app apply form and nowhere
+        // else, so any other method sends no `questions` key at all rather than
+        // an empty array: the wizard keeps whatever was typed (a switch back to
+        // Goatza restores it), and an edit that omits the key leaves a stored
+        // set untouched — the same rule the other conditional fields follow.
+        questions: applyMethod === "goatza"
+            ? questions
+                .filter(q => q.question.trim())
+                .map(q => ({
+                    question: q.question.trim(),
+                    field_type: q.field_type,
+                    is_required: q.is_required,
+                    options: q.options.filter(o => o.value.trim()).map(o => ({ value: o.value.trim() })),
+                }))
+            : undefined,
         media: media.length > 0 ? media : undefined,
     }
 }

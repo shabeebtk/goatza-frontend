@@ -51,7 +51,15 @@ export default function ApplicationSheet({
     // LinkedIn-style: withdraw is allowed from ANY status except withdrawn.
     const canWithdraw = !isWithdrawn
     // Once the outcome is final, keep withdraw available but de-emphasized.
-    const isTerminal = app.status === "selected" || app.status === "rejected"
+    // (`rejected` is the legacy spelling of the two "not" outcomes.)
+    const isTerminal =
+        app.status === "selected" ||
+        app.status === "not_selected" ||
+        app.status === "not_shortlisted" ||
+        // A pre-backfill row can still carry the retired `rejected`.
+        // Compared as a STRING because the value is deliberately no
+        // longer in the ApplicationStatus union.
+        (app.status as string) === "rejected"
     // Resilient reapply: offer it whenever the app is withdrawn + in-app apply,
     // driven by status/apply_method (not can_apply) so it can't silently vanish
     // if can_apply is momentarily stale. can_apply only gates enabled vs
@@ -125,7 +133,7 @@ export default function ApplicationSheet({
 
                     <div className={styles.body}>
                         <div className={styles.statusRow}>
-                            <StatusBadge status={app.status} />
+                            <StatusBadge status={app.status} recruitmentType={r.recruitment_type} audience="player" />
                             {app.applied_at && !isWithdrawn && (
                                 <span className={styles.appliedAt}>
                                     Applied {dayjs(app.applied_at).format("D MMM YYYY")}

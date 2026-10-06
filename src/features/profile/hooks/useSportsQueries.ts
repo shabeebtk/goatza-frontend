@@ -11,6 +11,7 @@ import {
   type UpdateUserSportPayload,
   type UserSport,
 } from "../services/sports.api"
+import { invalidateProfileScoredRecruitments } from "@/features/recruitments/hooks/useRecruitments"
 
 // ── Query keys ────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ export const useAddUserSport = () => {
     mutationFn: (payload: AddUserSportPayload) => addUserSportApi(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: sportsKeys.userSports() })
+      // Sport and positions are the two heaviest ranking signals.
+      invalidateProfileScoredRecruitments(qc)
     },
   })
 }
@@ -86,6 +89,7 @@ export const useUpdateUserSport = () => {
     mutationFn: (payload: UpdateUserSportPayload) => updateUserSportApi(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: sportsKeys.userSports() })
+      invalidateProfileScoredRecruitments(qc)
     },
   })
 }
@@ -110,6 +114,7 @@ export const useDeleteUserSport = () => {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: sportsKeys.userSports() })
+      invalidateProfileScoredRecruitments(qc)
     },
   })
 }

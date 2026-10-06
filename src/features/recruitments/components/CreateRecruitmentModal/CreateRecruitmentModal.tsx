@@ -9,7 +9,12 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Select from "@/shared/components/ui/Select/Select"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
-import { imageFileName, makeThumb, preferredImageType } from "@/shared/services/imageVariants"
+import {
+    POSTER_THUMB_MAX_DIMENSION,
+    imageFileName,
+    makeThumb,
+    preferredImageType,
+} from "@/shared/services/imageVariants"
 import {
     UPLOAD_CANCELLED,
     describeBlob,
@@ -22,6 +27,7 @@ import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { useAuthStore } from "@/store/auth.store"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
+import { useOrgDetail } from "@/features/organization/hooks/useOrganizations"
 import styles from "./CreateRecruitmentModal.module.css"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage, getApiFieldErrors } from "@/core/api/getApiErrorMessage"
@@ -32,6 +38,7 @@ import {
     type RecruitmentDetail,
     type CreateRecruitmentMediaPayload,
     type ApplyMethod,
+    type SessionMode,
 } from "../../services/recruitments.api"
 import {
     MIN_BIRTH_YEAR,
@@ -53,6 +60,17 @@ import type {
     RecruitmentDraft,
 } from "./draft"
 import { buildPayload } from "./buildPayload"
+import {
+    firstSession,
+    initialSessionDrafts,
+    newSessionDraft,
+    sessionDateValue,
+    sessionsFromApi,
+    shapeFromSessions,
+    validateSessions,
+    withDateValue,
+} from "./sessions"
+import type { SessionDraft, TrialShape } from "./sessions"
 import { isoToLocalInput, parseLocalInput } from "./wizardDate"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
@@ -64,10 +82,12 @@ import TypePicker from "./TypePicker"
 import type { RecruitmentTemplate } from "./templates"
 import RecruitmentPreview, { type PreviewJumpTarget } from "./RecruitmentPreview"
 import { draftToPreviewRecruitment, missingFromDraft, type MissingItem } from "./draftToPreviewRecruitment"
+import { clipboardToMarkdownLite } from "../../pasteToMarkdownLite"
 import {
     TYPE_CONFIG,
     STEP_META,
     FIELD_STEP_KEY,
+    toCreatableType,
     type StepKey,
     type HideableField,
 } from "./typeConfig"
@@ -142,13 +162,6 @@ const TIME_OPTIONS: { value: string; label: string }[] = (() => {
     }
     return out
 })()
-
-/** A Google Maps URL for a picked place — by place id when we have one. */
-function mapLinkFor(place: PlaceResult): string {
-    const q = `${place.latitude},${place.longitude}`
-    const pid = place.external_id ? `&query_place_id=${encodeURIComponent(place.external_id)}` : ""
-    return `https://www.google.com/maps/search/?api=1&query=${q}${pid}`
-}
 
 function isValidHttpUrl(value: string): boolean {
     try {
@@ -245,6 +258,10 @@ const VISIBILITY_OPTIONS: { value: RecruitmentVisibility; label: string; hint: s
 // The three headings a good description is built from. Inserted, not
 // suggested in a placeholder: they stay in the text.
 const DESCRIPTION_HEADINGS = ["What to expect", "What to bring", "How selection works"]
+
+// The stored limit, unchanged. Markdown characters count toward it, which is
+// correct: they are characters in the field.
+const DESCRIPTION_MAX = 3000
 
 const APPLY_METHODS: { value: ApplyMethod; label: string; icon: string }[] = [
     { value: "goatza", label: "On Goatza", icon: "mdi:cellphone-check" },
@@ -707,19 +724,25 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
 // Free-text lines about who may attend. Mirrors RequirementsBuilder (the org
 // is writing a list either way) minus the mandatory toggle — a criterion is
 // never "optional", and none of it is ever checked against an applicant.
-// The five experience levels the wizard used to offer as a dropdown live here
-// now: nothing matched or filtered on the field, and a line of text says the
-// same thing in the recruiter's own words. (Existing records keep their
-// `experience_level` and the detail page still shows it.)
+// The experience levels the wizard used to offer as a dropdown live here now:
+// nothing matched or filtered on the field, and a line of text says the same
+// thing in the recruiter's own words. (Existing records keep their stored
+// `experience_level` — the column and the server's filter param both remain —
+// but nothing in the UI writes, filters on, or renders it any more.)
+//
+// QUICK-FILL ONLY, and deliberately LOCATION-NEUTRAL: these chips are shown to
+// every org in the product, so none of them may name a state, a country, a
+// region or a governing body. That is not a vocabulary — the field is free
+// text and an org that means "Kerala residents only", or any other specific
+// place, types it. A preset would put one state's wording in front of every
+// org that has nothing to do with it.
 const CRITERIA_PRESETS = [
     "Beginners welcome",
-    "District-level experience required",
-    "State-level experience required",
-    "National-level experience required",
-    "International experience required",
-    "Kerala residents only",
+    "Some competitive experience required",
+    "Club or academy experience required",
     "School / college students only",
-    "Registered with the state association",
+    "Local residents only",
+    "Open to players from any region",
 ]
 
 function EligibilityCriteriaBuilder({ criteria, onChange, disabled }: {
@@ -785,7 +808,7 @@ function EligibilityCriteriaBuilder({ criteria, onChange, disabled }: {
                     </div>
                     <input
                         className={`${styles.fieldInput} ${styles.listBuilderInput}`}
-                        placeholder="e.g. Kerala residents only"
+                        placeholder="e.g. Players from our district only"
                         value={c.title}
                         onChange={e => update(c.id, { title: e.target.value })}
                         disabled={disabled}
@@ -1028,6 +1051,38 @@ const DEADLINE_PRESETS = [
     { label: "1 week before", days: 7 },
 ]
 
+// ── The trial's shape ─────────────────────────────────────────
+// Asked FIRST on the when & where step, because it decides what a date row
+// even asks for. Nothing signalled before this that a trial could be a city
+// tour or two zones on one Saturday, so nobody posted one — the formats
+// existed in the data model and not in the UI. See sessions.ts for what each
+// one means.
+const TRIAL_SHAPES: {
+    value: TrialShape
+    label: string
+    blurb: string
+    icon: string
+}[] = [
+    {
+        value: "single",
+        label: "One day",
+        blurb: "One date at one ground.",
+        icon: "mdi:calendar-today",
+    },
+    {
+        value: "multi_day",
+        label: "Several days, same ground",
+        blurb: "Screening rounds, or a day per district.",
+        icon: "mdi:calendar-multiple",
+    },
+    {
+        value: "multi_place",
+        label: "Several places",
+        blurb: "A different city or ground for each date.",
+        icon: "mdi:map-marker-multiple",
+    },
+]
+
 // ── Contacts builder ──────────────────────────────────────────
 
 type ContactSuggestion = { name: string; contact_type: "phone" | "email"; value: string }
@@ -1141,6 +1196,8 @@ function QuestionBuilder({ questions, onChange, disabled }: {
         { value: "radio", label: "Select — one choice", hint: "Player picks exactly one of the options you add below." },
         { value: "checkbox", label: "Multi-select — many choices", hint: "Player can pick one or more of the options you add below." },
     ]
+    // "select" stays in here for the legacy value only — it is never offered
+    // above, but a stored question that still carries it has options to show.
     const HAS_OPTIONS: QuestionFieldType[] = ["radio", "select", "checkbox"]
     const typeHint = (t: QuestionFieldType) => FIELD_TYPES.find(ft => ft.value === t)?.hint ?? ""
 
@@ -1379,7 +1436,7 @@ interface CreateRecruitmentModalProps {
     /** "edit" prefills the wizard from initialRecruitment and PATCHes on save. */
     mode?: "create" | "edit"
     initialRecruitment?: RecruitmentDetail
-    onUpdated?: (recruitmentId: string) => void
+    onUpdated?: (recruitmentId: string, scheduleChangedFields: string[]) => void
 }
 
 export default function CreateRecruitmentModal({
@@ -1398,6 +1455,11 @@ export default function CreateRecruitmentModal({
     const init = mode === "edit" ? (initialRecruitment ?? null) : null
     const isEdit = init !== null
     const initialPositions = init ? mapInitialPositions(init) : null
+    // Built once: both the rows and the shape are seeded from it, and
+    // `sessionsFromApi` mints a fresh React key per row every time it runs.
+    const [initialSessions] = useState<SessionDraft[]>(
+        () => sessionsFromApi(init?.sessions),
+    )
 
     // ── Screen + step ────────────────────────────────────────────
     // Create opens on the type picker; edit already knows its type.
@@ -1408,7 +1470,11 @@ export default function CreateRecruitmentModal({
     const [title, setTitle] = useState(() => init?.title ?? "")
     const [shortDesc, setShortDesc] = useState(() => init?.short_description ?? "")
     const [description, setDescription] = useState(() => init?.description ?? "")
-    const [recruitmentType, setRecruitmentType] = useState<RecruitmentType>(() => init?.recruitment_type ?? "open_trial")
+    // A pre-migration row (scholarship / direct_recruitment) opens as the type
+    // the data migration folds it into, so saving it sends a creatable value.
+    const [recruitmentType, setRecruitmentType] = useState<RecruitmentType>(() => (
+        init ? toCreatableType(init.recruitment_type, init.event_date) : "open_trial"
+    ))
     const [visibility, setVisibility] = useState<RecruitmentVisibility>(() => init?.visibility ?? "public")
     // Everything type-specific — labels, hidden fields, the step list.
     const typeCfg = TYPE_CONFIG[recruitmentType]
@@ -1419,9 +1485,32 @@ export default function CreateRecruitmentModal({
     const [gender, setGender] = useState<RecruitmentGender>(() => init?.gender || "all")
     // No longer offered in the wizard (see CRITERIA_PRESETS); carried through
     // unchanged so editing an older record does not silently drop its value.
-    const [experienceLevel] = useState(() => init?.experience_level ?? "")
     const [applicationDeadline, setApplicationDeadline] = useState(() => isoToLocalInput(init?.application_deadline ?? null))
     const [eventDate, setEventDate] = useState(() => isoToLocalInput(init?.event_date ?? null))
+    // TRIAL DATES. Rows loaded from the API keep their server ids, and
+    // those ids ride all the way back out in the payload — the backend
+    // diff-syncs on them, and a row that loses its id is deleted and
+    // recreated, which drops the date every applicant picked.
+    const [sessions, setSessions] = useState<SessionDraft[]>(
+        () => initialSessions,
+    )
+    // WHICH SHAPE — one day, several days at one ground, or several places.
+    // Read back off the loaded rows on an edit (a row with its own venue is
+    // a centre, not another day) so an existing city tour opens on the card
+    // it was built with rather than resetting to a single date.
+    const [trialShape, setTrialShape] = useState<TrialShape>(
+        () => shapeFromSessions(initialSessions),
+    )
+    // Armed by a click on "One day" that would DROP dates — see chooseShape.
+    // Holds nothing itself: the count is derived, this is only the "the org
+    // has been told" flag.
+    const [trimArmed, setTrimArmed] = useState(false)
+    const [sessionMode, setSessionMode] = useState<SessionMode>(
+        () => init?.session_mode ?? "all",
+    )
+    const [autoConfirm, setAutoConfirm] = useState(
+        () => init?.auto_confirm ?? false,
+    )
     const [maxApplications, setMaxApplications] = useState(() => (init?.max_applications != null ? String(init.max_applications) : ""))
 
     // ── Step 1: Eligibility + Venue ────────────────────────────────
@@ -1442,13 +1531,13 @@ export default function CreateRecruitmentModal({
     // Cache-only: never fetches, and null is a perfectly normal answer.
     const placeBias = useProfileBias()
 
-    // A picked place always has coordinates (the picker refuses to build one
-    // without), so the map link can be written for the recruiter — but only
-    // into an EMPTY field: a link they typed themselves is theirs.
+    // The picker answers a CITY; "Venue map link" asks for a GROUND. The two
+    // are not the same question, and a generated city-level maps link in that
+    // field is worse than an empty one — it looks deliberate, so nobody
+    // corrects it, and players navigate to the wrong place. Manual entry only.
     const pickLocation = (place: PlaceResult | null) => {
         setLocation(place)
         clearFieldError("location")
-        if (place && !venueLink.trim()) setVenueLink(mapLinkFor(place))
     }
 
     // ── Step 2: Positions + Questions ────────────────────────────
@@ -1518,7 +1607,152 @@ export default function CreateRecruitmentModal({
     const descriptionRef = useRef<HTMLTextAreaElement>(null)
     const eventDateRef = useRef<HTMLInputElement>(null)
 
+    // event_date is DERIVED server-side from the first date, so mirror it
+    // here: the deadline presets, the deadline rule and the live preview
+    // all read eventDate, and a stale value would disagree with what the
+    // server is about to store.
+    const openingSession = typeCfg.hasSessions ? firstSession(sessions) : null
+    const openingValue = openingSession ? sessionDateValue(openingSession) : ""
+    useEffect(() => {
+        if (!typeCfg.hasSessions) return
+        setEventDate(openingValue)
+    }, [typeCfg.hasSessions, openingValue])
+
+    // ---- the date repeater's writes -------------------------------
+    const updateSession = (key: string, patch: Partial<SessionDraft>) => {
+        setSessions(rows => rows.map(
+            row => (row.key === key ? { ...row, ...patch } : row),
+        ))
+        clearFieldError("sessions")
+    }
+    const addSession = () => {
+        setSessions(rows => [...rows, newSessionDraft()])
+        clearFieldError("sessions")
+    }
+    const removeSession = (key: string) => {
+        // Never the last one: an open trial has to have a date.
+        setSessions(rows => (
+            rows.length <= 1 ? rows : rows.filter(row => row.key !== key)
+        ))
+        clearFieldError("sessions")
+    }
+
+    // ---- the trial's shape ----------------------------------------
+    // Which row has the full-screen place picker up, by session key. One
+    // piece of state rather than a flag per row: the picker is a portal that
+    // owns its own mount, so only one may ever be open.
+    const [locationOpenFor, setLocationOpenFor] = useState<string | null>(null)
+
+    const pickSessionLocation = (key: string, place: PlaceResult | null) => {
+        updateSession(key, { location: place })
+    }
+
+    // The dates "One day" would delete. Rows the org never filled in are not
+    // dates, so they are not counted — and the FIRST date is kept, which is
+    // the one event_date is derived from.
+    const keptSession = firstSession(sessions)
+    const datesTrimmedBySingle = sessions.filter(
+        row => row.date && row.key !== keptSession?.key,
+    ).length
+
+    /**
+     * Keep only the first date, then become a single-date trial.
+     *
+     * DESTRUCTIVE, and never on the first click — see chooseShape. Dropping a
+     * row deletes its TrialSession on save, which SET_NULLs the date every
+     * applicant picked, so the org confirms it explicitly.
+     */
+    const trimToSingle = () => {
+        setSessions(rows => {
+            const keep = firstSession(rows) ?? rows[0]
+            return rows
+                .filter(row => row.key === keep?.key)
+                // One day has no per-row venue UI at all, so anything left
+                // here would be invisible state that still got saved.
+                .map(row => ({
+                    ...row,
+                    location: null,
+                    venueName: "",
+                    venueLink: "",
+                }))
+        })
+        setTrimArmed(false)
+        setLocationOpenFor(null)
+        setTrialShape("single")
+        clearFieldError("sessions")
+    }
+
+    /**
+     * Pick a shape.
+     *
+     * Only the per-row VENUE fields belong to multi_place, so leaving it
+     * clears them — a stale ground on a row nobody can see any more would be
+     * sent on the next save. The dates themselves survive every switch: they
+     * are the one thing the org typed that no shape invalidates.
+     *
+     * The exception is "One day" with dates to lose. That click only ARMS the
+     * warning; `trimToSingle` is what acts on it.
+     */
+    const chooseShape = (next: TrialShape) => {
+        if (next === trialShape) return
+
+        if (next === "single" && datesTrimmedBySingle > 0) {
+            setTrimArmed(true)
+            return
+        }
+
+        setTrimArmed(false)
+        setLocationOpenFor(null)
+
+        if (trialShape === "multi_place") {
+            setSessions(rows => rows.map(row => ({
+                ...row,
+                location: null,
+                venueName: "",
+                venueLink: "",
+            })))
+        }
+
+        setTrialShape(next)
+        clearFieldError("sessions")
+    }
+
     // Append a heading line to the description and leave the caret under it.
+    /**
+     * Paste into the description, converted to markdown-lite instead of
+     * flattened.
+     *
+     * A description is usually written in Word, Docs or WhatsApp first. The
+     * clipboard carries that formatting as `text/html`, which a textarea drops
+     * on the floor — bullets and bold gone, one wall of text left. So the HTML
+     * is read for its STRUCTURE and turned into the grammar the detail page
+     * renders (see pasteToMarkdownLite.ts). Nothing pasted is ever stored or
+     * rendered as markup.
+     *
+     * Falls through to the browser's own paste when the clipboard offers
+     * nothing usable, and respects the 3,000-character limit by hand —
+     * `maxLength` does not apply to a programmatic value change.
+     */
+    const handleDescriptionPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const converted = clipboardToMarkdownLite(e.clipboardData)
+        if (converted === null) return
+
+        e.preventDefault()
+        const ta = e.currentTarget
+        const start = ta.selectionStart ?? description.length
+        const end = ta.selectionEnd ?? start
+        const room = DESCRIPTION_MAX - (description.length - (end - start))
+        const inserted = converted.slice(0, Math.max(0, room))
+        const next = description.slice(0, start) + inserted + description.slice(end)
+
+        setDescription(next)
+        clearFieldError("description")
+        const caret = start + inserted.length
+        requestAnimationFrame(() => {
+            descriptionRef.current?.setSelectionRange(caret, caret)
+        })
+    }
+
     const insertHeading = (heading: string) => {
         const base = description.replace(/\s+$/, "")
         const next = `${base ? base + "\n\n" : ""}${heading}\n`
@@ -1542,7 +1776,7 @@ export default function CreateRecruitmentModal({
         // detail is entered; counting it would confirm-on-discard a blank form.
         recruitmentType: isEdit ? recruitmentType : null,
         title, shortDesc, description, visibility, sportId, gender,
-        experienceLevel, applicationDeadline, eventDate, maxApplications,
+        applicationDeadline, eventDate, maxApplications,
         allAges,
         ageCategories: ageCategories.map(({ id: _id, ...c }) => c),
         eligibilityCriteria: eligibilityCriteria.map(({ id: _id, ...c }) => c),
@@ -1666,6 +1900,37 @@ export default function CreateRecruitmentModal({
     useFocusedFieldVisible(bodyRef)
 
     const { data: sports = [] } = useSportsList()
+
+    // ── The acting org's own sports ──────────────────────────────
+    // An org that plays one sport picks it on every single posting. Read from
+    // the org detail the admin area already has in cache (no new endpoint, and
+    // OrganizationMini in the store carries no sports); CREATE only, so an edit
+    // never fires it at all.
+    const { data: actingOrg } = useOrgDetail(orgId, "id", !isEdit && !!orgId)
+
+    /**
+     * Prefill the sport ONCE, and only into an empty field.
+     *
+     * A DEFAULT, not a correction: the functional updater keeps whatever is
+     * already there, which is what protects a template and a "repeat a past
+     * recruitment" clone — both run before this resolves and both set a sport
+     * of their own. The ref makes it one-shot, so clearing the select back to
+     * "Choose a sport" stays cleared. Editing never reaches here: `init`'s
+     * sport is the state's initial value and the query is disabled.
+     *
+     * No primary flag on file → the first sport, which for a single-sport org
+     * is the same answer. No sports at all → nothing happens, exactly as today.
+     */
+    const sportPrefilled = useRef(false)
+    useEffect(() => {
+        if (isEdit || sportPrefilled.current) return
+        const orgSports = actingOrg?.sports ?? []
+        if (orgSports.length === 0) return
+        const preferred = orgSports.find(s => s.is_primary) ?? orgSports[0]
+        sportPrefilled.current = true
+        setSportId(current => current || preferred.id)
+    }, [isEdit, actingOrg])
+
     const sportName = sports.find(s => s.id === sportId)?.name ?? ""
     const positions = sports.find(s => s.id === sportId)?.positions ?? []
 
@@ -1729,7 +1994,22 @@ export default function CreateRecruitmentModal({
             case "sport_id":
                 return sportId ? null : "Please select a sport."
             case "event_date":
-                if (!eventDate && !forDraft) return `Please set the ${typeCfg.dateLabel.toLowerCase()}.`
+                // Only an open trial has a trial day. Without one the deadline
+                // is the only date, and the checks below skip a blank event.
+                if (typeCfg.hasTrialDate && !eventDate && !forDraft) return `Please set the ${typeCfg.dateLabel.toLowerCase()}.`
+                return null
+            case "sessions":
+                // The server's rules, checked here so the org sees them
+                // before submitting rather than as a 400. A draft may be
+                // saved with no date yet.
+                if (!typeCfg.hasSessions || forDraft) return null
+                return validateSessions(sessions, applicationDeadline)
+            case "positions":
+                // Required only where the position IS the posting ("we need a
+                // goalkeeper"). A draft may leave it for later, and a sport
+                // with no positions on Goatza has nothing to pick from.
+                if (!typeCfg.positionsRequired || forDraft || positions.length === 0) return null
+                if (anyPosition || selectedPositions.length === 0) return "Pick the position you're looking for."
                 return null
             case "application_deadline": {
                 // deadline must be on or before the event date. parseLocalInput
@@ -1763,6 +2043,10 @@ export default function CreateRecruitmentModal({
                 if (ageCategories.length === 0) return "Add an age group, or choose “Open to all ages”."
                 return validateAgeGroups(ageCategories, currentYear())
             case "questions":
+                // Hidden for every method but Goatza, and an error on a field
+                // nobody can see is a dead end — jumpToField has nothing to
+                // focus. The drafts are kept, just not sent.
+                if (applyMethod !== "goatza") return null
                 for (const q of questions) {
                     if (!q.question.trim()) return "All questions must have text."
                     const hasOptions = ["radio", "select", "checkbox"].includes(q.field_type)
@@ -1807,8 +2091,8 @@ export default function CreateRecruitmentModal({
     // top-most one on the page.
     const STEP_FIELDS: Record<StepKey, string[]> = {
         basics: ["sport_id", "title", "short_description"],
-        when_where: ["event_date", "application_deadline", "venue_link"],
-        who: ["age_categories"],
+        when_where: ["sessions", "event_date", "application_deadline", "venue_link"],
+        who: typeCfg.positionsRequired ? ["positions", "age_categories"] : ["age_categories"],
         pitch: [],
         apply: ["external_apply_url", "questions", "contacts", "fee_amount", "max_applications"],
         publish: [],
@@ -1907,6 +2191,17 @@ export default function CreateRecruitmentModal({
 
     const pickType = (t: RecruitmentType) => {
         setRecruitmentType(t)
+        // Back to the picker and onto a type with no trial day: drop the date
+        // picked under the old type (buildPayload would not send it anyway).
+        if (!TYPE_CONFIG[t].hasTrialDate) setEventDate("")
+        // The dates belong to the trial, not to the post it just became.
+        if (!TYPE_CONFIG[t].hasSessions) {
+            setSessions(initialSessionDrafts())
+            setSessionMode("all")
+            setTrialShape("single")
+            setTrimArmed(false)
+            setAutoConfirm(false)
+        }
         setScreen("wizard")
         setStep(0)
     }
@@ -1927,7 +2222,7 @@ export default function CreateRecruitmentModal({
     // a fresh upload) and age groups lose their server ids (they belong to
     // the OTHER recruitment — echoing them would try to update its rows).
     const cloneFrom = (r: RecruitmentDetail) => {
-        setRecruitmentType(r.recruitment_type)
+        setRecruitmentType(toCreatableType(r.recruitment_type, r.event_date))
         setVisibility(r.visibility)
         setTitle(r.title)
         setShortDesc(r.short_description)
@@ -1935,6 +2230,18 @@ export default function CreateRecruitmentModal({
         setSportId(r.sport?.id ?? "")
         setGender(r.gender || "all")
         setEventDate("")
+        // Dates are cleared like every other date here, and the new rows
+        // carry NO ids: those ids belong to the recruitment being copied,
+        // and echoing them would try to edit ITS dates.
+        setSessions(initialSessionDrafts())
+        // The dates were just cleared, so the shape they implied is gone
+        // with them — a cloned city tour starts as one empty date and the
+        // org picks its shape again. `sessionMode` is still worth carrying:
+        // it is the answer they gave, and it survives until a shape needs it.
+        setTrialShape("single")
+        setTrimArmed(false)
+        setSessionMode(r.session_mode ?? "all")
+        setAutoConfirm(r.auto_confirm ?? false)
         setApplicationDeadline("")
         setMaxApplications(r.max_applications != null ? String(r.max_applications) : "")
         const groups = mapInitialAgeCategories(r).map(g => ({ ...g, serverId: undefined }))
@@ -2106,11 +2413,12 @@ export default function CreateRecruitmentModal({
     // The draft object is the modal's state, flattened — see ./draft.ts.
     const draft: RecruitmentDraft = {
         title, shortDesc, description, recruitmentType, visibility, gender, sportId,
-        experienceLevel, applicationDeadline, eventDate, maxApplications,
+        applicationDeadline, eventDate, maxApplications,
         isPaid, feeAmount, feeCurrency, paymentNote, applyMethod, externalApplyUrl,
         venueName, venueLink, location, anyPosition, selectedPositions,
         ageCategories, allAges, eligibilityCriteria, benefits, requirements,
         contacts, questions,
+        sessions, sessionMode, trialShape, autoConfirm,
     }
 
     // ── Preview ───────────────────────────────────────────────────
@@ -2227,7 +2535,15 @@ export default function CreateRecruitmentModal({
                     const compressed = await imageCompression(file, { ...IMAGE_COMPRESSION_OPTIONS, fileType })
                     const type = compressed.type || fileType
                     const full = new File([compressed], imageFileName(file.name || "photo", type), { type })
-                    prepared.push({ entryId: entry.id, full, thumb: await makeThumb(full) })
+                    // The thumb is the picture here, not a placeholder for
+                    // it: the poster card renders this file full-bleed at
+                    // the width of the phone, so it is built at 1080 rather
+                    // than the app-wide 640.
+                    prepared.push({
+                        entryId: entry.id,
+                        full,
+                        thumb: await makeThumb(full, signal, POSTER_THUMB_MAX_DIMENSION),
+                    })
                     // Compression is not abortable; stop between files instead.
                     if (signal.aborted) throw new Error(UPLOAD_CANCELLED)
                 }
@@ -2330,7 +2646,11 @@ export default function CreateRecruitmentModal({
             )
 
             if (isEdit && init) {
-                await updateRecruitment({ recruitmentId: init.id, payload })
+                // The response says which schedule-ish things moved, so the
+                // caller can offer to tell the applicants. Empty when nothing
+                // did, and empty when nobody has applied.
+                const updated = await updateRecruitment({ recruitmentId: init.id, payload })
+                const scheduleChanged = updated?.schedule_changed_fields ?? []
                 // The update endpoint drops `status` (draft → active is a state
                 // machine transition, not a field), so the publish itself goes
                 // through the status endpoint — same call the admin page makes.
@@ -2343,7 +2663,7 @@ export default function CreateRecruitmentModal({
                     variant: "success",
                 })
                 setTimeout(() => {
-                    onUpdated?.(init.id)
+                    onUpdated?.(init.id, scheduleChanged)
                     closeNow()
                 }, 1500)
             } else {
@@ -2454,52 +2774,350 @@ export default function CreateRecruitmentModal({
     )
 
     // ── 2. When & where ───────────────────────────────────────────
+    // A row is a DATE in two shapes and a CENTRE in the third. One noun, so
+    // the add button, the remove button and every field label agree with the
+    // card the org picked.
+    const rowNoun = trialShape === "multi_place" ? "centre" : "date"
+
     const renderWhenWhere = () => (
         <div className={styles.stepContent}>
             {stepIntro("when_where")}
 
-            <div className={styles.fieldRow}>
-                <div className={styles.fieldGroup} data-field="event_date">
+            {/* No trial day (looking for players): the deadline is the only
+                date, alone and full width rather than half of an empty row. */}
+            <div className={typeCfg.hasTrialDate ? styles.fieldRow : undefined}>
+                {typeCfg.hasSessions && (
+                <div className={styles.fieldGroup} data-field="sessions">
                     <label className={styles.fieldLabel}>{typeCfg.dateLabel} <span className={styles.required}>*</span></label>
-                    <div className={styles.chipRow} role="group" aria-label="Date presets">
-                        {[
-                            { label: "This Saturday", value: upcomingWeekday(6) },
-                            { label: "Next Sunday", value: upcomingWeekday(0, 1) },
-                        ].map(pr => (
-                            <button
-                                key={pr.label}
-                                type="button"
-                                className={`${styles.choiceChip} ${eventDate.slice(0, 10) === pr.value ? styles.choiceChipActive : ""}`}
-                                onClick={() => { setEventDate(pr.value); clearFieldError("event_date") }}
-                                disabled={isSubmitting}
-                            >
-                                {pr.label}
-                            </button>
-                        ))}
+
+                    {/* THE SHAPE, asked before any date. The same cards the
+                        type picker uses, because this is the same kind of
+                        question: it decides what a date row asks for. */}
+                    <div className={styles.shapeGrid} role="radiogroup" aria-label="How the trial runs">
+                        {TRIAL_SHAPES.map(shape => {
+                            const picked = trialShape === shape.value
+                            return (
+                                <button
+                                    key={shape.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={picked}
+                                    className={`${styles.typeCard} ${styles.shapeCard} ${picked ? styles.shapeCardActive : ""}`}
+                                    onClick={() => chooseShape(shape.value)}
+                                    disabled={isSubmitting}
+                                >
+                                    <span className={styles.typeCardIcon}>
+                                        <Icon icon={shape.icon} width={20} height={20} />
+                                    </span>
+                                    <span className={styles.typeCardBody}>
+                                        <span className={styles.typeCardLabel}>{shape.label}</span>
+                                        <span className={styles.typeCardBlurb}>{shape.blurb}</span>
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* "One day" with dates to lose. The click that got here
+                        changed NOTHING — deleting a date deletes the centre
+                        every applicant picked, so it takes a second, named
+                        click. */}
+                    {trimArmed && datesTrimmedBySingle > 0 && (
+                        <div className={styles.shapeWarn} role="alert">
+                            <Icon icon="mdi:alert-outline" width={16} height={16} className={styles.shapeWarnIcon} />
+                            <div className={styles.shapeWarnBody}>
+                                <strong className={styles.shapeWarnTitle}>
+                                    {datesTrimmedBySingle === 1
+                                        ? "1 date will be removed."
+                                        : `${datesTrimmedBySingle} dates will be removed.`}
+                                </strong>
+                                <span className={styles.shapeWarnText}>
+                                    Only the first date is kept.
+                                    {(init?.applications_count ?? 0) > 0
+                                        ? " Applicants who picked one of the others lose their chosen date."
+                                        : ""}
+                                </span>
+                                <div className={styles.shapeWarnActions}>
+                                    <button
+                                        type="button"
+                                        className={styles.shapeWarnBtn}
+                                        onClick={trimToSingle}
+                                        disabled={isSubmitting}
+                                    >
+                                        Keep only the first date
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.shapeWarnCancel}
+                                        onClick={() => setTrimArmed(false)}
+                                        disabled={isSubmitting}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ONE date is the default and looks exactly like the
+                        single date field always did — presets, then the same
+                        date+time control. A second date is opt-in, so a trial
+                        on one day never feels heavier than it was. */}
+                    {sessions.map((row, idx) => {
+                        const isFirst = idx === 0
+                        return (
+                            <div key={row.key} className={styles.sessionRow}>
+                                {isFirst && (
+                                    <div className={styles.chipRow} role="group" aria-label="Date presets">
+                                        {[
+                                            { label: "This Saturday", value: upcomingWeekday(6) },
+                                            { label: "Next Sunday", value: upcomingWeekday(0, 1) },
+                                        ].map(pr => (
+                                            <button
+                                                key={pr.label}
+                                                type="button"
+                                                className={`${styles.choiceChip} ${row.date === pr.value ? styles.choiceChipActive : ""}`}
+                                                onClick={() => updateSession(row.key, { date: pr.value })}
+                                                disabled={isSubmitting}
+                                            >
+                                                {pr.label}
+                                            </button>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            className={styles.choiceChip}
+                                            onClick={() => {
+                                                const el = eventDateRef.current
+                                                if (!el) return
+                                                el.focus()
+                                                if (typeof el.showPicker === "function") { try { el.showPicker() } catch { /* needs a user gesture on some engines */ } }
+                                            }}
+                                            disabled={isSubmitting}
+                                        >
+                                            <Icon icon="mdi:calendar-outline" width={13} height={13} />
+                                            Pick a date
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className={styles.sessionMain}>
+                                    <DateTimeField
+                                        value={sessionDateValue(row)}
+                                        onChange={v => setSessions(rows => rows.map(
+                                            r => (r.key === row.key ? withDateValue(r, v) : r),
+                                        ))}
+                                        onBlur={() => touchField("sessions")}
+                                        disabled={isSubmitting}
+                                        dateRef={isFirst ? eventDateRef : undefined}
+                                        invalid={!!fieldErrors.sessions || !!fieldErrors.event_date}
+                                    />
+                                    {/* Never the last one: an open trial has to
+                                        keep a date. */}
+                                    {sessions.length > 1 && (
+                                        <button
+                                            type="button"
+                                            className={styles.sessionRemove}
+                                            onClick={() => removeSession(row.key)}
+                                            disabled={isSubmitting}
+                                            aria-label={`Remove ${rowNoun} ${idx + 1}`}
+                                            title={`Remove this ${rowNoun}`}
+                                        >
+                                            <Icon icon="mdi:close" width={15} height={15} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {row.isCancelled && (
+                                    <span className={styles.sessionCancelled}>
+                                        Cancelled — applicants who picked this date still see it.
+                                    </span>
+                                )}
+
+                                {/* A label is only worth asking for once
+                                    there is more than one row to tell apart.
+                                    One day keeps the date and its end time
+                                    and nothing else. */}
+                                <div className={styles.sessionExtras}>
+                                    {trialShape !== "single" && (
+                                        <input
+                                            className={styles.fieldInput}
+                                            type="text"
+                                            maxLength={120}
+                                            placeholder={trialShape === "multi_place" ? `Label (e.g. "North zone")` : `Label (e.g. "Day 1")`}
+                                            value={row.title}
+                                            onChange={e => updateSession(row.key, { title: e.target.value })}
+                                            disabled={isSubmitting}
+                                            aria-label={`Label for ${rowNoun} ${idx + 1}`}
+                                        />
+                                    )}
+                                    <input
+                                        className={styles.fieldInput}
+                                        type="time"
+                                        value={row.endTime}
+                                        onChange={e => updateSession(row.key, { endTime: e.target.value })}
+                                        disabled={isSubmitting}
+                                        aria-label={`End time for ${rowNoun} ${idx + 1}`}
+                                        title="Ends at (optional)"
+                                    />
+                                </div>
+
+                                {/* THE CENTRE'S OWN GROUND — several places
+                                    only. The other two shapes have one ground,
+                                    set in the trial's own venue fields below,
+                                    and a per-row override there would be a
+                                    second place to look.
+
+                                    The picked place is what puts this centre
+                                    on the map: a player searching the city
+                                    this date visits finds it by these
+                                    coordinates, not the trial's. */}
+                                {trialShape === "multi_place" && (
+                                    <>
+                                        {row.location ? (
+                                            <div className={styles.locationPill}>
+                                                <Icon icon="mdi:map-marker" width={15} height={15} />
+                                                <div className={styles.locationPillText}>
+                                                    <span className={styles.locationPillName}>{row.location.name}</span>
+                                                    <span className={styles.locationPillSub}>{[row.location.state, row.location.country_code].filter(Boolean).join(", ")}</span>
+                                                </div>
+                                                <button
+                                                    className={styles.locationPillRemove}
+                                                    onClick={() => pickSessionLocation(row.key, null)}
+                                                    type="button"
+                                                    disabled={isSubmitting}
+                                                    aria-label={`Remove the place for centre ${idx + 1}`}
+                                                >
+                                                    <Icon icon="mdi:close" width={13} height={13} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                className={`${styles.locationPickerBtn} ${locationOpenFor === row.key ? styles.locationPickerBtnActive : ""}`}
+                                                onClick={() => setLocationOpenFor(
+                                                    open => (open === row.key ? null : row.key),
+                                                )}
+                                                type="button"
+                                                disabled={isSubmitting}
+                                            >
+                                                <Icon icon="mdi:map-search-outline" width={16} height={16} />
+                                                Search this centre&apos;s city or ground…
+                                            </button>
+                                        )}
+
+                                        {/* Full-screen search, portalled above
+                                            this modal. It closes itself on a
+                                            pick; the pill keeps its own
+                                            remove. */}
+                                        {locationOpenFor === row.key && (
+                                            <PostLocationPicker
+                                                value={row.location}
+                                                onChange={place => pickSessionLocation(row.key, place)}
+                                                onClose={() => setLocationOpenFor(null)}
+                                                disabled={isSubmitting}
+                                                bias={placeBias}
+                                            />
+                                        )}
+
+                                        <div className={styles.sessionExtras}>
+                                            <input
+                                                className={styles.fieldInput}
+                                                type="text"
+                                                maxLength={255}
+                                                placeholder="Venue name (optional)"
+                                                value={row.venueName}
+                                                onChange={e => updateSession(row.key, { venueName: e.target.value })}
+                                                disabled={isSubmitting}
+                                                aria-label={`Venue for centre ${idx + 1}`}
+                                            />
+                                            <input
+                                                className={styles.fieldInput}
+                                                type="url"
+                                                placeholder="Map link (optional)"
+                                                value={row.venueLink}
+                                                onChange={e => updateSession(row.key, { venueLink: e.target.value })}
+                                                disabled={isSubmitting}
+                                                aria-label={`Map link for centre ${idx + 1}`}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )
+                    })}
+
+                    {/* One day has nothing to add — that is the whole
+                        point of the card. */}
+                    {trialShape !== "single" && (
                         <button
                             type="button"
-                            className={styles.choiceChip}
-                            onClick={() => {
-                                const el = eventDateRef.current
-                                if (!el) return
-                                el.focus()
-                                if (typeof el.showPicker === "function") { try { el.showPicker() } catch { /* needs a user gesture on some engines */ } }
-                            }}
+                            className={styles.sessionAdd}
+                            onClick={addSession}
                             disabled={isSubmitting}
                         >
-                            <Icon icon="mdi:calendar-outline" width={13} height={13} />
-                            Pick a date
+                            <Icon icon="mdi:plus" width={14} height={14} />
+                            Add another {rowNoun}
                         </button>
-                    </div>
-                    <DateTimeField value={eventDate} onChange={v => { setEventDate(v); clearFieldError("event_date") }} onBlur={() => touchField("event_date")} disabled={isSubmitting} dateRef={eventDateRef} invalid={!!fieldErrors.event_date} />
+                    )}
+
+                    {renderFieldError("sessions")}
                     {renderFieldError("event_date")}
+
+                    {/* SEVERAL DAYS AT ONE GROUND is the only shape that
+                        leaves this open, and for it the question is always
+                        on — it no longer appears out of nowhere when a
+                        second row is added. One day has nothing to choose
+                        between, and several places is a pick-one by
+                        definition. */}
+                    {trialShape === "multi_day" && (
+                        <div className={styles.sessionModeBox} data-field="session_mode">
+                            {([
+                                {
+                                    value: "all" as SessionMode,
+                                    label: "Players attend every date",
+                                    hint: "One trial across several days. Applications close when the first date starts.",
+                                },
+                                {
+                                    value: "choose_one" as SessionMode,
+                                    label: "Players pick one date",
+                                    hint: "Each date is its own round — a city tour. Applications stay open until the last one.",
+                                },
+                            ]).map(option => (
+                                <label key={option.value} className={styles.sessionModeOption}>
+                                    <input
+                                        type="radio"
+                                        name="session_mode"
+                                        value={option.value}
+                                        checked={sessionMode === option.value}
+                                        onChange={() => setSessionMode(option.value)}
+                                        disabled={isSubmitting}
+                                    />
+                                    <span>
+                                        <strong>{option.label}</strong>
+                                        <small>{option.hint}</small>
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* No question to ask here — several centres IS a
+                        pick-one — but the consequence still has to be on
+                        screen, because it decides when applications close
+                        and what each applicant is asked to choose. */}
+                    {trialShape === "multi_place" && (
+                        <p className={styles.sessionHint}>
+                            <Icon icon="mdi:information-outline" width={14} height={14} />
+                            Players pick one centre.
+                        </p>
+                    )}
                 </div>
+                )}
                 <div className={styles.fieldGroup} data-field="application_deadline">
                     <label className={styles.fieldLabel}>{typeCfg.deadlineLabel} <span className={styles.optionalTag}>Optional</span></label>
                     {/* Relative to the event: that is how a recruiter thinks
                         about it, and it cannot land after the event. */}
                     <div className={styles.chipRow} role="group" aria-label="Deadline presets">
-                        {DEADLINE_PRESETS.map(pr => {
+                        {typeCfg.hasTrialDate && DEADLINE_PRESETS.map(pr => {
                             const v = eventDate ? daysBefore(eventDate, pr.days) : ""
                             return (
                                 <button
@@ -2527,6 +3145,34 @@ export default function CreateRecruitmentModal({
                     {renderFieldError("application_deadline")}
                 </div>
             </div>
+
+            {typeCfg.hasSessions && (
+                <>
+                    <div className={styles.sectionDivider} />
+
+                    <div className={styles.fieldGroup} data-field="auto_confirm">
+                        <label className={styles.fieldLabel}>
+                            <span className={styles.toggleRow}>
+                                Auto-confirm applicants
+                                <button
+                                    className={`${styles.toggleBtn} ${autoConfirm ? styles.toggleBtnOn : ""}`}
+                                    onClick={() => setAutoConfirm(v => !v)}
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    aria-pressed={autoConfirm}
+                                    aria-label="Auto-confirm applicants"
+                                >
+                                    <span className={styles.toggleKnob} />
+                                </button>
+                            </span>
+                        </label>
+                        <p className={styles.fieldSubLabel}>
+                            Everyone who applies is confirmed instantly and gets their trial pass.
+                        </p>
+                        {renderFieldError("auto_confirm")}
+                    </div>
+                </>
+            )}
 
             <div className={styles.sectionDivider} />
 
@@ -2601,6 +3247,9 @@ export default function CreateRecruitmentModal({
                         disabled={isSubmitting}
                     />
                 </div>
+                <p className={styles.fieldHelpNote}>
+                    Paste a Google Maps link to the exact ground, if you have one.
+                </p>
                 {renderFieldError("venue_link")}
             </div>
 
@@ -2624,9 +3273,72 @@ export default function CreateRecruitmentModal({
     )
 
     // ── 3. Who can come ───────────────────────────────────────────
+    // Positions sit mid-step for an open trial (optional, like today) and at
+    // the TOP, required, where the position is the whole posting.
+    const renderPositions = () => (
+        <>
+            {/* Positions — or why there are none to pick */}
+            {!hidden("positions") && positions.length === 0 && (
+                <div className={styles.fieldGroup}>
+                    <label className={styles.fieldLabelMuted}>Positions Needed</label>
+                    <p className={styles.emptyHint}>
+                        <Icon icon="mdi:information-outline" width={13} height={13} />
+                        {sportName
+                            ? `${sportName} doesn't have positions on Goatza yet — everyone applies to the same pool.`
+                            : "Pick a sport on the Basics step to choose positions."}
+                    </p>
+                </div>
+            )}
+            {!hidden("positions") && positions.length > 0 && (
+                <div className={styles.fieldGroup} data-field="positions">
+                    <label className={styles.fieldLabelMuted}>
+                        Positions Needed
+                        {typeCfg.positionsRequired && <> <span className={styles.required}>*</span></>}
+                    </label>
+                    <div className={styles.positionGrid}>
+                        {/* Any chip — not offered where a position is required:
+                            "any position" is not an answer to "who do you need?" */}
+                        {!typeCfg.positionsRequired && (
+                            <div className={`${styles.positionChip} ${anyPosition ? styles.positionChipSelected : ""}`}>
+                                <button
+                                    className={styles.positionChipBtn}
+                                    onClick={() => { setAnyPosition(true); setSelectedPositions([]) }}
+                                    type="button"
+                                    disabled={isSubmitting}
+                                >
+                                    {anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
+                                    Any
+                                </button>
+                            </div>
+                        )}
+                        {positions.map(p => {
+                            const sel = selectedPositions.find(sp => sp.position_id === p.id)
+                            return (
+                                <div key={p.id} className={`${styles.positionChip} ${sel && !anyPosition ? styles.positionChipSelected : ""}`}>
+                                    <button
+                                        className={styles.positionChipBtn}
+                                        onClick={() => { setAnyPosition(false); togglePosition(p.id, p.name) }}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                    >
+                                        {sel && !anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
+                                        {p.name}
+                                    </button>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    {renderFieldError("positions")}
+                </div>
+            )}
+        </>
+    )
+
     const renderWho = () => (
         <div className={styles.stepContent}>
             {stepIntro("who")}
+
+            {typeCfg.positionsRequired && renderPositions()}
 
             {/* Age policy */}
             <div className={styles.fieldGroup} data-field="age_categories">
@@ -2657,54 +3369,7 @@ export default function CreateRecruitmentModal({
                 />
             </div>
 
-            {/* Positions — or why there are none to pick */}
-            {!hidden("positions") && positions.length === 0 && (
-                <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabelMuted}>Positions Needed</label>
-                    <p className={styles.emptyHint}>
-                        <Icon icon="mdi:information-outline" width={13} height={13} />
-                        {sportName
-                            ? `${sportName} doesn't have positions on Goatza yet — everyone applies to the same pool.`
-                            : "Pick a sport on the Basics step to choose positions."}
-                    </p>
-                </div>
-            )}
-            {!hidden("positions") && positions.length > 0 && (
-                <div className={styles.fieldGroup} data-field="positions">
-                    <label className={styles.fieldLabelMuted}>Positions Needed</label>
-                    <div className={styles.positionGrid}>
-                        {/* Any chip */}
-                        <div className={`${styles.positionChip} ${anyPosition ? styles.positionChipSelected : ""}`}>
-                            <button
-                                className={styles.positionChipBtn}
-                                onClick={() => { setAnyPosition(true); setSelectedPositions([]) }}
-                                type="button"
-                                disabled={isSubmitting}
-                            >
-                                {anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
-                                Any
-                            </button>
-                        </div>
-                        {positions.map(p => {
-                            const sel = selectedPositions.find(sp => sp.position_id === p.id)
-                            return (
-                                <div key={p.id} className={`${styles.positionChip} ${sel && !anyPosition ? styles.positionChipSelected : ""}`}>
-                                    <button
-                                        className={styles.positionChipBtn}
-                                        onClick={() => { setAnyPosition(false); togglePosition(p.id, p.name) }}
-                                        type="button"
-                                        disabled={isSubmitting}
-                                    >
-                                        {sel && !anyPosition && <Icon icon="mdi:check" width={11} height={11} />}
-                                        {p.name}
-                                    </button>
-                                </div>
-                            )
-                        })}
-                    </div>
-                    {renderFieldError("positions")}
-                </div>
-            )}
+            {!typeCfg.positionsRequired && renderPositions()}
 
             {/* Who can attend — free-text lines */}
             <div className={styles.fieldGroup} data-field="eligibility_criteria">
@@ -2769,11 +3434,15 @@ export default function CreateRecruitmentModal({
                     placeholder="Tell players the full story…"
                     value={description}
                     onChange={e => { setDescription(e.target.value); clearFieldError("description") }}
+                    onPaste={handleDescriptionPaste}
                     rows={5}
-                    maxLength={3000}
+                    maxLength={DESCRIPTION_MAX}
                     disabled={isSubmitting}
                 />
-                <span className={styles.fieldHint}>{description.length}/3000</span>
+                <p className={styles.fieldHelpNote}>
+                    You can use **bold**, *italic* and - bullet points.
+                </p>
+                <span className={styles.fieldHint}>{description.length}/{DESCRIPTION_MAX}</span>
                 {renderFieldError("description")}
             </div>
 
@@ -2836,18 +3505,27 @@ export default function CreateRecruitmentModal({
                 )}
             </div>
 
-            <div className={styles.sectionDivider} />
+            {/* Application Questions — only the in-app flow ever asks them.
+                With "external" or "contact" the player never sees this form,
+                so offering the builder would be offering a setting that does
+                nothing. Anything already typed STAYS in state (and comes back
+                on a switch to Goatza); it is only hidden, and buildPayload
+                drops it from the request. */}
+            {applyMethod === "goatza" && (
+                <>
+                    <div className={styles.sectionDivider} />
 
-            {/* Application Questions */}
-            <div className={styles.fieldGroup} data-field="questions">
-                <label className={styles.fieldLabel}>
-                    Application Questions
-                    <span className={styles.fieldLabelMuted}> — optional</span>
-                </label>
-                <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
-                <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
-                {renderFieldError("questions")}
-            </div>
+                    <div className={styles.fieldGroup} data-field="questions">
+                        <label className={styles.fieldLabel}>
+                            Application Questions
+                            <span className={styles.fieldLabelMuted}> — optional</span>
+                        </label>
+                        <p className={styles.fieldSubLabel}>Ask applicants extra questions. For each one, pick how players should answer.</p>
+                        <QuestionBuilder questions={questions} onChange={setQuestions} disabled={isSubmitting} />
+                        {renderFieldError("questions")}
+                    </div>
+                </>
+            )}
 
             <div className={styles.sectionDivider} />
 
@@ -2945,7 +3623,7 @@ export default function CreateRecruitmentModal({
             {!isWide && (
                 <RecruitmentPreview
                     recruitment={previewRecruitment}
-                    dateLabel={typeCfg.dateLabel}
+                    dateLabel={typeCfg.hasTrialDate ? typeCfg.dateLabel : null}
                     onJump={target => jumpToField(PREVIEW_JUMP_FIELD[target])}
                 />
             )}
@@ -3053,9 +3731,13 @@ export default function CreateRecruitmentModal({
                         <span className={styles.previewStripText}>
                             <span className={styles.previewStripTitle}>{livePreview.title || "Untitled recruitment"}</span>
                             <span className={styles.previewStripSub}>
-                                {livePreview.event_date
-                                    ? dayjs(livePreview.event_date).format("ddd, D MMM")
-                                    : `No ${typeCfg.dateLabel.toLowerCase()} yet`}
+                                {!typeCfg.hasTrialDate
+                                    ? (livePreview.application_deadline
+                                        ? `Apply by ${dayjs(livePreview.application_deadline).format("ddd, D MMM")}`
+                                        : "No deadline")
+                                    : livePreview.event_date
+                                        ? dayjs(livePreview.event_date).format("ddd, D MMM")
+                                        : `No ${typeCfg.dateLabel.toLowerCase()} yet`}
                                 {livePreview.location_name ? ` · ${livePreview.location_name}` : " · No location"}
                             </span>
                         </span>
@@ -3091,7 +3773,7 @@ export default function CreateRecruitmentModal({
                         </p>
                         <RecruitmentPreview
                             recruitment={livePreview}
-                            dateLabel={typeCfg.dateLabel}
+                            dateLabel={typeCfg.hasTrialDate ? typeCfg.dateLabel : null}
                             onJump={target => jumpToField(PREVIEW_JUMP_FIELD[target])}
                             compact
                         />
@@ -3113,7 +3795,7 @@ export default function CreateRecruitmentModal({
                         <div className={styles.previewSheetBody}>
                             <RecruitmentPreview
                                 recruitment={livePreview}
-                                dateLabel={typeCfg.dateLabel}
+                                dateLabel={typeCfg.hasTrialDate ? typeCfg.dateLabel : null}
                                 onJump={target => { setPreviewSheetOpen(false); jumpToField(PREVIEW_JUMP_FIELD[target]) }}
                                 compact
                             />

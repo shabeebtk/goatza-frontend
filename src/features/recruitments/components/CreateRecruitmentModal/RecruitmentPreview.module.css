@@ -17,21 +17,28 @@
 
 /* ── Hero ─────────────────────────────────────────────────────── */
 
+/* The SAME frame RecruitmentHeroCarousel gives the real detail page: 4:5,
+   object-fit cover, and NO max-height.
+
+   It used to carry `max-height: 260px` (and 4:3 / 220px in compact), which is
+   what this preview existed to prevent. `aspect-ratio` sizes the height from
+   the width, so a height cap does not scale the box — it CROPS it: at a real
+   column width of ~308px a 4:5 frame is 385px tall, and capping that at 260px
+   left a landscape box showing a different slice of the photo than the one
+   players get. A preview whose framing disagrees with the published page is
+   worse than no preview, because the org approves it.
+
+   Nothing caps the height now. The preview column and the preview sheet both
+   scroll on their own, so a true-ratio poster costs a scroll, not a layout —
+   and a scroll is what a player does on the real page too. */
 .hero {
   position: relative;
   width: 100%;
-  /* The poster stage is 4:5; capped so the review step is not one photo. */
   aspect-ratio: 4 / 5;
-  max-height: 260px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--color-surface-raised);
   border: 1.5px solid var(--color-border);
-}
-
-.previewCompact .hero {
-  aspect-ratio: 4 / 3;
-  max-height: 220px;
 }
 
 .heroImg {
@@ -216,11 +223,16 @@
   overflow-wrap: anywhere;
 }
 
-.previewCompact .body {
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
+/* The description only. `-webkit-line-clamp` needs `display: -webkit-box`,
+   which would fight the block layout a rendered description is made of, so the
+   live preview clips at six lines of the same leading instead and fades the
+   cut so it reads as "there is more", not as a broken render. The full preview
+   (publish step, preview sheet) is not clamped. */
+.previewCompact .bodyClamp {
+  max-height: calc(6 * var(--leading-loose) * 1em);
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
 }
 
 .chips {

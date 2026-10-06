@@ -23,11 +23,13 @@ import type {
     RecruitmentSport,
     RecruitmentStatus,
 } from "../../services/recruitments.api"
+import { FALLBACK_TRIAL_TIME_ZONE } from "../../trialEnded"
 import type { RecruitmentDraft } from "./draft"
 import { localInputToISO } from "./wizardDate"
 
-/** The bits of the listing the draft does not know about. */
-export type PreviewContext = {
+/** The bits of the listing the draft does not know about. Module-private:
+ *  callers pass an object literal to draftToPreviewRecruitment. */
+type PreviewContext = {
     organization: RecruitmentOrganization
     /** The chosen sport, or null while none is picked. */
     sport: RecruitmentSport | null
@@ -61,7 +63,8 @@ export type PreviewRecruitment = Recruitment & {
     location_name: string
 }
 
-export const PREVIEW_ID = "preview"
+// Module-private: the id only matters inside the preview it names.
+const PREVIEW_ID = "preview"
 
 const PLACEHOLDER_SPORT: RecruitmentSport = { id: "", name: "", icon_name: "", icon_url: "" }
 
@@ -91,6 +94,11 @@ export function draftToPreviewRecruitment(
         city,
         applications_count: 0,
         event_date: localInputToISO(draft.eventDate) ?? "",
+        // The wizard has no timezone setter — the server copies the org's own
+        // onto the row. The preview's dates are the bare days just typed,
+        // which read the same in any zone within half a day of UTC, so the
+        // fallback here is honest rather than a guess at the org's zone.
+        timezone: FALLBACK_TRIAL_TIME_ZONE,
         created_at: ctx.createdAt ?? new Date().toISOString(),
         organization: ctx.organization,
         sport: ctx.sport ?? PLACEHOLDER_SPORT,
@@ -125,7 +133,11 @@ export function draftToPreviewRecruitment(
         contacts: draft.contacts
             .filter(c => c.value.trim())
             .map(c => ({ id: c.id, name: c.name.trim(), contact_type: c.contact_type, value: c.value.trim() })),
-        questions_count: draft.questions.filter(q => q.question.trim()).length,
+        // Only the in-app flow asks them, so only it counts them — same rule
+        // as `external_apply_url` above, and the same rule buildPayload sends.
+        questions_count: draft.applyMethod === "goatza"
+            ? draft.questions.filter(q => q.question.trim()).length
+            : 0,
         media_previews: ctx.mediaPreviews,
         location_name: draft.location?.name ?? "",
     }

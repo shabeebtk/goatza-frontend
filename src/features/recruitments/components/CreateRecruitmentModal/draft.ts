@@ -8,12 +8,17 @@
  */
 
 import type { PlaceResult } from "@/shared/services/places.service"
-import type { ApplyMethod } from "../../services/recruitments.api"
+import type { ApplyMethod, RecruitmentType, SessionMode } from "../../services/recruitments.api"
+import type { SessionDraft, TrialShape } from "./sessions"
 import type { AgeGroupDraft } from "../../eligibility"
 
-export type RecruitmentType = "open_trial" | "player_looking" | "direct_recruitment" | "scholarship"
+// The creatable union lives with the API types; re-exported so the wizard's
+// files keep importing their shapes from one place.
+export type { RecruitmentType }
 export type RecruitmentVisibility = "public" | "followers_only" | "private"
 export type RecruitmentGender = "male" | "female" | "all"
+// "select" is LEGACY, READ-ONLY: not offered in FIELD_TYPES, normalised to
+// "radio" by mapInitialQuestions, and kept only because stored rows have it.
 export type QuestionFieldType = "short_text" | "long_text" | "select" | "radio" | "checkbox" | "number"
 
 export type QuestionDraft = {
@@ -66,10 +71,28 @@ export type RecruitmentDraft = {
     visibility: RecruitmentVisibility
     gender: RecruitmentGender
     sportId: string
-    experienceLevel: string
     /** Wizard date value: "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM", or "". */
     applicationDeadline: string
+    /**
+     * The legacy single trial date. Still in the draft because the preview
+     * and the deadline rules read it, but an open trial's real dates are
+     * `sessions` and the server DERIVES event_date from the first of them.
+     */
     eventDate: string
+    /** The trial's dates. One row by default; an open trial needs one. */
+    sessions: SessionDraft[]
+    /**
+     * Which of the three formats this trial is — see sessions.ts. It decides
+     * the mode the payload sends, not just which fields the step shows.
+     *
+     * Optional because it is DERIVABLE: a draft without one falls back to
+     * `shapeFromSessions`, which reads the shape off the rows themselves.
+     */
+    trialShape?: TrialShape
+    /** Only meaningful for multi_day; the other shapes imply their mode. */
+    sessionMode: SessionMode
+    /** Open trial only. Everyone who applies is confirmed instantly. */
+    autoConfirm: boolean
     maxApplications: string
     isPaid: boolean
     feeAmount: string

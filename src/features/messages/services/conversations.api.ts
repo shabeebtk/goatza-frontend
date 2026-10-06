@@ -1,4 +1,5 @@
 import api from "@/core/api/axios"
+import type { RecruitmentTypeValue } from "@/features/recruitments/services/recruitments.api"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -41,8 +42,8 @@ export type SharedRecruitmentPreview =
       title: string
       org: SharedActorMini
       sport: string
-      /** recruitment_type, e.g. "open_trial". */
-      type: string
+      /** recruitment_type, e.g. "open_trial" — legacy values included. */
+      type: RecruitmentTypeValue
       /** RecruitmentStatus, e.g. "active" | "closed" | "cancelled". */
       status: string
       /** ISO 8601 or null. */

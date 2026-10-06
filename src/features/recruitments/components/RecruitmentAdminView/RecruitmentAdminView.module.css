@@ -78,3 +78,23 @@
   background: var(--color-brand);
   color: var(--color-on-brand);
 }
+
+.announceBtn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.announceBtn:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}

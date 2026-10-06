@@ -49,7 +49,7 @@ function EmptyState({
             {isOwn ? (
                 <>
                     <p className={styles.emptyBody}>
-                        Post open trials, private trials, or scholarship calls to find the best talent.
+                        Post an open trial, or say which players your squad is looking for.
                     </p>
                     <CreateRecruitmentTrigger>
                         {(open) => (
@@ -173,10 +173,12 @@ export default function RecruitmentsList({
     // ── Loading ───────────────────────────────────────────────────
     if (isLoading) {
         return (
-            <div className={styles.list}>
-                {Array.from({ length: 3 }).map((_, i) => (
-                    <RecruitmentCardSkeleton key={i} />
-                ))}
+            <div className={styles.wrapper}>
+                <div className={styles.list}>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <RecruitmentCardSkeleton key={i} />
+                    ))}
+                </div>
             </div>
         )
     }
@@ -233,12 +235,12 @@ export default function RecruitmentsList({
 
 
             <div className={styles.list}>
-                {displayItems.map((item) => (
+                {displayItems.map((item, i) => (
                     <RecruitmentCard
                         key={item.id}
                         recruitment={item}
                         showOrg={showOrg}
-                        ownerView={isOwn}
+                        index={i}
                     />
                 ))}
             </div>

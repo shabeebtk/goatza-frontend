@@ -67,10 +67,12 @@ export default function SavedRecruitmentsList() {
 
   if (isLoading) {
     return (
-      <div className={styles.list} aria-busy="true">
-        {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-          <RecruitmentCardSkeleton key={i} />
-        ))}
+      <div className={styles.wrapper} aria-busy="true">
+        <div className={styles.list}>
+          {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+            <RecruitmentCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     )
   }
@@ -102,8 +104,8 @@ export default function SavedRecruitmentsList() {
   return (
     <div className={styles.wrapper}>
       <div className={styles.list}>
-        {items.map((item) => (
-          <RecruitmentCard key={item.id} recruitment={item} />
+        {items.map((item, i) => (
+          <RecruitmentCard key={item.id} recruitment={item} index={i} />
         ))}
       </div>
 

@@ -12,7 +12,11 @@ import {
   type FetchMyApplicationsParams,
   type MyApplicationsResponse,
 } from "../services/recruitments.api"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query"
 import {
   createRecruitmentApi,
   updateRecruitmentApi,
@@ -21,8 +25,11 @@ import {
   fetchRecruitmentApplicantsApi,
   fetchApplicationDetailApi,
   withdrawApplicationApi,
+  submitTrialFeedbackApi,
   bulkUpdateApplicationStatusApi,
   updateApplicationStatusApi,
+  updateApplicationFeeApi,
+  bulkUpdateApplicationFeeApi,
   type CreateRecruitmentPayload,
   type RecruitmentPayload,
   type RecruitmentStatus,
@@ -31,6 +38,7 @@ import {
   type FetchRecruitmentApplicantsParams,
   type BulkStatusTarget,
   type SingleStatusTarget,
+  type TrialFeedbackPayload,
   type Recruitment,
   type RecruitmentDetail,
 } from "../services/recruitments.api"
@@ -51,6 +59,24 @@ export const recruitmentKeys = {
   // other way round) out of cache.
   discover: (actorKey: string, p: { max_distance_km?: number }) =>
     ["recruitments", "discover", actorKey, p] as const,
+}
+
+/**
+ * Every recruitment surface whose CONTENTS depend on the viewer's profile.
+ *
+ * Discover and the ranked "All" tab are scored from the four profile fields
+ * (sport, positions, birthdate, location) — sport alone is worth +40 of a ~100
+ * point scale — and the same four now key the server's own 10-minute cache, so
+ * a profile edit misses there and rebuilds. This is the client half of that:
+ * without it the query cache would keep serving the old payload, prompt and
+ * ranking included, until its own staleTime lapsed.
+ *
+ * Prefix keys on purpose: discover is additionally scoped by actor and by the
+ * distance filter, and every one of those variants is equally stale.
+ */
+export const invalidateProfileScoredRecruitments = (qc: QueryClient) => {
+  qc.invalidateQueries({ queryKey: ["recruitments", "discover"] })
+  qc.invalidateQueries({ queryKey: ["recruitments", "list"] })
 }
 
 export const applicantKeys = {
@@ -345,6 +371,15 @@ export const useRecruitmentApplicants = (
     status?: FetchRecruitmentApplicantsParams["status"]
     search?: string
     age_category?: string
+    fee_paid?: boolean
+    // How old they ARE, not the group they applied UNDER.
+    birth_year_min?: number
+    birth_year_max?: number
+    age_mismatch?: boolean
+    // What the PLAYER said about the trial, as opposed to `status` above,
+    // which is what the org decided.
+    self_outcome?: FetchRecruitmentApplicantsParams["self_outcome"]
+    sort?: FetchRecruitmentApplicantsParams["sort"]
   } = {}
 ) =>
   useInfiniteQuery<RecruitmentApplicantsResponse, Error>({
@@ -471,6 +506,97 @@ export const useUpdateApplicationStatus = () => {
       if (variables.recruitmentId) {
         queryClient.invalidateQueries({
           queryKey: ["recruitments", "applicants", variables.recruitmentId],
+        })
+      }
+    },
+  })
+}
+
+// ── Trial fee (org) ───────────────────────────────────────────
+//
+// Any org member may mark a fee. Both mutations invalidate the whole
+// applicants tree for the recruitment, the same way a status change does:
+// the flag shows on the row, and the fee filter's result set moves with it.
+
+export const useUpdateApplicationFee = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      feePaid,
+    }: {
+      applicationId: string
+      recruitmentId?: string
+      feePaid: boolean
+    }) => updateApplicationFeeApi(applicationId, feePaid),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: applicantKeys.detail(variables.applicationId),
+      })
+      if (variables.recruitmentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["recruitments", "applicants", variables.recruitmentId],
+        })
+      }
+    },
+  })
+}
+
+export const useBulkUpdateApplicationFee = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      recruitmentId,
+      applicationIds,
+      feePaid,
+    }: {
+      recruitmentId: string
+      applicationIds: string[]
+      feePaid: boolean
+    }) =>
+      bulkUpdateApplicationFeeApi(recruitmentId, { applicationIds, feePaid }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["recruitments", "applicants", variables.recruitmentId],
+      })
+    },
+  })
+}
+
+
+
+// ── The player's own account of a trial ───────────────────────
+//
+// INVALIDATE-ONLY, no optimistic flip: the same policy every other write here
+// follows (see statusTransitions.ts — the server stays authoritative and a 400
+// must never leave a flipped answer on screen).
+//
+// Both the list and the detail carry `can_give_feedback`, so both have to be
+// refetched or the prompt stays up next to the answer it just accepted.
+
+export const useSubmitTrialFeedback = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      payload,
+    }: {
+      applicationId: string
+      /** Present when submitted from the recruitment page, so that detail
+       *  (which embeds `my_application`) is refetched too. */
+      recruitmentId?: string
+      payload: TrialFeedbackPayload
+    }) => submitTrialFeedbackApi(applicationId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["recruitments", "my-applications"],
+      })
+      if (variables.recruitmentId) {
+        queryClient.invalidateQueries({
+          queryKey: recruitmentKeys.detail(variables.recruitmentId),
         })
       }
     },

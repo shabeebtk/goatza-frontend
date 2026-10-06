@@ -1,0 +1,158 @@
+/* ============================================================
+   GOATZA — StarRating
+   One control, input + display. Tokens only: it renders inside
+   a sheet on light and dark, and a hard-coded gold would be the
+   one wrong colour on the screen.
+   ============================================================ */
+
+.wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stars {
+  display: inline-flex;
+  align-items: center;
+  /* No gap: the 44px targets already carry their own padding, and a gap on
+     top of them pushes five stars past 360px. */
+  gap: 0;
+}
+
+/* ── The interactive star ─────────────────────────────────────
+   44×44 of TAP AREA whatever the glyph is. The padding is the target: the
+   icon can be 22px and the button is still a comfortable thumb-sized hit,
+   which is the whole reason the glyph size and the target size are separate
+   numbers here. */
+
+.star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  /* A tap must not select the neighbouring label or fire a double-tap zoom. */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.12s var(--ease-out);
+}
+
+.star:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Hover is an ENHANCEMENT ONLY — the fill preview lives in JS and every
+   state is reachable without it. Guarded so it never sticks on a phone,
+   where :hover latches after a tap. */
+@media (hover: hover) {
+  .star:not(:disabled):hover {
+    transform: scale(1.08);
+  }
+}
+
+.star:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+/* VISIBLE FOCUS, on the star itself rather than the group: the roving
+   tabindex means focus lands on one specific star and the ring has to say
+   which. */
+.star:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.starStatic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── The glyphs ───────────────────────────────────────────────
+   --color-warn, not a new gold: it is the palette's one "attention, not
+   alarm" hue and it already has a dark-mode value. */
+
+.filled { color: var(--color-warn); }
+.empty  { color: var(--color-border); }
+
+/* An outline star on dark needs more than the border token to read at all. */
+:root[data-theme="dark"] .empty {
+  color: var(--color-text-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .empty {
+    color: var(--color-text-muted);
+  }
+}
+
+/* ── The word ─────────────────────────────────────────────────
+   min-height RESERVES the line so picking a star does not shift the form
+   under the finger that is still on the screen. */
+
+.wordRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.25rem;
+  padding-left: 4px;
+}
+
+.word {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.clearBtn {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.clearBtn:hover { color: var(--color-text-primary); }
+
+.clearBtn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Sizes ────────────────────────────────────────────────────
+   The GLYPH size is a prop (see GLYPH in the component — Iconify renders an
+   inline svg and the codebase sizes it that way everywhere). Only `sm` gives
+   back tap area, and only because `sm` is the read-only/compact size that is
+   never tapped. */
+
+.sm .star,
+.sm .starStatic { min-width: 28px; min-height: 28px; }
+.sm .word { font-size: var(--text-xs); }
+
+.lg .word { font-size: var(--text-base); }
+
+/* Read-only is inline text, not a stack: it sits on a line in the drawer
+   next to the date and the claim. */
+.readOnly {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.readOnly .starStatic {
+  min-width: 0;
+  min-height: 0;
+  padding: 0 1px;
+}

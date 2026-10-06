@@ -5,7 +5,8 @@ import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "../PostLocationPicker/PostLocationPicker"
-import { useMyPostSports, useUpdatePost } from "@/features/posts/hooks/usePostMutations"
+import { CLEAR_SPORT, sportOptions, usePostSports } from "@/features/posts/hooks/usePostSports"
+import { useUpdatePost } from "@/features/posts/hooks/usePostMutations"
 import { getPostAspectRatio } from "@/features/posts/utils/media"
 import { posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
 import type { Post, PostMedia, PostVisibility, PostLocation, UpdatePostPayload } from "@/features/posts/services/posts.api"
@@ -128,7 +129,9 @@ interface EditPostModalProps {
 }
 
 export default function EditPostModal({ post, onClose }: EditPostModalProps) {
-  const { data: mySports } = useMyPostSports()
+  // The ACTOR's sports. An org's post is edited from the org's list, not
+  // from the sports of whoever is signed in behind it.
+  const { sports: actorSports } = usePostSports()
   const updatePost = useUpdatePost()
 
   const initialSportId = post.sport?.id ?? ""
@@ -148,15 +151,25 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
 
   const hasMedia = post.media.length > 0
 
-  // Always let the current sport be selectable, even if it's no longer in the
-  // actor's sport list.
-  const sportOptions = useMemo(() => {
-    const opts = (mySports ?? []).map((ms) => ({ id: ms.sport.id, name: ms.sport.name }))
-    if (post.sport && !opts.some((o) => o.id === post.sport!.id)) {
-      opts.unshift({ id: post.sport.id, name: post.sport.name })
-    }
-    return opts
-  }, [mySports, post.sport])
+  // The post's own sport stays selectable even when the actor has since
+  // dropped it — `sportOptions` puts it back rather than letting a save
+  // silently strip it. No preselect here: an edit starts from what the post
+  // actually says, never from a default.
+  const options = useMemo(
+    () =>
+      sportOptions(
+        actorSports,
+        sportId,
+        post.sport
+          ? {
+              id: post.sport.id,
+              name: post.sport.name,
+              icon: post.sport.icon_name || "mdi:trophy-outline",
+            }
+          : null
+      ),
+    [actorSports, sportId, post.sport]
+  )
 
   // Displayed location name (new pick → original → none).
   const displayLocationName =
@@ -275,21 +288,21 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
               <div className={shared.authorBadges}>
                 <VisibilityBtn value={visibility} onChange={setVisibility} />
 
-                {/* Sport select */}
-                {sportOptions.length > 0 && (
+                {/* Sport — the same badge-shaped picker the create
+                    composer uses; both read this stylesheet. */}
+                {options.length > 0 && (
                   <Select
                     className={shared.sportField}
                     size="sm"
                     aria-label="Tag a sport"
                     sheetTitle="Tag a sport"
-                    placeholder="Select sport"
+                    placeholder="Sport"
+                    leadingIcon="mdi:shape-outline"
                     value={sportId}
-                    onChange={setSportId}
-                    options={sportOptions.map((s) => ({
-                      value: s.id,
-                      label: s.name,
-                      icon: "mdi:trophy-outline",
-                    }))}
+                    onChange={(next) =>
+                      setSportId(next === CLEAR_SPORT ? "" : next)
+                    }
+                    options={options}
                   />
                 )}
 

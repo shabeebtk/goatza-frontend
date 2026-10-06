@@ -33,6 +33,9 @@ import { useEffect, useRef, useState } from "react"
 import { Icon } from "@iconify/react"
 
 import { useShareRecruitment } from "../../hooks/useShareRecruitment"
+import { recruitmentUrl } from "@/shared/services/recruitmentUrl"
+import { waLink } from "../../whatsapp/waLink"
+import { recruitmentShareMessage } from "../../whatsapp/whatsappTemplates"
 import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import styles from "./RecruitmentShareMenu.module.css"
 
@@ -152,6 +155,28 @@ export default function RecruitmentShareMenu({
               <Icon icon="mdi:link-variant" width={17} height={17} />
               Copy link
             </button>
+
+            {/* WhatsApp is the FALLBACK, and it sits below Goatza's own
+                share actions for exactly that reason. It carries the public
+                /r/<id> link so it opens for somebody with no account. */}
+            <a
+              role="menuitem"
+              className={styles.item}
+              href={waLink(
+                null,
+                recruitmentShareMessage({
+                  recruitmentTitle: title,
+                  orgName: orgName ?? "",
+                  url: recruitmentUrl(recruitmentId),
+                }),
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+            >
+              <Icon icon="mdi:whatsapp" width={17} height={17} />
+              Share on WhatsApp
+            </a>
 
             {canNativeShare && (
               <button

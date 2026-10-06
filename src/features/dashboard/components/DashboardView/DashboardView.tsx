@@ -34,7 +34,7 @@ const FUNNEL = [
   { key: "applied", label: "Applied", color: "#2563eb" },
   { key: "reviewing", label: "Reviewing", color: "#0891b2" },
   { key: "shortlisted", label: "Shortlisted", color: "#7c3aed" },
-  { key: "invited", label: "Invited", color: "#b45309" },
+  { key: "trial_confirmed", label: "Confirmed", color: "#b45309" },
   { key: "selected", label: "Selected", color: "var(--color-success)" },
 ] as const
 
@@ -257,8 +257,13 @@ function StatCard({
 
 /* ─────────────────────────  PIPELINE  ───────────────────────── */
 function PipelineCard({ pipeline }: { pipeline: PipelineCounts }) {
-  const max = Math.max(...FUNNEL.map((f) => pipeline[f.key]), 1)
-  const totalFunnel = FUNNEL.reduce((s, f) => s + pipeline[f.key], 0)
+  // `?? 0` throughout: the server zero-fills every status it still has
+  // choices for, so a missing key means a retired value — never a hole the
+  // funnel should render as NaN.
+  const stageCount = (key: string) => pipeline[key] ?? 0
+
+  const max = Math.max(...FUNNEL.map((f) => stageCount(f.key)), 1)
+  const totalFunnel = FUNNEL.reduce((s, f) => s + stageCount(f.key), 0)
 
   return (
     <Card className={styles.panel}>
@@ -271,7 +276,7 @@ function PipelineCard({ pipeline }: { pipeline: PipelineCounts }) {
       ) : (
         <ul className={styles.funnel}>
           {FUNNEL.map((f) => {
-            const count = pipeline[f.key]
+            const count = stageCount(f.key)
             const width = `${(count / max) * 100}%`
             return (
               <li key={f.key} className={styles.funnelRow}>
@@ -292,11 +297,16 @@ function PipelineCard({ pipeline }: { pipeline: PipelineCounts }) {
       <div className={styles.funnelFooter}>
         <span className={styles.mutedCount}>
           <Icon icon="mdi:close-circle-outline" width={13} height={13} />
-          {pipeline.rejected} rejected
+          {/* Both negative outcomes, plus any pre-backfill `rejected`
+              row still carrying the retired value. */}
+          {(pipeline.not_shortlisted ?? 0)
+            + (pipeline.not_selected ?? 0)
+            + (pipeline.rejected ?? 0)}{" "}
+          not selected
         </span>
         <span className={styles.mutedCount}>
           <Icon icon="mdi:undo-variant" width={13} height={13} />
-          {pipeline.withdrawn} withdrawn
+          {pipeline.withdrawn ?? 0} withdrawn
         </span>
       </div>
     </Card>

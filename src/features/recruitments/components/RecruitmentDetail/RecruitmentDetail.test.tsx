@@ -58,6 +58,9 @@ vi.mock("@/features/moderation/components/ReportSheet/ReportSheet", () => ({ def
 vi.mock("@/features/messages/components/ShareSheet/ShareSheet", () => ({ default: () => null }))
 vi.mock("../RecruitmentSharePreview/RecruitmentSharePreview", () => ({ default: () => null }))
 vi.mock("./ApplicationSheet", () => ({ default: () => null }))
+// Its own query too — announcements load themselves, and these tests are
+// about the detail page's own states, not the outbox.
+vi.mock("../AnnouncementList/AnnouncementList", () => ({ default: () => null }))
 // Its own query; the organiser tests assert the section's presence, not its rows.
 vi.mock("./LatestApplicants", () => ({
     default: ({ total }: { total: number }) => <div data-testid="latest-applicants">{total}</div>,
@@ -316,7 +319,9 @@ describe("RecruitmentDetail", () => {
         it("shows the status pill and when they applied", () => {
             renderDetail(applied)
 
-            expect(screen.getAllByText("Reviewing").length).toBeGreaterThan(0)
+            // Player-facing wording: reviewing and shortlisted both read
+            // "Under review" — the org's shortlist is private.
+            expect(screen.getAllByText("Under review").length).toBeGreaterThan(0)
             expect(screen.getByText(/You applied/)).toBeTruthy()
         })
 

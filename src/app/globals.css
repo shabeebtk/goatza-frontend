@@ -23,6 +23,7 @@
   --primitive-green-500: #00B562;
   --primitive-green-600: #009950;
   --primitive-green-700: #007a3d;
+  --primitive-green-800: #00622f;
 
   /* Neutral scale — warm-tinted grays */
   --primitive-neutral-0: #ffffff;
@@ -48,6 +49,13 @@
   /* Red / error */
   --primitive-red-400: #ff5538;
   --primitive-red-500: #e8462a;
+
+  /* Amber / warn — the two values --color-warn has always had, lifted into
+     the primitive layer so a surface that is dark in BOTH schemes (the
+     recruitment poster) can name the bright one directly. */
+  --primitive-amber-400: #e0a52e;
+  --primitive-amber-600: #c47a00;
+  --primitive-amber-700: #8a5600;
 
   /* Alpha greens — for subtle fills */
   --primitive-green-alpha-50: rgba(0, 181, 98, 0.05);
@@ -103,6 +111,21 @@
   --color-brand-glow: var(--primitive-green-alpha-300);
   /* shadow / glow */
 
+  /* ── Brand / warn that can carry TEXT.
+     --color-brand and --color-warn are picked to be FILLS and glyphs, and
+     neither can hold a label: --color-brand on --color-brand-subtle is
+     2.5:1 and --color-warn on its own 10% tint is 3.1:1, both in light
+     mode. These two are the same hues chosen for the other job — a label
+     on that tint, or a fill under --color-on-brand — so they go DARKER in
+     light and BRIGHTER in dark, which is the opposite of what -hover and
+     -active do. Every pair clears 4.8:1 in both schemes.
+
+     Use them for: a status label on a tinted strip, a warning line, and a
+     solid primary button that has to be read rather than just seen. */
+  --color-brand-strong: var(--primitive-green-700);
+  --color-brand-strong-hover: var(--primitive-green-800);
+  --color-warn-strong: var(--primitive-amber-700);
+
   /* ── Foreground on brand bg (button text etc.) */
   --color-on-brand: var(--primitive-neutral-0);
   /* dark text on green btn */
@@ -124,7 +147,7 @@
   /* Approaching, not yet critical — a deadline 2–7 days out. Kept distinct
      from --color-error so red keeps meaning "last day" and doesn't flatten
      into a general "hurry up" colour. */
-  --color-warn: #c47a00;
+  --color-warn: var(--primitive-amber-600);
 
   /* ── Chat read receipt (blue ticks)
      Deliberately the one blue in a green palette: "seen" is a universal
@@ -159,6 +182,41 @@
      reads on it (green-300 — the brand green itself is too dark on it). */
   --color-viewer-card: var(--primitive-neutral-850);
   --color-viewer-link: var(--primitive-green-300);
+
+  /* ── Recruitment poster card (always dark, for the same reason)
+     A full-bleed photo card with its text overlaid, so the overlay has to
+     stay readable over an image nobody vetted. The real uploads are
+     text-heavy posters and a good number of them are white or pale yellow,
+     which is the case every value below is set against.
+
+     Like the two viewer tokens above, these are deliberately NOT redefined
+     in the dark block: a photograph does not get a light scrim. Only the
+     surfaces OFF the poster follow the theme.
+
+     The ground is an R,G,B TRIPLET because the scrim is one colour at six
+     alphas down a gradient, and `rgba(var(--token), a)` is the only form
+     that works in every browser the app ships to. Contrast measured
+     against a PURE WHITE image behind the scrim:
+
+       --color-poster-text        on the 0.94 ground      17.1:1
+       --color-poster-text-muted  on the 0.94 ground       8.9:1
+       --color-poster-text        on a 0.14 white chip    11.1:1
+       --color-poster-accent      on the solid ground     10.5:1
+       --color-poster-accent      on a 0.14 white chip     6.0:1
+       --color-poster-warn        on the solid ground      8.9:1
+
+     Note what is NOT here: --color-brand on white is 2.7:1 and
+     --color-warn is 3.4:1, so the theme's own green and amber cannot
+     carry text on this card in light mode. The poster takes the
+     brightened pair in both schemes, exactly as its ground is dark in
+     both. */
+  --color-poster-ground-rgb: 8, 15, 9;
+  --color-poster-ink-rgb: 255, 255, 255;
+  --color-poster-text: var(--primitive-neutral-0);
+  --color-poster-text-muted: var(--primitive-neutral-300);
+  --color-poster-accent: var(--primitive-green-300);
+  --color-poster-accent-hover: var(--primitive-green-400);
+  --color-poster-warn: var(--primitive-amber-400);
 }
 
 /* ── 2b. SEMANTIC TOKENS — DARK MODE ───────────────────────── */
@@ -186,6 +244,11 @@
   --color-brand-muted: var(--primitive-green-alpha-180);
   --color-brand-glow: var(--primitive-green-alpha-300);
 
+  /* Brighter here, not darker — see the note in the light block. */
+  --color-brand-strong: var(--primitive-green-400);
+  --color-brand-strong-hover: var(--primitive-green-300);
+  --color-warn-strong: var(--primitive-amber-400);
+
   /* ── Foreground on brand bg */
   --color-on-brand: var(--primitive-ink-950);
   /* stays dark — green is light enough */
@@ -202,7 +265,7 @@
   /* ── Semantic states */
   --color-error: var(--primitive-red-400);
   --color-success: var(--primitive-green-400);
-  --color-warn: #e0a52e;
+  --color-warn: var(--primitive-amber-400);
 
   /* ── Chat read receipt — brightened so it still reads as blue against
      the darker bubble fills */

@@ -37,6 +37,14 @@
 .rejected    { color: var(--color-error);   background: rgba(232, 70, 42, 0.08); border-color: rgba(232, 70, 42, 0.30); }
 .withdrawn   { color: var(--color-text-muted); background: var(--color-surface-raised); border-color: var(--color-border); }
 
+/* The status split. `confirmed` ("come along to the trial") is good news but
+   not the award, so it is a deeper emerald OUTLINE — green family, yet never
+   mistaken for applied's light green or selected's solid pill. The two
+   negatives are neutral grey, never alarm-red: a 14-year-old reads these. */
+.confirmed      { color: #047857; background: rgba(4, 120, 87, 0.12); border-color: rgba(4, 120, 87, 0.45); }
+.notShortlisted,
+.notSelected    { color: var(--color-text-secondary); background: var(--color-surface-raised); border-color: var(--color-border); }
+
 /* The mockup is a dark-only sheet; on the light theme its literal amber/blue/
    violet inks fail against a pale pill, so the hues are kept and the INK is
    darkened. Dark theme takes the mockup's values as drawn. `data-theme` on
@@ -44,3 +52,4 @@
 :root[data-theme="dark"] .reviewing   { color: #f5b83d; }
 :root[data-theme="dark"] .shortlisted { color: #6fd3ff; }
 :root[data-theme="dark"] .invited     { color: #c9a6ff; }
+:root[data-theme="dark"] .confirmed   { color: #34d399; }
