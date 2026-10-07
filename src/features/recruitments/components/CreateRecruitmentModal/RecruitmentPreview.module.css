@@ -82,6 +82,85 @@
   letter-spacing: var(--tracking-wide);
 }
 
+/* ── Paging the hero ───────────────────────────────────────
+   “1/4” above a photo that never changed was a label for a carousel that
+   did not exist — the review step is the one place the org checks the
+   SET it just uploaded, and it could only ever see the first of them.
+
+   Arrows rather than a swipe track: the preview sits inside a modal that
+   already scrolls in both directions on a phone, and a horizontal drag
+   there fights the sheet. Both are hidden at the ends, so the control
+   that is showing is always one that does something. */
+
+.heroNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.heroNav:hover:not(:disabled) { background: rgba(0, 0, 0, 0.78); }
+
+.heroNavPrev { left: var(--space-3); }
+.heroNavNext { right: var(--space-3); }
+
+/* Drawn at 32px, tapped at 44px — the same deal every other small control
+   in the wizard gets. The button is already positioned, so the pseudo
+   anchors to it; it must never be given `position: relative` to “help”,
+   which is exactly what un-pinned the media carousel's own arrows. */
+.heroNav::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* The dots. Secondary to the arrows and tappable in their own right — with
+   five photos the org wants the last one, not four taps. */
+.heroDots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--space-2);
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+}
+
+.heroDot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast);
+  touch-action: manipulation;
+}
+
+.heroDotActive {
+  background: #fff;
+  transform: scale(1.35);
+}
+
+/* The scrim's title sits at the bottom too, so the dots need the room. */
+.heroScrimWithDots { padding-bottom: var(--space-6); }
+
 /* The grey band. A button: tapping it goes to the photos. */
 .heroEmpty {
   display: flex;

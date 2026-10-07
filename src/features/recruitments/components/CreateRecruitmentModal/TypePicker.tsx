@@ -20,6 +20,11 @@ import styles from "./CreateRecruitmentModal.module.css"
  * Above the cards, a faster start: the org's last five recruitments to
  * repeat, or — for an org with none — four seed templates. Either way the
  * user lands in the normal wizard with the fields filled; nothing is sent.
+ *
+ * While that list is in flight the block is a skeleton rather than nothing:
+ * the heading below it already says “Or start fresh”, and an “or” with
+ * nothing before it reads as a broken screen — then the cards jump down
+ * when the rows land.
  */
 export default function TypePicker({ onPick, onClone, onTemplate, past, pastLoading, cloning, disabled }: {
     onPick: (type: RecruitmentType) => void
@@ -36,7 +41,27 @@ export default function TypePicker({ onPick, onClone, onTemplate, past, pastLoad
 
     return (
         <div className={styles.stepContent}>
-            {!pastLoading && (
+            {pastLoading ? (
+                /* No title and no words: until the response lands we do not
+                   know whether this is the org's own history or the seed
+                   templates, and a heading that has to change once it knows
+                   is worse than none. */
+                <div className={styles.quickStart} aria-hidden="true">
+                    <span className={`${styles.quickStartSkeletonTitle} ${styles.quickStartShimmer}`} />
+                    <div className={styles.quickStartList}>
+                        {[0, 1, 2].map(i => (
+                            <div key={i} className={styles.quickStartSkeletonRow}>
+                                <span className={`${styles.quickStartSkeletonIcon} ${styles.quickStartShimmer}`} />
+                                <span className={styles.quickStartSkeletonText}>
+                                    <span className={`${styles.quickStartSkeletonLine} ${styles.quickStartSkeletonLabel} ${styles.quickStartShimmer}`} />
+                                    <span className={`${styles.quickStartSkeletonLine} ${styles.quickStartSkeletonSub} ${styles.quickStartShimmer}`} />
+                                </span>
+                                <span className={`${styles.quickStartSkeletonCta} ${styles.quickStartShimmer}`} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
                 <div className={styles.quickStart}>
                     <p className={styles.quickStartTitle}>
                         <Icon icon={hasHistory ? "mdi:history" : "mdi:lightning-bolt-outline"} width={14} height={14} />

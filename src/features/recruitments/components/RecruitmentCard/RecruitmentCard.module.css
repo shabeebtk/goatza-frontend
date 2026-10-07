@@ -101,16 +101,20 @@
 }
 
 /* ── No media ─────────────────────────────────────────────────
-   A 4:5 box holding a watermark and nothing else is WORSE than the card
-   it replaced — at phone width that is a 440px-tall empty rectangle. So
-   a row with no cover drops the ratio, takes a ~200px designed panel on
-   top and puts the same text block under it, on the same dark ground.
+   A FULL-BLEED 4:5 box holding a watermark and nothing else is WORSE
+   than the card it replaced — at phone width that is a 440px-tall empty
+   rectangle. So a card with no cover keeps its text block IN FLOW under
+   a designed panel rather than overlaid on one, on the same dark ground.
 
-   Mixed card heights down a vertical scroll are fine, and read as
-   intentional rather than broken. */
+   It keeps the RATIO, though. These cards sit directly beside cards that
+   do have a photo — in a rail, in a grid row, next to a 4:5 skeleton —
+   and one standing 50px taller than its neighbours reads as a bug, not
+   as a design. So the CARD is 4:5 either way and the PANEL is what
+   gives: it takes whatever the text block leaves, which at every width
+   this card renders at lands within a few pixels of the 200px it used
+   to be hard-coded to. */
 
 .cardNoMedia {
-  aspect-ratio: auto;
   justify-content: flex-start;
 }
 
@@ -127,12 +131,22 @@
 }
 
 /* The panel, when there is no photo: back in flow, a designed band on top
-   of the card rather than the whole of it. */
+   of the card rather than the whole of it.
+
+   `flex: 1 1 auto` and NO fixed height — the card's ratio sets the box and
+   the panel fills whatever the text does not want. Everything inside it is
+   absolutely positioned, so its natural height is 0 and it is also the only
+   thing here that can give: a title that runs to two lines, or a second
+   centre line, eats into the panel instead of pushing the card taller. */
 .cardNoMedia .media {
   position: relative;
   inset: auto;
+  flex: 1 1 auto;
+}
+
+/* ...and the text block never pays for it. */
+.cardNoMedia .content {
   flex: 0 0 auto;
-  height: 200px;
 }
 
 .mediaImg {
@@ -1004,7 +1018,11 @@
     letter-spacing: var(--tracking-wide);
   }
 
-  .content {
+  /* `.cardNoMedia .content` is pinned in the poster block so the panel is
+     what absorbs a long title there. It outranks a bare `.content`, so the
+     row has to name it too or the text column stops filling the card. */
+  .content,
+  .cardNoMedia .content {
     flex: 1;
     padding: 0;
   }

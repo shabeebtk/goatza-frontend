@@ -366,6 +366,15 @@
   line-height: var(--leading-loose);
 }
 
+/* The FULL description, which is the only long-form field in the wizard:
+   three headings and a few lines under each is the shape it asks for, and
+   90-200px showed about four of them through a letterbox. The tagline and
+   the payment note keep the small box — both are a sentence. */
+.fieldTextareaTall {
+  min-height: 210px;
+  max-height: 460px;
+}
+
 .fieldHint {
   font-family: var(--font-ui);
   font-size: 0.62rem;
@@ -2694,18 +2703,114 @@
   color: var(--color-brand);
 }
 
+/* ── Quick start, while the list is still being fetched ──────────
+   The block used to render nothing at all until the request came back,
+   which left the heading under it reading “Or start fresh” with no
+   “or” — a dangling half-sentence over an empty gap that then shoved
+   the type cards down when the rows arrived.
+
+   Three rows of the real shape instead, holding the real height. They
+   carry NO words on purpose: until the response lands we do not know
+   whether this block will be the org's own history or the seed
+   templates, and a title that has to change once it knows is worse
+   than no title. */
+
+.quickStartSkeletonTitle {
+  display: block;
+  width: 150px;
+  height: 11px;
+  border-radius: var(--radius-sm);
+}
+
+.quickStartSkeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.quickStartSkeletonRow:last-child { border-bottom: none; }
+
+.quickStartSkeletonIcon {
+  display: block;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+}
+
+.quickStartSkeletonText {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.quickStartSkeletonLine {
+  display: block;
+  height: 9px;
+  border-radius: var(--radius-sm);
+}
+
+/* The two lines are a bold label over a muted sub-line, so they are not
+   the same length — and the three rows are not identical either, or the
+   block reads as a pattern rather than as a list. */
+.quickStartSkeletonLabel { width: 58%; }
+.quickStartSkeletonSub   { width: 76%; }
+.quickStartSkeletonRow:nth-child(2) .quickStartSkeletonLabel { width: 46%; }
+.quickStartSkeletonRow:nth-child(2) .quickStartSkeletonSub   { width: 64%; }
+.quickStartSkeletonRow:nth-child(3) .quickStartSkeletonLabel { width: 66%; }
+.quickStartSkeletonRow:nth-child(3) .quickStartSkeletonSub   { width: 52%; }
+
+.quickStartSkeletonCta {
+  display: block;
+  width: 44px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* The same sweep the recruitment-card skeleton uses, so a slow connection
+   shows one loading idiom across the app rather than two. */
+@keyframes quickStartShimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.quickStartShimmer {
+  background: linear-gradient(90deg,
+      var(--color-surface) 25%,
+      var(--color-border) 50%,
+      var(--color-surface) 75%);
+  background-size: 800px 100%;
+  animation: quickStartShimmer 1.6s infinite linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickStartShimmer { animation: none; }
+}
+
 /* ── Small controls, full-size hit areas ──────────────────────── */
 /* The ✕ on a row, the asterisk toggle, the fee switch and the photo controls
    are drawn small on purpose (a 44px ✕ beside a 40px input reads as a second
    button). Their HIT AREA is 44px anyway: a pseudo-element extends the
    clickable box without moving anything around it. */
+/* NOT .previewRemoveBtn / .previewNav. Both are already `position: absolute`
+   in their own rules above, pinned to a corner of the photo, and this block
+   sits LATER in the file at the same specificity — so adding them here
+   silently reset them to `relative`, dropped them back into flow below the
+   image and let `.previewSlide`'s `overflow: hidden` clip them away. That is
+   why a photo had no ✕ and a three-photo carousel had no arrows. They need
+   nothing from this rule: a positioned element is already the containing
+   block for its own ::before. */
 .removeQBtn,
 .removeOptBtn,
 .locationPillRemove,
 .mandatoryToggle,
 .toggleBtn,
-.previewRemoveBtn,
-.previewNav,
 .benefitIconTrigger,
 .criteriaReorderBtn {
   position: relative;
