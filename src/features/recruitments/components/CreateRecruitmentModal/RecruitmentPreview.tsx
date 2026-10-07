@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import MarkdownLite from "../MarkdownLite/MarkdownLite"
@@ -21,6 +22,10 @@ import styles from "./RecruitmentPreview.module.css"
  *
  * Tapping a prompt jumps the wizard to the field (`onJump`). The card itself
  * is inert — its links and bookmark are the real ones and would navigate.
+ *
+ * The hero band pages through the WHOLE uploaded set. The card below it shows
+ * only the cover, because that is all a player's card ever shows; this is the
+ * one place the org gets to check the rest of what it just uploaded.
  */
 export type PreviewJumpTarget =
     | "photos" | "date" | "location" | "description" | "contact" | "tagline" | "deadline" | "title"
@@ -47,7 +52,14 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
         </button>
     )
 
-    const hero = r.media_previews[0]
+    // Which photo the hero band is showing. Clamped during render rather
+    // than corrected in an effect: the wizard's media list shrinks the
+    // moment the org removes a photo on the previous step, and an index
+    // past the end would paint one broken frame before any effect ran.
+    const [rawShot, setShot] = useState(0)
+    const shots = r.media_previews
+    const shot = shots.length > 0 ? Math.min(rawShot, shots.length - 1) : 0
+    const hero = shots[shot]
     const date = r.event_date ? dayjs(r.event_date).format("ddd, D MMM YYYY") : null
     const deadline = r.application_deadline ? dayjs(r.application_deadline).format("D MMM") : null
     const contacts = r.contacts
@@ -62,10 +74,44 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
                 <div className={styles.hero}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- local object URL / media-domain URL, no loader */}
                     <img src={hero} alt="" className={styles.heroImg} />
-                    {r.media_previews.length > 1 && (
-                        <span className={styles.heroCount}>1/{r.media_previews.length}</span>
+                    {shots.length > 1 && (
+                        <>
+                            <span className={styles.heroCount}>{shot + 1}/{shots.length}</span>
+                            {shot > 0 && (
+                                <button
+                                    type="button"
+                                    className={`${styles.heroNav} ${styles.heroNavPrev}`}
+                                    onClick={() => setShot(shot - 1)}
+                                    aria-label="Previous photo"
+                                >
+                                    <Icon icon="mdi:chevron-left" width={18} height={18} />
+                                </button>
+                            )}
+                            {shot < shots.length - 1 && (
+                                <button
+                                    type="button"
+                                    className={`${styles.heroNav} ${styles.heroNavNext}`}
+                                    onClick={() => setShot(shot + 1)}
+                                    aria-label="Next photo"
+                                >
+                                    <Icon icon="mdi:chevron-right" width={18} height={18} />
+                                </button>
+                            )}
+                            <div className={styles.heroDots}>
+                                {shots.map((_, i) => (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        className={`${styles.heroDot} ${i === shot ? styles.heroDotActive : ""}`}
+                                        onClick={() => setShot(i)}
+                                        aria-label={`Photo ${i + 1} of ${shots.length}`}
+                                        aria-current={i === shot || undefined}
+                                    />
+                                ))}
+                            </div>
+                        </>
                     )}
-                    <div className={styles.heroScrim}>
+                    <div className={`${styles.heroScrim} ${shots.length > 1 ? styles.heroScrimWithDots : ""}`}>
                         <span className={styles.heroTitle}>{r.title || "Untitled recruitment"}</span>
                     </div>
                 </div>

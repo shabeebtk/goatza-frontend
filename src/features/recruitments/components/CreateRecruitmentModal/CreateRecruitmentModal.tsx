@@ -1051,6 +1051,22 @@ const DEADLINE_PRESETS = [
     { label: "1 week before", days: 7 },
 ]
 
+/**
+ * What a deadline DATE means when no time is picked with it.
+ *
+ * Midday, not midnight and not end-of-day. A recruiter saying “closes on the
+ * 10th” means that morning's post, and a date-only value resolves to 23:59
+ * (wizardDate.ts) — so the listing kept taking applications all through the
+ * last evening, hours after the club had stopped reading them.
+ *
+ * It is a DEFAULT, not a floor: the time select beside the date still offers
+ * every half-hour, and “Time —” still clears it back to the whole day. Only
+ * the TRIAL date is left alone — a trial has a real kick-off time the
+ * recruiter knows, and guessing noon for it would be a wrong fact rather than
+ * a sensible default.
+ */
+const DEADLINE_DEFAULT_TIME = "12:00"
+
 // ── The trial's shape ─────────────────────────────────────────
 // Asked FIRST on the when & where step, because it decides what a date row
 // even asks for. Nothing signalled before this that a trial could be a city
@@ -1349,13 +1365,20 @@ function MediaPreview({ entries, onRemove, onCropEntry, disabled }: {
 // writes a single wizard value: "YYYY-MM-DD" (no time) or "YYYY-MM-DDTHH:MM".
 // Time is optional — the date alone is enough.
 
-function DateTimeField({ value, onChange, disabled, dateRef, onBlur, invalid }: {
+function DateTimeField({ value, onChange, disabled, dateRef, onBlur, invalid, defaultTime }: {
     value: string
     onChange: (v: string) => void
     disabled?: boolean
     dateRef?: React.RefObject<HTMLInputElement | null>
     onBlur?: () => void
     invalid?: boolean
+    /**
+     * The time a freshly-picked DATE gets when none has been chosen yet.
+     * Left off, a date alone stays a date alone — which is what the trial
+     * date wants. Never applied to a date that already carries a time, so
+     * it cannot overwrite a choice the user made.
+     */
+    defaultTime?: string
 }) {
     const datePart = value ? value.slice(0, 10) : ""
     const timePart = value.includes("T") ? value.slice(11, 16) : ""
@@ -1368,7 +1391,8 @@ function DateTimeField({ value, onChange, disabled, dateRef, onBlur, invalid }: 
 
     const setDate = (d: string) => {
         if (!d) { onChange(""); return }
-        onChange(timePart ? `${d}T${timePart}` : d)
+        const t = timePart || defaultTime || ""
+        onChange(t ? `${d}T${t}` : d)
     }
     const setTime = (t: string) => {
         if (!datePart) return
@@ -3118,12 +3142,16 @@ export default function CreateRecruitmentModal({
                         about it, and it cannot land after the event. */}
                     <div className={styles.chipRow} role="group" aria-label="Deadline presets">
                         {typeCfg.hasTrialDate && DEADLINE_PRESETS.map(pr => {
-                            const v = eventDate ? daysBefore(eventDate, pr.days) : ""
+                            const day = eventDate ? daysBefore(eventDate, pr.days) : ""
+                            // The preset is "which day", so it stays lit when
+                            // the recruiter then moves the time off midday.
+                            const v = day ? `${day}T${DEADLINE_DEFAULT_TIME}` : ""
+                            const active = !!day && applicationDeadline.slice(0, 10) === day
                             return (
                                 <button
                                     key={pr.label}
                                     type="button"
-                                    className={`${styles.choiceChip} ${v && applicationDeadline === v ? styles.choiceChipActive : ""}`}
+                                    className={`${styles.choiceChip} ${active ? styles.choiceChipActive : ""}`}
                                     onClick={() => { setApplicationDeadline(v); clearFieldError("application_deadline") }}
                                     disabled={isSubmitting || !eventDate}
                                     title={eventDate ? undefined : `Set the ${typeCfg.dateLabel.toLowerCase()} first`}
@@ -3141,7 +3169,7 @@ export default function CreateRecruitmentModal({
                             No deadline
                         </button>
                     </div>
-                    <DateTimeField value={applicationDeadline} onChange={v => { setApplicationDeadline(v); clearFieldError("application_deadline") }} onBlur={() => touchField("application_deadline")} disabled={isSubmitting} invalid={!!fieldErrors.application_deadline} />
+                    <DateTimeField value={applicationDeadline} onChange={v => { setApplicationDeadline(v); clearFieldError("application_deadline") }} onBlur={() => touchField("application_deadline")} disabled={isSubmitting} invalid={!!fieldErrors.application_deadline} defaultTime={DEADLINE_DEFAULT_TIME} />
                     {renderFieldError("application_deadline")}
                 </div>
             </div>
@@ -3430,12 +3458,12 @@ export default function CreateRecruitmentModal({
                 </div>
                 <textarea
                     ref={descriptionRef}
-                    className={styles.fieldTextarea}
+                    className={`${styles.fieldTextarea} ${styles.fieldTextareaTall}`}
                     placeholder="Tell players the full story…"
                     value={description}
                     onChange={e => { setDescription(e.target.value); clearFieldError("description") }}
                     onPaste={handleDescriptionPaste}
-                    rows={5}
+                    rows={11}
                     maxLength={DESCRIPTION_MAX}
                     disabled={isSubmitting}
                 />

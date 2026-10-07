@@ -15,6 +15,7 @@
 import type {
     Recruitment,
     RecruitmentAgeCategory,
+    RecruitmentCoverMedia,
     RecruitmentBenefit,
     RecruitmentContact,
     RecruitmentEligibilityCriteria,
@@ -73,6 +74,10 @@ export function draftToPreviewRecruitment(
     ctx: PreviewContext,
 ): PreviewRecruitment {
     const city = draft.location ? (draft.location.city || draft.location.name) : ""
+    const cover = ctx.mediaPreviews[0]
+    const coverMedia: RecruitmentCoverMedia | null = cover
+        ? { media_type: "image", file_url: cover, thumbnail_url: cover }
+        : null
     const ageCategories: RecruitmentAgeCategory[] = draft.allAges
         ? []
         : draft.ageCategories.map((g, idx) => ({
@@ -114,6 +119,19 @@ export function draftToPreviewRecruitment(
         gender: draft.gender,
         is_saved: false,
         is_trial_over: false,
+        // THE PHOTO THE CARD RENDERS. Without these two the review step
+        // showed the org a card with the no-cover panel on it — the sport
+        // watermark — however many photos they had just uploaded, under a
+        // heading reading “this is what players will see”, which was the one
+        // thing on that screen it had to get right.
+        //
+        // The first preview IS the cover (same rule the server applies to the
+        // uploaded set), and it is handed over as both the full file and the
+        // thumb because a local object URL has no second size. mediaDelivery
+        // passes `blob:` and `data:` through verbatim, which is what makes an
+        // un-uploaded pick renderable here at all.
+        cover_media: coverMedia,
+        media_count: ctx.mediaPreviews.length,
 
         description: draft.description.trim(),
         venue_link: draft.venueLink.trim(),

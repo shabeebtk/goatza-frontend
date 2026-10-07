@@ -86,8 +86,9 @@
    flush with the page gutter while still being fully scrollable. */
 .track {
   display: flex;
-  /* Each poster sizes itself from its own ratio, and a card with no cover
-     is deliberately shorter. Stretching would undo both. */
+  /* Every slide is the same width and every poster is 4:5, cover or no
+     cover, so the cards come out the same height on their own. Stretching
+     would fight the ratio for nothing. */
   align-items: flex-start;
   gap: var(--space-3);
   overflow-x: auto;
