@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useProgressiveSrc } from "@/shared/hooks/useProgressiveSrc"
@@ -16,8 +15,13 @@ import { summarizeAgeGroups } from "../../eligibility"
 import { formatDistance } from "../../matchContext"
 import { daysToApply, isAcceptingApplications } from "../../accepting"
 import { useToggleSaveRecruitment } from "../../hooks/useRecruitments"
-import { formatSessionDate, upcomingSessions } from "../../sessionDisplay"
-import { isTrialOver } from "../../trialEnded"
+import {
+  firstLiveSession,
+  formatInstant,
+  formatSessionDate,
+  upcomingSessions,
+} from "../../sessionDisplay"
+import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
 import { Recruitment } from "../../services/recruitments.api"
 
 // ── Variant ───────────────────────────────────────────────────
@@ -287,12 +291,26 @@ export default function RecruitmentCard({
   const fee = formatFee(recruitment)
   const ageFeeValue = [ageSummary, fee].filter(Boolean).join(" · ")
 
-  // The trial day if there is one; otherwise the deadline, said as a deadline.
-  const date = recruitment.event_date
-    ? dayjs(recruitment.event_date).format("ddd, D MMM")
-    : recruitment.application_deadline
-      ? `Apply by ${dayjs(recruitment.application_deadline).format("D MMM")}`
-      : null
+  // The trial day if there is one; otherwise the deadline, said as a
+  // deadline. BOTH read in THE VENUE's zone: a bare dayjs is the browser's
+  // (no timezone plugin is installed), which named the wrong calendar day for
+  // any trial abroad. The day comes off the first live SESSION — a date-only
+  // string and a wall clock, which cannot shift — and falls back to
+  // `event_date` only for a payload cached before sessions shipped.
+  const timeZone = recruitment.timezone || FALLBACK_TRIAL_TIME_ZONE
+  const opening = firstLiveSession(recruitment.sessions)
+  const trialDay = opening
+    ? formatSessionDate(opening.date, timeZone)
+    : formatInstant(recruitment.event_date, timeZone, {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      })
+  const deadlineDay = formatInstant(recruitment.application_deadline, timeZone, {
+    day: "numeric",
+    month: "short",
+  })
+  const date = trialDay ?? (deadlineDay ? `Apply by ${deadlineDay}` : null)
 
   // Informational, never prohibitive. Dropped when the pill already says it.
   const rawBadge = match?.eligibility_badge ?? null

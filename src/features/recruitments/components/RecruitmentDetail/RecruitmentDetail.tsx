@@ -66,7 +66,18 @@ import {
 } from "../../recruitmentCopy"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
-import { isTrialOver } from "../../trialEnded"
+import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
+import {
+  centreCities,
+  centresLine,
+  firstLiveSession,
+  formatInstant,
+  formatSessionDate,
+  formatSessionTime,
+  isMultiPlace,
+  liveSessions,
+  nearestCentreLine,
+} from "../../sessionDisplay"
 import TrialDatesList from "../TrialDatesList/TrialDatesList"
 import AnnouncementList from "../AnnouncementList/AnnouncementList"
 import type {
@@ -99,30 +110,27 @@ const ORG_STATUS_LABEL: Record<string, string> = {
 /** The one cell placeholder. A missing fact reads as "—", never as a zero. */
 const EMPTY = "—"
 
+/**
+ * A stamp ABOUT THE VIEWER — created, published, "you applied on".
+ *
+ * NOT for a trial date or a deadline. Bare dayjs is the browser's zone, and
+ * every date that belongs to the TRIAL belongs to the venue's: see
+ * `trialDay` / `deadlineLine` below, which read `r.timezone`. These three
+ * answer "when did this happen, on my clock", which is the one question the
+ * viewer's zone is the right answer to.
+ */
 function fmtDate(iso: string | null | undefined, fallback = EMPTY) {
   if (!iso) return fallback
   return dayjs(iso).format("D MMM YYYY")
 }
 
-/**
- * The time, or null when none was set.
- *
- * A "no time" date is stored at end-of-day (23:59); older rows used midnight
- * (00:00). Both mean "no time given" and must not render as a real 11:59 PM
- * kick-off.
- */
-function fmtTimeOrNull(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const d = dayjs(iso)
-  const noTime =
-    (d.hour() === 0 && d.minute() === 0) || (d.hour() === 23 && d.minute() === 59)
-  return noTime ? null : d.format("h:mm A")
-}
-
 function fmtDateTime(iso: string | null | undefined, fallback = EMPTY) {
   if (!iso) return fallback
-  const time = fmtTimeOrNull(iso)
-  return time ? `${fmtDate(iso)}, ${time}` : fmtDate(iso)
+  const d = dayjs(iso)
+  // A stamp with no time of day is a date that was never given one; these
+  // fields always carry a real moment, so this only guards a 00:00 row.
+  const noTime = d.hour() === 0 && d.minute() === 0
+  return noTime ? fmtDate(iso) : `${fmtDate(iso)}, ${d.format("h:mm A")}`
 }
 
 function fmtCount(n: number): string {
@@ -537,21 +545,60 @@ export default function RecruitmentDetail({
 
   const venuePrimary = r.venue_name?.trim() || r.city?.trim() || ""
 
+  // ── Where and when, read in THE VENUE's zone ─────────────────
+  // Every date below comes off a SESSION, not off `event_date`: a session
+  // carries a date-only string and a wall-clock time, which read correctly in
+  // any zone, where `event_date` is an instant with a 23:59 "no time given"
+  // sentinel that is only detectable on the clock it was written on.
+  const timeZone = r.timezone || FALLBACK_TRIAL_TIME_ZONE
+  const liveDates = liveSessions(r.sessions)
+  const opening = firstLiveSession(r.sessions)
+  // A city tour, not several days at one ground — see isMultiPlace. It is
+  // what makes the trial's own venue the wrong thing to put in the hero.
+  const multiPlace = isMultiPlace(r)
+
+  /**
+   * The trial day, as the ground reads it.
+   *
+   * The fallback is for a payload cached before sessions shipped, and it
+   * states the DAY only: the sentinel cannot be told from a real 11:59 pm
+   * kick-off without the zone the trial was saved in, and a wrong time is
+   * worse than no time on the one line a player plans around.
+   */
+  const trialDay = opening
+    ? formatSessionDate(opening.date, timeZone)
+    : formatInstant(r.event_date, timeZone, { day: "numeric", month: "short" })
+
+  /** "Sat 10 Oct, 9:00 am" — the day and, where there is one, the time. */
+  const trialLine = [trialDay, formatSessionTime(opening?.start_time)]
+    .filter(Boolean)
+    .join(", ") || null
+
+  /** The deadline — a real instant, so it genuinely converts. */
+  const deadlineLine = formatInstant(r.application_deadline, timeZone, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+
   // ── Facts strip ──────────────────────────────────────────────
   // Built as a list and filtered, so an absent fact collapses the grid rather
   // than leaving an empty cell (Part 1 §2).
   const facts: Fact[] = []
-  // event_date is the FIRST date. With more than one, the cell says so and
-  // TrialDatesList below carries the rest — the strip has one line per fact
-  // and a list of five dates is not a fact.
-  const dateCount = (r.sessions ?? []).filter(s => !s.is_cancelled).length
-  if (r.event_date) {
+  // The FIRST date. With more than one, the cell says so and TrialDatesList
+  // below carries the rest — the strip has one line per fact and a list of
+  // five dates is not a fact.
+  const dateCount = liveDates.length
+  if (trialDay) {
     facts.push({
       label: dateCount > 1 ? "First date" : "Trial",
-      value: dayjs(r.event_date).format("D MMM").toUpperCase(),
+      value: trialDay.toUpperCase(),
       sub: dateCount > 1
         ? `+${dateCount - 1} more`
-        : fmtTimeOrNull(r.event_date),
+        : formatSessionTime(opening?.start_time),
     })
   }
   if (asOrganiser && r.application_deadline) {
@@ -559,8 +606,23 @@ export default function RecruitmentDetail({
     // long is this live", not "where do I go".
     facts.push({
       label: "Closes",
-      value: dayjs(r.application_deadline).format("D MMM").toUpperCase(),
+      value: (
+        formatInstant(r.application_deadline, timeZone, {
+          day: "numeric",
+          month: "short",
+        }) ?? EMPTY
+      ).toUpperCase(),
       sub: countdown?.label.replace(/^Closes /, "") ?? null,
+    })
+  } else if (multiPlace) {
+    // A CITY TOUR has no one venue, and `venue_name` on it is either blank or
+    // one ground out of four — the right answer against the wrong place. What
+    // a player wants here is how many there are and which one they can reach;
+    // TrialDatesList below names every centre in full.
+    facts.push({
+      label: "Centres",
+      value: `${dateCount} centres`.toUpperCase(),
+      sub: nearestCentreLine(r) ?? centresLine(r),
     })
   } else if (venuePrimary) {
     facts.push({
@@ -591,9 +653,13 @@ export default function RecruitmentDetail({
     if (isPreview) chips.push({ label: "Preview" })
   }
 
+  // A tour is often pinned at no city of its own, so the line that would be
+  // blank names the first centre instead — "Kochi" is a better answer to
+  // "where is this?" than the org's headline, let alone nothing.
   const orgTagline = asOrganiser
     ? `Posted by you · ${fmtDate(r.published_at ?? r.created_at)}`
     : r.city?.trim() ||
+      centreCities(r)[0] ||
       r.organization.headline ||
       ""
 
@@ -800,7 +866,7 @@ export default function RecruitmentDetail({
         {r.application_deadline && (
           <div className={styles.kvRow}>
             <span className={styles.k}>Applications close</span>
-            <span className={styles.v}>{fmtDateTime(r.application_deadline)}</span>
+            <span className={styles.v}>{deadlineLine ?? EMPTY}</span>
           </div>
         )}
         {(r.applications_count ?? 0) > 0 && !asOrganiser && (
@@ -1067,7 +1133,7 @@ export default function RecruitmentDetail({
             <Icon icon="mdi:calendar-remove-outline" width={18} height={18} />
             <span>
               <b>This trial has ended.</b> The trial day was{" "}
-              {r.event_date ? fmtDate(r.event_date) : "before today"}; applications
+              {trialDay ?? "before today"}; applications
               are no longer taken.
             </span>
           </div>
@@ -1155,10 +1221,10 @@ export default function RecruitmentDetail({
                 </button>
               </div>
               <div className={styles.cardMeta}>
-                {r.event_date && (
+                {trialLine && (
                   <span>
                     <Icon icon="mdi:calendar" width={13} height={13} />
-                    Trial {fmtDateTime(r.event_date)}
+                    Trial {trialLine}
                   </span>
                 )}
                 {venuePrimary &&
@@ -1233,10 +1299,10 @@ export default function RecruitmentDetail({
                 </p>
               )}
               <div className={styles.cardMeta}>
-                {r.event_date && (
+                {trialLine && (
                   <span>
                     <Icon icon="mdi:calendar" width={13} height={13} />
-                    Trial {fmtDateTime(r.event_date)}
+                    Trial {trialLine}
                   </span>
                 )}
                 {venuePrimary &&

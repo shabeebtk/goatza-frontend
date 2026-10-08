@@ -105,6 +105,75 @@ export function initialSessionDrafts(): SessionDraft[] {
     return [newSessionDraft()]
 }
 
+/**
+ * The time a trial starts when the org picked a DAY and said nothing else.
+ *
+ * Trials are morning things — nobody runs one at midnight, which is what an
+ * empty time used to mean on screen. It is a default, not a rule: it is only
+ * ever written on the empty-date → has-date transition (`withDefaultStart`),
+ * so a time the org typed is never touched and one they cleared on purpose
+ * stays cleared.
+ */
+export const DEFAULT_SESSION_START = "07:00"
+
+/**
+ * Append a row, with the label the shape already implies.
+ *
+ * Several days at one ground are "Day 1", "Day 2" nine times in ten, and
+ * typing that is work the wizard can do. The first row is only labelled once
+ * there is a SECOND one to tell it apart from — a lone date needs no name —
+ * and a title the org wrote is never overwritten.
+ *
+ * The other two shapes get nothing: one day has no label field at all, and a
+ * centre is named after the place that is picked for it (`titleForPlace`).
+ */
+export function addSessionDraft(
+    drafts: SessionDraft[],
+    shape: TrialShape,
+): SessionDraft[] {
+    if (shape !== "multi_day") return [...drafts, newSessionDraft()]
+
+    const existing = drafts.length === 1 && !drafts[0].title.trim()
+        ? [{ ...drafts[0], title: "Day 1" }]
+        : drafts
+
+    return [
+        ...existing,
+        { ...newSessionDraft(), title: `Day ${drafts.length + 1}` },
+    ]
+}
+
+/**
+ * The label a centre gives itself: the CITY it is in, falling back to the
+ * place's own name.
+ *
+ * A city tour's rows are told apart by where they are, so the place that was
+ * picked for a row already answers "which one is this?" — and the city is the
+ * answer a player scanning the list is looking for, not the ground's name,
+ * which the venue line below it already carries.
+ */
+export function titleForPlace(place: PlaceResult): string {
+    return place.city.trim() || place.name.trim()
+}
+
+/**
+ * A picked place as a Google Maps link, in Google's own documented Maps URLs
+ * format — the coordinates are what resolve it, and `query_place_id` is what
+ * pins it to THIS ground rather than whatever else sits on the point.
+ *
+ * A place with no id (one mapped back off an older stored Location, which
+ * keeps no place id) sends the coordinates alone rather than an empty
+ * parameter.
+ */
+export function mapsLinkFor(place: PlaceResult): string {
+    const query = `${place.latitude},${place.longitude}`
+    const base = `https://www.google.com/maps/search/?api=1&query=${query}`
+    const placeId = place.external_id.trim()
+    return placeId
+        ? `${base}&query_place_id=${encodeURIComponent(placeId)}`
+        : base
+}
+
 /** "HH:MM:SS" from the API → "HH:MM" for an <input type="time">. */
 function toTimeInput(value: string | null): string {
     if (!value) return ""
@@ -222,6 +291,23 @@ export function withDateValue(draft: SessionDraft, value: string): SessionDraft 
     if (!value) return { ...draft, date: "", startTime: "" }
     const [date, time = ""] = value.split("T")
     return { ...draft, date, startTime: time }
+}
+
+/**
+ * The 7 AM default, applied to a row that just got its FIRST date.
+ *
+ * `before` is the row as it was, `after` the row the date control or a preset
+ * chip just produced. The transition is the whole rule: a row that already had
+ * a date is left alone, so clearing the time off a date sticks instead of
+ * springing back on the next keystroke, and a time the org set is never
+ * touched.
+ */
+export function withDefaultStart(
+    before: SessionDraft,
+    after: SessionDraft,
+): SessionDraft {
+    if (before.date || !after.date || after.startTime) return after
+    return { ...after, startTime: DEFAULT_SESSION_START }
 }
 
 /** A row as a wizard date value, so wizardDate does all the parsing. */

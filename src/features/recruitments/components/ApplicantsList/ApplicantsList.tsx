@@ -57,10 +57,16 @@ import type {
   SelfReportedOutcome,
   SessionMode,
   StatusChangeSkip,
+  TrialSession,
 } from "../../services/recruitments.api"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import ApplicantDetailDrawer from "../ApplicantDetailDrawer/ApplicantDetailDrawer"
-import { sessionOptionLabel } from "../../sessionDisplay"
+import {
+  formatSessionDate,
+  isMultiPlace,
+  liveSessions,
+  sessionOptionLabel,
+} from "../../sessionDisplay"
 import { useMessageApplicants } from "../../hooks/useAnnouncements"
 import { waLink } from "../../whatsapp/waLink"
 import { confirmedListMessage } from "../../whatsapp/whatsappTemplates"
@@ -382,6 +388,7 @@ function ApplicantRow({
 export default function ApplicantsList({
   recruitmentId,
   ageCategories = [],
+  sessions = [],
   recruitmentType,
   eventDate = null,
   hasFee = false,
@@ -393,6 +400,12 @@ export default function ApplicantsList({
   recruitmentId: string
   /** The recruitment's own age groups — empty when it is open to all ages. */
   ageCategories?: RecruitmentAgeCategory[]
+  /**
+   * The trial's dates, read for the CENTRE filter alone. Allowed to be
+   * empty: one date is nothing to filter by, and a payload without sessions
+   * simply shows no chip row.
+   */
+  sessions?: TrialSession[]
   /** Picks per-type wording, and whether the Result tab waits for a trial day. */
   recruitmentType?: RecruitmentTypeValue
   /** The trial day; with an open trial, results open on it. */
@@ -415,6 +428,9 @@ export default function ApplicantsList({
   const noteId = useId()
   const [view, setView] = useState<ListView>("screening")
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("all")
+  // WHICH CENTRE, on a trial that visits several. "all" is the absence of a
+  // filter, not a value the server knows — the same contract groupFilter has.
+  const [centreFilter, setCentreFilter] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [openApplicationId, setOpenApplicationId] = useState<string | null>(null)
@@ -497,6 +513,29 @@ export default function ApplicantsList({
     // same value taken in the right place.
     isTrialDayAhead(eventDate, undefined, timezone)
 
+  /**
+   * THE CENTRES, for the chip row.
+   *
+   * Every live date, in the order the posting lists them — deliberately NOT
+   * `upcomingSessions`: an org works through yesterday's applicants for days
+   * afterwards, and a chip that disappeared at midnight would hide them.
+   *
+   * Labelled by PLACE where the places differ and by DATE where they do not.
+   * `isMultiPlace` is that test: two rounds at one ground would otherwise
+   * give two chips both reading "Corporation Stadium", which chooses
+   * nothing, while four cities is exactly what the person holding the list
+   * is standing in.
+   */
+  const centres = useMemo(() => liveSessions(sessions), [sessions])
+  const centresDiffer = useMemo(() => isMultiPlace({ sessions }), [sessions])
+  const centreLabel = useCallback(
+    (session: TrialSession) =>
+      (centresDiffer
+        ? session.city?.trim() || session.venue_name?.trim()
+        : "") || formatSessionDate(session.date, timezone),
+    [centresDiffer, timezone]
+  )
+
   // Debounce search (mirrors ConversationsList).
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -509,7 +548,8 @@ export default function ApplicantsList({
   // selfOutcome is in here: narrowing the list changes WHICH rows are on
   // screen, and a selection carried across that would mark people the org can
   // no longer see.
-  const viewKey = `${view}|${groupFilter}|${debouncedSearch}|${selfOutcome}`
+  const viewKey =
+    `${view}|${groupFilter}|${centreFilter}|${debouncedSearch}|${selfOutcome}`
   const [selectionViewKey, setSelectionViewKey] = useState(viewKey)
   if (selectionViewKey !== viewKey) {
     setSelectionViewKey(viewKey)
@@ -528,6 +568,7 @@ export default function ApplicantsList({
     status: viewStatuses,
     search: debouncedSearch || undefined,
     age_category: groupFilter === "all" ? undefined : groupFilter,
+    session: centreFilter === "all" ? undefined : centreFilter,
     fee_paid:
       !showFeeColumn || feeFilter === "all"
         ? undefined
@@ -601,6 +642,7 @@ export default function ApplicantsList({
 
   const filtersActive =
     groupFilter !== "all"
+    || centreFilter !== "all"
     || debouncedSearch.length > 0
     || feeFilter !== "all"
     || rangeActive
@@ -825,6 +867,37 @@ export default function ApplicantsList({
               title={formatBirthYears(group.min_birth_year, group.max_birth_year)}
             >
               {group.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* CENTRE chips — THE GATE LIST. The staff standing at the Kozhikode
+          ground want the Kozhikode players; the other three cities are
+          somebody else's morning, and scrolling past them at a gate with a
+          queue in front of you is the whole problem.
+
+          Only where there is more than one date to choose between, and the
+          backend ignores a session id it doesn't own, so a stale chip can
+          never wrongly empty the list. */}
+      {centres.length > 1 && (
+        <div className={styles.chipRow}>
+          <button
+            className={`${styles.chip} ${centreFilter === "all" ? styles.chipActive : ""}`}
+            onClick={() => setCentreFilter("all")}
+            type="button"
+          >
+            All centres
+          </button>
+          {centres.map((session) => (
+            <button
+              key={session.id}
+              className={`${styles.chip} ${centreFilter === session.id ? styles.chipActive : ""}`}
+              onClick={() => setCentreFilter(session.id)}
+              type="button"
+              title={formatSessionDate(session.date, timezone)}
+            >
+              {centreLabel(session)}
             </button>
           ))}
         </div>

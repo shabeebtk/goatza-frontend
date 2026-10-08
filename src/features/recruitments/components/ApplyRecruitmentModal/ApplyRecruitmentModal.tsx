@@ -37,6 +37,7 @@ import type {
   ApplyAnswerPayload,
 } from "../../services/recruitments.api"
 import {
+  isMultiPlace,
   sessionOptionLabel,
   sessionsByDistance,
   upcomingSessions,
@@ -115,6 +116,9 @@ export default function ApplyRecruitmentModal({
   // VENUE's calendar, so a date is offered for exactly as long as the ground
   // it is at would still call it today.
   const needsSession = recruitment.session_mode === "choose_one"
+  // A CITY TOUR, not two Saturdays at one ground: it changes the noun this
+  // form asks with, and nothing else about it.
+  const multiPlace = isMultiPlace(recruitment)
   // The clock lives inside upcomingSessions, the same way isTrialOver owns
   // its own `now` — reading it in the component body is an impure call
   // during render.
@@ -602,19 +606,29 @@ export default function ApplyRecruitmentModal({
 
               {/* Which DATE — only when each date is its own round. Sits
                   above the age group because the city is the thing a player
-                  on a tour decides first. */}
+                  on a tour decides first.
+
+                  On a tour the noun changes: four grounds in four cities are
+                  not four dates, and "which date" asks the player to answer
+                  with the wrong thing. `isMultiPlace` is the test — two
+                  Saturdays at one stadium is still a date. */}
               {needsSession && (
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Which date will you attend? <span className={styles.required}>*</span>
+                    {multiPlace
+                      ? "Which centre will you attend?"
+                      : "Which date will you attend?"}{" "}
+                    <span className={styles.required}>*</span>
                   </label>
                   {noDatesLeft ? (
                     <p className={styles.ageHint}>No dates left on this trial.</p>
                   ) : (
                     <Select
-                      aria-label="Trial date"
-                      sheetTitle="Trial date"
-                      placeholder="— Select a date —"
+                      aria-label={multiPlace ? "Trial centre" : "Trial date"}
+                      sheetTitle={multiPlace ? "Trial centre" : "Trial date"}
+                      placeholder={
+                        multiPlace ? "— Select a centre —" : "— Select a date —"
+                      }
                       value={sessionId}
                       onChange={(id) => {
                         setSessionId(id)

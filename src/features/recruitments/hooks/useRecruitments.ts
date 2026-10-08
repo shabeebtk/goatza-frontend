@@ -371,6 +371,9 @@ export const useRecruitmentApplicants = (
     status?: FetchRecruitmentApplicantsParams["status"]
     search?: string
     age_category?: string
+    // WHICH CENTRE they picked — a trial session id. In the query key, so
+    // each centre's gate list is its own cached page.
+    session?: string
     fee_paid?: boolean
     // How old they ARE, not the group they applied UNDER.
     birth_year_min?: number

@@ -2847,7 +2847,12 @@
 
 /* The type picker's cards, three across instead of two and stacked on a
    phone. Everything else about them (.typeCard and its parts) is reused
-   as-is — this is the same question in the same voice, one step in. */
+   as-is — this is the same question in the same voice, one step in.
+
+   FULL WIDTH of the step, never a column of .fieldRow: the modal is 620px
+   with --space-6 gutters, so a full-width row gives each card ~184px and
+   half a row gave it ~90px — three cards one word per line. The chooser is
+   rendered above the row for that reason; see renderWhenWhere. */
 .shapeGrid {
   display: grid;
   grid-template-columns: 1fr;
@@ -2855,9 +2860,14 @@
   margin-bottom: var(--space-3);
 }
 
-@media (min-width: 640px) {
+/* 680px, not the usual 640: below it the modal is still shrinking with the
+   viewport and three 180px tracks would overflow it. The minmax floor is
+   what makes that true rather than hoped for — a track that cannot hold
+   180px is not drawn, and the grid keeps the phone's single column instead
+   of squeezing three cards into the space of one. */
+@media (min-width: 680px) {
   .shapeGrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
 }
 
@@ -3017,6 +3027,52 @@
 }
 
 .sessionExtras > * { flex: 1 1 160px; min-width: 0 }
+
+/* END TIME — off until asked for. A second bare time box under the start
+   time read as a duplicate of it, so it is a quiet text button until the
+   org wants one, and labelled once it is there. */
+.sessionEndTime {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sessionEndTimeLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.sessionEndTimeInput {
+  width: 130px !important;
+  flex: none !important;
+  font-size: var(--text-sm) !important;
+  padding: 7px var(--space-3) !important;
+}
+
+/* .sessionAdd's shape without its dashed box: this one reveals a field
+   inside a row, it does not add a row. */
+.sessionEndAdd {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color var(--duration-base);
+}
+
+.sessionEndAdd:hover:not(:disabled) {
+  color: var(--color-brand);
+}
+
+.sessionEndAdd:disabled { opacity: 0.4; cursor: not-allowed }
 
 .sessionCancelled {
   font-size: var(--text-xs);

@@ -26,6 +26,7 @@ import type {
 } from "../../services/recruitments.api"
 import { FALLBACK_TRIAL_TIME_ZONE } from "../../trialEnded"
 import type { RecruitmentDraft } from "./draft"
+import { liveSessions, shapeFromSessions } from "./sessions"
 import { localInputToISO } from "./wizardDate"
 
 /** The bits of the listing the draft does not know about. Module-private:
@@ -167,7 +168,14 @@ export type MissingItem = { key: "photos" | "deadline" | "location" | "contact" 
 export function missingFromDraft(draft: RecruitmentDraft, mediaCount: number): MissingItem[] {
     const out: MissingItem[] = []
     if (mediaCount === 0) out.push({ key: "photos", label: "No photos — listings with a photo get opened far more" })
-    if (!draft.location) out.push({ key: "location", label: "No location — players nearby won't find it" })
+    // SEVERAL PLACES has no trial-level location — every centre carries its
+    // own and the step never asks for one, so the nudge reads the rows. Read
+    // off the trial otherwise, which is where those two shapes keep it.
+    const shape = draft.trialShape ?? shapeFromSessions(draft.sessions)
+    const hasPlace = shape === "multi_place"
+        ? liveSessions(draft.sessions).some(row => row.location !== null)
+        : draft.location !== null
+    if (!hasPlace) out.push({ key: "location", label: "No location — players nearby won't find it" })
     if (!draft.applicationDeadline) out.push({ key: "deadline", label: "No deadline — applications stay open until the event" })
     if (!draft.description.trim()) out.push({ key: "description", label: "No full description" })
     if (!draft.shortDesc.trim()) out.push({ key: "tagline", label: "No card tagline" })
