@@ -43,7 +43,6 @@
 import { useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -53,7 +52,18 @@ import { recruitmentDetailPath } from "@/shared/services/recruitmentUrl"
 import { useAuthStore } from "@/store/auth.store"
 import { formatBirthYears, formatReportingTime } from "../../eligibility"
 import { formatCountdown } from "../../countdown"
-import { isTrialOver } from "../../trialEnded"
+import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
+import {
+  centreCities,
+  centresLine,
+  firstLiveSession,
+  formatInstant,
+  formatSessionDate,
+  formatSessionTime,
+  isMultiPlace,
+  liveSessions,
+  nearestCentreLine,
+} from "../../sessionDisplay"
 import {
   APPLY_METHOD_LABEL,
   BENEFIT_ICONS,
@@ -69,28 +79,19 @@ import styles from "./PublicRecruitmentView.module.css"
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function fmtDate(iso: string | null | undefined): string | null {
-  return iso ? dayjs(iso).format("D MMM YYYY") : null
-}
-
 /**
- * The time, or null when none was set. A "no time" date is stored at end-of-day
- * (23:59); older rows used midnight. Both mean "no time given" and must not
- * render as a real 11:59 PM kick-off. Same rule as RecruitmentDetail.
+ * NO DATE HELPERS HERE, and that is the fix rather than an omission.
+ *
+ * Every date on this page belongs to the TRIAL, so every one of them is read
+ * in the venue's own zone off `r.timezone` — see `trialDay` / `deadlineLine`
+ * in the component. A bare `dayjs(iso)` is the BROWSER's zone (no timezone
+ * plugin is installed), and the "no time given" sentinel it used to test for
+ * was written at the venue: a London trial with no kick-off time rendered as
+ * "4:29 AM" the next day for an Indian reader.
+ *
+ * This page has no viewer-side stamp at all — nothing on it is "posted on",
+ * because an anonymous reader has no application and no provenance rows.
  */
-function fmtTimeOrNull(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const d = dayjs(iso)
-  const noTime =
-    (d.hour() === 0 && d.minute() === 0) || (d.hour() === 23 && d.minute() === 59)
-  return noTime ? null : d.format("h:mm A")
-}
-
-function fmtDateTime(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const time = fmtTimeOrNull(iso)
-  return time ? `${fmtDate(iso)}, ${time}` : fmtDate(iso)
-}
 
 /**
  * "Free" / "₹200", never a hard-coded symbol: the currency is the recruiter's,
@@ -193,10 +194,38 @@ export default function PublicRecruitmentView({
   const eligibilityCriteria = r.eligibility_criteria ?? []
 
   const fee = formatFee(r)
-  // How many dates are still on. event_date is the first of them.
-  const liveDateCount = (r.sessions ?? []).filter(x => !x.is_cancelled).length
+
+  // ── Where and when, read in THE VENUE's zone ─────────────────
+  // Off a SESSION, never off `event_date`: a session carries a date-only
+  // string and a wall-clock time, which read correctly in any zone.
+  const timeZone = r.timezone || FALLBACK_TRIAL_TIME_ZONE
+  const liveDateCount = liveSessions(r.sessions).length
+  const opening = firstLiveSession(r.sessions)
+  // A city tour rather than several days at one ground — see isMultiPlace.
+  const multiPlace = isMultiPlace(r)
+
+  // The fallback states the DAY only (a payload cached before sessions
+  // shipped): the sentinel cannot be told from a real 11:59 pm kick-off
+  // without the zone it was saved in, and a wrong time is worse than none.
+  const trialDay = opening
+    ? formatSessionDate(opening.date, timeZone)
+    : formatInstant(r.event_date, timeZone, { day: "numeric", month: "short" })
+  const trialTime = formatSessionTime(opening?.start_time)
+
+  /** The deadline — a real instant, so it genuinely converts. */
+  const deadlineLine = formatInstant(r.application_deadline, timeZone, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 
   const venuePrimary = r.venue_name?.trim() || r.city?.trim() || ""
+  // A tour is often pinned at no city of its own, so the line under the org
+  // name names the first centre rather than falling straight to the handle.
+  const locationLine = r.city?.trim() || centreCities(r)[0] || ""
 
   // `status` is owner-only and never on this payload, so
   // `is_accepting_applications` — the server's single public verdict over
@@ -269,7 +298,7 @@ export default function PublicRecruitmentView({
             <span className={styles.orgText}>
               <span className={styles.orgName}>{r.organization.name}</span>
               <span className={styles.orgSub}>
-                {r.city?.trim() || `@${r.organization.username}`}
+                {locationLine || `@${r.organization.username}`}
               </span>
             </span>
           </Link>
@@ -279,24 +308,35 @@ export default function PublicRecruitmentView({
       {/* ── Facts strip. Built as a list and filtered, so an absent fact
              collapses the grid rather than leaving an empty cell. ── */}
       <div className={styles.facts}>
-        {r.event_date && (
+        {trialDay && (
           <div className={styles.fact}>
-            {/* event_date is the FIRST date. TrialDatesList below carries
-                the rest whenever there is more than one. */}
+            {/* The FIRST date. TrialDatesList below carries the rest
+                whenever there is more than one. */}
             <span className={styles.factK}>{liveDateCount > 1 ? "First date" : "Trial"}</span>
-            <b className={styles.factV}>
-              {dayjs(r.event_date).format("D MMM").toUpperCase()}
-            </b>
-            {(liveDateCount > 1 || fmtTimeOrNull(r.event_date)) && (
+            <b className={styles.factV}>{trialDay.toUpperCase()}</b>
+            {(liveDateCount > 1 || trialTime) && (
               <small className={styles.factSub}>
-                {liveDateCount > 1
-                  ? `+${liveDateCount - 1} more`
-                  : fmtTimeOrNull(r.event_date)}
+                {liveDateCount > 1 ? `+${liveDateCount - 1} more` : trialTime}
               </small>
             )}
           </div>
         )}
-        {venuePrimary && (
+        {/* A CITY TOUR has no one venue, and `venue_name` on it is either
+            blank or one ground out of four. How many there are and which
+            cities they are in is the fact; TrialDatesList names them all.
+            An anonymous reader gets no distance — the server has nowhere to
+            measure from — so this is always the city list here. */}
+        {multiPlace ? (
+          <div className={styles.fact}>
+            <span className={styles.factK}>Centres</span>
+            <b className={styles.factV}>{`${liveDateCount} centres`.toUpperCase()}</b>
+            {(nearestCentreLine(r) ?? centresLine(r)) && (
+              <small className={styles.factSub}>
+                {nearestCentreLine(r) ?? centresLine(r)}
+              </small>
+            )}
+          </div>
+        ) : venuePrimary && (
           <div className={styles.fact}>
             <span className={styles.factK}>Venue</span>
             <b className={styles.factV}>{venuePrimary.toUpperCase()}</b>
@@ -330,7 +370,7 @@ export default function PublicRecruitmentView({
           <Icon icon="mdi:calendar-remove-outline" width={18} height={18} />
           <span>
             <b>This trial has ended.</b> The trial day was{" "}
-            {r.event_date ? dayjs(r.event_date).format("D MMM YYYY") : "before today"};
+            {trialDay ?? "before today"};
             applications are no longer taken.
           </span>
         </div>
@@ -454,11 +494,11 @@ export default function PublicRecruitmentView({
       <section className={styles.section}>
         <Sect>Details</Sect>
         <div className={styles.kvList}>
-          {(r.city || r.location_name) && (
+          {(locationLine || r.location_name) && (
             <div className={styles.kvRow}>
               <span className={styles.k}>Location</span>
               <span className={styles.v}>
-                {[r.location_name, r.city, r.country_code].filter(Boolean).join(", ")}
+                {[r.location_name, locationLine, r.country_code].filter(Boolean).join(", ")}
               </span>
             </div>
           )}
@@ -477,7 +517,7 @@ export default function PublicRecruitmentView({
           {r.application_deadline && (
             <div className={styles.kvRow}>
               <span className={styles.k}>Applications close</span>
-              <span className={styles.v}>{fmtDateTime(r.application_deadline)}</span>
+              <span className={styles.v}>{deadlineLine}</span>
             </div>
           )}
           {(r.applications_count ?? 0) > 0 && (

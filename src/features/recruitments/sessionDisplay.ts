@@ -42,6 +42,173 @@ type VenueContext = {
 }
 
 /**
+ * A recruitment as the WHOLE-TRIAL questions below read it: its own venue,
+ * plus the dates that may each have one of their own.
+ *
+ * `nearest_session` is served by the LIST endpoint only. The detail payload
+ * answers the same question differently — a `distance_km` on every centre —
+ * so `nearestCentre` reads whichever one it is handed. Both are absent for an
+ * anonymous reader, who has no location for the server to measure from.
+ */
+type TrialContext = VenueContext & {
+    sessions?: TrialSession[]
+    nearest_session?: (TrialSession & { distance_km?: number | null }) | null
+}
+
+/**
+ * A real INSTANT — a deadline, a close time — as the clock at the venue read
+ * it, which is the only clock the trial's own copy ever refers to.
+ *
+ * Separate from `formatSessionDate` because the two take different things. A
+ * session's `date` is a calendar day with no instant behind it and its
+ * `start_time` is a wall clock; a deadline is a UTC moment that genuinely has
+ * to be converted. Converting the first pair is the bug this file exists to
+ * stop, and NOT converting this one is the bug it exists to stop next.
+ *
+ * `Intl` rather than dayjs: no dayjs timezone plugin is installed, so a bare
+ * `dayjs(iso)` silently renders the BROWSER's zone — a London trial closing
+ * at 6 pm reads as 11:30 pm to an Indian viewer.
+ */
+export function formatInstant(
+    iso: string | null | undefined,
+    timeZone: string,
+    options: Intl.DateTimeFormatOptions,
+): string | null {
+    if (!iso) return null
+    const parsed = new Date(iso)
+    if (Number.isNaN(parsed.getTime())) return null
+    return new Intl.DateTimeFormat("en-GB", { timeZone, ...options }).format(
+        parsed,
+    )
+}
+
+/** Dates that still count: not cancelled. Order untouched. */
+export function liveSessions(
+    sessions: TrialSession[] | undefined,
+): TrialSession[] {
+    if (!sessions) return []
+    return sessions.filter(session => !session.is_cancelled)
+}
+
+/**
+ * THE DATE THE TRIAL STARTS ON, as a session — the earliest live one.
+ *
+ * This is what every "Trial · 10 OCT" fact should be built from rather than
+ * `event_date`. They name the same day, but a session carries a date-only
+ * string and a wall-clock time, which the zone-aware formatters above read
+ * correctly; `event_date` is an instant with a 23:59 "no time given"
+ * sentinel buried in it, written in the VENUE's zone and therefore
+ * undetectable on the reader's clock.
+ */
+export function firstLiveSession(
+    sessions: TrialSession[] | undefined,
+): TrialSession | null {
+    const [first] = liveSessions(orderedSessions(sessions))
+    return first ?? null
+}
+
+/**
+ * How a centre is IDENTIFIED for the purpose of "is this one place or four":
+ * its resolved venue name, or the city when it has no name of its own.
+ *
+ * Lower-cased and trimmed, so "Corporation Stadium" and "corporation
+ * stadium " are one ground. Deliberately NOT the coordinates: two rows at
+ * one stadium can carry two different pins and still be one place to a
+ * player deciding where to travel.
+ */
+function centreKey(session: TrialSession): string {
+    const venue = session.venue_name?.trim() || session.city?.trim() || ""
+    return venue.toLowerCase()
+}
+
+/**
+ * A CITY TOUR rather than several days at one ground.
+ *
+ * Two or more live dates that do not all resolve to the same place. The row
+ * count alone cannot answer this — a screening round and a final at one
+ * stadium are two dates and one venue — and `session_mode` cannot either: a
+ * tour is `choose_one`, but so is "pick whichever of our two Saturdays suits
+ * you" at a single ground.
+ *
+ * It is what decides whether the hero's "Venue" fact is a fact at all, and
+ * whether the apply form asks for a date or a CENTRE.
+ */
+export function isMultiPlace(recruitment: TrialContext): boolean {
+    const live = liveSessions(recruitment.sessions)
+    if (live.length < 2) return false
+    return new Set(live.map(centreKey)).size > 1
+}
+
+/** Every city a tour visits, in date order, each one once. */
+export function centreCities(recruitment: TrialContext): string[] {
+    const seen = new Set<string>()
+    const cities: string[] = []
+    for (const session of liveSessions(orderedSessions(recruitment.sessions))) {
+        const city = session.city?.trim() || session.venue_name?.trim() || ""
+        if (!city) continue
+        const key = city.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        cities.push(city)
+    }
+    return cities
+}
+
+/**
+ * "Kochi · Kozhikode · Kannur…" — where a tour goes, for one line under the
+ * centre count.
+ *
+ * Three and then an ellipsis: the facts strip gives this a single line, and
+ * TrialDatesList directly below it lists every centre in full, so the job
+ * here is to say "it is these kinds of places", not to be the list.
+ */
+export function centresLine(recruitment: TrialContext): string | null {
+    const cities = centreCities(recruitment)
+    if (cities.length === 0) return null
+    const shown = cities.slice(0, 3).join(" · ")
+    return cities.length > 3 ? `${shown}…` : shown
+}
+
+/**
+ * THE CENTRE THIS READER CAN ACTUALLY GET TO, with its distance.
+ *
+ * Prefers the server's own answer (`nearest_session`, on the list payload)
+ * and otherwise picks the closest measured centre off `sessions`, which is
+ * how the DETAIL payload carries the same information. Null when nothing was
+ * measured — an anonymous reader, or a trial whose centres have no
+ * coordinates — and null must read as nothing: an unknown distance is not a
+ * short one.
+ */
+export function nearestCentre(
+    recruitment: TrialContext,
+): (TrialSession & { distance_km?: number | null }) | null {
+    const served = recruitment.nearest_session
+    if (served && served.distance_km != null) return served
+
+    const measured = liveSessions(recruitment.sessions).filter(
+        session => session.distance_km != null,
+    )
+    if (measured.length === 0) return null
+    return sessionsByDistance(measured)[0] ?? null
+}
+
+/**
+ * "Nearest: Kozhikode · 12 km" — the one line a player on a four-city tour
+ * wants, in place of a list of cities they have to measure themselves.
+ *
+ * The place is named BEFORE the number, because "12 km" answers nothing
+ * until you know 12 km to where. Null whenever nothing was measured, and the
+ * caller falls back to `centresLine`.
+ */
+export function nearestCentreLine(recruitment: TrialContext): string | null {
+    const centre = nearestCentre(recruitment)
+    if (!centre || centre.distance_km == null) return null
+    const place = centre.city?.trim() || centre.venue_name?.trim()
+    if (!place) return null
+    return `Nearest: ${place} · ${formatDistance(centre.distance_km)}`
+}
+
+/**
  * "Sat 10 Oct" — a date as THE VENUE reads it.
  *
  * `timeZone` is required and deliberately has no default: this is the
@@ -203,11 +370,23 @@ export function orderedSessions(
     })
 }
 
-/** The one line that says how a multi-date trial is attended. */
+/**
+ * The one line that says how a multi-date trial is attended.
+ *
+ * `multiPlace` changes the NOUN, not the rule. "Pick one date" is true of a
+ * city tour and useless to a player reading it: the dates are not what they
+ * are choosing between — four grounds in four cities are — and the one they
+ * can reach is the only question they have. Callers pass `isMultiPlace(r)`.
+ */
 export function sessionModeLine(
     mode: "all" | "choose_one" | undefined,
+    multiPlace = false,
 ): string | null {
-    if (mode === "choose_one") return "Pick one date when you apply"
+    if (mode === "choose_one") {
+        return multiPlace
+            ? "Pick one centre when you apply"
+            : "Pick one date when you apply"
+    }
     if (mode === "all") return "Attend all dates"
     return null
 }

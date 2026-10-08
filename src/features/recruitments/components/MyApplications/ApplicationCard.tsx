@@ -183,8 +183,13 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
 
   // Context for the feedback prompt: the city and the date they went on, so
   // "How did the trial go?" names WHICH trial without a second line of prose.
+  //
+  // THEIR centre's city, not the trial's. A city tour is pinned at one of the
+  // places it visits (or at none), so a Kannur player was being asked about
+  // "Kochi · Sat 10 Oct" — the right date against the wrong ground, on the
+  // one prompt whose whole job is to name which trial it means.
   const feedbackSubtitle = [
-    r.city,
+    session?.city?.trim() || r.city,
     session ? formatSessionDate(session.date, timeZone) : null,
   ]
     .filter(Boolean)

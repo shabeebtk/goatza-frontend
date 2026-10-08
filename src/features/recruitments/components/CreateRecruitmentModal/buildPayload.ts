@@ -44,6 +44,19 @@ export function buildPayload(
     // "looking for players" post there is nothing to delete.
     const hasSessions = TYPE_CONFIG[recruitmentType].hasSessions
 
+    // WHICH SHAPE this trial is. A draft that carries no shape has it read
+    // back off its rows — a row with its own venue is a centre, which makes
+    // the trial a city tour whatever the draft forgot to say.
+    const shape = trialShape ?? shapeFromSessions(sessions)
+
+    // SEVERAL PLACES has no trial-level ground: every centre carries its own,
+    // and the step hides the trial's location and venue fields entirely. A
+    // value left behind by a switch INTO this shape must not ride along — it
+    // would put a second, wrong venue on the listing and a pin in the wrong
+    // city. The venue keys go out EMPTY rather than omitted, because an
+    // omitted key on an update leaves whatever is already stored in place.
+    const perCentreVenues = hasSessions && shape === "multi_place"
+
     return {
         title: title.trim(),
         short_description: shortDesc.trim(),
@@ -71,13 +84,9 @@ export function buildPayload(
         // The SHAPE decides the mode, not the row count: several centres
         // are always a pick-one, and one date is always "all". Only
         // multi_day leaves the question open, and there `sessionMode` is
-        // the org's own answer. A draft that carries no shape has it read
-        // back off its rows.
+        // the org's own answer.
         session_mode: hasSessions
-            ? sessionModeForShape(
-                trialShape ?? shapeFromSessions(sessions),
-                sessionMode,
-            )
+            ? sessionModeForShape(shape, sessionMode)
             : undefined,
         auto_confirm: hasSessions ? autoConfirm : undefined,
         max_applications: maxApplications ? Number(maxApplications) : undefined,
@@ -91,9 +100,13 @@ export function buildPayload(
         // active), and an edit ONLY when it is publishing a saved draft. An
         // edit of a live recruitment sends no status key at all.
         ...(submitStatus ? { status: submitStatus } : {}),
-        venue_name: venueName.trim() || undefined,
-        venue_link: venueLink.trim() || undefined,
-        location: location ? {
+        venue_name: perCentreVenues ? "" : (venueName.trim() || undefined),
+        venue_link: perCentreVenues ? "" : (venueLink.trim() || undefined),
+        // `location` has no null in the payload type, so a city tour simply
+        // sends no location key. The wizard is the other half of this rule:
+        // entering "several places" clears the trial's own place, so there is
+        // nothing stale left to send.
+        location: location && !perCentreVenues ? {
             // provider + external_id are NEW here: this payload used to drop
             // the place id entirely, so every recruitment minted its own
             // Location row and none of them could ever be refreshed by id.

@@ -120,6 +120,7 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
           <ApplicantsList
             recruitmentId={recruitmentId}
             ageCategories={recruitment?.age_categories ?? []}
+            sessions={recruitment?.sessions ?? []}
             recruitmentType={recruitment?.recruitment_type}
             eventDate={recruitment?.event_date ?? null}
             timezone={recruitment?.timezone}

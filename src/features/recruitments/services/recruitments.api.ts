@@ -1117,6 +1117,16 @@ export type FetchRecruitmentApplicantsParams = {
   search?: string
   // Age-group id. The backend ignores an id it doesn't own, same as status.
   age_category?: string
+  /**
+   * WHICH CENTRE they said they were coming to — a trial session id, on a
+   * trial that visits several. The gate list: the staff at the Kozhikode
+   * ground want the Kozhikode players and nobody else.
+   *
+   * Same leniency as `age_category`: the backend ignores an id this
+   * recruitment does not own, so a stale chip can never wrongly empty the
+   * list.
+   */
+  session?: string
   /** Whether the trial fee was collected. Absent means no filter. */
   fee_paid?: boolean
   /**

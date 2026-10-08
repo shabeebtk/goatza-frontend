@@ -21,6 +21,7 @@ import type { Recruitment, RecruitmentDetail } from "../../services/recruitments
 import {
     formatSessionDate,
     formatSessionTimeRange,
+    isMultiPlace,
     orderedSessions,
     sessionModeLine,
     sessionPlace,
@@ -41,7 +42,12 @@ export default function TrialDatesList({ recruitment, className }: Props) {
     // Fewer than two dates: the facts strip already covers it.
     if (sessions.length < 2) return null
 
-    const modeLine = sessionModeLine(recruitment.session_mode)
+    // On a city tour "pick one date" is true and useless — the dates are not
+    // what a player is choosing between, the grounds are.
+    const modeLine = sessionModeLine(
+        recruitment.session_mode,
+        isMultiPlace(recruitment),
+    )
 
     return (
         <section className={`${styles.wrap} ${className ?? ""}`} aria-label="Trial dates">
