@@ -64,8 +64,12 @@ import {
     addSessionDraft,
     firstSession,
     initialSessionDrafts,
+    liveSessions,
     mapsLinkFor,
     sessionDateValue,
+    sessionLabel,
+    sessionModeForShape,
+    sessionRef,
     sessionsFromApi,
     shapeFromSessions,
     titleForPlace,
@@ -214,6 +218,11 @@ function newAgeGroup(year: number, displayOrder: number): AgeGroupDraft {
         title: "",
         min_birth_year: year - 18,
         max_birth_year: year - 17,
+        // Both of these open EMPTY, which is what keeps the common case
+        // light: "" inherits the trial's gender and [] runs at every date,
+        // so a group nobody touched asks the org nothing.
+        gender: "",
+        sessionKeys: [],
         reporting_time: "",
         showReportingTime: false,
         display_order: displayOrder,
@@ -326,6 +335,12 @@ function mapInitialAgeCategories(r: RecruitmentDetail): AgeGroupDraft[] {
             title: c.title,
             min_birth_year: c.min_birth_year,
             max_birth_year: c.max_birth_year,
+            // null on the wire is the wizard's "" — inherit the trial's.
+            gender: c.gender ?? "",
+            // A STORED date's handle IS its id, which is exactly what the
+            // session rows will send back as their `ref` (see `sessionRef`),
+            // so the links survive the round trip unchanged.
+            sessionKeys: c.session_ids ?? [],
             reporting_time: rt.value,
             showReportingTime: rt.show,
             display_order: idx,
@@ -476,12 +491,44 @@ function StepBar({ step, labels, onStepClick, disabled }: {
 
 // ── Age Category Builder ──────────────────────────────────────
 
-function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAgesChange }: {
+/**
+ * "U15" + male → "U15 Boys". The words the auto-title uses, and the same
+ * two the preview's summary uses (`summarizeAgeGroups`).
+ */
+function titleWithGender(base: string, gender: AgeGroupDraft["gender"]): string {
+    if (gender === "male") return `${base} Boys`
+    if (gender === "female") return `${base} Girls`
+    // "all" and "" both mean "whoever the trial takes" — the plain preset.
+    return base
+}
+
+function AgeCategoryBuilder({
+    categories,
+    onChange,
+    disabled,
+    allAges,
+    onAllAgesChange,
+    trialGender,
+    sessions,
+    trialShape,
+    sessionMode,
+}: {
     categories: AgeGroupDraft[]
     onChange: (cats: AgeGroupDraft[]) => void
     disabled: boolean
     allAges: boolean
     onAllAgesChange: (v: boolean) => void
+    /**
+     * The trial's own gender. The per-group chips only appear when this is
+     * `all`: under a boys-only or girls-only trial every group inherits, and
+     * asking the org to say so again on each row is three taps for nothing
+     * — which the server would reject anyway if they answered the other way.
+     */
+    trialGender: RecruitmentGender
+    /** The trial's dates, for the "Runs at" pills. */
+    sessions: SessionDraft[]
+    trialShape: TrialShape
+    sessionMode: SessionMode
 }) {
     // Leaving "specific groups" throws away whatever was authored, so ask
     // first — but only when there is actually something to lose.
@@ -489,6 +536,29 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
     // Fixed for this mount — the presets it produces must not shift under a
     // form that is half filled in.
     const [thisYear] = useState(currentYear)
+    /**
+     * The title THIS BUILDER last wrote by itself, per row: the preset it
+     * came from (`base`) and the exact string that was written (`value`).
+     *
+     * It is what keeps the auto-title from ever overwriting the org. A title
+     * is only rewritten while it still equals `value` — the moment anyone
+     * types in the field that stops being true and the row's title is theirs
+     * for good.
+     */
+    const [autoTitles, setAutoTitles] = useState<
+        Record<string, { base: string; value: string }>
+    >({})
+
+    // WHETHER THE PLAYER PICKS A DATE AT ALL. Both halves matter: the mode
+    // (a tour, not one trial across several days) and there being more than
+    // one date to choose between. Either one missing and "Runs at" says
+    // nothing, so it is not on screen.
+    const live = liveSessions(sessions)
+    const picksACentre =
+        sessionModeForShape(trialShape, sessionMode) === "choose_one"
+        && live.length >= 2
+    // Only ever asked on a trial open to everyone — see the prop.
+    const asksGender = trialGender === "all"
 
     const chooseAllAges = () => {
         if (allAges) return
@@ -528,15 +598,29 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
         if (categories.find(c => c.title === label)) return
         const years = ageToYears(maxAge, thisYear)
         const waiting = categories.findIndex(c => !c.title.trim())
+
+        // The preset's own value is an AUTO title, recorded so a gender
+        // picked afterwards may rewrite it ("U15" → "U15 Boys"). A row that
+        // already carries a gender gets the full title straight away.
+        const remember = (id: string, gender: AgeGroupDraft["gender"]) => {
+            const value = titleWithGender(label, gender)
+            setAutoTitles(prev => ({ ...prev, [id]: { base: label, value } }))
+            return value
+        }
+
         if (waiting !== -1) {
             onChange(categories.map((c, i) => (
-                i === waiting ? { ...c, title: label, ...years } : c
+                i === waiting
+                    ? { ...c, title: remember(c.id, c.gender), ...years }
+                    : c
             )))
             return
         }
+
+        const fresh = newAgeGroup(thisYear, categories.length)
         onChange([...categories, {
-            ...newAgeGroup(thisYear, categories.length),
-            title: label,
+            ...fresh,
+            title: remember(fresh.id, fresh.gender),
             ...years,
         }])
     }
@@ -556,6 +640,46 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
     }
 
     const remove = (id: string) => onChange(categories.filter(c => c.id !== id))
+
+    /**
+     * Pick a gender for one group — or tap the live chip again to go back to
+     * inheriting the trial's, which is the state the row opens in.
+     *
+     * It also rewrites the TITLE, but only one it wrote itself: "U15" becomes
+     * "U15 Boys" and comes back on Any, while "Keepers only (U15)" typed by
+     * the org is never touched. See `autoTitles`.
+     */
+    const pickGender = (cat: AgeGroupDraft, next: AgeGroupDraft["gender"]) => {
+        const gender = cat.gender === next ? "" : next
+        const auto = autoTitles[cat.id]
+        const patch: Partial<AgeGroupDraft> = { gender }
+
+        if (auto && (cat.title === auto.value || !cat.title.trim())) {
+            const value = titleWithGender(auto.base, gender)
+            patch.title = value
+            setAutoTitles(prev => ({
+                ...prev,
+                [cat.id]: { base: auto.base, value },
+            }))
+        }
+
+        update(cat.id, patch)
+    }
+
+    /**
+     * Toggle one centre on a group.
+     *
+     * DESELECTING THE LAST ONE IS NOT AN EMPTY TRIAL — it is "all centres".
+     * An empty list is exactly how the model spells that, so there is no
+     * invalid zero-of-several state to guard against: narrowing and clearing
+     * are the same gesture in both directions.
+     */
+    const toggleSession = (cat: AgeGroupDraft, ref: string) => {
+        const next = cat.sessionKeys.includes(ref)
+            ? cat.sessionKeys.filter(k => k !== ref)
+            : [...cat.sessionKeys, ref]
+        update(cat.id, { sessionKeys: next })
+    }
 
     const activePresets = new Set(categories.map(c => c.title))
 
@@ -633,6 +757,34 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
                                     disabled={disabled}
                                     maxLength={30}
                                 />
+                                {/* WHO — only on a trial open to everyone.
+                                    Nothing lit means the group inherits the
+                                    trial's gender, which is where every row
+                                    starts and where most of them stay. */}
+                                {asksGender && (
+                                    <div
+                                        className={styles.ageGenderChips}
+                                        role="group"
+                                        aria-label={`Gender for ${cat.title.trim() || "this category"}`}
+                                    >
+                                        {([
+                                            { value: "all" as const, label: "Any" },
+                                            { value: "male" as const, label: "Boys" },
+                                            { value: "female" as const, label: "Girls" },
+                                        ]).map(opt => (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                aria-pressed={cat.gender === opt.value}
+                                                className={`${styles.reqPresetChip} ${styles.ageGenderChip} ${cat.gender === opt.value ? styles.reqPresetChipActive : ""}`}
+                                                onClick={() => pickGender(cat, opt.value)}
+                                                disabled={disabled}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 <button
                                     className={styles.removeQBtn}
                                     onClick={() => remove(cat.id)}
@@ -705,6 +857,36 @@ function AgeCategoryBuilder({ categories, onChange, disabled, allAges, onAllAges
                                     />
                                 )}
                             </div>
+
+                            {/* WHERE — only when the player is actually
+                                asked to pick a date. No pill lit reads "All
+                                centres", which is what an empty list means
+                                everywhere else too. */}
+                            {picksACentre && (
+                                <div className={styles.ageRunsAtRow}>
+                                    <span className={styles.ageRangePreview}>
+                                        <Icon icon="mdi:map-marker-outline" width={13} height={13} />
+                                        Runs at:{cat.sessionKeys.length === 0 ? " All centres" : ""}
+                                    </span>
+                                    {live.map((row, idx) => {
+                                        const ref = sessionRef(row)
+                                        const on = cat.sessionKeys.includes(ref)
+                                        return (
+                                            <button
+                                                key={ref}
+                                                type="button"
+                                                aria-pressed={on}
+                                                className={`${styles.reqPresetChip} ${styles.ageRunsAtPill} ${on ? styles.reqPresetChipActive : ""}`}
+                                                onClick={() => toggleSession(cat, ref)}
+                                                disabled={disabled}
+                                            >
+                                                {on && <Icon icon="mdi:check" width={11} height={11} />}
+                                                {sessionLabel(row, trialShape, idx)}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -1738,6 +1920,16 @@ export default function CreateRecruitmentModal({
         key: string,
         next: (row: SessionDraft) => SessionDraft,
     ) => {
+        // A ROW WITH NO DATE IS NOT SENT (`buildSessionsPayload` drops it),
+        // so clearing one has the same consequence as deleting the row: a
+        // category still pointing at it would send a ref that names nothing
+        // in the payload, and the server refuses the whole save. `next` is
+        // pure in both callers, so asking it what the row becomes is free.
+        const before = sessions.find(row => row.key === key)
+        if (before?.date && !next(before).date) {
+            dropSessionFromCategories(sessionRef(before))
+        }
+
         setSessions(rows => rows.map(
             row => (row.key === key ? withDefaultStart(row, next(row)) : row),
         ))
@@ -1755,7 +1947,68 @@ export default function CreateRecruitmentModal({
         keys => (keys.includes(key) ? keys : [...keys, key]),
     )
 
+    /**
+     * Forget WHERE every category runs.
+     *
+     * Called the moment the trial stops asking players to pick a date — one
+     * day, or several days everyone attends. "Runs at" has nothing to say
+     * then, the pills come off the screen, and a link left behind would be
+     * invisible state that still got saved. The same reflex the shape switch
+     * already has for the per-row venue fields.
+     */
+    const clearCategorySessions = () => {
+        setAgeCategories(cats => (
+            cats.some(cat => cat.sessionKeys.length > 0)
+                ? cats.map(cat => ({ ...cat, sessionKeys: [] }))
+                : cats
+        ))
+    }
+
+    /**
+     * Put every category back to INHERITING the trial's gender.
+     *
+     * The mirror of `clearCategorySessions`, and it exists for a sharper
+     * reason: the per-category chips only show on a trial open to everyone,
+     * so a trial switched to boys-only hides a "Girls" the org picked a
+     * moment ago while still SENDING it — and the server refuses that pair
+     * outright ("a boys-only trial can't have a girls' category"), leaving a
+     * 400 pointing at a control nobody can see. Under a single-gender trial
+     * every category inherits anyway, so there is nothing to lose.
+     *
+     * Titles are left alone: "U15 Boys" is still true on a boys-only trial,
+     * and it may be a title the org typed.
+     */
+    const clearCategoryGenders = () => {
+        setAgeCategories(cats => (
+            cats.some(cat => cat.gender !== "")
+                ? cats.map(cat => ({ ...cat, gender: "" as const }))
+                : cats
+        ))
+    }
+
+    /** Drop ONE date from every category that was pinned to it. */
+    const dropSessionFromCategories = (ref: string) => {
+        setAgeCategories(cats => (
+            cats.some(cat => cat.sessionKeys.includes(ref))
+                ? cats.map(cat => ({
+                    ...cat,
+                    sessionKeys: cat.sessionKeys.filter(k => k !== ref),
+                }))
+                : cats
+        ))
+    }
+
     const removeSession = (key: string) => {
+        // A category pointing at a date that no longer exists would be a ref
+        // the server cannot resolve, and the save would 400. The link goes
+        // with the row. A category left with NO links is back to "every
+        // centre", which is the right answer: the place it was pinned to is
+        // gone.
+        const gone = sessions.length > 1
+            ? sessions.find(row => row.key === key)
+            : undefined
+        if (gone) dropSessionFromCategories(sessionRef(gone))
+
         // Never the last one: an open trial has to have a date.
         setSessions(rows => (
             rows.length <= 1 ? rows : rows.filter(row => row.key !== key)
@@ -1826,6 +2079,8 @@ export default function CreateRecruitmentModal({
         setTrimArmed(false)
         setLocationOpenFor(null)
         setTrialShape("single")
+        // One date: nothing left to pick between.
+        clearCategorySessions()
         clearFieldError("sessions")
     }
 
@@ -1872,6 +2127,14 @@ export default function CreateRecruitmentModal({
             clearFieldError("location")
             clearFieldError("venue_name")
             clearFieldError("venue_link")
+        }
+
+        // WHERE A CATEGORY RUNS only exists while the player picks a date.
+        // Resolved through sessionModeForShape because the shape is half the
+        // answer: several centres are always a pick-one, one day never is,
+        // and several days defer to the radios.
+        if (sessionModeForShape(next, sessionMode) !== "choose_one") {
+            clearCategorySessions()
         }
 
         setTrialShape(next)
@@ -2479,13 +2742,15 @@ export default function CreateRecruitmentModal({
         const groups: AgeGroupDraft[] = t.ageGroups.map((g, idx) => {
             if ("preset" in g) {
                 const { min_birth_year, max_birth_year } = ageToYears(g.preset, year)
-                return { id: uid(), title: `U${g.preset}`, min_birth_year, max_birth_year, reporting_time: "", showReportingTime: false, display_order: idx }
+                return { id: uid(), title: `U${g.preset}`, min_birth_year, max_birth_year, gender: "", sessionKeys: [], reporting_time: "", showReportingTime: false, display_order: idx }
             }
             return {
                 id: uid(),
                 title: g.title,
                 min_birth_year: g.maxAge != null ? year - g.maxAge : null,
                 max_birth_year: g.minAge != null ? year - g.minAge : null,
+                gender: "",
+                sessionKeys: [],
                 reporting_time: "",
                 showReportingTime: false,
                 display_order: idx,
@@ -3304,7 +3569,15 @@ export default function CreateRecruitmentModal({
                                         name="session_mode"
                                         value={option.value}
                                         checked={sessionMode === option.value}
-                                        onChange={() => setSessionMode(option.value)}
+                                        onChange={() => {
+                                            setSessionMode(option.value)
+                                            // Attend-every-date: the player
+                                            // is at all of them, so no
+                                            // category can run at "some".
+                                            if (option.value === "all") {
+                                                clearCategorySessions()
+                                            }
+                                        }}
                                         disabled={isSubmitting}
                                     />
                                     <span>
@@ -3554,6 +3827,15 @@ export default function CreateRecruitmentModal({
                     disabled={isSubmitting}
                     allAges={allAges}
                     onAllAgesChange={setAllAges}
+                    // A category can narrow WHO and WHERE, so the builder
+                    // needs both answers the rest of the wizard already
+                    // holds — and it uses them to stay QUIET: no gender
+                    // chips unless the trial is open to everyone, no "Runs
+                    // at" unless the player picks a date.
+                    trialGender={gender}
+                    sessions={sessions}
+                    trialShape={trialShape}
+                    sessionMode={sessionMode}
                 />
                 {renderFieldError("age_categories")}
             </div>
@@ -3564,7 +3846,13 @@ export default function CreateRecruitmentModal({
                 <ChoiceChips
                     ariaLabel="Gender"
                     value={gender}
-                    onChange={v => setGender(v as RecruitmentGender)}
+                    onChange={v => {
+                        const next = v as RecruitmentGender
+                        setGender(next)
+                        // Narrowing the trial takes the per-category chips
+                        // off screen — see clearCategoryGenders.
+                        if (next !== "all") clearCategoryGenders()
+                    }}
                     disabled={isSubmitting}
                     options={[
                         { value: "all", label: "Open to all", icon: "mdi:gender-male-female" },

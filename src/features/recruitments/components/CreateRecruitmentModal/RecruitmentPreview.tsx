@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import MarkdownLite from "../MarkdownLite/MarkdownLite"
 import RecruitmentCard from "../RecruitmentCard/RecruitmentCard"
-import { formatBirthYears, formatReportingTime } from "../../eligibility"
+import { ageGroupLabel, formatBirthYears, formatReportingTime } from "../../eligibility"
 import {
     APPLY_METHOD_LABEL,
     BENEFIT_ICONS,
@@ -176,7 +176,7 @@ export default function RecruitmentPreview({ recruitment: r, dateLabel, onJump, 
                             ? <span className={styles.chip}>All ages</span>
                             : r.age_categories.map(g => (
                                 <span key={g.id} className={styles.chip} title={formatBirthYears(g.min_birth_year, g.max_birth_year)}>
-                                    {g.title || "Untitled"}
+                                    {ageGroupLabel(g) || "Untitled"}
                                     {g.reporting_time && <em> · {formatReportingTime(g.reporting_time)}</em>}
                                 </span>
                             ))}

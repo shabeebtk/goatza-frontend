@@ -283,6 +283,53 @@ export function liveSessions(drafts: SessionDraft[]): SessionDraft[] {
 }
 
 /**
+ * THE HANDLE A CATEGORY POINTS AT THIS DATE BY.
+ *
+ * An age category can be held at only some of a trial's dates, and it has to
+ * name them in the SAME payload the dates are sent in. The server id is that
+ * name once it exists; before then — a brand-new trial, where no row has
+ * been written yet — the local React key is. So: the id when there is one,
+ * the key when there is not.
+ *
+ * ONE FUNCTION, TWO READERS. `buildSessionsPayload` sends this as each row's
+ * `ref` and `buildAgeCategoriesPayload` sends it inside `session_refs`; if
+ * the two ever computed it differently every link would resolve to nothing
+ * and the server would reject the save. Whatever the wizard STORES in
+ * `AgeGroupDraft.sessionKeys` has to come from here too, never the bare key.
+ */
+export function sessionRef(draft: SessionDraft): string {
+    return draft.id ?? draft.key
+}
+
+/**
+ * What to call one date on a chip — the thing that tells it apart from the
+ * others, which is a different field per shape.
+ *
+ * Several CENTRES are told apart by where they are (the city, the way
+ * `titleForPlace` labels the row itself), several DAYS by which day they are.
+ * Falls back through everything that could name a row before giving it its
+ * position, so a chip is never blank.
+ */
+export function sessionLabel(
+    draft: SessionDraft,
+    shape: TrialShape,
+    index: number,
+): string {
+    if (shape === "multi_place") {
+        const place = draft.location
+        const city = place?.city.trim() || ""
+        if (city) return city
+        const venue = draft.venueName.trim() || place?.name.trim() || ""
+        if (venue) return venue
+    }
+
+    const title = draft.title.trim()
+    if (title) return title
+    if (draft.date) return formatSessionDay(draft)
+    return `Date ${index + 1}`
+}
+
+/**
  * A wizard date value ("YYYY-MM-DD" or "YYYY-MM-DDTHH:MM") back into a row,
  * so the date+time control the single-date field already uses drives a row
  * unchanged. The row keeps its id, which is the only thing that matters.
@@ -330,8 +377,8 @@ export function firstSession(drafts: SessionDraft[]): SessionDraft | null {
     )
 }
 
-/** "15 Jun 2030" — the date as the org wrote it. Module-private: its only
- *  reader is validateSessions' deadline message below. */
+/** "15 Jun 2030" — the date as the org wrote it. Module-private: its readers
+ *  are `sessionLabel` and validateSessions' deadline message below. */
 function formatSessionDay(draft: SessionDraft): string {
     const parsed = parseLocalInput(draft.date)
     if (!parsed) return draft.date
@@ -359,6 +406,11 @@ export function buildSessionsPayload(
             // The id is what makes this an EDIT of this row rather than a
             // delete-and-recreate. Never drop it.
             if (draft.id) payload.id = draft.id
+            // The handle the categories name this date by — the id on an
+            // edit, the local key on a trial whose rows do not exist yet.
+            // Sent on EVERY row, because a category added later in the same
+            // save must be able to point at any of them.
+            payload.ref = sessionRef(draft)
             if (draft.title.trim()) payload.title = draft.title.trim()
             if (draft.startTime) payload.start_time = draft.startTime
             if (draft.endTime) payload.end_time = draft.endTime

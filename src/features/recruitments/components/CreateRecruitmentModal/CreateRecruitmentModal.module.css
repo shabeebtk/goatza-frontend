@@ -1557,12 +1557,46 @@
 .ageCategoryCardHeader {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
  
 .ageTitleInput {
   flex: 1;
   font-weight: var(--weight-bold) !important;
+}
+
+/* WHO this category is for — three chips beside the title, shown only on a
+   trial open to everyone. The row wraps so a narrow screen drops them under
+   the title rather than squeezing the input to nothing. */
+.ageGenderChips {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Re-selectable, unlike the preset chips these borrow their look from: the
+   live chip can be tapped again to go back to inheriting the trial's gender,
+   so it keeps a pointer. */
+.ageGenderChip:not(:disabled) {
+  cursor: pointer;
+}
+
+/* WHERE this category runs. A muted label and one pill per centre on one
+   wrapping line, under the row's own fields. */
+.ageRunsAtRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Each pill TOGGLES — deselecting the last one is "all centres", not an
+   empty state — so an active one stays clickable. */
+.ageRunsAtPill:not(:disabled) {
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
 }
  
 /* Reporting time row */

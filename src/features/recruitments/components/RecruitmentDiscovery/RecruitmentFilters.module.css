@@ -216,6 +216,40 @@
   flex-shrink: 0;
 }
 
+/* "Open to" — three chips acting as a radio group, in the desktop bar and in
+   the sheet. Borrows the active-chip look below (brand-subtle on a brand
+   border) so a chosen filter reads the same wherever it appears. */
+.genderChips {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.genderChip {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.genderChip:hover:not(.genderChipActive) {
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
+.genderChipActive {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand-muted);
+  color: var(--color-brand-hover);
+}
+
 .clearAll {
   background: none;
   border: none;

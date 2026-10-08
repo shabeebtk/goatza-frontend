@@ -64,10 +64,11 @@ import {
   TYPE_LABEL,
   VISIBILITY_LABEL,
 } from "../../recruitmentCopy"
-import { formatBirthYears, formatReportingTime } from "../../eligibility"
+import { ageGroupGenderWord, formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
 import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
 import {
+  categoryCentresLine,
   centreCities,
   centresLine,
   firstLiveSession,
@@ -727,7 +728,18 @@ export default function RecruitmentDetail({
             const reporting = cat.reporting_time
               ? `report ${formatReportingTime(cat.reporting_time)}`
               : null
-            const detail = [range, reporting].filter(Boolean).join(" · ")
+            // WHO and WHERE, both only when they say something: the gender
+            // word is dropped on a category open to everyone or one whose
+            // title already names it, and the centres are dropped on a
+            // category held at all of them.
+            const word = ageGroupGenderWord(cat, r.gender)
+            const centres = categoryCentresLine(r, cat)
+            const detail = [
+              word,
+              range,
+              centres ? `at ${centres}` : null,
+              reporting,
+            ].filter(Boolean).join(" · ")
             return (
               <span
                 key={cat.id}

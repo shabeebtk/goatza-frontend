@@ -21,8 +21,10 @@
 
 import type {
     ApplicationSession,
+    RecruitmentAgeCategory,
     TrialSession,
 } from "./services/recruitments.api"
+import { sessionsForCategory } from "./eligibility"
 import { formatDistance } from "./matchContext"
 import { FALLBACK_TRIAL_TIME_ZONE, trialDay } from "./trialEnded"
 
@@ -152,6 +154,41 @@ export function centreCities(recruitment: TrialContext): string[] {
         cities.push(city)
     }
     return cities
+}
+
+/**
+ * "Kochi, Kannur" — the centres ONE category is held at.
+ *
+ * NULL WHEN IT RUNS EVERYWHERE, which is the common case: a category that
+ * names no centre is held at all of them, and "at Kochi, Kozhikode, Kannur,
+ * Thrissur" under every row of a four-city tour is the trial's own centre
+ * list repeated once per category. It is only worth a reader's attention
+ * when it is a SUBSET.
+ *
+ * Named by city (the way `centreCities` names them), falling back to the
+ * venue — a ground outside any named locality still has to be callable
+ * something.
+ */
+export function categoryCentresLine(
+    recruitment: TrialContext,
+    group: Pick<RecruitmentAgeCategory, "session_ids">,
+): string | null {
+    if ((group.session_ids ?? []).length === 0) return null
+
+    const live = liveSessions(orderedSessions(recruitment.sessions))
+    const seen = new Set<string>()
+    const names: string[] = []
+
+    for (const session of sessionsForCategory(live, group)) {
+        const name = session.city?.trim() || session.venue_name?.trim() || ""
+        if (!name) continue
+        const key = name.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        names.push(name)
+    }
+
+    return names.length > 0 ? names.join(", ") : null
 }
 
 /**

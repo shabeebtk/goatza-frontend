@@ -8,6 +8,7 @@ import {
   RECRUITMENT_TYPE_OPTIONS,
   DISTANCE_OPTIONS,
   EMPTY_DISCOVERY_FILTERS,
+  GENDER_FILTER_OPTIONS,
   type DiscoveryFilters,
 } from "../../filterOptions"
 import Select from "@/shared/components/ui/Select/Select"
@@ -15,6 +16,39 @@ import styles from "./RecruitmentFilters.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 type TextKey = "search" | "city" | "birthYear"
+
+/**
+ * "Open to" — Any · Boys · Girls, as three chips rather than a select.
+ *
+ * Three options is the size where a dropdown costs more taps than it saves,
+ * and the whole row fits on one line of a phone. "Any" is the empty value,
+ * so clearing the filter is a tap on a chip like any other — there is no
+ * separate "all" to mean the same thing twice.
+ *
+ * The same row serves the desktop bar and the mobile sheet, so the two can
+ * never offer different wording for the same filter.
+ */
+function GenderChips({ value, onChange }: {
+  value: DiscoveryFilters["gender"]
+  onChange: (gender: DiscoveryFilters["gender"]) => void
+}) {
+  return (
+    <div className={styles.genderChips} role="radiogroup" aria-label="Open to">
+      {GENDER_FILTER_OPTIONS.map((option) => (
+        <button
+          key={option.value || "any"}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={`${styles.genderChip} ${value === option.value ? styles.genderChipActive : ""}`}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 interface RecruitmentFiltersProps {
   /** Live working copy that drives the desktop bar controls. */
@@ -66,6 +100,11 @@ function buildChips(
     chips.push({ key: "distanceKm", label: `Within ${f.distanceKm} km` })
   }
   if (f.birthYear) chips.push({ key: "birthYear", label: `Birth year: ${f.birthYear}` })
+  if (f.gender) {
+    const label =
+      GENDER_FILTER_OPTIONS.find((o) => o.value === f.gender)?.label ?? f.gender
+    chips.push({ key: "gender", label: `Open to: ${label}` })
+  }
   if (f.closingWithinDays) {
     chips.push({
       key: "closingWithinDays",
@@ -244,6 +283,11 @@ export default function RecruitmentFilters({
           value={draft.birthYear}
           onChange={(e) => onTextChange({ birthYear: e.target.value })}
           aria-label="Filter by birth year"
+        />
+
+        <GenderChips
+          value={draft.gender}
+          onChange={(gender) => onSelectChange({ gender })}
         />
 
         {/* "For me" narrows to the viewer's own age group — and only that.
@@ -456,6 +500,14 @@ export default function RecruitmentFilters({
                   placeholder="e.g. 2008"
                   value={sheetDraft.birthYear}
                   onChange={(e) => patchSheet({ birthYear: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.sheetField}>
+                <span className={styles.sheetLabel}>Open to</span>
+                <GenderChips
+                  value={sheetDraft.gender}
+                  onChange={(gender) => patchSheet({ gender })}
                 />
               </div>
 

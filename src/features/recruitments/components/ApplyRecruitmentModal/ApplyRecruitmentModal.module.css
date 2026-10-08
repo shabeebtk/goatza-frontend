@@ -738,6 +738,58 @@
   cursor: pointer;
 }
 
+/* A field the other picker already answered: the value, and the way back.
+   Sized like .fieldInput so the form keeps one rhythm whether a field is
+   asking or stating. */
+.lockedPick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 10px var(--space-3);
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.lockedPickIcon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.lockedPickText {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.lockedPickChange {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color var(--duration-fast);
+}
+
+.lockedPickChange:hover:not(:disabled) {
+  color: var(--color-brand-hover);
+}
+
+.lockedPickChange:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* The quiet prompt when no birth year is on file — never a warning. */
 .ageHint {
   margin: 2px 0 0;
