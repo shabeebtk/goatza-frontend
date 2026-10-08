@@ -32,12 +32,17 @@ function readFilters(sp: URLSearchParams): DiscoveryFilters {
   // Only a creatable type survives: a saved link with a retired type
   // (`type=scholarship`) would otherwise filter to an empty list forever.
   const type = sp.get("type")
+  // Same stance as the type above: only a value the filter HAS survives, so a
+  // hand-edited ?gender=all (or junk) reads as unset rather than filtering to
+  // nothing forever. `all` is not a third option — it is the whole list.
+  const gender = sp.get("gender")
   return {
     search: sp.get("search") ?? "",
     sport_id: sp.get("sport") ?? "",
     recruitment_type: isRecruitmentType(type) ? type : "",
     city: sp.get("city") ?? "",
     birthYear: sp.get("birth_year") ?? "",
+    gender: gender === "male" || gender === "female" ? gender : "",
     goatza: sp.get("goatza") === "1",
     positionId: sp.get("position") ?? "",
     distanceKm: sp.get("distance") ?? "",
@@ -64,6 +69,7 @@ function applyToParams(
   if ("recruitment_type" in patch) set("type", patch.recruitment_type ?? "")
   if ("city" in patch) set("city", patch.city ?? "")
   if ("birthYear" in patch) set("birth_year", patch.birthYear ?? "")
+  if ("gender" in patch) set("gender", patch.gender ?? "")
   if ("goatza" in patch) setFlag("goatza", patch.goatza)
   if ("positionId" in patch) set("position", patch.positionId ?? "")
   if ("distanceKm" in patch) set("distance", patch.distanceKm ?? "")
@@ -79,6 +85,7 @@ function toApiParams(f: DiscoveryFilters): FetchRecruitmentsParams {
   if (f.recruitment_type) params.recruitment_type = f.recruitment_type
   if (f.city) params.city = f.city
   if (/^\d+$/.test(f.birthYear)) params.birth_year = Number(f.birthYear)
+  if (f.gender) params.gender = f.gender
   if (f.goatza) params.apply_method = "goatza"
   // A position only makes sense inside a sport; the select is disabled without
   // one, so an orphaned value from a hand-edited URL is dropped here too.
@@ -101,6 +108,7 @@ function countActive(f: DiscoveryFilters): number {
     f.recruitment_type,
     f.city,
     f.birthYear,
+    f.gender,
     f.positionId,
     f.distanceKm,
     f.closingWithinDays,

@@ -23,10 +23,18 @@ import {
     validateSessions,
 } from "./sessions"
 import type { SessionDraft } from "./sessions"
+import type { AgeGroupDraft } from "../../eligibility"
 import type { CreateRecruitmentMediaPayload } from "../../services/recruitments.api"
 import type { PlaceResult } from "@/shared/services/places.service"
 
-/** A date row, stated as briefly as a test needs it. */
+/**
+ * A date row, stated as briefly as a test needs it.
+ *
+ * Rows whose payload is asserted EXACTLY pin their own `key`: a new row
+ * sends that key as its `ref` (the handle a category points at it by), and
+ * `newSessionDraft`'s generated key would make the expected object
+ * unwritable. A row carrying an `id` needs no pin — its ref IS the id.
+ */
 function sessionDraft(overrides: Partial<SessionDraft>): SessionDraft {
     return { ...newSessionDraft(), ...overrides }
 }
@@ -109,6 +117,7 @@ function fullDraft(): RecruitmentDraft {
         sessions: [
             sessionDraft({ id: "sess-1", date: "2026-10-10", startTime: "09:00" }),
             sessionDraft({
+                key: "local-day2",
                 date: "2026-10-11",
                 title: "  Day 2  ",
                 endTime: "17:00",
@@ -153,6 +162,8 @@ function fullDraft(): RecruitmentDraft {
                 min_birth_year: 2011,
                 max_birth_year: 2012,
                 reporting_time: "08:30",
+                gender: "",
+                sessionKeys: [],
                 showReportingTime: true,
                 display_order: 0,
             },
@@ -162,6 +173,8 @@ function fullDraft(): RecruitmentDraft {
                 min_birth_year: 2009,
                 max_birth_year: null,
                 reporting_time: "10:00",
+                gender: "",
+                sessionKeys: [],
                 showReportingTime: false,
                 display_order: 1,
             },
@@ -238,11 +251,15 @@ describe("buildPayload", () => {
             sessions: [
                 {
                     id: "sess-1",
+                    // The handle a category names this date by. On a stored
+                    // row it IS the id; on a new one it is the local key.
+                    ref: "sess-1",
                     date: "2026-10-10",
                     start_time: "09:00",
                     display_order: 0,
                 },
                 {
+                    ref: "local-day2",
                     date: "2026-10-11",
                     title: "Day 2",
                     end_time: "17:00",
@@ -280,6 +297,11 @@ describe("buildPayload", () => {
                     title: "U15",
                     min_birth_year: 2011,
                     max_birth_year: 2012,
+                    // "" on the draft is "inherit the trial's gender", which
+                    // the server spells null. Sent explicitly, always.
+                    gender: null,
+                    // Empty is "runs at every centre" — the common case.
+                    session_refs: [],
                     reporting_time: "08:30:00",
                     display_order: 0,
                 },
@@ -287,6 +309,8 @@ describe("buildPayload", () => {
                     title: "U17",
                     min_birth_year: 2009,
                     max_birth_year: null,
+                    gender: null,
+                    session_refs: [],
                     reporting_time: undefined,
                     display_order: 1,
                 },
@@ -393,15 +417,17 @@ describe("buildPayload", () => {
             sessions: [
                 sessionDraft({ id: "sess-kochi", date: "2026-10-10" }),
                 sessionDraft({ id: "sess-calicut", date: "2026-10-17" }),
-                sessionDraft({ date: "2026-10-24" }),
+                sessionDraft({ key: "local-new", date: "2026-10-24" }),
             ],
             sessionMode: "choose_one",
         }
 
         expect(buildPayload(draft, []).sessions).toEqual([
-            { id: "sess-kochi", date: "2026-10-10", display_order: 0 },
-            { id: "sess-calicut", date: "2026-10-17", display_order: 1 },
-            { date: "2026-10-24", display_order: 2 },
+            { id: "sess-kochi", ref: "sess-kochi", date: "2026-10-10", display_order: 0 },
+            { id: "sess-calicut", ref: "sess-calicut", date: "2026-10-17", display_order: 1 },
+            // No id yet, so the ref is the local key a category would
+            // point at it by in this same payload.
+            { ref: "local-new", date: "2026-10-24", display_order: 2 },
         ])
     })
 
@@ -526,14 +552,14 @@ describe("buildPayload", () => {
             // Left behind by a switch out of multi_place: none of it rides
             // along, because one day has no per-row venue at all.
             sessionMode: "choose_one",
-            sessions: [sessionDraft({ date: "2026-10-10" })],
+            sessions: [sessionDraft({ key: "local-one", date: "2026-10-10" })],
         }
 
         const payload = buildPayload(draft, [])
 
         expect(payload.session_mode).toBe("all")
         expect(payload.sessions).toEqual([
-            { date: "2026-10-10", display_order: 0 },
+            { ref: "local-one", date: "2026-10-10", display_order: 0 },
         ])
         expect(payload.sessions![0].location).toBeUndefined()
     })
@@ -618,8 +644,11 @@ describe("buildPayload", () => {
             ],
         }
         expect(buildPayload(draft, []).sessions).toEqual([
-            { id: "sess-1", date: "2026-10-10", display_order: 0 },
-            { id: "sess-2", date: "2026-10-11", is_cancelled: true, display_order: 1 },
+            { id: "sess-1", ref: "sess-1", date: "2026-10-10", display_order: 0 },
+            {
+                id: "sess-2", ref: "sess-2", date: "2026-10-11",
+                is_cancelled: true, display_order: 1,
+            },
         ])
     })
 
@@ -638,6 +667,8 @@ describe("buildPayload", () => {
                     min_birth_year: 2013,
                     max_birth_year: 2014,
                     reporting_time: "",
+                    gender: "",
+                    sessionKeys: [],
                     showReportingTime: false,
                     display_order: 0,
                 },
@@ -648,6 +679,8 @@ describe("buildPayload", () => {
                     min_birth_year: 2011,
                     max_birth_year: 2012,
                     reporting_time: "09:00",
+                    gender: "",
+                    sessionKeys: [],
                     showReportingTime: true,
                     display_order: 1,
                 },
@@ -657,6 +690,8 @@ describe("buildPayload", () => {
                     min_birth_year: 2009,
                     max_birth_year: 2010,
                     reporting_time: "",
+                    gender: "",
+                    sessionKeys: [],
                     showReportingTime: false,
                     display_order: 2,
                 },
@@ -666,9 +701,9 @@ describe("buildPayload", () => {
         const payload = buildPayload(draft, [], undefined)
         expect("status" in payload).toBe(false)
         expect(payload.age_categories).toEqual([
-            { id: "srv-u13", title: "U13", min_birth_year: 2013, max_birth_year: 2014, reporting_time: undefined, display_order: 0 },
-            { id: "srv-u15", title: "U15", min_birth_year: 2011, max_birth_year: 2012, reporting_time: "09:00:00", display_order: 1 },
-            { title: "U17", min_birth_year: 2009, max_birth_year: 2010, reporting_time: undefined, display_order: 2 },
+            { id: "srv-u13", title: "U13", min_birth_year: 2013, max_birth_year: 2014, gender: null, session_refs: [], reporting_time: undefined, display_order: 0 },
+            { id: "srv-u15", title: "U15", min_birth_year: 2011, max_birth_year: 2012, gender: null, session_refs: [], reporting_time: "09:00:00", display_order: 1 },
+            { title: "U17", min_birth_year: 2009, max_birth_year: 2010, gender: null, session_refs: [], reporting_time: undefined, display_order: 2 },
         ])
     })
 
@@ -686,6 +721,7 @@ describe("buildPayload", () => {
             allAges: true,
             ageCategories: [{
                 id: "x", title: "U19", min_birth_year: 2007, max_birth_year: 2008,
+                gender: "", sessionKeys: [],
                 reporting_time: "", showReportingTime: false, display_order: 0,
             }],
         }
@@ -901,5 +937,160 @@ describe("validateSessions", () => {
             "The application deadline is after the first trial date. " +
             "Move the deadline to on or before 10 Oct 2026.",
         )
+    })
+})
+
+
+/**
+ * CATEGORY -> CENTRE, the one link whose two halves are computed in two
+ * different files.
+ *
+ * `buildSessionsPayload` sends each date's handle as `ref` and
+ * `buildAgeCategoriesPayload` sends the same handle inside `session_refs`.
+ * Both get it from `sessionRef`, so what these tests really pin is that the
+ * two agree: a ref that named nothing would resolve to no centre at all,
+ * which the server reads as "runs everywhere" and so widens the category
+ * instead of narrowing it.
+ */
+describe("buildPayload — category gender + centre links", () => {
+    /** A category draft, as the wizard's builder holds one. */
+    function group(overrides: Partial<AgeGroupDraft> = {}): AgeGroupDraft {
+        return {
+            id: "cat-1",
+            title: "U18",
+            min_birth_year: 2012,
+            max_birth_year: null,
+            gender: "",
+            sessionKeys: [],
+            reporting_time: "",
+            showReportingTime: false,
+            display_order: 0,
+            ...overrides,
+        }
+    }
+
+    it("a NEW trial links by local key, and both halves match", () => {
+        const kochi = sessionDraft({ key: "local-kochi", date: "2026-10-10" })
+        const kannur = sessionDraft({ key: "local-kannur", date: "2026-10-17" })
+
+        const payload = buildPayload({
+            ...emptyDraft(),
+            allAges: false,
+            sessionMode: "choose_one",
+            trialShape: "multi_place",
+            sessions: [kochi, kannur],
+            ageCategories: [
+                group({ id: "cat-u18", title: "U18", sessionKeys: ["local-kochi"] }),
+                group({
+                    id: "cat-u21", title: "U21", display_order: 1,
+                    sessionKeys: ["local-kannur"],
+                }),
+            ],
+        }, [])
+
+        // No row has an id yet, so every ref is the local key.
+        expect(payload.sessions!.map((s) => s.ref)).toEqual([
+            "local-kochi", "local-kannur",
+        ])
+        expect(payload.age_categories!.map((c) => c.session_refs)).toEqual([
+            ["local-kochi"], ["local-kannur"],
+        ])
+
+        // THE POINT: every ref a category sends names a date in this same
+        // payload. Nothing here may resolve to nothing.
+        const sent = new Set(payload.sessions!.map((s) => s.ref))
+        for (const category of payload.age_categories!) {
+            for (const ref of category.session_refs!) {
+                expect(sent).toContain(ref)
+            }
+        }
+    })
+
+    it("an EDIT links by server id, which is what the row sends as its ref", () => {
+        const payload = buildPayload({
+            ...emptyDraft(),
+            allAges: false,
+            sessionMode: "choose_one",
+            trialShape: "multi_place",
+            sessions: [
+                sessionDraft({ id: "srv-kochi", date: "2026-10-10" }),
+                sessionDraft({ id: "srv-kannur", date: "2026-10-17" }),
+            ],
+            ageCategories: [
+                group({
+                    serverId: "srv-u18", title: "U18",
+                    sessionKeys: ["srv-kochi"],
+                }),
+            ],
+        }, [])
+
+        expect(payload.sessions!.map((s) => s.ref)).toEqual([
+            "srv-kochi", "srv-kannur",
+        ])
+        // The id round-trips as the id AND as the ref — the row is edited in
+        // place, and the category still finds it.
+        expect(payload.sessions![0].id).toBe("srv-kochi")
+        expect(payload.age_categories![0].session_refs).toEqual(["srv-kochi"])
+        expect(payload.age_categories![0].id).toBe("srv-u18")
+    })
+
+    it('sends gender null for "" and the value when the org picked one', () => {
+        const payload = buildPayload({
+            ...emptyDraft(),
+            allAges: false,
+            gender: "all",
+            sessions: [sessionDraft({ date: "2026-10-10" })],
+            ageCategories: [
+                group({ id: "cat-any", title: "U16" }),
+                group({ id: "cat-boys", title: "U14 Boys", gender: "male", display_order: 1 }),
+                group({ id: "cat-girls", title: "U14 Girls", gender: "female", display_order: 2 }),
+            ],
+        }, [])
+
+        expect(payload.age_categories!.map((c) => c.gender)).toEqual([
+            null, "male", "female",
+        ])
+    })
+
+    it("an unlinked category sends an empty list, never undefined", () => {
+        // Empty is the server's own spelling of "runs at every centre", so
+        // it has to be SENT: an omitted key on an edit would leave the
+        // stored links untouched instead of clearing them.
+        const payload = buildPayload({
+            ...emptyDraft(),
+            allAges: false,
+            sessions: [sessionDraft({ date: "2026-10-10" })],
+            ageCategories: [group()],
+        }, [])
+
+        expect(payload.age_categories![0].session_refs).toEqual([])
+    })
+
+    it("open to all ages sends no categories at all, links included", () => {
+        const payload = buildPayload({
+            ...emptyDraft(),
+            allAges: true,
+            sessions: [sessionDraft({ date: "2026-10-10" })],
+            ageCategories: [group({ sessionKeys: ["local-kochi"] })],
+        }, [])
+
+        expect(payload.age_categories).toEqual([])
+    })
+
+    it("a dateless row is dropped, so no ref is sent for it", () => {
+        // A row the org never filled in is not a date. The wizard also drops
+        // its links when the date is cleared, which is what keeps this from
+        // leaving a category pointing at a ref the payload no longer has.
+        const payload = buildPayload({
+            ...emptyDraft(),
+            allAges: false,
+            sessions: [
+                sessionDraft({ key: "local-real", date: "2026-10-10" }),
+                sessionDraft({ key: "local-empty" }),
+            ],
+            ageCategories: [group()],
+        }, [])
+
+        expect(payload.sessions!.map((s) => s.ref)).toEqual(["local-real"])
     })
 })

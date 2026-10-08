@@ -86,6 +86,10 @@ export function draftToPreviewRecruitment(
             title: g.title.trim(),
             min_birth_year: g.min_birth_year,
             max_birth_year: g.max_birth_year,
+            // "" is the wizard's "inherit the trial's gender", which the
+            // preview reads the same way the API does: null.
+            gender: g.gender || null,
+            session_ids: g.sessionKeys,
             reporting_time: g.showReportingTime && g.reporting_time ? `${g.reporting_time}:00` : null,
             display_order: idx,
         }))

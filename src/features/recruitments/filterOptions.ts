@@ -24,6 +24,15 @@ export const DISTANCE_OPTIONS: { value: string; label: string }[] = [
 
 export const DEFAULT_DISTANCE_KM = 50
 
+// WHO THE TRIAL IS OPEN TO. Only the two a player can BE: "Any" is the
+// absence of the filter, not a third value, which is why its chip carries
+// the empty string.
+export const GENDER_FILTER_OPTIONS: { value: "" | "male" | "female"; label: string }[] = [
+  { value: "", label: "Any" },
+  { value: "male", label: "Boys" },
+  { value: "female", label: "Girls" },
+]
+
 /** The rails' own rules, as filters — see the "See all" links in §5. */
 export const CLOSING_SOON_DAYS = 7
 export const NEW_THIS_WEEK_DAYS = 7
@@ -36,6 +45,12 @@ export type DiscoveryFilters = {
   recruitment_type: RecruitmentType | ""
   city: string
   birthYear: string
+  /**
+   * "Open to" — "" is unset. Answered by the trial's CATEGORIES where it
+   * has any (a category may narrow the trial's gender, or inherit it), which
+   * is why a trial can match "Girls" without its own field saying so.
+   */
+  gender: "" | "male" | "female"
   goatza: boolean
   // §4 discovery filters.
   positionId: string
@@ -55,6 +70,7 @@ export const EMPTY_DISCOVERY_FILTERS: DiscoveryFilters = {
   recruitment_type: "",
   city: "",
   birthYear: "",
+  gender: "",
   goatza: false,
   positionId: "",
   distanceKm: "",

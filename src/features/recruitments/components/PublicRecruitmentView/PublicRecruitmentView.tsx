@@ -50,10 +50,11 @@ import { authUrlWithNext } from "@/shared/services/authRedirect"
 import { posterSrc } from "@/shared/services/mediaDelivery"
 import { recruitmentDetailPath } from "@/shared/services/recruitmentUrl"
 import { useAuthStore } from "@/store/auth.store"
-import { formatBirthYears, formatReportingTime } from "../../eligibility"
+import { ageGroupGenderWord, formatBirthYears, formatReportingTime } from "../../eligibility"
 import { formatCountdown } from "../../countdown"
 import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
 import {
+  categoryCentresLine,
   centreCities,
   centresLine,
   firstLiveSession,
@@ -408,7 +409,16 @@ export default function PublicRecruitmentView({
               const reporting = cat.reporting_time
                 ? `report ${formatReportingTime(cat.reporting_time)}`
                 : null
-              const detail = [range, reporting].filter(Boolean).join(" · ")
+              // WHO and WHERE — each dropped when it says nothing; see the
+              // same block on the signed-in detail page.
+              const word = ageGroupGenderWord(cat, r.gender)
+              const centres = categoryCentresLine(r, cat)
+              const detail = [
+                word,
+                range,
+                centres ? `at ${centres}` : null,
+                reporting,
+              ].filter(Boolean).join(" · ")
               return (
                 <span key={cat.id} className={styles.chipLg}>
                   {cat.title}

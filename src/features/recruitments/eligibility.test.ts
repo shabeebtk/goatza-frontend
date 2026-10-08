@@ -37,6 +37,8 @@ function group(over: Partial<RecruitmentAgeCategory> = {}): RecruitmentAgeCatego
         title: "U17",
         min_birth_year: 2010,
         max_birth_year: null,
+        gender: null,
+        session_ids: [],
         reporting_time: null,
         ...over,
     }
@@ -48,6 +50,8 @@ function draft(over: Partial<AgeGroupDraft> = {}): AgeGroupDraft {
         title: "U15",
         min_birth_year: 2011,
         max_birth_year: 2012,
+        gender: "",
+        sessionKeys: [],
         reporting_time: "",
         showReportingTime: false,
         display_order: 0,

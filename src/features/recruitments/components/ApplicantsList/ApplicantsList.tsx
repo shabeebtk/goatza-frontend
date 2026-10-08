@@ -42,7 +42,7 @@ import {
   statusMeta,
   type PipelineStage,
 } from "../../applicationStatus"
-import { formatBirthYears } from "../../eligibility"
+import { ageGroupGenderWord, formatBirthYears } from "../../eligibility"
 import {
   FALLBACK_TRIAL_TIME_ZONE,
   formatTrialDay,
@@ -328,10 +328,17 @@ function ApplicantRow({
             Applied {dayjs(item.applied_at).fromNow()}
           </span>
           {/* The group they applied under. "—" rather than nothing, so a row
-              with no group reads as answered, not as missing data. */}
+              with no group reads as answered, not as missing data.
+
+              The gender word rides along only when the CATEGORY names one
+              (no trial gender is passed on purpose — see the chips below). */}
           <span className={styles.groupTag}>
             <Icon icon="mdi:account-group-outline" width={12} height={12} />
-            {item.age_category?.title ?? "—"}
+            {item.age_category
+              ? [item.age_category.title, ageGroupGenderWord(item.age_category)]
+                  .filter(Boolean)
+                  .join(" ")
+              : "—"}
           </span>
           {/* Which city they said they were coming to. */}
           {showSession && (
@@ -866,7 +873,12 @@ export default function ApplicantsList({
               type="button"
               title={formatBirthYears(group.min_birth_year, group.max_birth_year)}
             >
-              {group.title}
+              {/* Title and, where the category splits the trial by gender,
+                  the word — no band, which the hover title already carries.
+                  Deliberately NOT passed the trial's own gender: an org
+                  looking at its own boys-only trial does not need "Boys" on
+                  all four chips. */}
+              {[group.title, ageGroupGenderWord(group)].filter(Boolean).join(" ")}
             </button>
           ))}
         </div>

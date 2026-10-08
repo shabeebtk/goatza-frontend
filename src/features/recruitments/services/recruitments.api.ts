@@ -97,6 +97,13 @@ export type RecruitmentQuestion = {
 export type ApplicationAgeCategory = {
   id: string
   title: string
+  /**
+   * The category's OWN gender, or null when it inherits the trial's — which
+   * is the common case. The org side shows the word only when it is set:
+   * they know their own trial's gender, so repeating it on every row says
+   * nothing. Optional for a payload cached before it shipped.
+   */
+  gender?: RecruitmentGender | null
   reporting_time: string | null   // "HH:MM:SS" | null
 }
 
@@ -443,6 +450,14 @@ export type RecruitmentAgeCategory = {
   title: string
   min_birth_year: number | null
   max_birth_year: number | null
+  // WHO this group is for. null is the common case: the group inherits the
+  // recruitment's own gender. A value only appears when a trial open to
+  // everyone splits its groups (Boys U14 / Girls U14).
+  gender: RecruitmentGender | null
+  // WHERE this group runs, as trial-session ids. EMPTY is the common case
+  // and means every date; a non-empty list is the subset it is held at
+  // (U18 at Kochi, U21 at Kannur).
+  session_ids: string[]
   reporting_time: string | null   // "HH:MM:SS" | null
   display_order?: number
 }
@@ -548,6 +563,16 @@ export type RecruitmentDetail = RecruitmentTrialWindow & {
    * warning and nothing else.
    */
   viewer_birth_year?: number | null
+  /**
+   * The VIEWER's own profile gender, on the authenticated detail only and
+   * gated exactly like the birth year above. null for an org actor or an
+   * unset profile gender; absent on older cached payloads.
+   *
+   * "other" is a real stored value, so this is not RecruitmentGender: it is
+   * whatever the profile says. Drives the apply modal's gender warning, and
+   * a WARNING is all it is — an unknown gender never blocks anything.
+   */
+  viewer_gender?: string | null
  
   // Org-owner-only fields (present when viewer is the org admin)
   status?: RecruitmentStatus
@@ -634,6 +659,13 @@ export type CreateRecruitmentLocationPayload = {
  */
 export type CreateTrialSessionPayload = {
   id?: string
+  /**
+   * The CLIENT'S handle for this date, so an age category in the same
+   * payload can point at it (`session_refs`). Never stored. On a new trial
+   * the row has no id yet, so this is the only way to name it; on an edit
+   * it IS the id. See `sessionRef` in the wizard's sessions.ts.
+   */
+  ref?: string
   title?: string
   date: string              // "YYYY-MM-DD"
   start_time?: string       // "HH:MM"
@@ -655,6 +687,13 @@ export type CreateRecruitmentAgeCategoryPayload = {
   // both null — that shape is rejected server-side.
   min_birth_year: number | null
   max_birth_year: number | null
+  // null means "inherit the recruitment's gender" — and is what the wizard
+  // sends unless the org split an open trial's groups by gender.
+  gender?: RecruitmentGender | null
+  // The dates this group runs at, by the `ref` the session rows in THIS
+  // payload carry. Empty (or absent) means every date. The server rejects a
+  // ref that names no session in the same request.
+  session_refs?: string[]
   reporting_time?: string   // "HH:MM:SS" or undefined
   display_order: number
 }
@@ -769,6 +808,14 @@ export type FetchRecruitmentsParams = {
    *  match pre-migration rows. Kept because the param still works. */
   experience_level?: string
   birth_year?: number
+  /**
+   * "Who can I apply to" — only "male" or "female", because `all` is not a
+   * filter (it is every trial). READS THE CATEGORIES, not just the trial's
+   * own field: a trial open to everyone whose only category is Girls U16 is
+   * a girls' trial, and a boys-only trial whose categories say nothing is
+   * still boys-only.
+   */
+  gender?: "male" | "female"
   apply_method?: ApplyMethod
   position_id?: string
   max_distance_km?: number

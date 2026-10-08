@@ -18,6 +18,7 @@
 import { Icon } from "@iconify/react"
 
 import type { Recruitment, RecruitmentDetail } from "../../services/recruitments.api"
+import { ageGroupGenderWord, categoriesForSession } from "../../eligibility"
 import {
     formatSessionDate,
     formatSessionTimeRange,
@@ -32,7 +33,7 @@ type Props = {
     recruitment: Pick<
         RecruitmentDetail | Recruitment,
         "sessions" | "session_mode" | "venue_name" | "city" | "timezone"
-    >
+    > & Partial<Pick<RecruitmentDetail, "age_categories" | "gender">>
     className?: string
 }
 
@@ -47,6 +48,15 @@ export default function TrialDatesList({ recruitment, className }: Props) {
     const modeLine = sessionModeLine(
         recruitment.session_mode,
         isMultiPlace(recruitment),
+    )
+
+    // WHICH CATEGORIES RUN WHERE — but only on a trial that actually splits
+    // them. When no category names a centre every category runs at every
+    // date, and printing all of them under all of them would be the same
+    // list four times; a plain trial renders exactly what it did before.
+    const categories = recruitment.age_categories ?? []
+    const splitByCentre = categories.some(
+        category => (category.session_ids ?? []).length > 0,
     )
 
     return (
@@ -79,6 +89,27 @@ export default function TrialDatesList({ recruitment, className }: Props) {
                             </span>
                             {session.is_cancelled && (
                                 <span className={styles.cancelled}>Cancelled</span>
+                            )}
+                            {splitByCentre && (
+                                <ul className={styles.categories}>
+                                    {categoriesForSession(categories, session.id).map(
+                                        category => {
+                                            const word = ageGroupGenderWord(
+                                                category, recruitment.gender,
+                                            )
+                                            return (
+                                                <li
+                                                    key={category.id}
+                                                    className={styles.category}
+                                                >
+                                                    {[category.title, word]
+                                                        .filter(Boolean)
+                                                        .join(" ")}
+                                                </li>
+                                            )
+                                        },
+                                    )}
+                                </ul>
                             )}
                         </li>
                     )

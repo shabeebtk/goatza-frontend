@@ -18,6 +18,7 @@
 import type {
     CreateRecruitmentAgeCategoryPayload,
     RecruitmentAgeCategory,
+    RecruitmentGender,
 } from "./services/recruitments.api"
 
 /** Matches the backend's `min_value=1950` on both birth-year fields. */
@@ -49,21 +50,66 @@ export function formatBirthYears(
     return ""
 }
 
+/** "Boys" / "Girls" for a group that names a gender, "" for one that does not. */
+function genderWord(gender: RecruitmentGender | null | undefined): string {
+    if (gender === "male") return "Boys"
+    if (gender === "female") return "Girls"
+    // "all" and null both mean "whoever the trial is open to" — nothing to
+    // add, because the trial already said it.
+    return ""
+}
+
+/**
+ * One group as every surface names it: its title, plus the gender it names
+ * when the title does not already carry it.
+ *
+ * The wizard's auto-title already writes "U15 Boys" when a gender chip is
+ * picked, so appending blindly would read "U15 Boys Boys". A title the org
+ * typed by hand gets the word added; one that already ends in it does not —
+ * which is what lets "Keepers only" + Girls read right on the card, in the
+ * wizard's own preview and in the summary below, from one function.
+ */
+export function ageGroupLabel(
+    group: Pick<RecruitmentAgeCategory, "title"> &
+        Partial<Pick<RecruitmentAgeCategory, "gender">>,
+): string {
+    const title = group.title.trim()
+    const word = genderWord(group.gender)
+    if (!word) return title
+    if (!title) return word
+    return title.toLowerCase().endsWith(word.toLowerCase())
+        ? title
+        : `${title} ${word}`
+}
+
 /**
  * The compact age summary for a list card: "All ages" when the recruitment is
  * open, the single group's title when there is one, and a first–last span when
  * there are several. `undefined` (rather than `[]`) means the payload never
  * carried categories, so the card should render no chip at all.
+ *
+ * A SPLIT-BY-GENDER trial is the exception to the span. "U15–U15" says
+ * nothing about a trial running Boys U15 and Girls U15, so when ANY group
+ * names a gender the groups are listed instead: "U15 Boys, U15 Girls". A
+ * trial whose groups all inherit reads exactly as it always did.
  */
 export function summarizeAgeGroups(
-    groups: Pick<RecruitmentAgeCategory, "title">[] | undefined,
+    groups:
+        | (Pick<RecruitmentAgeCategory, "title"> &
+            Partial<Pick<RecruitmentAgeCategory, "gender">>)[]
+        | undefined,
 ): string | null {
     if (!groups) return null
     if (groups.length === 0) return "All ages"
 
-    const titles = groups.map(g => g.title.trim()).filter(Boolean)
+    const split = groups.some(g => genderWord(g.gender) !== "")
+    const titles = groups
+        .map(g => (split ? ageGroupLabel(g) : g.title.trim()))
+        .filter(Boolean)
+
     if (titles.length === 0) return "All ages"
     if (titles.length === 1) return titles[0]
+    if (split) return titles.join(", ")
     return `${titles[0]}–${titles[titles.length - 1]}`
 }
 
@@ -82,6 +128,22 @@ export type AgeGroupDraft = {
     title: string
     min_birth_year: number | null
     max_birth_year: number | null
+    /**
+     * WHO this group is for. "" is the default and the common case: the
+     * group inherits the trial's own gender, and the wizard does not even
+     * ask — the chips only appear on a trial open to everyone.
+     */
+    gender: "" | RecruitmentGender
+    /**
+     * WHERE this group runs, as session handles. [] is the default and the
+     * common case: every date.
+     *
+     * The values are `sessionRef(draft)` — the server id of a date that
+     * exists, the local key of one that does not yet — NEVER the bare
+     * React key, because these have to match what each session row sends as
+     * its `ref` in the same payload. See that function's comment.
+     */
+    sessionKeys: string[]
     reporting_time: string      // "HH:MM" or ""
     showReportingTime: boolean
     display_order: number
@@ -135,6 +197,12 @@ export function buildAgeCategoriesPayload(
         title: group.title.trim(),
         min_birth_year: group.min_birth_year,
         max_birth_year: group.max_birth_year,
+        // "" is the wizard's "inherit"; the server spells that null.
+        gender: group.gender || null,
+        // The same handles the session rows send as `ref` — see
+        // `sessionRef`, which is where both sides get them from. Empty means
+        // every date, which is also what the server reads an empty list as.
+        session_refs: group.sessionKeys,
         reporting_time:
             group.showReportingTime && group.reporting_time
                 ? `${group.reporting_time}:00`
@@ -204,14 +272,144 @@ export function birthYearInGroup(
     return true
 }
 
-/** The option label in the apply modal's group select. */
-export function ageGroupOptionLabel(group: RecruitmentAgeCategory): string {
+// ── Category × centre × gender ──────────────────────
+//
+// A category says WHO a player applies as and WHERE that runs, and the two
+// pickers in the apply modal have to agree with each other. EMPTY MEANS ALL
+// on both sides — a category with no `session_ids` runs at every centre, and
+// that is the common case these helpers are shaped around.
+
+/**
+ * The categories on offer at ONE centre: every category that either runs
+ * everywhere or names this one.
+ *
+ * Mirrors the server's refusal (`_check_category_runs_at`) so the modal never
+ * offers a pair the apply endpoint would reject.
+ */
+export function categoriesForSession<
+    T extends Pick<RecruitmentAgeCategory, "session_ids">,
+>(groups: T[] | undefined, sessionId: string): T[] {
+    if (!groups) return []
+    if (!sessionId) return groups
+    return groups.filter(group => {
+        const ids = group.session_ids ?? []
+        return ids.length === 0 || ids.includes(sessionId)
+    })
+}
+
+/** The centres ONE category is held at — every one of them when it names none. */
+export function sessionsForCategory<T extends { id: string }>(
+    sessions: T[] | undefined,
+    group: Pick<RecruitmentAgeCategory, "session_ids"> | undefined,
+): T[] {
+    if (!sessions) return []
+    const ids = group?.session_ids ?? []
+    if (ids.length === 0) return sessions
+    return sessions.filter(session => ids.includes(session.id))
+}
+
+/**
+ * Anything that may name a gender — a published category, or the lighter one
+ * an APPLICATION carries. Optional rather than nullable because a payload
+ * cached before the field shipped has no key at all, and an absent gender
+ * means the same thing as a null one: inherit the trial's.
+ */
+type GenderBearing = { gender?: RecruitmentGender | null }
+
+/**
+ * The gender a category is actually for: its own, or — the common case,
+ * where it sets none — the trial's.
+ *
+ * The same fallback the server reads (`effective_genders`), so the word this
+ * shows a player is the word the org's own eligibility badge uses.
+ */
+export function effectiveGender(
+    group: GenderBearing | undefined,
+    recruitmentGender: RecruitmentGender | "" | null | undefined,
+): RecruitmentGender | "" {
+    return group?.gender ?? (recruitmentGender || "")
+}
+
+/** "Boys" / "Girls" / "Any" — how a gender reads on a category. */
+export function genderLabel(gender: RecruitmentGender | "" | null | undefined): string {
+    if (gender === "male") return "Boys"
+    if (gender === "female") return "Girls"
+    return "Any"
+}
+
+/** Whether a title already names the gender, however the org worded it. */
+function titleNamesGender(title: string): boolean {
+    return /(boys|girls|men|women)/i.test(title)
+}
+
+/**
+ * The gender word to ADD to a label, or "" when there is none to add.
+ *
+ * Nothing for a category open to everyone, and nothing when the title
+ * already says it — "U15 Girls · Girls" is noise, and the org's own wording
+ * ("Women's U21", "Boys only") counts as saying it.
+ */
+function addedGenderWord(
+    group: GenderBearing & { title: string },
+    recruitmentGender: RecruitmentGender | "" | null | undefined,
+): string {
+    const effective = effectiveGender(group, recruitmentGender)
+    if (effective !== "male" && effective !== "female") return ""
+    if (titleNamesGender(group.title)) return ""
+    return genderLabel(effective)
+}
+
+/**
+ * WHETHER A CATEGORY TAKES THIS PLAYER — for a warning, never a gate.
+ *
+ * "Unknown passes", exactly as the backend has it: no profile gender is not a
+ * mismatch, and neither is a category open to everyone. The only false this
+ * returns is a known gender against a category that names the other one, and
+ * even then the modal asks the player to confirm rather than refusing them.
+ */
+export function genderFitsGroup(
+    group: GenderBearing | undefined,
+    recruitmentGender: RecruitmentGender | "" | null | undefined,
+    viewerGender: string | null | undefined,
+): boolean {
+    if (!viewerGender) return true
+    const effective = effectiveGender(group, recruitmentGender)
+    if (!effective || effective === "all") return true
+    return effective === viewerGender
+}
+
+/**
+ * The option label in the apply modal's category select.
+ *
+ * "U15 · Girls · born 2011–2012 · report 8:30 AM". The gender sits second
+ * because it is the half of the choice the player is most likely to get
+ * wrong on a split trial — and it is only there when it says something new
+ * (see `addedGenderWord`).
+ */
+export function ageGroupOptionLabel(
+    group: RecruitmentAgeCategory,
+    recruitmentGender?: RecruitmentGender | "" | null,
+): string {
     const range = formatBirthYears(group.min_birth_year, group.max_birth_year)
     const time = group.reporting_time
         ? `report ${formatReportingTime(group.reporting_time)}`
         : ""
-    const detail = [range, time].filter(Boolean).join(" · ")
+    const detail = [addedGenderWord(group, recruitmentGender), range, time]
+        .filter(Boolean)
+        .join(" · ")
     return detail ? `${group.title} — ${detail}` : group.title
+}
+
+/**
+ * The gender word on its own, for a surface that lays its own detail out
+ * (the detail pages' "Who can come" list, the centre chips). Same rule as
+ * the option label, so one trial never reads two ways.
+ */
+export function ageGroupGenderWord(
+    group: GenderBearing & { title: string },
+    recruitmentGender?: RecruitmentGender | "" | null,
+): string {
+    return addedGenderWord(group, recruitmentGender)
 }
 
 /** "09:00:00" → "9:00 AM". Returns "" for a missing time. */

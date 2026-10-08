@@ -13,7 +13,7 @@
  * so closing the modal reveals the application-status banner.
  */
 
-import { useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -25,9 +25,14 @@ import {
   ageGroupApplyPayload,
   ageGroupOptionLabel,
   birthYearInGroup,
+  categoriesForSession,
+  effectiveGender,
   formatBirthYears,
   formatReportingTime,
+  genderFitsGroup,
+  genderLabel,
   isAgeGroupRequired,
+  sessionsForCategory,
   validateAgeGroupChoice,
 } from "../../eligibility"
 import type {
@@ -48,6 +53,11 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 // ── Config ────────────────────────────────────────────────────
 
 const OPTION_TYPES: QuestionFieldType[] = ["select", "radio", "checkbox"]
+// The server's own words when a category is not held at the chosen centre
+// (ApplicationService._check_category_runs_at). Matched loosely — on the
+// stable half of the sentence — so a copy tweak at either end does not
+// silently send it back to the generic banner.
+const CATEGORY_CENTRE_REFUSAL = /category doesn.t run at the centre/i
 const PHONE_RE = /^\+?\d{7,15}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -79,6 +89,41 @@ function StepBar({ labels, activeIndex }: { labels: string[]; activeIndex: numbe
           {i < labels.length - 1 && <div className={styles.stepLine} />}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Locked pick ────────────────────────────────
+
+/**
+ * A field whose answer was FORCED — the other picker narrowed it to one
+ * option and the form filled it in.
+ *
+ * Shown instead of a select with a single item, because a one-item select
+ * asks a question that has no second answer. The "Change" link is the whole
+ * reason this is not just plain text: the player can always get back to the
+ * full list, which is what keeps the auto-pick a convenience rather than a
+ * decision made for them.
+ */
+function LockedPick({ label, icon, changeLabel, onChange, disabled }: {
+  label: string
+  icon: string
+  changeLabel: string
+  onChange: () => void
+  disabled?: boolean
+}) {
+  return (
+    <div className={styles.lockedPick}>
+      <Icon icon={icon} width={15} height={15} className={styles.lockedPickIcon} />
+      <span className={styles.lockedPickText}>{label}</span>
+      <button
+        type="button"
+        className={styles.lockedPickChange}
+        onClick={onChange}
+        disabled={disabled}
+      >
+        {changeLabel}
+      </button>
     </div>
   )
 }
@@ -131,7 +176,7 @@ export default function ApplyRecruitmentModal({
   //
   // Nothing is preselected. The ordering is a convenience; auto-picking the
   // nearest would answer a required question on the player's behalf.
-  const sessionOptions = useMemo(
+  const everySessionOption = useMemo(
     () =>
       needsSession
         ? sessionsByDistance(
@@ -140,7 +185,6 @@ export default function ApplyRecruitmentModal({
         : [],
     [needsSession, recruitment.sessions, recruitment.timezone],
   )
-  const noDatesLeft = needsSession && sessionOptions.length === 0
 
   const stepOrder: Step[] = useMemo(
     () => (hasQuestions ? ["details", "questions", "success"] : ["details", "success"]),
@@ -165,8 +209,24 @@ export default function ApplyRecruitmentModal({
   const [ageGroupTouched, setAgeGroupTouched] = useState(false)
   // "I've checked — apply anyway". Reset whenever the group changes: an
   // acknowledgement is about ONE group, not a standing waiver.
-  const [ageAck, setAgeAck] = useState(false)
-  const ageWarningTitleId = useId()
+  const [fitAck, setFitAck] = useState(false)
+  const fitWarningTitleId = useId()
+  /**
+   * WHICH PICKER THE PLAYER ANSWERED LAST.
+   *
+   * The two pickers filter each other, so a pair that stops agreeing has to
+   * resolve SOMEHOW — and without this both sides would clear each other in
+   * the same commit and the player would lose the pick they just made. The
+   * answer they gave most recently is the one they meant; the other yields.
+   */
+  const [lastPicked, setLastPicked] = useState<"session" | "category" | null>(null)
+  /**
+   * Fields the player has deliberately UNLOCKED, by tapping "Change" on an
+   * auto-filled one. Without it the auto-pick below would put the single
+   * option straight back and the link would do nothing.
+   */
+  const [sessionUnlocked, setSessionUnlocked] = useState(false)
+  const [ageGroupUnlocked, setAgeGroupUnlocked] = useState(false)
 
   // ── Step 2: answers ────────────────────────────────────────────
   const [answers, setAnswers] = useState<AnswerState>(() => {
@@ -191,27 +251,128 @@ export default function ApplyRecruitmentModal({
       return next
     })
 
+  // ── The two pickers, which FILTER EACH OTHER ──────────────────
+  //
+  // A category can be held at only some of a trial's centres, so "U17 Girls"
+  // and "Sunday at Kannur" are one decision made in two fields. Each side
+  // narrows the other, which is what stops the form offering a pair the
+  // server will refuse — and, when the narrowing leaves one option, what
+  // makes the whole thing a single tap.
+  //
+  // EMPTY MEANS ALL on both sides, so a trial where no category names a
+  // centre filters nothing and behaves exactly as it always has.
+  const selectedGroup = ageGroups.find((group) => group.id === ageGroupId)
+
+  const sessionOptions = useMemo(
+    () => sessionsForCategory(everySessionOption, selectedGroup),
+    [everySessionOption, selectedGroup],
+  )
+  const ageGroupOptions = useMemo(
+    () => (sessionId ? categoriesForSession(ageGroups, sessionId) : ageGroups),
+    [ageGroups, sessionId],
+  )
+
+  // Two different dead ends, and they need different words: a trial whose
+  // dates have all passed, versus a category whose own dates have.
+  const noDatesLeft = needsSession && everySessionOption.length === 0
+  const noDatesForGroup =
+    needsSession && !noDatesLeft && sessionOptions.length === 0
+
+  // A FORCED CHOICE IS NOT A CHOICE. One option left and the field still
+  // empty: fill it, and show it as a filled pill the player can undo rather
+  // than a select with a single item in it.
+  const sessionLocked =
+    needsSession && !sessionUnlocked && sessionOptions.length === 1
+  const ageGroupLocked =
+    needsAgeGroup && !ageGroupUnlocked && ageGroupOptions.length === 1
+
+  useEffect(() => {
+    if (sessionLocked && !sessionId) setSessionId(sessionOptions[0].id)
+  }, [sessionLocked, sessionId, sessionOptions])
+
+  useEffect(() => {
+    if (ageGroupLocked && !ageGroupId) setAgeGroupId(ageGroupOptions[0].id)
+  }, [ageGroupLocked, ageGroupId, ageGroupOptions])
+
+  // A PICK THE OTHER SIDE JUST INVALIDATED is dropped rather than carried to
+  // a submit the server would refuse. `lastPicked` decides who yields — see
+  // that state. The touched flag goes with it: the field is being emptied by
+  // the form, not left blank by the player, so it must not read as an error
+  // until they have been back to it.
+  useEffect(() => {
+    if (
+      sessionId
+      && lastPicked !== "session"
+      && !sessionOptions.some((session) => session.id === sessionId)
+    ) {
+      setSessionId("")
+      setSessionTouched(false)
+    }
+  }, [sessionId, sessionOptions, lastPicked])
+
+  useEffect(() => {
+    if (
+      ageGroupId
+      && lastPicked !== "category"
+      && !ageGroupOptions.some((group) => group.id === ageGroupId)
+    ) {
+      setAgeGroupId("")
+      setAgeGroupTouched(false)
+      setFitAck(false)
+    }
+  }, [ageGroupId, ageGroupOptions, lastPicked])
+
+  const pickSession = (id: string) => {
+    setSessionId(id)
+    setSessionTouched(true)
+    setLastPicked("session")
+    // The category may now be forced, so let it re-lock.
+    setAgeGroupUnlocked(false)
+    clearFieldError("session")
+    clearFieldError("age_category")
+  }
+
+  const pickAgeGroup = (id: string) => {
+    if (id !== ageGroupId) setFitAck(false)
+    setAgeGroupId(id)
+    setAgeGroupTouched(true)
+    setLastPicked("category")
+    setSessionUnlocked(false)
+    clearFieldError("age_category")
+    clearFieldError("session")
+  }
+
   // ── Validation ─────────────────────────────────────────────────
   const normalizedPhone = phone.trim().replace(/[\s\-().]/g, "")
   const phoneValid = PHONE_RE.test(normalizedPhone)
   const emailValid = email.trim() === "" || EMAIL_RE.test(email.trim())
   const ageGroupIssue = validateAgeGroupChoice(ageGroups, ageGroupId)
 
-  // AGE WARNING — the player's own birth year (the server sends it on the
-  // authenticated detail only) against the group they picked, read the same
-  // way the backend's age_mismatch_at_apply is. It makes the player LOOK; it
-  // never refuses: once acknowledged the application goes through exactly as
-  // before, and nothing about it is sent — the server works the flag out
-  // itself. Unknown birth year (null) or an older payload without the field
-  // (undefined): no warning.
+  // FIT WARNINGS — the player's own profile (birth year and gender, both sent
+  // on the authenticated detail only) against the category they picked, each
+  // read exactly the way the backend reads it: `age_mismatch_at_apply` for
+  // the band, `effective_genders` for the gender. They make the player LOOK;
+  // they never refuse. Once acknowledged the application goes through exactly
+  // as before, and nothing about either is sent — the server works the age
+  // flag out itself and the gender is simply the org's to see on the row.
+  //
+  // MISSING DATA IS NEVER A MISMATCH. An unknown birth year (null) or gender,
+  // and an older payload carrying neither (undefined), warn about nothing.
   const viewerBirthYear = recruitment.viewer_birth_year
-  const selectedGroup = ageGroups.find((group) => group.id === ageGroupId)
+  const viewerGender = recruitment.viewer_gender
   const showAgeWarning =
     needsAgeGroup &&
     typeof viewerBirthYear === "number" &&
     !!selectedGroup &&
     !birthYearInGroup(selectedGroup, viewerBirthYear)
-  const ageAckMissing = showAgeWarning && !ageAck
+  const showGenderWarning =
+    needsAgeGroup &&
+    !!selectedGroup &&
+    !genderFitsGroup(selectedGroup, recruitment.gender, viewerGender)
+  // ONE BOX, whichever of the two applies — two stacked warnings about the
+  // same pick read as two problems, and would need two ticks for one choice.
+  const showFitWarning = showAgeWarning || showGenderWarning
+  const fitAckMissing = showFitWarning && !fitAck
 
   // A date is required exactly when the trial asks for one, and only a
   // date still on offer counts — the same rule the server applies.
@@ -219,15 +380,17 @@ export default function ApplyRecruitmentModal({
     needsSession && !sessionOptions.some(session => session.id === sessionId)
       ? (noDatesLeft
         ? "No dates left on this trial"
-        : "Pick which date you'll attend.")
+        : noDatesForGroup
+          ? "That category has no dates left. Pick another category."
+          : "Pick which date you'll attend.")
       : null
 
   const detailsValid =
     name.trim().length > 0 && phoneValid && ageGroupIssue === null
-    && sessionIssue === null && !ageAckMissing
+    && sessionIssue === null && !fitAckMissing
 
   const sessionError =
-    (sessionTouched || noDatesLeft ? sessionIssue : null)
+    (sessionTouched || noDatesLeft || noDatesForGroup ? sessionIssue : null)
     ?? fieldErrors.session ?? null
 
   const ageGroupError =
@@ -307,20 +470,31 @@ export default function ApplyRecruitmentModal({
       })
       setStep("success")
     } catch (err) {
-      setSubmitError(getApiErrorMessage(err, "Couldn't submit your application. Please try again."))
+      const message = getApiErrorMessage(err, "Couldn't submit your application. Please try again.")
+      setSubmitError(message)
       // Route shared-contact field errors back to the details step.
       const serverErrors = getApiFieldErrors(err)
+      const known: Record<string, string> = {}
       if (serverErrors) {
-        const known: Record<string, string> = {}
         for (const key of [
           "shared_name", "shared_email", "shared_phone", "age_category", "session",
         ]) {
           if (serverErrors[key]) known[key] = serverErrors[key]
         }
-        if (Object.keys(known).length > 0) {
-          setFieldErrors(known)
-          setStep("details")
-        }
+      }
+      // THE CATEGORY-AT-THIS-CENTRE REFUSAL arrives as a plain message, not a
+      // keyed field error (the server raises it as one sentence), so it would
+      // otherwise land only in the generic banner at the bottom. It is about
+      // the category field, and the fix is in the category field — the modal
+      // filters the two lists against each other precisely so this is
+      // unreachable, which is also why it earns a sentence rather than a
+      // guess at which side is wrong.
+      if (!known.age_category && CATEGORY_CENTRE_REFUSAL.test(message)) {
+        known.age_category = message
+      }
+      if (Object.keys(known).length > 0) {
+        setFieldErrors(known)
+        setStep("details")
       }
     }
   }
@@ -622,6 +796,22 @@ export default function ApplyRecruitmentModal({
                   </label>
                   {noDatesLeft ? (
                     <p className={styles.ageHint}>No dates left on this trial.</p>
+                  ) : sessionLocked ? (
+                    /* THE CATEGORY ALREADY ANSWERED THIS. Only one centre
+                       holds it, so the field states the answer instead of
+                       asking — with the way back, because the player may
+                       have meant a different category. */
+                    <LockedPick
+                      label={sessionOptionLabel(sessionOptions[0], recruitment)}
+                      icon={multiPlace ? "mdi:map-marker-outline" : "mdi:calendar-blank-outline"}
+                      changeLabel={multiPlace ? "Change centre" : "Change date"}
+                      onChange={() => {
+                        setSessionUnlocked(true)
+                        setSessionId("")
+                        setSessionTouched(false)
+                      }}
+                      disabled={isPending}
+                    />
                   ) : (
                     <Select
                       aria-label={multiPlace ? "Trial centre" : "Trial date"}
@@ -630,11 +820,7 @@ export default function ApplyRecruitmentModal({
                         multiPlace ? "— Select a centre —" : "— Select a date —"
                       }
                       value={sessionId}
-                      onChange={(id) => {
-                        setSessionId(id)
-                        setSessionTouched(true)
-                        clearFieldError("session")
-                      }}
+                      onChange={pickSession}
                       onBlur={() => setSessionTouched(true)}
                       disabled={isPending}
                       options={sessionOptions.map((session) => ({
@@ -656,26 +842,41 @@ export default function ApplyRecruitmentModal({
               {needsAgeGroup && (
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>
-                    Which age group are you applying for? <span className={styles.required}>*</span>
+                    Which category are you applying for? <span className={styles.required}>*</span>
                   </label>
-                  <Select
-                    aria-label="Age group"
-                    sheetTitle="Age group"
-                    placeholder="— Select a group —"
-                    value={ageGroupId}
-                    onChange={(groupId) => {
-                      if (groupId !== ageGroupId) setAgeAck(false)
-                      setAgeGroupId(groupId)
-                      setAgeGroupTouched(true)
-                      clearFieldError("age_category")
-                    }}
-                    onBlur={() => setAgeGroupTouched(true)}
-                    disabled={isPending}
-                    options={ageGroups.map((group) => ({
-                      value: group.id,
-                      label: ageGroupOptionLabel(group),
-                    }))}
-                  />
+                  {ageGroupLocked ? (
+                    /* THE CENTRE ALREADY ANSWERED THIS — the mirror of the
+                       locked pill above. Labelled from the single OPTION
+                       rather than the picked value, so the pill is right on
+                       the very first frame instead of flashing a one-item
+                       select while the effect fills the field in. */
+                    <LockedPick
+                      label={ageGroupOptionLabel(ageGroupOptions[0], recruitment.gender)}
+                      icon="mdi:account-group-outline"
+                      changeLabel="Change category"
+                      onChange={() => {
+                        setAgeGroupUnlocked(true)
+                        setAgeGroupId("")
+                        setAgeGroupTouched(false)
+                        setFitAck(false)
+                      }}
+                      disabled={isPending}
+                    />
+                  ) : (
+                    <Select
+                      aria-label="Category"
+                      sheetTitle="Category"
+                      placeholder="— Select a category —"
+                      value={ageGroupId}
+                      onChange={pickAgeGroup}
+                      onBlur={() => setAgeGroupTouched(true)}
+                      disabled={isPending}
+                      options={ageGroupOptions.map((group) => ({
+                        value: group.id,
+                        label: ageGroupOptionLabel(group, recruitment.gender),
+                      }))}
+                    />
+                  )}
                   {ageGroupError && (
                     <span className={styles.fieldErrorText} role="alert">
                       <Icon icon="mdi:alert-circle-outline" width={12} height={12} />
@@ -700,31 +901,45 @@ export default function ApplyRecruitmentModal({
               {/* Directly above the primary button, which stays disabled
                   until the box is ticked. A block in the form, not a toast:
                   it has to be read. */}
-              {showAgeWarning && selectedGroup && (
-                <div className={styles.ageWarning} role="group" aria-labelledby={ageWarningTitleId}>
+              {showFitWarning && selectedGroup && (
+                <div className={styles.ageWarning} role="group" aria-labelledby={fitWarningTitleId}>
                   <Icon icon="mdi:alert-outline" width={20} height={20} className={styles.ageWarningIcon} />
                   <div className={styles.ageWarningBody}>
-                    <p id={ageWarningTitleId} className={styles.ageWarningTitle}>
-                      Check your age group
+                    <p id={fitWarningTitleId} className={styles.ageWarningTitle}>
+                      Check this category
                     </p>
+                    {/* WHICHEVER APPLY, in one box and under one tick. Both
+                        read the same way round: what the PROFILE says, then
+                        what the CATEGORY is for — so the player can see at a
+                        glance which of the two is the one that is wrong. */}
+                    {showAgeWarning && (
+                      <p className={styles.ageWarningText}>
+                        Your profile says you were born in {viewerBirthYear}.
+                        <br />
+                        This category is for players{" "}
+                        {formatBirthYears(selectedGroup.min_birth_year, selectedGroup.max_birth_year).toLowerCase()}.
+                      </p>
+                    )}
+                    {showGenderWarning && (
+                      <p className={styles.ageWarningText}>
+                        Your profile says {viewerGender}.
+                        <br />
+                        This category is for{" "}
+                        {genderLabel(effectiveGender(selectedGroup, recruitment.gender)).toLowerCase()}.
+                      </p>
+                    )}
                     <p className={styles.ageWarningText}>
-                      Your profile says you were born in {viewerBirthYear}.
-                      <br />
-                      This group is for players{" "}
-                      {formatBirthYears(selectedGroup.min_birth_year, selectedGroup.max_birth_year).toLowerCase()}.
-                    </p>
-                    <p className={styles.ageWarningText}>
-                      Organizations check age documents at the trial. Applying to the wrong
-                      group usually means being turned away at the gate.
+                      Organizations check documents at the trial. Applying under the
+                      wrong category usually means being turned away at the gate.
                     </p>
                     <label className={styles.ageWarningAck}>
                       <input
                         type="checkbox"
-                        checked={ageAck}
-                        onChange={(e) => setAgeAck(e.target.checked)}
+                        checked={fitAck}
+                        onChange={(e) => setFitAck(e.target.checked)}
                         disabled={isPending}
                       />
-                      I&apos;ve checked — apply anyway
+                      I&apos;ll apply anyway
                     </label>
                   </div>
                 </div>
