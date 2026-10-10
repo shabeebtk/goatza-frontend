@@ -24,6 +24,43 @@ export const DISTANCE_OPTIONS: { value: string; label: string }[] = [
 
 export const DEFAULT_DISTANCE_KM = 50
 
+/**
+ * The youngest age a trial realistically takes. A player younger than this is
+ * not what open trials are for, so a more recent birth year would only ever
+ * return an empty list — which reads as "nothing near you" rather than as
+ * "that is not a year we offer".
+ */
+export const MIN_TRIAL_AGE = 10
+
+/**
+ * The oldest birth year the filter offers. Veterans' trials are a real format,
+ * but not for anyone born before this, and an open-ended list of years nobody
+ * picks is just a longer list to scroll.
+ */
+export const OLDEST_FILTER_BIRTH_YEAR = 1990
+
+/**
+ * The birth years a player may filter by, NEWEST FIRST.
+ *
+ * Newest first because the youngest cohorts are the ones trials are mostly
+ * posted for, so the likely pick is at the top of the list rather than the
+ * bottom of twenty-seven of them.
+ *
+ * A function rather than a constant because the top of the range moves with
+ * the calendar: computed at import time it would be a year stale in a tab
+ * left open over New Year. Callers memoize it per mount.
+ */
+export function birthYearOptions(
+  now: Date = new Date(),
+): { value: string; label: string }[] {
+  const newest = now.getFullYear() - MIN_TRIAL_AGE
+  const years: { value: string; label: string }[] = []
+  for (let year = newest; year >= OLDEST_FILTER_BIRTH_YEAR; year -= 1) {
+    years.push({ value: String(year), label: String(year) })
+  }
+  return years
+}
+
 // WHO THE TRIAL IS OPEN TO. Only the two a player can BE: "Any" is the
 // absence of the filter, not a third value, which is why its chip carries
 // the empty string.

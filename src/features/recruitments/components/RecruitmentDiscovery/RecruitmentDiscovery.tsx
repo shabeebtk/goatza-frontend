@@ -177,30 +177,32 @@ export default function RecruitmentDiscovery() {
     [router, pathname, spString]
   )
 
-  // Debounced commit of the free-text fields (search / city / birth year).
+  // Debounced commit of the free-text fields (search / city).
+  //
+  // Birth year is NOT one of them any more: it is a select, so the value
+  // lands complete in one gesture and waiting 400ms for a pick the user has
+  // already made only makes the list feel slow. It commits through
+  // handleSelectChange like every other list control.
   useEffect(() => {
     const timer = setTimeout(() => {
       const patch: Partial<DiscoveryFilters> = {}
       if (draft.search !== committed.search) patch.search = draft.search
       if (draft.city !== committed.city) patch.city = draft.city
-      if (draft.birthYear !== committed.birthYear) patch.birthYear = draft.birthYear
       if (Object.keys(patch).length) commit(patch)
     }, 400)
     return () => clearTimeout(timer)
   }, [
     draft.search,
     draft.city,
-    draft.birthYear,
     committed.search,
     committed.city,
-    committed.birthYear,
     commit,
   ])
 
   // ── Handlers passed to the filter UI ──────────────────────────
 
   const handleTextChange = (
-    patch: Partial<Pick<DiscoveryFilters, "search" | "city" | "birthYear">>
+    patch: Partial<Pick<DiscoveryFilters, "search" | "city">>
   ) => setDraft((d) => ({ ...d, ...patch }))
 
   const handleSelectChange = (patch: Partial<DiscoveryFilters>) => {
