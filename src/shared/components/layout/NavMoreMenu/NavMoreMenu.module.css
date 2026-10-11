@@ -1,0 +1,114 @@
+/* ─────────────────────────────────────────────────────────────
+   NAV "MORE" PANEL  (desktop top bar overflow)
+
+   Portalled to <body>, so it is placed with inline top/left from the
+   trigger's rect. z-index sits in the app-chrome band, level with the
+   avatar dropdown it appears beside (see globals.css §4b).
+   ───────────────────────────────────────────────────────────── */
+
+.panel {
+    position: fixed;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    animation: morePanelIn 0.18s var(--ease-out) both;
+}
+
+@keyframes morePanelIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 40px;
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.row:hover,
+.row:focus-visible {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand-hover);
+}
+
+.rowActive {
+    color: var(--color-brand-hover);
+    background: var(--color-brand-subtle);
+    font-weight: var(--weight-semi);
+}
+
+.rowIcon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    line-height: 0;
+    color: var(--color-text-muted);
+    transition: color var(--duration-fast);
+}
+
+.row:hover .rowIcon,
+.row:focus-visible .rowIcon,
+.rowActive .rowIcon {
+    color: var(--color-brand);
+}
+
+.rowDisabled {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    cursor: default;
+}
+
+.rowDisabled:hover {
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.rowDisabled:hover .rowIcon {
+    color: var(--color-text-muted);
+}
+
+/* The chip is the one thing on a dimmed row that should stay legible. */
+.soon {
+    margin-left: auto;
+    font-family: var(--font-ui);
+    font-size: 0.54rem;
+    font-weight: var(--weight-black);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-brand);
+    background: var(--color-brand-subtle);
+    border: 1px solid var(--color-brand-muted);
+    border-radius: var(--radius-full);
+    padding: 2px 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel {
+        animation: none;
+    }
+}

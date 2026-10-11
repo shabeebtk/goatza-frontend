@@ -17,6 +17,12 @@ import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQu
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import MobileNavSheet, {
+  type NavDockTab,
+  type NavSheetGroup,
+  type NavSheetTile,
+} from "@/shared/components/layout/MobileNavSheet/MobileNavSheet"
+import NavMoreMenu, { type MoreMenuRow } from "@/shared/components/layout/NavMoreMenu/NavMoreMenu"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -68,6 +74,160 @@ function buildNavItems(orgId: string) {
 }
 
 
+/**
+ * The expand sheet's destinations for an org admin. OrgNav's own nav is built
+ * inline (buildNavItems above) and is a flat list of six, so the sheet gets
+ * its own grouping rather than a filter of that: "Manage" is the work an admin
+ * does on the org, "Grow" is where they go looking outward. The same
+ * MobileNavSheet renders it — only the data differs from the user app.
+ */
+function buildSheetSections(
+  orgId: string,
+  { orgUsername }: { orgUsername?: string | null }
+): NavSheetGroup[] {
+  const base = orgBase(orgId)
+
+  return [
+    {
+      id: "manage",
+      title: "Manage",
+      items: [
+        {
+          id: "dashboard",
+          label: "Dashboard",
+          href: `${base}/dashboard`,
+          icon: "mdi:view-dashboard-outline",
+          iconActive: "mdi:view-dashboard",
+        },
+        {
+          id: "feed",
+          label: "Feed",
+          href: `${base}/feed`,
+          icon: "mdi:newspaper-variant-outline",
+          iconActive: "mdi:newspaper-variant",
+        },
+        {
+          id: "recruitments",
+          label: "Recruitments",
+          href: `${base}/recruitments`,
+          icon: "mdi:briefcase-search-outline",
+          iconActive: "mdi:briefcase-search",
+        },
+        {
+          id: "verifications",
+          label: "Verify",
+          href: `${base}/verifications`,
+          icon: "mdi:shield-check-outline",
+          iconActive: "mdi:shield-check",
+        },
+      ],
+    },
+    {
+      id: "grow",
+      title: "Grow",
+      items: [
+        {
+          id: "explore",
+          label: "Explore",
+          href: `${base}/explore`,
+          icon: "mdi:compass-outline",
+          iconActive: "mdi:compass",
+        },
+        {
+          id: "tournaments",
+          label: "Tournaments",
+          icon: "mdi:trophy-outline",
+          iconActive: "mdi:trophy",
+          disabled: true,
+          comingSoon: true,
+        },
+        {
+          // The org's followers/following list — its network page. It needs
+          // the handle, so it waits (dimmed) until the session has it.
+          id: "members",
+          label: "Members",
+          href: orgUsername ? `${base}/profile/org/${orgUsername}/network` : undefined,
+          icon: "mdi:account-group-outline",
+          iconActive: "mdi:account-group",
+          disabled: !orgUsername,
+        },
+        {
+          id: "org_profile",
+          label: "Org profile",
+          href: `${base}/profile`,
+          icon: "mdi:office-building-outline",
+          iconActive: "mdi:office-building",
+        },
+      ],
+    },
+  ]
+}
+
+/**
+ * The desktop bar's primary destinations. Deliberately NOT buildNavItems:
+ * that list still drives the mobile bars (and must keep doing so), while the
+ * desktop bar now shows only the four places an admin works and sends the
+ * rest to the More panel.
+ */
+function buildDesktopPrimary(orgId: string) {
+  const base = orgBase(orgId)
+  return [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      href: `${base}/dashboard`,
+      icon: "mdi:view-dashboard-outline",
+      iconActive: "mdi:view-dashboard",
+    },
+    {
+      id: "feed",
+      label: "Feed",
+      href: `${base}/feed`,
+      icon: "mdi:newspaper-variant-outline",
+      iconActive: "mdi:newspaper-variant",
+    },
+    {
+      id: "recruitments",
+      label: "Recruitments",
+      href: `${base}/recruitments`,
+      icon: "mdi:briefcase-search-outline",
+      iconActive: "mdi:briefcase-search",
+    },
+    {
+      id: "verifications",
+      label: "Verify",
+      href: `${base}/verifications`,
+      icon: "mdi:shield-check-outline",
+      iconActive: "mdi:shield-check",
+    },
+  ]
+}
+
+/**
+ * The sheet's footer row for an org: the two destinations that are not tiles,
+ * plus Log out, which the sheet appends itself.
+ */
+function buildSheetFooter(orgId: string, unreadMessages: number): NavSheetTile[] {
+  const base = orgBase(orgId)
+  return [
+    {
+      id: "messages",
+      label: "Messages",
+      href: `${base}/messages`,
+      icon: "mdi:message-outline",
+      iconActive: "mdi:message",
+      badge: unreadMessages,
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      href: `${base}/settings`,
+      icon: "mdi:cog-outline",
+      iconActive: "mdi:cog",
+    },
+  ]
+}
+
 function OrgLogoMark({
   orgId,
   logoUrl,
@@ -117,7 +277,6 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   // Disabled on org chat conversation pages, where ChatWindow takes over the
   // screen. Drives `--chrome-progress` on <html> — no re-renders on scroll.
   const isChatPage = /\/organization\/admin\/[^/]+\/messages\/.+/.test(pathname)
-  useScrollChrome({ enabled: !isChatPage })
 
   // The toasts offset themselves by the mobile bars only while a bar is
   // there to offset by — ChatWindow covers both on a chat page.
@@ -129,6 +288,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const [postModalOpen, setPostModalOpen] = useState(false)
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
   const [recruitmentOpen, setRecruitmentOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  // Not while the sheet is open: the bar is the floor the sheet stands on.
+  // Disabled also forces the chrome fully visible, which is what is wanted.
+  useScrollChrome({ enabled: !isChatPage && !sheetOpen })
 
   const user = useAuthStore((state) => state.user)
   const actorType = useAuthStore((state) => state.actorType)
@@ -166,6 +331,23 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   ]
 
   const NAV_ITEMS = buildNavItems(orgId)
+  const DESKTOP_PRIMARY = buildDesktopPrimary(orgId)
+  const DESKTOP_RIGHT = [
+    {
+      id: "messages",
+      label: "Messages",
+      href: `${orgBase(orgId)}/messages`,
+      icon: "mdi:message-outline",
+      iconActive: "mdi:message",
+    },
+    {
+      id: "notifications",
+      label: "Alerts",
+      href: `${orgBase(orgId)}/notifications`,
+      icon: "mdi:bell-outline",
+      iconActive: "mdi:bell",
+    },
+  ]
   // Mobile bottom bar shows Dashboard + Feed (left), Create, Messages (right),
   // then the profile avatar. Explore, Verify and Alerts live in the mobile top
   // bar instead — five bottom tabs is already the comfortable maximum, so a
@@ -177,21 +359,43 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const MOBILE_LEFT_ITEMS = MOBILE_NAV_ITEMS.slice(0, 2)
   const MOBILE_RIGHT_ITEMS = MOBILE_NAV_ITEMS.slice(2)
 
-  const pressTimer = useRef<NodeJS.Timeout | null>(null)
-  const wasLongPressed = useRef(false)
-
-  const startPress = () => {
-    wasLongPressed.current = false
-    pressTimer.current = setTimeout(() => {
-      wasLongPressed.current = true
-      setSheetOpen(true)
-      if (window.navigator?.vibrate) window.navigator.vibrate(50)
-    }, 450)
-  }
-
-  const clearPress = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current)
-  }
+  // The same five tabs as before — Dashboard, Feed, Create, Messages, then
+  // the org avatar — now shaped for the dock, which renders the bar itself.
+  const dockTabs: NavDockTab[] = [
+    ...MOBILE_LEFT_ITEMS.map((item) => ({
+      kind: "link" as const,
+      id: item.href,
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+      iconActive: item.iconActive,
+    })),
+    {
+      kind: "create" as const,
+      id: "create",
+      label: "Open create menu",
+      icon: "mdi:plus",
+      onSelect: () => setCreateMenuOpen(true),
+    },
+    ...MOBILE_RIGHT_ITEMS.map((item) => ({
+      kind: "link" as const,
+      id: item.href,
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+      iconActive: item.iconActive,
+      badge: item.label === "Messages" ? messageCount : undefined,
+    })),
+    {
+      kind: "profile" as const,
+      id: "org_profile_tab",
+      label: "Organization profile",
+      match: `${orgBase(orgId)}/profile`,
+      avatarUrl: currentOrg?.logo,
+      initials: currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR",
+      isOrganization: true,
+    },
+  ]
 
   useEffect(() => {
     const onResize = () => {
@@ -201,6 +405,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       } else {
         setDropdownOpen(false)
         setCreateMenuOpen(false) // close the desktop create dropdown
+        setMoreOpen(false) // portalled, so it would outlive the desktop bar
       }
     }
 
@@ -220,6 +425,63 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     router.push("/home")
   }
 
+  // The More panel: destinations only, matching the user app. Switch to
+  // personal and Log out are in the avatar dropdown beside it rather than in
+  // both places. Explore is here rather than in the primary four — it is
+  // where an admin goes looking outward, not where the daily work is.
+  // Members lives UNDER /profile, so the longest match wins — otherwise both
+  // rows light up at once on the members page.
+  const membersHref = currentOrg?.username
+    ? `${orgBase(orgId)}/profile/org/${currentOrg.username}/network`
+    : null
+  const membersActive = !!membersHref && pathname.startsWith(membersHref)
+
+  const moreRows: MoreMenuRow[] = [
+    {
+      kind: "link",
+      id: "members",
+      label: "Members",
+      // Needs the org's handle; dimmed until the session has it.
+      href: membersHref ?? `${orgBase(orgId)}/profile`,
+      icon: "mdi:account-group-outline",
+      active: membersActive,
+      disabled: !membersHref,
+    },
+    {
+      kind: "link",
+      id: "org_profile",
+      label: "Org profile",
+      href: `${orgBase(orgId)}/profile`,
+      icon: "mdi:office-building-outline",
+      active: pathname.startsWith(`${orgBase(orgId)}/profile`) && !membersActive,
+    },
+    {
+      kind: "link",
+      id: "explore",
+      label: "Explore",
+      href: `${orgBase(orgId)}/explore`,
+      icon: "mdi:compass-outline",
+      active: pathname.startsWith(`${orgBase(orgId)}/explore`),
+    },
+    {
+      kind: "link",
+      id: "settings",
+      label: "Settings",
+      href: `${orgBase(orgId)}/settings`,
+      icon: "mdi:cog-outline",
+      active: pathname.startsWith(`${orgBase(orgId)}/settings`),
+    },
+    {
+      kind: "link",
+      id: "tournaments",
+      label: "Tournaments",
+      href: "/tournaments",
+      icon: "mdi:trophy-outline",
+      disabled: true,
+      comingSoon: true,
+    },
+  ]
+
   const handleSwitchToOrganization = (organizationId: string) => {
     switchToOrganization(organizationId)
     setDropdownOpen(false)
@@ -234,22 +496,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         <div className={styles.topNavInner}>
           <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
 
-          <div className={styles.topNavCenter}>
-            <nav className={styles.topNavLinks} aria-label="Organization navigation">
-            {NAV_ITEMS.map((item) => {
+          <nav className={styles.topNavLinks} aria-label="Organization navigation">
+            {DESKTOP_PRIMARY.map((item) => {
               const isActive = pathname.startsWith(item.href)
-              const hasAlert =
-                item.href === `${orgBase(orgId)}/messages`
-                  ? messageCount > 0
-                  : item.href === `${orgBase(orgId)}/notifications`
-                    ? notifCount > 0
-                    : false
-              const alertCount =
-                item.href === `${orgBase(orgId)}/messages`
-                  ? messageCount
-                  : item.href === `${orgBase(orgId)}/notifications`
-                    ? notifCount
-                    : 0
 
               return (
                 <Link
@@ -260,87 +509,135 @@ export default function OrgNav({ orgId }: { orgId: string }) {
                   aria-label={item.label}
                 >
                   <span className={styles.topNavLinkIcon} aria-hidden="true">
-                    <Icon icon={isActive ? item.iconActive : item.icon} width={22} height={22} />
-                    {hasAlert && <NotifDot count={alertCount} />}
+                    <Icon icon={isActive ? item.iconActive : item.icon} width={20} height={20} />
                   </span>
                   <span className={styles.topNavLinkLabel}>{item.label}</span>
                 </Link>
               )
             })}
-            </nav>
-          </div>
 
-          <div className={styles.createBtnWrap}>
             <button
-              className={styles.topNavCreateBtn}
-              onClick={() => setCreateMenuOpen((open) => !open)}
-              onMouseDown={(event) => event.stopPropagation()}
+              ref={moreBtnRef}
               type="button"
-              aria-label="Create"
+              className={`${styles.topNavLink} ${styles.topNavMoreBtn} ${moreOpen ? styles.topNavLinkActive : ""}`}
+              onClick={() => setMoreOpen((isOpen) => !isOpen)}
               aria-haspopup="menu"
-              aria-expanded={createMenuOpen}
+              aria-expanded={moreOpen}
+              aria-label="More"
             >
-              <Icon icon="mdi:plus" width={18} height={18} />
+              <span className={styles.topNavLinkIcon} aria-hidden="true">
+                <Icon icon="mdi:dots-horizontal" width={20} height={20} />
+              </span>
+              <span className={styles.topNavLinkLabel}>More</span>
             </button>
-            <CreateMenu
-              open={createMenuOpen}
-              onClose={() => setCreateMenuOpen(false)}
-              actions={createActions}
-            />
-          </div>
+          </nav>
 
-          <div className={styles.topNavAvatar}>
-            <div className={styles.avatarBtn}>
-              <Link
-                href={`${orgBase(orgId)}/profile`}
-                className={styles.orgAvatarWrap}
-                aria-label="Organization profile"
-              >
-                <Avatar
-                  src={currentOrg?.logo}
-                  initials={currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR"}
-                  size="sm"
-                />
-                <span className={styles.orgBadgePip} aria-hidden="true">
-                  <Icon icon="mdi:office-building" width={10} height={10} />
-                </span>
-              </Link>
+          <div className={styles.topNavRight}>
+            <div className={styles.createBtnWrap}>
               <button
-                onClick={() => setDropdownOpen((open) => !open)}
-                aria-haspopup="true"
-                aria-expanded={dropdownOpen}
-                aria-label="Account menu"
-                className={styles.chevronBtn}
+                className={styles.topNavCreateBtn}
+                onClick={() => setCreateMenuOpen((open) => !open)}
+                onMouseDown={(event) => event.stopPropagation()}
+                type="button"
+                aria-label="Create a post or a recruitment"
+                aria-haspopup="menu"
+                aria-expanded={createMenuOpen}
               >
-                <Icon
-                  icon={dropdownOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
-                  width={16}
-                  height={16}
-                  className={styles.avatarChevron}
-                />
+                <Icon icon="mdi:plus" width={18} height={18} />
+                <span className={styles.createBtnLabel}>Post / Recruit</span>
               </button>
+              <CreateMenu
+                open={createMenuOpen}
+                onClose={() => setCreateMenuOpen(false)}
+                actions={createActions}
+              />
             </div>
 
-            <AccountSwitcher
-              mode="organization"
-              styles={styles}
-              actorType={actorType}
-              actorId={actorId}
-              organizations={organizations}
-              user={user}
-              currentOrgId={orgId}
-              openDropdown={dropdownOpen}
-              openSheet={sheetOpen}
-              onCloseDropdown={() => setDropdownOpen(false)}
-              onCloseSheet={() => setSheetOpen(false)}
-              onSwitchToUser={handleSwitchToUser}
-              onSwitchToOrganization={handleSwitchToOrganization}
-              onLogout={handleLogout}
-              enableSheet={false}
-            />
+            {/* Messages and Alerts live here as icons now, not inline links. */}
+            {DESKTOP_RIGHT.map((item) => {
+              const isActive = pathname.startsWith(item.href)
+              const alertCount = item.id === "messages" ? messageCount : notifCount
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`${styles.topNavIconBtn} ${isActive ? styles.topNavIconBtnActive : ""}`}
+                  aria-label={
+                    alertCount > 0 ? `${item.label}, ${alertCount} unread` : item.label
+                  }
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <span className={styles.topNavIconWrap} aria-hidden="true">
+                    <Icon icon={isActive ? item.iconActive : item.icon} width={22} height={22} />
+                    <NotifDot count={alertCount} />
+                  </span>
+                </Link>
+              )
+            })}
+
+            <div className={styles.topNavAvatar}>
+              <div className={styles.avatarBtn}>
+                <Link
+                  href={`${orgBase(orgId)}/profile`}
+                  className={styles.orgAvatarWrap}
+                  aria-label="Organization profile"
+                >
+                  <Avatar
+                    src={currentOrg?.logo}
+                    initials={currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR"}
+                    size="sm"
+                  />
+                  <span className={styles.orgBadgePip} aria-hidden="true">
+                    <Icon icon="mdi:office-building" width={10} height={10} />
+                  </span>
+                </Link>
+                <button
+                  onClick={() => setDropdownOpen((open) => !open)}
+                  aria-haspopup="true"
+                  aria-expanded={dropdownOpen}
+                  aria-label="Account menu"
+                  className={styles.chevronBtn}
+                >
+                  <Icon
+                    icon={dropdownOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
+                    width={16}
+                    height={16}
+                    className={styles.avatarChevron}
+                  />
+                </button>
+              </div>
+
+              <AccountSwitcher
+                mode="organization"
+                styles={styles}
+                actorType={actorType}
+                actorId={actorId}
+                organizations={organizations}
+                user={user}
+                currentOrgId={orgId}
+                openDropdown={dropdownOpen}
+                // Dropdown only; the mobile surface is MobileNavSheet now.
+                openSheet={false}
+                onCloseDropdown={() => setDropdownOpen(false)}
+                onCloseSheet={() => setSheetOpen(false)}
+                onSwitchToUser={handleSwitchToUser}
+                onSwitchToOrganization={handleSwitchToOrganization}
+                onLogout={handleLogout}
+                enableSheet={false}
+              />
+            </div>
           </div>
         </div>
       </header>
+
+      <NavMoreMenu
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        anchorRef={moreBtnRef}
+        rows={moreRows}
+        label="More organization navigation"
+      />
 
       <header className={styles.mobileTopBar} role="banner" aria-label="Organization mobile header">
         <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
@@ -384,106 +681,32 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         </div>
       </header>
 
-      <nav className={styles.bottomBar} aria-label="Organization tab navigation">
-        {MOBILE_LEFT_ITEMS.map((item) => {
-          const isActive = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
-              aria-label={item.label}
-              aria-current={isActive ? "page" : undefined}
-            >
-              <span className={styles.bottomTabIcon}>
-                <Icon icon={isActive ? item.iconActive : item.icon} width={26} height={26} />
-              </span>
-            </Link>
-          )
-        })}
-
-        <button
-          className={styles.bottomTabCreate}
-          style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-          aria-label="Open create menu"
-          aria-haspopup="menu"
-          aria-expanded={createMenuOpen}
-          onClick={() => setCreateMenuOpen(true)}
-        >
-          <span className={styles.bottomTabCreateInner} aria-hidden="true">
-            <Icon icon="mdi:plus" width={28} height={28} />
-          </span>
-        </button>
-
-        {MOBILE_RIGHT_ITEMS.map((item) => {
-          const isActive = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
-              aria-label={item.label}
-              aria-current={isActive ? "page" : undefined}
-            >
-              <span className={styles.bottomTabIcon}>
-                <Icon icon={isActive ? item.iconActive : item.icon} width={26} height={26} />
-              </span>
-            </Link>
-          )
-        })}
-
-        <Link
-          href={`${orgBase(orgId)}/profile`}
-          className={`${styles.bottomTab} ${pathname.startsWith(`${orgBase(orgId)}/profile`) ? styles.bottomTabActive : ""}`}
-          aria-label="Organization profile (Long press for account switcher)"
-          aria-current={pathname.startsWith(`${orgBase(orgId)}/profile`) ? "page" : undefined}
-          onTouchStart={startPress}
-          onTouchEnd={clearPress}
-          onTouchMove={clearPress}
-          onMouseDown={startPress}
-          onMouseUp={clearPress}
-          onMouseLeave={clearPress}
-          onContextMenu={(event) => {
-            event.preventDefault()
-            wasLongPressed.current = true
-            setSheetOpen(true)
-          }}
-          onClick={(event) => {
-            if (wasLongPressed.current) {
-              event.preventDefault()
-            }
-          }}
-        >
-          <div className={styles.orgAvatarWrap}>
-            <Avatar
-              src={currentOrg?.logo}
-              initials={currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR"}
-              size="xs"
-              className={actorType === "organization" ? styles.bottomTabAvatarActive : ""}
-            />
-            <span className={styles.orgBadgePipSm} aria-hidden="true">
-              <Icon icon="mdi:office-building" width={8} height={8} />
-            </span>
-          </div>
-        </Link>
-      </nav>
-
-      <AccountSwitcher
+      {/* Mobile navigation for the admin shell — the same component the user
+          app uses, fed the org's own grouped structure. */}
+      <MobileNavSheet
+        open={sheetOpen}
+        onOpen={() => setSheetOpen(true)}
+        onClose={() => setSheetOpen(false)}
+        tabs={dockTabs}
+        sections={buildSheetSections(orgId, { orgUsername: currentOrg?.username })}
+        footerItems={buildSheetFooter(orgId, messageCount)}
+        pathname={pathname}
+        visible={!isChatPage}
+        account={{
+          name: currentOrg?.name ?? "Organization",
+          avatarUrl: currentOrg?.logo,
+          initials: currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR",
+          roleLabel: "Admin · Switch account",
+          isOrganization: true,
+        }}
         mode="organization"
-        styles={styles}
         actorType={actorType}
         actorId={actorId}
         organizations={organizations}
         user={user}
-        currentOrgId={orgId}
-        openDropdown={dropdownOpen}
-        openSheet={sheetOpen}
-        onCloseDropdown={() => setDropdownOpen(false)}
-        onCloseSheet={() => setSheetOpen(false)}
         onSwitchToUser={handleSwitchToUser}
         onSwitchToOrganization={handleSwitchToOrganization}
         onLogout={handleLogout}
-        enableDropdown={false}
       />
 
       {postModalOpen && currentOrg?.username && (

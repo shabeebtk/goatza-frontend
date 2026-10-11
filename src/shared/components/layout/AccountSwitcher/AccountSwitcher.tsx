@@ -12,7 +12,7 @@ type ClassMap = Record<string, string>
 
 type AccountSwitcherMode = "user" | "organization"
 
-interface AccountSwitcherProps {
+export interface AccountSwitcherProps {
   mode: AccountSwitcherMode
   styles: ClassMap
   actorType: ActorType
@@ -31,7 +31,17 @@ interface AccountSwitcherProps {
   enableSheet?: boolean
 }
 
-function AccountSwitcherContent({
+/**
+ * Props for the switcher's body on its own. MobileNavSheet renders it inline
+ * inside the expand sheet (one sheet, not a second one stacked on the first),
+ * which is why the body is exported separately from the two chromes below.
+ */
+export type AccountSwitcherContentProps = Omit<
+  AccountSwitcherProps,
+  "openDropdown" | "openSheet" | "onCloseDropdown" | "onCloseSheet"
+> & { onClose: () => void }
+
+export function AccountSwitcherContent({
   mode,
   styles,
   actorType,
@@ -43,10 +53,7 @@ function AccountSwitcherContent({
   onSwitchToUser,
   onSwitchToOrganization,
   onLogout,
-}: Omit<
-  AccountSwitcherProps,
-  "openDropdown" | "openSheet" | "onCloseDropdown" | "onCloseSheet"
-> & { onClose: () => void }) {
+}: AccountSwitcherContentProps) {
   const currentOrg = useMemo(
     () =>
       currentOrgId
