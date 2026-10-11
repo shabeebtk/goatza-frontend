@@ -16,12 +16,18 @@ import { describe, expect, it } from "vitest"
 
 import {
     ageGroupApplyPayload,
+    ageGroupGenderWord,
     ageGroupOptionLabel,
     birthYearInGroup,
     buildAgeCategoriesPayload,
+    categoriesForSession,
+    effectiveGender,
     formatBirthYears,
     formatReportingTime,
+    genderFitsGroup,
+    genderLabel,
     isAgeGroupRequired,
+    sessionsForCategory,
     summarizeAgeGroups,
     validateAgeGroupChoice,
     validateAgeGroups,
@@ -228,6 +234,12 @@ describe("buildAgeCategoriesPayload", () => {
                 title: "U15 Boys",
                 min_birth_year: 2011,
                 max_birth_year: 2012,
+                // Both sent explicitly, always: null is "inherit the trial's
+                // gender" and [] is "runs at every centre". An OMITTED key
+                // on an edit would leave the stored value untouched instead
+                // of clearing it.
+                gender: null,
+                session_refs: [],
                 reporting_time: undefined,
                 display_order: 0,
             },
@@ -359,5 +371,225 @@ describe("formatReportingTime", () => {
     it("says nothing for a missing time", () => {
         expect(formatReportingTime(null)).toBe("")
         expect(formatReportingTime(undefined)).toBe("")
+    })
+})
+
+
+/**
+ * CATEGORY x CENTRE — the pair the apply modal filters on.
+ *
+ * EMPTY MEANS ALL on both sides, and that is the whole reason these helpers
+ * are worth pinning: read the other way round, an unlinked category would
+ * run NOWHERE and a plain trial would offer a player nothing at all.
+ */
+describe("categoriesForSession", () => {
+    const anywhere = group({ id: "cat-anywhere", title: "U18" })
+    const kochiOnly = group({
+        id: "cat-kochi", title: "U21", session_ids: ["sess-kochi"],
+    })
+    const kannurOnly = group({
+        id: "cat-kannur", title: "U23", session_ids: ["sess-kannur"],
+    })
+    const both = group({
+        id: "cat-both", title: "Seniors",
+        session_ids: ["sess-kochi", "sess-kannur"],
+    })
+
+    it("offers an unlinked category at every centre", () => {
+        const ids = (sessionId: string) =>
+            categoriesForSession([anywhere], sessionId).map((c) => c.id)
+
+        expect(ids("sess-kochi")).toEqual(["cat-anywhere"])
+        expect(ids("sess-kannur")).toEqual(["cat-anywhere"])
+    })
+
+    it("offers a linked category only at the centres it names", () => {
+        const all = [anywhere, kochiOnly, kannurOnly, both]
+
+        expect(categoriesForSession(all, "sess-kochi").map((c) => c.id))
+            .toEqual(["cat-anywhere", "cat-kochi", "cat-both"])
+        expect(categoriesForSession(all, "sess-kannur").map((c) => c.id))
+            .toEqual(["cat-anywhere", "cat-kannur", "cat-both"])
+    })
+
+    it("filters nothing until a centre is picked", () => {
+        const all = [anywhere, kochiOnly]
+        expect(categoriesForSession(all, "")).toEqual(all)
+    })
+
+    it("has nothing to offer for an absent list", () => {
+        expect(categoriesForSession(undefined, "sess-kochi")).toEqual([])
+    })
+})
+
+describe("sessionsForCategory", () => {
+    const kochi = { id: "sess-kochi" }
+    const kannur = { id: "sess-kannur" }
+    const centres = [kochi, kannur]
+
+    it("gives every centre to a category that names none", () => {
+        expect(sessionsForCategory(centres, group())).toEqual(centres)
+        // An absent category is the same question unanswered, not a
+        // narrowing — the apply modal is in that state before a pick.
+        expect(sessionsForCategory(centres, undefined)).toEqual(centres)
+    })
+
+    it("narrows to the centres a linked category names", () => {
+        expect(
+            sessionsForCategory(centres, group({ session_ids: ["sess-kannur"] })),
+        ).toEqual([kannur])
+    })
+
+    it("drops a link to a centre that is no longer on offer", () => {
+        // A date that has passed is not in the list it filters, so a stale
+        // link resolves to nothing rather than to a date nobody can pick.
+        expect(
+            sessionsForCategory([kochi], group({ session_ids: ["sess-kannur"] })),
+        ).toEqual([])
+    })
+})
+
+describe("effectiveGender", () => {
+    it("prefers the category's own gender", () => {
+        expect(effectiveGender(group({ gender: "female" }), "male")).toBe("female")
+    })
+
+    it("inherits the trial's when the category sets none", () => {
+        expect(effectiveGender(group({ gender: null }), "male")).toBe("male")
+        expect(effectiveGender(group(), "all")).toBe("all")
+    })
+
+    it("reads a blank or absent trial gender as unset", () => {
+        expect(effectiveGender(group({ gender: null }), "")).toBe("")
+        expect(effectiveGender(undefined, undefined)).toBe("")
+    })
+})
+
+describe("genderFitsGroup", () => {
+    it("passes an unknown viewer gender — the backend's own rule", () => {
+        // Missing data is never a disqualifier. A player who left the field
+        // blank must not be warned about a category they may well fit.
+        for (const unknown of ["", null, undefined]) {
+            expect(genderFitsGroup(group({ gender: "female" }), "all", unknown))
+                .toBe(true)
+        }
+    })
+
+    it("passes a category open to everyone", () => {
+        expect(genderFitsGroup(group({ gender: "all" }), "male", "female"))
+            .toBe(true)
+        // Nothing set anywhere is the same answer.
+        expect(genderFitsGroup(group({ gender: null }), "", "female")).toBe(true)
+    })
+
+    it("passes a match and fails the other gender", () => {
+        const girls = group({ gender: "female" })
+        expect(genderFitsGroup(girls, "all", "female")).toBe(true)
+        expect(genderFitsGroup(girls, "all", "male")).toBe(false)
+    })
+
+    it("reads the INHERITED gender when the category sets none", () => {
+        const inheriting = group({ gender: null })
+        expect(genderFitsGroup(inheriting, "male", "male")).toBe(true)
+        expect(genderFitsGroup(inheriting, "male", "female")).toBe(false)
+    })
+
+    it("fails a profile gender the trial does not take at all", () => {
+        // "other" is a real stored profile value, and a girls-only category
+        // is not for it — a warning, which the modal lets them tick past.
+        expect(genderFitsGroup(group({ gender: "female" }), "all", "other"))
+            .toBe(false)
+    })
+})
+
+describe("option labels — the gender word", () => {
+    it("adds the word when the effective gender names one", () => {
+        expect(
+            ageGroupOptionLabel(
+                group({
+                    title: "U15", min_birth_year: 2011, max_birth_year: 2012,
+                    gender: "female", reporting_time: "08:30:00",
+                }),
+                "all",
+            ),
+        ).toBe("U15 — Girls · Born 2011–2012 · report 8:30 AM")
+    })
+
+    it("does NOT repeat a word the title already carries", () => {
+        // The wizard's auto-title writes "U15 Girls" the moment a chip is
+        // picked, so appending blindly would read "U15 Girls · Girls".
+        for (const title of ["U15 Girls", "u15 girls", "Women's U21", "U18 Boys"]) {
+            expect(
+                ageGroupOptionLabel(
+                    group({ title, min_birth_year: 2011, gender: "female" }),
+                    "all",
+                ),
+            ).toBe(`${title} — Born 2011 or later`)
+        }
+    })
+
+    it("adds nothing for a category open to everyone", () => {
+        expect(
+            ageGroupOptionLabel(
+                group({ title: "U15", min_birth_year: 2011, gender: "all" }),
+                "all",
+            ),
+        ).toBe("U15 — Born 2011 or later")
+    })
+
+    it("reads the trial's gender through an inheriting category", () => {
+        expect(
+            ageGroupOptionLabel(
+                group({ title: "U15", min_birth_year: 2011, gender: null }),
+                "male",
+            ),
+        ).toBe("U15 — Boys · Born 2011 or later")
+    })
+
+    it("says nothing about gender when no trial gender is passed", () => {
+        // How the ORG side calls it: they know their own trial's gender, so
+        // the word is only worth showing when the CATEGORY sets one.
+        expect(ageGroupGenderWord(group({ gender: null, title: "U15" }))).toBe("")
+        expect(ageGroupGenderWord(group({ gender: "female", title: "U15" })))
+            .toBe("Girls")
+    })
+})
+
+describe("genderLabel", () => {
+    it("names the two, and reads everything else as Any", () => {
+        expect(genderLabel("male")).toBe("Boys")
+        expect(genderLabel("female")).toBe("Girls")
+        expect(genderLabel("all")).toBe("Any")
+        expect(genderLabel("")).toBe("Any")
+        expect(genderLabel(null)).toBe("Any")
+    })
+})
+
+describe("summarizeAgeGroups — split by gender", () => {
+    it("lists the groups when any of them names a gender", () => {
+        // "U15–U15" says nothing about a trial running Boys U15 and Girls
+        // U15, so a split trial is listed rather than spanned.
+        expect(
+            summarizeAgeGroups([
+                { title: "U15", gender: "male" },
+                { title: "U15", gender: "female" },
+            ]),
+        ).toBe("U15 Boys, U15 Girls")
+    })
+
+    it("leaves a trial whose groups all inherit exactly as it was", () => {
+        expect(
+            summarizeAgeGroups([
+                { title: "U15", gender: null },
+                { title: "U17", gender: null },
+            ]),
+        ).toBe("U15–U17")
+        // `all` is not a split either — it says what the trial already said.
+        expect(
+            summarizeAgeGroups([
+                { title: "U15", gender: "all" },
+                { title: "U17", gender: "all" },
+            ]),
+        ).toBe("U15–U17")
     })
 })

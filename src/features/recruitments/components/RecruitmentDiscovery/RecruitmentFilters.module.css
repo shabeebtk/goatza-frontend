@@ -36,6 +36,14 @@
   max-width: 120px;
 }
 
+/* A year is four characters, so this select needs none of the 170px the
+   sport and position ones take — it sat at 120px as an input and it keeps
+   that width on the bar. Full width in the sheet, like every other select
+   there (.sheetField .fieldSelect below). */
+.fieldSelectNarrow {
+  flex: 0 1 130px;
+}
+
 .fieldInput:hover {
   border-color: var(--color-brand-muted);
 }

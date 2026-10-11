@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Icon } from "@iconify/react"
 import type { Sport, SportPosition } from "@/features/profile/services/sports.api"
 import { useSportPositions } from "@/features/profile/hooks/useSportsQueries"
@@ -9,13 +9,14 @@ import {
   DISTANCE_OPTIONS,
   EMPTY_DISCOVERY_FILTERS,
   GENDER_FILTER_OPTIONS,
+  birthYearOptions,
   type DiscoveryFilters,
 } from "../../filterOptions"
 import Select from "@/shared/components/ui/Select/Select"
 import styles from "./RecruitmentFilters.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
-type TextKey = "search" | "city" | "birthYear"
+type TextKey = "search" | "city"
 
 /**
  * "Open to" — Any · Boys · Girls, as three chips rather than a select.
@@ -136,6 +137,28 @@ export default function RecruitmentFilters({
 }: RecruitmentFiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetDraft, setSheetDraft] = useState<DiscoveryFilters>(committed)
+  // Fixed for this mount — the top of the range moves with the calendar, and
+  // a list that changed under an open panel would be worse than one a day
+  // stale. The desktop bar and the sheet share it, so the two cannot offer
+  // different years.
+  const birthYears = useMemo(() => birthYearOptions(), [])
+
+  /**
+   * The year list for one control, with "Any" on top.
+   *
+   * A YEAR THE LIST NO LONGER OFFERS IS STILL ADDED BACK when it is the
+   * current value. The URL is the source of truth and it outlives this list
+   * — a link bookmarked before the range narrowed, or shared by someone on
+   * the other side of a new year, can carry 1985 — and that value still
+   * filters server-side. Dropping it would leave the control reading "Birth
+   * year" while the chip beside it says 1985, which is a control that lies.
+   */
+  const birthYearChoices = (value: string) => {
+    const base = [{ value: "", label: "Any birth year" }, ...birthYears]
+    return value && !birthYears.some((option) => option.value === value)
+      ? [...base, { value, label: value }]
+      : base
+  }
 
   // Seed the sheet from the currently-applied filters each time it opens.
   const openSheet = () => {
@@ -275,14 +298,20 @@ export default function RecruitmentFilters({
           />
         )}
 
-        <input
-          type="number"
-          inputMode="numeric"
-          className={`${styles.fieldInput} ${styles.fieldInputNarrow}`}
-          placeholder="Birth year"
+        {/* A LIST, not a number field. Every year outside it returns
+            nothing — a typo, a two-digit year or a date of birth typed in
+            full all read as "no trials near you" — and the range that does
+            mean something is short enough to pick from. Past eight options
+            the Select offers its own search, so typing a year still works. */}
+        <Select
+          className={`${styles.fieldSelect} ${styles.fieldSelectNarrow}`}
+          size="sm"
           value={draft.birthYear}
-          onChange={(e) => onTextChange({ birthYear: e.target.value })}
+          onChange={(birthYear) => onSelectChange({ birthYear })}
           aria-label="Filter by birth year"
+          sheetTitle="Birth year"
+          placeholder="Birth year"
+          options={birthYearChoices(draft.birthYear)}
         />
 
         <GenderChips
@@ -492,14 +521,14 @@ export default function RecruitmentFilters({
                 <label className={styles.sheetLabel} htmlFor="sheet-birth">
                   Birth year
                 </label>
-                <input
+                <Select
                   id="sheet-birth"
-                  type="number"
-                  inputMode="numeric"
-                  className={styles.fieldInput}
-                  placeholder="e.g. 2008"
+                  className={styles.fieldSelect}
                   value={sheetDraft.birthYear}
-                  onChange={(e) => patchSheet({ birthYear: e.target.value })}
+                  onChange={(birthYear) => patchSheet({ birthYear })}
+                  sheetTitle="Birth year"
+                  placeholder="Any birth year"
+                  options={birthYearChoices(sheetDraft.birthYear)}
                 />
               </div>
 
