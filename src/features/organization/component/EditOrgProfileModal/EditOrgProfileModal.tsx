@@ -8,6 +8,7 @@ import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
 import { Input, Button, Select } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 
@@ -284,13 +285,20 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
     }
   }
 
+  /**
+   * WHICH LOCATION IS BEING DELETED, or null. This used to be a bare
+   * `confirm()`: browser chrome in the middle of a themed modal, unstyleable,
+   * and on iOS it takes the page's scroll position with it. The shared
+   * ConfirmDialog is the same question in the app's own voice.
+   */
+  const [locationToDelete, setLocationToDelete] = useState<string | null>(null)
+
   const handleDeleteLocation = async (id: string) => {
-    if (confirm("Are you sure you want to delete this location?")) {
-      try {
-        await deleteLocation.mutateAsync(id)
-      } catch (err) {
-        console.error("Failed to delete location", err)
-      }
+    setLocationToDelete(null)
+    try {
+      await deleteLocation.mutateAsync(id)
+    } catch (err) {
+      console.error("Failed to delete location", err)
     }
   }
 
@@ -457,7 +465,7 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                         <button type="button" className={styles.actionIconBtn} onClick={() => openLocationForm(loc)}>
                           <Icon icon="mdi:pencil-outline" width={16} height={16} />
                         </button>
-                        <button type="button" className={styles.actionIconBtn} onClick={() => handleDeleteLocation(loc.id)}>
+                        <button type="button" className={styles.actionIconBtn} onClick={() => setLocationToDelete(loc.id)}>
                           <Icon icon="mdi:delete-outline" width={16} height={16} />
                         </button>
                       </div>
@@ -534,6 +542,19 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={locationToDelete !== null}
+        title="Delete this location?"
+        message="It will be removed from your organization's profile. This can't be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        tone="danger"
+        onConfirm={() => {
+          if (locationToDelete) handleDeleteLocation(locationToDelete)
+        }}
+        onCancel={() => setLocationToDelete(null)}
+      />
     </div>
   )
 }

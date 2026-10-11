@@ -744,3 +744,17 @@ a.contactRow:hover { background: var(--color-surface-raised) }
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+/* THE EMAIL AND THE PHONE NUMBER. The drawer exists to be read off, and an
+   organiser copying a number into their own phone is the reason it shows
+   one — so these keep both the selection and iOS's Copy. */
+.contactLink {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}

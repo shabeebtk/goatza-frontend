@@ -267,3 +267,17 @@
 @media (hover: none) {
   .fullscreenBtn { opacity: 1; }
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+/* .carousel already refuses selection (the swipe would otherwise drag text);
+   this is the iOS half of the same decision — a held photo must not raise
+   the Save/Copy sheet over the carousel. */
+.carousel,
+.slide,
+.mediaItem {
+  -webkit-touch-callout: none;
+}

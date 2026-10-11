@@ -10,10 +10,14 @@
  * stay server-side. Debounced search + age-group chips narrow within it,
  * offset-paged with infinite scroll. Multi-select → sticky bulk bar with an
  * optional internal reason note; row click opens the ApplicantDetailDrawer
- * (single change + the history timeline live there).
+ * (single change + the history timeline live there) — and the open drawer is
+ * ?applicant=<application id> in the URL, so tapping through to a player's
+ * profile and coming back lands on the same applicant rather than the top of
+ * the list.
  */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -433,6 +437,9 @@ export default function ApplicantsList({
 }) {
   const toast = useToast()
   const noteId = useId()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [view, setView] = useState<ListView>("screening")
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("all")
   // WHICH CENTRE, on a trial that visits several. "all" is the absence of a
@@ -440,7 +447,42 @@ export default function ApplicantsList({
   const [centreFilter, setCentreFilter] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [openApplicationId, setOpenApplicationId] = useState<string | null>(null)
+  /**
+   * WHICH DRAWER IS OPEN — THE URL, NOT COMPONENT STATE.
+   *
+   * The drawer carries a link to the player's public profile, and a profile
+   * opened from component state has no history entry behind it: back returned
+   * to this list with the drawer shut and the org's place lost. So the open
+   * drawer is a query param on THIS route, which gives the browser something
+   * to come back to and survives a refresh.
+   *
+   * An id that is not on the current page of results is fine — the drawer
+   * fetches the one application by id itself (useApplicationDetail), so a
+   * deep link resolves to the applicant or to the drawer's own "Failed to
+   * load this application", never to a spinner with nothing behind it.
+   */
+  const openApplicationId = searchParams.get("applicant")
+
+  // PUSH, so back closes it. scroll: false, so the list does not jump to the
+  // top of the page under the drawer.
+  const openApplicant = useCallback(
+    (applicationId: string) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("applicant", applicationId)
+      router.push(`${pathname}?${params.toString()}`, { scroll: false })
+    },
+    [pathname, router, searchParams],
+  )
+
+  // REPLACE, not push: closing the drawer must not leave an entry whose only
+  // content is "the drawer was open", or one back press would reopen it.
+  const closeApplicant = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("applicant")
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [pathname, router, searchParams])
+
   // Which player's reel the viewer starts on; null = viewer closed.
   const [reelStart, setReelStart] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -1153,7 +1195,7 @@ export default function ApplicantsList({
                 showFee={showFeeColumn}
                 showSession={showSessionColumn}
                 onToggle={() => toggleOne(item.id)}
-                onOpen={() => setOpenApplicationId(item.id)}
+                onOpen={() => openApplicant(item.id)}
                 onOpenHighlights={() => {
                   const index = reelIndexOf(item.id)
                   if (index >= 0) setReelStart(index)
@@ -1364,7 +1406,7 @@ export default function ApplicantsList({
           ageCategories={ageCategories}
           recruitmentTitle={recruitmentTitle}
           orgName={orgName}
-          onClose={() => setOpenApplicationId(null)}
+          onClose={closeApplicant}
         />
       )}
 

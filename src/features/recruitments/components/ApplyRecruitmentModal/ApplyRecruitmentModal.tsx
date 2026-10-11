@@ -6,7 +6,10 @@
  *   Step 1  Your details   — name / email / phone, prefilled from the auth
  *                            store, fully editable. Name + valid phone required.
  *   Step 2  Questions       — only when the recruitment has custom questions.
- *   Step 3  Success         — confirmation + Done.
+ *   Step 3  Review          — read-only: everything that is about to be sent,
+ *                            each block with the way back to the step that
+ *                            owns it. THE ONLY STEP THAT SUBMITS.
+ *   Step 4  Success         — confirmation + Done.
  *
  * Only used for apply_method === "goatza"; external / contact CTAs stay as-is.
  * On success the parent detail query is invalidated (see useApplyRecruitment),
@@ -61,11 +64,12 @@ const CATEGORY_CENTRE_REFUSAL = /category doesn.t run at the centre/i
 const PHONE_RE = /^\+?\d{7,15}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-type Step = "details" | "questions" | "success"
+type Step = "details" | "questions" | "review" | "success"
 
 const STEP_LABELS: Record<Step, string> = {
   details: "Your details",
   questions: "Questions",
+  review: "Review",
   success: "Done",
 }
 
@@ -128,6 +132,63 @@ function LockedPick({ label, icon, changeLabel, onChange, disabled }: {
   )
 }
 
+// ── Review blocks ─────────────────────────────────────────────
+
+/**
+ * One block of the review: a heading, the values under it, and the way back
+ * to the step that owns them.
+ *
+ * The Edit affordance is what keeps a review step honest. A read-only summary
+ * with no way back makes the player close the modal and start again, so every
+ * block that came from an answer carries one — and it names what it edits, so
+ * five "Edit" buttons are five different buttons to a screen reader.
+ */
+function ReviewBlock({ title, onEdit, disabled, children }: {
+  title: string
+  /** Omitted on a block the player did not fill in (the fee). */
+  onEdit?: () => void
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <section className={styles.reviewBlock}>
+      <div className={styles.reviewBlockHead}>
+        <h3 className={styles.reviewBlockTitle}>{title}</h3>
+        {onEdit && (
+          <button
+            type="button"
+            className={styles.reviewEdit}
+            onClick={onEdit}
+            disabled={disabled}
+            aria-label={`Edit ${title.toLowerCase()}`}
+          >
+            <Icon icon="mdi:pencil-outline" width={12} height={12} />
+            Edit
+          </button>
+        )}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** A label/value pair inside a review block. */
+function ReviewRow({ label, value, muted }: {
+  label: string
+  value: string
+  /** For a value that is an absence ("Not given"), not an answer. */
+  muted?: boolean
+}) {
+  return (
+    <div className={styles.reviewRow}>
+      <span className={styles.reviewRowLabel}>{label}</span>
+      <span className={`${styles.reviewRowValue} ${muted ? styles.reviewMuted : ""}`}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
 // ── Props ─────────────────────────────────────────────────────
 
 interface ApplyRecruitmentModalProps {
@@ -186,8 +247,14 @@ export default function ApplyRecruitmentModal({
     [needsSession, recruitment.sessions, recruitment.timezone],
   )
 
+  // Review always sits between the last question and the send. It is the step
+  // the back/primary buttons are driven from too — the footer reads this
+  // order rather than naming steps, so "what comes next" is stated once.
   const stepOrder: Step[] = useMemo(
-    () => (hasQuestions ? ["details", "questions", "success"] : ["details", "success"]),
+    () =>
+      hasQuestions
+        ? ["details", "questions", "review", "success"]
+        : ["details", "review", "success"],
     [hasQuestions]
   )
 
@@ -499,7 +566,9 @@ export default function ApplyRecruitmentModal({
     }
   }
 
-  // Details step primary: advance to questions, or submit if there are none.
+  // Details step primary: on to the questions, or straight to the review when
+  // the recruitment has none. The same gate as before, in the same place —
+  // nothing advances past this step while it is invalid.
   const onDetailsPrimary = () => {
     if (!detailsValid) {
       setPhoneTouched(true)
@@ -509,21 +578,96 @@ export default function ApplyRecruitmentModal({
       return
     }
     setSubmitError(null)
-    if (hasQuestions) setStep("questions")
-    else submit()
+    setStep(hasQuestions ? "questions" : "review")
   }
 
-  // Questions step primary: validate inline, block submit until valid.
+  // Questions step primary: validate inline, and do not reach the review
+  // with an unanswered required question — the review would then be showing
+  // an application that cannot be sent.
   const onQuestionsPrimary = () => {
     if (!questionsValid) {
       setShowQuestionErrors(true)
       return
     }
+    setSubmitError(null)
+    setStep("review")
+  }
+
+  /**
+   * THE ONLY CALLER OF submit().
+   *
+   * Both gates are read again here rather than trusted: the review is reached
+   * through them, but a screen whose one job is "send this" must not be the
+   * place where that assumption is load-bearing. An invalid application sends
+   * the player back to the step that owns the problem, with its errors shown,
+   * instead of going to the server to be refused.
+   */
+  const onReviewPrimary = () => {
+    if (!detailsValid) {
+      setPhoneTouched(true)
+      setEmailTouched(true)
+      setAgeGroupTouched(true)
+      setSessionTouched(true)
+      setStep("details")
+      return
+    }
+    if (!questionsValid) {
+      setShowQuestionErrors(true)
+      setStep("questions")
+      return
+    }
     submit()
   }
 
+  // ── What the review shows ──────────────────────────────────────
+
+  /** The centre/date as the player picked it, or null on a trial without one. */
+  const chosenSession = needsSession
+    ? sessionOptions.find((session) => session.id === sessionId) ?? null
+    : null
+
+  /**
+   * One question's answer the way it will be sent — read off `answers`, the
+   * same state buildAnswers() reads, so the review and the payload cannot
+   * drift. "" means unanswered, which only an optional question can be.
+   */
+  const answerSummary = (q: RecruitmentQuestion): string => {
+    const a = answers[q.id]
+    if (OPTION_TYPES.includes(q.field_type)) {
+      return q.options
+        .filter((option) => a.optionIds.includes(option.id))
+        .map((option) => option.value)
+        .join(", ")
+    }
+    return a.text.trim()
+  }
+
+  /**
+   * The fee, formatted the way every other surface formats it: the org's own
+   * currency, never a hard-coded symbol. Only a PAID trial has a line here —
+   * "Free" is not news on a review screen, and a paid trial with no amount
+   * named shows nothing rather than a fee of nobody-knows.
+   */
+  const feeLine = useMemo(() => {
+    if (!recruitment.is_paid || !recruitment.fee_amount) return null
+    const amount = Number(recruitment.fee_amount)
+    if (!Number.isFinite(amount)) return null
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: recruitment.fee_currency || "INR",
+        maximumFractionDigits: 0,
+      }).format(amount)
+    } catch {
+      return String(amount)
+    }
+  }, [recruitment.fee_amount, recruitment.fee_currency, recruitment.is_paid])
+
   const activeIndex = stepOrder.indexOf(step)
   const stepLabels = stepOrder.map((s) => STEP_LABELS[s])
+  // Back is Cancel only on the first step (and on an index the order does not
+  // know, which would otherwise read as "back to step -1").
+  const atFirstStep = activeIndex <= 0
 
   const backdropClose = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !isPending) onClose()
@@ -977,6 +1121,110 @@ export default function ApplyRecruitmentModal({
             </div>
           )}
 
+          {/* ── Review ─────────────────────────────────────────────
+              READ-ONLY. Every value here is rendered from the state the
+              payload is built from, so this is the application, not a
+              description of it. Nothing is sent until the footer's Submit. */}
+          {step === "review" && (
+            <div className={styles.stepContent}>
+              <div className={styles.stepIntro}>
+                <Icon icon="mdi:clipboard-check-outline" width={16} height={16} />
+                Check and submit
+              </div>
+              <p className={styles.reviewLead}>
+                Nothing has been sent yet. This is what{" "}
+                {recruitment.organization.name} will see.
+              </p>
+
+              <div className={styles.reviewList}>
+                {/* The centre or the date — the noun the details step asked
+                    with, so the review does not rename their own choice. */}
+                {needsSession && (
+                  <ReviewBlock
+                    title={multiPlace ? "Centre" : "Date"}
+                    onEdit={() => setStep("details")}
+                    disabled={isPending}
+                  >
+                    <p className={styles.reviewValue}>
+                      {chosenSession
+                        ? sessionOptionLabel(chosenSession, recruitment)
+                        : "Not chosen"}
+                    </p>
+                  </ReviewBlock>
+                )}
+
+                {needsAgeGroup && (
+                  <ReviewBlock
+                    title="Category"
+                    onEdit={() => setStep("details")}
+                    disabled={isPending}
+                  >
+                    <p className={styles.reviewValue}>
+                      {selectedGroup
+                        ? ageGroupOptionLabel(selectedGroup, recruitment.gender)
+                        : "Not chosen"}
+                    </p>
+                  </ReviewBlock>
+                )}
+
+                <ReviewBlock
+                  title="Your details"
+                  onEdit={() => setStep("details")}
+                  disabled={isPending}
+                >
+                  <ReviewRow label="Name" value={name.trim()} />
+                  <ReviewRow label="Phone" value={phone.trim()} />
+                  {/* Email is optional, so its ABSENCE is a thing to show:
+                      the player can see the org will have no address for
+                      them before they send it, not afterwards. */}
+                  <ReviewRow
+                    label="Email"
+                    value={email.trim() || "Not given"}
+                    muted={!email.trim()}
+                  />
+                </ReviewBlock>
+
+                {hasQuestions && (
+                  <ReviewBlock
+                    title="Questions"
+                    onEdit={() => setStep("questions")}
+                    disabled={isPending}
+                  >
+                    <div className={styles.reviewAnswers}>
+                      {questions.map((q) => {
+                        const answer = answerSummary(q)
+                        return (
+                          <div key={q.id} className={styles.reviewAnswer}>
+                            <span className={styles.reviewQuestion}>{q.question}</span>
+                            <span
+                              className={`${styles.reviewValue} ${answer ? "" : styles.reviewMuted}`}
+                            >
+                              {answer || "Not answered"}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </ReviewBlock>
+                )}
+
+                {/* THE FEE IS NOT A FIELD. Nothing about it is sent and there
+                    is nothing to edit — it is here because "what happens when
+                    I press send" includes money the org will ask for at the
+                    gate. Worded exactly as the posting words it. */}
+                {feeLine && (
+                  <div className={styles.reviewFee}>
+                    <Icon icon="mdi:cash-multiple" width={16} height={16} />
+                    <span className={styles.reviewFeeText}>
+                      <strong>{feeLine}</strong> entry fee —{" "}
+                      {recruitment.payment_note?.trim() || "pay at venue"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {submitError && (
             <p className={styles.submitError} role="alert">
               <Icon icon="mdi:alert-circle-outline" width={14} height={14} />
@@ -985,34 +1233,27 @@ export default function ApplyRecruitmentModal({
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer — driven by stepOrder, not by naming the steps: "back" is
+            the step before this one and the send lives on the last step
+            before success, whether or not there are questions. */}
         <div className={styles.footer}>
           <button
             className={styles.backBtn}
-            onClick={step === "details" ? onClose : () => setStep("details")}
+            onClick={atFirstStep ? onClose : () => setStep(stepOrder[activeIndex - 1])}
             disabled={isPending}
             type="button"
           >
-            {step === "details" ? "Cancel" : <><Icon icon="mdi:chevron-left" width={16} height={16} /> Back</>}
+            {atFirstStep ? "Cancel" : <><Icon icon="mdi:chevron-left" width={16} height={16} /> Back</>}
           </button>
 
           <div className={styles.footerRight}>
             <span className={styles.stepCounter}>{activeIndex + 1} / {stepOrder.length}</span>
 
-            {step === "details" && hasQuestions ? (
-              <button
-                className={styles.nextBtn}
-                onClick={onDetailsPrimary}
-                disabled={!detailsValid || isPending}
-                type="button"
-              >
-                Next <Icon icon="mdi:chevron-right" width={16} height={16} />
-              </button>
-            ) : (
+            {step === "review" ? (
               <button
                 className={styles.submitBtn}
-                onClick={step === "details" ? onDetailsPrimary : onQuestionsPrimary}
-                disabled={isPending || (step === "details" && !detailsValid)}
+                onClick={onReviewPrimary}
+                disabled={isPending}
                 type="button"
               >
                 {isPending ? (
@@ -1020,7 +1261,27 @@ export default function ApplyRecruitmentModal({
                 ) : (
                   <Icon icon="mdi:send-outline" width={15} height={15} />
                 )}
-                {isPending ? "Submitting…" : "Submit application"}
+                {/* TWO LABELS, ONE HIDDEN BY CSS at each width. A JS width
+                    check here would render one string on the server and
+                    possibly the other on the client. "Submitting…" is the
+                    same word at both sizes — it is the state, not a title. */}
+                {isPending ? (
+                  "Submitting…"
+                ) : (
+                  <>
+                    <span className={styles.submitLabelWide}>Submit application</span>
+                    <span className={styles.submitLabelNarrow}>Submit</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                className={styles.nextBtn}
+                onClick={step === "details" ? onDetailsPrimary : onQuestionsPrimary}
+                disabled={isPending || (step === "details" && !detailsValid)}
+                type="button"
+              >
+                Next <Icon icon="mdi:chevron-right" width={16} height={16} />
               </button>
             )}
           </div>

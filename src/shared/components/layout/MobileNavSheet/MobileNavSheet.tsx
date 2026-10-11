@@ -43,6 +43,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
+import { LOGOUT_CONFIRM } from "@/features/auth/hooks/useLogout"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useBackToClose } from "@/shared/hooks/useBackToClose"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
@@ -95,6 +97,13 @@ export type NavDockTab =
       kind: "profile"
       id: string
       label: string
+      /**
+       * Where the tab goes: the reader's OWN profile, resolved by the shell
+       * (/profile/<username>, or the org's admin profile). The tab used to
+       * be the dock's open button; the dock opens by swiping the bar up, and
+       * a profile tab that does not go to the profile is a trap.
+       */
+      href: string
       /** Prefix that lights the tab up — /profile, or the org's own. */
       match: string
       avatarUrl?: string | null
@@ -219,12 +228,32 @@ export default function MobileNavSheet({
   const router = useRouter()
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)")
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  /**
+   * LOG OUT ASKS FIRST, and asks on an empty screen.
+   *
+   * The dock collapses before the question appears — the two cannot share a
+   * screen. Both are overlays with a history entry, an Esc handler and a
+   * focus trap of their own; stacked, one back press would answer a question
+   * with the menu still visible behind it.
+   *
+   * So this is the ASK, and the dialog is up only once the dock is actually
+   * down — derived, not sequenced by an effect: the footer sets it and
+   * collapses, and the question appears on the far side of the collapse,
+   * after the dock's history entry has been consumed.
+   */
+  const [logoutAsked, setLogoutAsked] = useState(false)
+  const logoutAsk = logoutAsked && !open
   const mounted = useIsMounted()
   const titleId = useId()
   const bodyId = `${titleId}-body`
 
   const panelRef = useRef<HTMLDivElement | null>(null)
-  /** What to give focus back to when the body collapses. */
+  /**
+   * What to give focus back to when the body collapses: whatever was focused
+   * when it went up. The dock is opened by a drag now, so there is no opener
+   * button to record — on a phone that is nothing, and for a keyboard reader
+   * it is the control they were on.
+   */
   const openerRef = useRef<HTMLElement | null>(null)
 
   // One history entry while expanded, so Android's back gesture collapses the
@@ -304,14 +333,6 @@ export default function MobileNavSheet({
     setSwitcherOpen(false)
     requestClose()
   }, [requestClose])
-
-  const openFromTab = useCallback(
-    (event: React.MouseEvent<HTMLElement>) => {
-      openerRef.current = event.currentTarget as HTMLElement
-      handleOpen()
-    },
-    [handleOpen]
-  )
 
   /** The first touch anywhere on the bar is answer enough; the pill can go. */
   const onBarPointerDown = useCallback(() => {
@@ -498,21 +519,19 @@ export default function MobileNavSheet({
 
     if (tab.kind === "profile") {
       const isActive = pathname.startsWith(tab.match)
-      // The avatar tab is the tap affordance for the dock: one tap, one
-      // outcome. Your own profile is a tile inside, and the account header.
+      // A DESTINATION, not a disclosure. It used to toggle the dock, which
+      // made the one tab shaped like "you" the only tab that did not go
+      // anywhere — and left the dock with two open gestures. The swipe up on
+      // the bar is the one way in now, so this is just the profile tab:
+      // goTo collapses the dock on its way out if it happens to be up.
       return (
-        <button
+        <Link
           key={tab.id}
-          type="button"
+          href={tab.href}
           className={`${styles.barTab} ${isActive ? styles.barTabActive : ""}`}
-          // ONE name, with the state in aria-expanded: this is a disclosure
-          // toggle, and renaming it per state collided with the handle's own
-          // "Close navigation menu" the moment the body was up.
-          aria-label="Navigation menu"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={(event) => (open ? close() : openFromTab(event))}
+          aria-label={tab.label}
+          aria-current={isActive ? "page" : undefined}
+          onClick={goTo(tab.href)}
         >
           <span className={styles.barTabAvatarWrap}>
             <Avatar
@@ -527,7 +546,7 @@ export default function MobileNavSheet({
               </span>
             )}
           </span>
-        </button>
+        </Link>
       )
     }
 
@@ -591,22 +610,20 @@ export default function MobileNavSheet({
             aria-labelledby={titleId}
             tabIndex={-1}
           >
-            {/* The close handle, and the body's non-scrolling top. touch-action
+            {/* The drag handle, and the body's non-scrolling top. touch-action
                 none here, plus data-allow-touchmove so useBodyScrollLock's
-                touchmove blocker lets the gesture through. */}
+                touchmove blocker lets the gesture through.
+
+                No ✕: the body is dragged down, the backdrop is tapped, the
+                back gesture and Esc both close it. A button for a fifth way
+                out only took room from the handle that teaches the first. */}
             <div className={styles.dragZone} onPointerDown={onPointerDown} data-allow-touchmove="">
               <span className={styles.handle} aria-hidden="true" />
+              {/* The dialog's accessible name. Visually hidden: the handle
+                  above it is what a sighted reader reads. */}
               <h2 id={titleId} className={styles.srOnly}>
                 Navigation
               </h2>
-              <button
-                type="button"
-                className={styles.closeBtn}
-                onClick={close}
-                aria-label="Close navigation menu"
-              >
-                <Icon icon="mdi:close" width={20} height={20} />
-              </button>
             </div>
 
             <div className={styles.account} onPointerDown={onPointerDown} data-allow-touchmove="">
@@ -744,9 +761,8 @@ export default function MobileNavSheet({
                   type="button"
                   className={`${styles.footerItem} ${styles.footerItemDanger}`}
                   onClick={() => {
-                    setSwitcherOpen(false)
-                    onLogout()
-                    onClose()
+                    setLogoutAsked(true)
+                    close()
                   }}
                 >
                   <Icon icon="mdi:logout" width={18} height={18} aria-hidden="true" />
@@ -769,6 +785,20 @@ export default function MobileNavSheet({
           {tabs.map(renderTab)}
         </nav>
       </div>
+
+      {/* Asked after the dock is down, so the only thing on screen is the
+          question. onLogout is the real thing — the shells hand it straight
+          to useLogout. */}
+      <ConfirmDialog
+        open={logoutAsk}
+        {...LOGOUT_CONFIRM}
+        tone="danger"
+        onConfirm={() => {
+          setLogoutAsked(false)
+          onLogout()
+        }}
+        onCancel={() => setLogoutAsked(false)}
+      />
     </>
   )
 }

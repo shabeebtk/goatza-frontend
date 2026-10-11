@@ -898,3 +898,12 @@
         display: none;
     }
 }
+
+/* ── Long press: the bars are all gesture ────────────────────
+   Nothing in the top bar or the mobile icon row is text to copy. */
+.topNav,
+.mobileTopBar {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}

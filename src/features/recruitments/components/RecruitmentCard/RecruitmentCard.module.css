@@ -1283,3 +1283,24 @@
     transform: none;
   }
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+.card {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The title — the one piece of text on a trial card somebody copies, to
+   search for it or to paste it into a message. The description is not on
+   the card at all; it lives on the detail page, which is prose and is
+   deliberately left alone. */
+.title {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}

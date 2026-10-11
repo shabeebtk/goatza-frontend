@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { Icon } from "@iconify/react"
 
 import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
@@ -27,6 +28,7 @@ import {
 } from "../../hooks/useCareerQueries"
 import {
     CAREER_PAGE_SIZE,
+    CAREER_SEE_ALL_OVER,
     MAX_CAREER_ENTRIES,
     type CareerEntry,
 } from "../../types"
@@ -87,12 +89,18 @@ function DeleteConfirm({
 interface CareerSectionProps {
     /** The profile owner's user id (`profile.id`), not their username. */
     userId: string
+    /**
+     * Their username — the URL half, for the "See all" page. Optional: a
+     * caller that does not pass one simply keeps paging in place, which is
+     * what every caller did before the page existed.
+     */
+    username?: string
     isOwn: boolean
 }
 
 type FormState = { mode: "add" } | { mode: "edit"; entry: CareerEntry } | null
 
-export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
+export default function CareerSection({ userId, username, isOwn }: CareerSectionProps) {
     // On a public profile the entries arrived with the server-rendered bundle.
     // Passing null disables the query outright — /careers/users/<id> is
     // IsAuthenticated, so firing it for a logged-out visitor would 401 and
@@ -203,6 +211,23 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
     const hasMore = remaining > 0
     const atCap = entries.length >= MAX_CAREER_ENTRIES
 
+    /**
+     * SHOW MORE, OR SEE ALL.
+     *
+     * Ten or fewer: "Show more", exactly as before, until there is nothing
+     * left to show. More than ten: the first press still opens the next
+     * three — the reader asked for a little more, not for another screen —
+     * and from then on the button is the way to the page that has them all.
+     *
+     * Needs the username to link to, so a caller that passes none keeps the
+     * old behaviour rather than rendering a button that goes nowhere.
+     */
+    const seeAllHref = username ? `/profile/${username}/career` : null
+    const showSeeAll =
+        !!seeAllHref
+        && entries.length > CAREER_SEE_ALL_OVER
+        && visibleCount > CAREER_PAGE_SIZE
+
     return (
         <>
             {/* `#career` is the anchor the career_verified / career_rejected
@@ -297,7 +322,18 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
                             )}
                         </div>
 
-                        {hasMore && (
+                        {showSeeAll ? (
+                            <Link
+                                href={seeAllHref}
+                                className={styles.seeAllBtn}
+                            >
+                                See all
+                                <span className={styles.showMoreCount}>
+                                    ({entries.length})
+                                </span>
+                                <Icon icon="mdi:arrow-right" width={16} height={16} />
+                            </Link>
+                        ) : hasMore ? (
                             <button
                                 className={styles.showMoreBtn}
                                 onClick={() =>
@@ -311,7 +347,7 @@ export default function CareerSection({ userId, isOwn }: CareerSectionProps) {
                                     of {remaining}
                                 </span>
                             </button>
-                        )}
+                        ) : null}
                     </>
                 )}
             </div>

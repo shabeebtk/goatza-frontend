@@ -227,6 +227,14 @@
   background: var(--color-brand);
 }
 
+/* FOUR STEPS, 360px. Three labels fitted the bar; four do not, and the one
+   that fell off the end was Review — the step you are standing on. The dots
+   carry the position, so below 480px only the active step keeps its name.
+   (Done is never the active step here: the success screen has no step bar.) */
+@media (max-width: 480px) {
+  .stepItem:not(.stepActive) .stepLabel { display: none }
+}
+
 /* ── Scrollable body ─────────────────────────────────────────── */
 
 .body {
@@ -459,6 +467,170 @@
   cursor: inherit;
 }
 
+/* ── Review ──────────────────────────────────────────────────── */
+
+.reviewLead {
+  margin: -4px 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reviewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  min-width: 0;
+}
+
+.reviewBlockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.reviewBlockTitle {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  min-width: 0;
+}
+
+/* The way back to the step that owns the block. Small, but a real 44px of
+   tap target on a phone — it is the only control on this screen. */
+.reviewEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  margin: -4px -8px -4px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color var(--duration-fast);
+}
+
+.reviewEdit:hover:not(:disabled) { color: var(--color-brand-hover) }
+.reviewEdit:disabled { opacity: 0.5; cursor: not-allowed }
+
+@media (max-width: 480px) {
+  .reviewEdit {
+    min-height: 44px;
+    padding-inline: var(--space-2);
+    margin-block: -11px;
+    margin-right: calc(var(--space-2) * -1);
+  }
+}
+
+/* A single-line answer (the centre, the category, one question's reply).
+   Wraps rather than truncating: a review that hides half of what is about to
+   be sent is not a review. */
+.reviewValue {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.reviewRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.reviewRowLabel {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.reviewRowValue {
+  min-width: 0;
+  text-align: right;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* An absence, not an answer. */
+.reviewMuted { color: var(--color-text-muted) }
+
+.reviewAnswers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.reviewAnswer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reviewQuestion {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+}
+
+/* Money the org will ask for at the gate — information, so it reads like the
+   share note rather than like a field. */
+.reviewFee {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+.reviewFee svg { flex-shrink: 0; margin-top: 1px }
+
+.reviewFeeText {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: var(--leading-loose);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ── Error banner ────────────────────────────────────────────── */
 
 .submitError {
@@ -580,6 +752,23 @@
 .submitBtn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
+}
+
+/* ── The submit label, at two widths ─────────────────────────────
+   "Submit application" does not fit a 360px footer beside Back and the step
+   counter. Both labels are in the markup and CSS hides one, because a JS
+   width check would render one string on the server and the other on the
+   client — a hydration mismatch on the modal's most important button. */
+.submitLabelWide { display: inline }
+.submitLabelNarrow { display: none }
+
+@media (max-width: 480px) {
+  .submitLabelWide { display: none }
+  .submitLabelNarrow { display: inline }
+
+  /* The padding went with the longer word. */
+  .nextBtn,
+  .submitBtn { padding-inline: var(--space-4) }
 }
 
 .spinner {

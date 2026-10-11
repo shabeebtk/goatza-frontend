@@ -88,8 +88,13 @@
 
 .chipRow {
   display: flex;
+  flex-wrap: nowrap;
   gap: var(--space-2);
   overflow-x: auto;
+  /* A chip row that has run out of chips must not hand the swipe to the page
+     behind it — on a phone that reads as the whole screen jumping sideways. */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-bottom: 2px;
 }
@@ -217,10 +222,19 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   font-family: var(--font-ui);
   font-size: 0.68rem;
   color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
+}
+
+/* The icon in a meta line never shrinks — a long centre label wraps instead
+   of squashing the glyph beside it. */
+.appliedAt svg,
+.groupTag svg,
+.feeTag svg {
+  flex-shrink: 0;
 }
 
 /* Which age group this applicant chose (or "—" when they chose none) */
@@ -228,6 +242,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   font-family: var(--font-ui);
   font-size: 0.68rem;
   font-weight: var(--weight-semi);
@@ -244,8 +259,69 @@
 
 .rowChevron { color: var(--color-text-muted) }
 
+/* ── Mobile: the row becomes a stacked card ───────────────────────
+   At 360–430px avatar · text · status cannot share one line. The status pill
+   and the chevron took the width the name needed, so names truncated to two
+   words while the meta chips under them pushed past the card edge.
+
+   Below 480px the row stops being a three-column strip: avatar and text on
+   the first band, the status chip and anything beside it on their own band
+   underneath, right-aligned. The row stays a flex container — it is a
+   <button>, and wrapping the existing line is a smaller change to one than
+   swapping its formatting context. Above this breakpoint nothing changes. */
 @media (max-width: 480px) {
+  .row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  /* width: 100% is what breaks the line: the status band cannot fit beside
+     the text, so it wraps, and then fills the row and hugs the right edge. */
+  .rowRight {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* On a phone the whole card is the tap target, so the chevron is only
+     costing the status pill room. */
   .rowChevron { display: none }
+
+  /* The @username and the mismatch flag drop below a long name instead of
+     pushing it out of the card. */
+  .rowTop {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* min-width: 0 so these actually shrink — a flex item sized by its own
+     content cannot ellipsise. */
+  .name,
+  .headline {
+    min-width: 0;
+  }
+
+  .username {
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* A centre label ("Sun 19 Oct · 8–11 am · Corporation Stadium, Kozhikode")
+     runs to two or three lines in a 200px column. It wraps rather than
+     truncating — the city is the half an org needs — so the icon has to sit
+     beside the FIRST line instead of in the middle of the block. */
+  .appliedAt,
+  .groupTag {
+    align-items: flex-start;
+  }
+
+  .appliedAt svg,
+  .groupTag svg {
+    margin-top: 1px;
+  }
 }
 
 /* ── Row skeleton ─────────────────────────────────────────────── */
@@ -430,11 +506,25 @@
   border-color: var(--color-brand);
 }
 
-/* Tighter selector + gap on mobile. */
+/* Mobile: a 44px tap target, with the dot still a dot.
+   The target is pinned to the card's corner and the row's own left padding
+   is widened to match it, so those 44 square pixels never sit over the
+   avatar or the name — selecting and opening stay two different taps. */
 @media (max-width: 480px) {
-  .selectCircle { top: 4px; left: 4px; width: 28px; height: 28px; }
-  .selectDot { width: 17px; height: 17px; }
-  .rowCardSelectable .row { padding-left: 32px; }
+  .selectCircle {
+    top: 0;
+    left: 0;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 5px;
+    align-items: flex-start;
+    justify-content: flex-start;
+    touch-action: manipulation;
+  }
+  .selectDot { width: 18px; height: 18px; }
+  .rowCardSelectable .row { padding-left: 44px; }
 }
 
 /* Select-all — compact pill/text button. */
@@ -775,6 +865,37 @@
   margin-left: auto;
 }
 
+@media (max-width: 480px) {
+  /* "margin-left: auto" stranded the fee chips on a line of their own as
+     soon as the row wrapped, and then wrapped them again one per line. Below
+     480px they are their own full-width scrolling row instead. */
+  .feeFilter {
+    margin-left: 0;
+    flex-basis: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .feeFilter::-webkit-scrollbar { display: none }
+
+  .copyRow {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .copyRow::-webkit-scrollbar { display: none }
+
+  /* The other checkbox on this screen — same 44px rule as the row selector. */
+  .selectAllBtn {
+    min-height: 44px;
+    padding-inline: var(--space-2) var(--space-3);
+  }
+}
+
 .hiddenNote {
   display: flex;
   align-items: center;
@@ -914,4 +1035,26 @@
 .saysMuted {
   border-color: var(--color-border-subtle);
   color: var(--color-text-muted);
+}
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+.rowCard,
+.row,
+.selectAllRow,
+.bulkBar {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The applicant's name is the one thing an organiser copies off the row —
+   into a message, a sheet, or the gate list. */
+.name {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }

@@ -8,6 +8,11 @@ interface BackHeaderProps {
   /** Heading shown next to the back arrow. */
   title?: string
   /**
+   * A quiet second line under the title — whose page this is, usually. The
+   * title says WHAT the list is ("Career"); this says whose.
+   */
+  subtitle?: string
+  /**
    * Where to go when there is no in-app history to return to (e.g. the page
    * was opened from a shared link or a new tab). Defaults to the user
    * dashboard — pass the org-admin dashboard when used inside that area.
@@ -19,7 +24,7 @@ interface BackHeaderProps {
  * A back arrow + title row. The arrow goes back within the app, or falls back
  * to `fallback` when going back would leave the app (see useSmartBack).
  */
-export default function BackHeader({ title, fallback }: BackHeaderProps) {
+export default function BackHeader({ title, subtitle, fallback }: BackHeaderProps) {
   const goBack = useSmartBack(fallback)
 
   return (
@@ -32,7 +37,12 @@ export default function BackHeader({ title, fallback }: BackHeaderProps) {
       >
         <Icon icon="mdi:arrow-left" width={22} height={22} />
       </button>
-      {title && <span className={styles.title}>{title}</span>}
+      {(title || subtitle) && (
+        <span className={styles.titleWrap}>
+          {title && <span className={styles.title}>{title}</span>}
+          {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
+        </span>
+      )}
     </header>
   )
 }

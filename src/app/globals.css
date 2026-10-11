@@ -600,6 +600,53 @@ input {
   transition-delay: 270ms;
 }
 
+/* ── 7. LONG PRESS: WHAT IS WORTH COPYING ────────────────────
+   Pressing and holding a chat card, a media tile, a post or a recruitment
+   card used to start a text selection that took the whole block with it, and
+   on iOS put the callout menu on top of it. Holding a card is how you open
+   it or how you reach its own menu — it is not how you copy it.
+
+   Two deliberate rules, not one blanket one:
+
+   1. The callout goes off on the app's CONTROLS and chrome — anything that
+      already behaves as a button, a tab or a bar.
+   2. Form controls get it back explicitly. Both of these properties INHERIT,
+      so a search field inside a <nav> would otherwise lose the selection
+      every text field is expected to have.
+
+   DELIBERATELY NOT HERE: <body>, and the generic container elements. An
+   `article` rule would read as "every card", but it would also land on the
+   legal documents, the public CV and the public recruitment page — three
+   screens made of prose somebody has every reason to copy. Cards, tiles and
+   list rows carry the rule in their own module instead, next to the
+   `user-select: none` on their chrome and the `user-select: text` that puts
+   it back on the words that matter. Which words those are is a local
+   decision, so it is a local rule.
+
+   [data-no-callout] is the escape hatch for a container that is neither. */
+
+nav,
+button,
+[role="button"],
+[role="tab"],
+[role="tablist"],
+[role="menuitem"],
+[role="switch"],
+[data-no-callout] {
+  -webkit-touch-callout: none;
+}
+
+/* Typing and selecting are the whole point of these, wherever they sit. */
+input,
+textarea,
+select,
+[contenteditable="true"],
+[contenteditable=""] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
 /* ── 9. QUIET FOCUS RETURN ──────────────────────────────────── */
 
 /* A closing overlay hands focus back to the element that opened it (or, for

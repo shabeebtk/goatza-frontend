@@ -1,0 +1,145 @@
+/* ============================================================
+   GOATZA — ConfirmDialog
+   Centred card on desktop, bottom sheet below 768px.
+   ============================================================ */
+
+@keyframes confirmBackdropIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes confirmSheetUp {
+  from { opacity: 0; transform: translateY(24px) }
+  to   { opacity: 1; transform: translateY(0) }
+}
+@keyframes confirmCardIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98) }
+  to   { opacity: 1; transform: translateY(0) scale(1) }
+}
+
+/* Above every sheet and viewer: this is the question asked ON TOP of one. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: confirmBackdropIn 0.16s var(--ease-out) both;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-5);
+  padding-bottom: calc(var(--space-5) + var(--safe-bottom));
+  background: var(--color-surface);
+  border-top: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: confirmSheetUp 0.22s var(--ease-spring) both;
+  outline: none;
+}
+
+@media (min-width: 768px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--space-6);
+  }
+
+  .panel {
+    max-width: 400px;
+    padding-bottom: var(--space-5);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    animation-name: confirmCardIn;
+  }
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-ink);
+}
+
+.message {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-loose);
+  color: var(--color-text-secondary);
+}
+
+/* The two answers, side by side, with the confirm on the right where the
+   thumb is. Both are full 44px targets — this is a question people answer on
+   a phone, often in a hurry. */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.cancelBtn,
+.confirmBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.cancelBtn:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-ink);
+}
+
+.confirmBtn {
+  border: 1.5px solid var(--color-brand);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.confirmBtn:hover { background: var(--color-brand-hover); border-color: var(--color-brand-hover) }
+
+/* The answer that cannot be taken back. */
+.confirmBtnDanger {
+  border-color: var(--color-error);
+  background: var(--color-error);
+  color: #fff;
+}
+
+.confirmBtnDanger:hover { filter: brightness(1.06) }
+
+.cancelBtn:active,
+.confirmBtn:active { transform: scale(0.97) }
+
+/* The two buttons stack on a narrow phone rather than squeezing their words. */
+@media (max-width: 360px) {
+  .actions { flex-direction: column-reverse }
+  .cancelBtn,
+  .confirmBtn { width: 100% }
+}

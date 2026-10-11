@@ -1,0 +1,188 @@
+/* ============================================================
+   GOATZA — AchievementsListPage
+   The whole award shelf on its own page. Mobile-first.
+
+   Deliberately the SECTION's vocabulary — the same timeline gap, the same
+   empty and error blocks, the same pill buttons — so arriving here from
+   "See all" reads as the same list with the lid off, not a second design.
+   ============================================================ */
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 680px;
+  margin-inline: auto;
+  padding: var(--space-4) var(--space-4) var(--space-10);
+}
+
+/* ── Toolbar: the count, and the owner's way in ──────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.count {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 40px;
+  padding: 7px 14px;
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.addBtn:hover:not(:disabled) { background: var(--color-brand-muted); }
+.addBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.capNote {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-muted);
+}
+
+/* ── The list ────────────────────────────────────────────────── */
+
+/* One column, like the section: the cards carry their own media and a
+   two-up grid would halve the space the titles need on a phone. */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+/* ── Loading ─────────────────────────────────────────────────── */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skeletonCard {
+  height: 96px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    var(--color-surface-raised) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* ── Empty ───────────────────────────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.emptyText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  max-width: 34ch;
+}
+
+.emptyAddBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  min-height: 44px;
+  padding: 8px 16px;
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring);
+}
+
+.emptyAddBtn:hover { background: var(--color-brand-hover); transform: translateY(-1px); }
+
+/* ── Error ───────────────────────────────────────────────────── */
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.retryBtn {
+  min-height: 40px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.retryBtn:hover:not(:disabled) { background: var(--color-surface-raised); }
+.retryBtn:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -13,6 +13,19 @@ import { useAuthStore } from "@/store/auth.store"
  * The API call is best-effort — an offline or already-dead session must still
  * log out locally, so a failure there never blocks the rest.
  */
+/**
+ * The words every surface asks with, so "Log out?" is the same question in
+ * the dock, the desktop dropdown and Settings. The one logout that does NOT
+ * ask is LegalConsentModal's: declining the terms ends the session, and a
+ * forced logout is not a choice to confirm.
+ */
+export const LOGOUT_CONFIRM = {
+  title: "Log out?",
+  message: "You'll need to sign in again to use Goatza.",
+  confirmLabel: "Log out",
+  cancelLabel: "Cancel",
+} as const
+
 export function useLogout() {
   const router = useRouter()
   const queryClient = useQueryClient()

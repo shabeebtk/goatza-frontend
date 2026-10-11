@@ -37,3 +37,14 @@
   object-fit: contain;
   /* Never `display: block` + width 100%: contain must letterbox, not crop. */
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+.media {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}

@@ -238,11 +238,17 @@ export default function PostViewer({
   useEffect(() => { positionRef.current = { postId: activePostId, slide } })
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose })
-  // Set before navigateAway pops the overlay stack, so the close that
-  // follows knows the page is about to change.
+  // Set before the close, so the close knows the page is about to change
+  // ("navigate") rather than the reader having shut the viewer ("close").
   const leavingRef = useRef(false)
+  // Closed once. A leave closes the viewer itself and THEN pops the overlay
+  // stack; the popstate that lands afterwards would otherwise report the same
+  // close a second time if the unmount had not committed in between.
+  const closedRef = useRef(false)
 
   const handleClose = useCallback(() => {
+    if (closedRef.current) return
+    closedRef.current = true
     onCloseRef.current(
       positionRef.current.postId,
       positionRef.current.slide,
@@ -265,12 +271,36 @@ export default function PostViewer({
     return () => setViewerOpen(false)
   }, [setViewerOpen])
 
+  /**
+   * A LINK INSIDE THE VIEWER — and the viewer is gone from this moment.
+   *
+   * It used to leave the closing to `navigateAway`, which pops the overlay
+   * stack and closes on the popstate that follows: asynchronously, and after
+   * the route had been handed to the router. So the owner's "the viewer is
+   * open" state was still set as the page was swapped out, and coming back
+   * put that page up as it was left — viewer and all — which then closed
+   * itself a frame later as the close finally arrived. A flash that reads,
+   * correctly, as a bug.
+   *
+   * The state goes first now, synchronously, inside the tap's own handler:
+   * the owner drops the viewer (PostViewerProvider's `open`, or the
+   * single-post card's slide) and the store's "a viewer is on screen" flag
+   * goes down BEFORE navigateAway touches history or the router. There is
+   * no window in which a route change can preserve an open viewer.
+   *
+   * The close still reports "navigate", so the list does not scroll itself
+   * onto a post on a page the reader is leaving; a real close still reports
+   * "close" and still lands.
+   */
   const leave = useCallback(
     (href: string) => {
+      if (leavingRef.current) return
       leavingRef.current = true
+      handleClose()
+      setViewerOpen(false)
       navigateAway(href)
     },
-    [navigateAway]
+    [handleClose, navigateAway, setViewerOpen]
   )
 
   const dialogRef = useRef<HTMLDivElement>(null)

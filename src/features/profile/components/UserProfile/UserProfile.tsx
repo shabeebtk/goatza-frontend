@@ -515,14 +515,22 @@ export default function UserProfile({
                 looking at an empty history, so it carries its own top
                 divider rather than taking one from here and leaving it
                 orphaned above the page end. */}
-            <CareerSection userId={profile.id} isOwn={isMe} />
+            <CareerSection
+              userId={profile.id}
+              username={profile.username}
+              isOwn={isMe}
+            />
 
             {/* Achievements — last section, directly under Career: the awards
                 only mean anything against the stints that produced them, and
                 an achievement can name the career entry it was won during.
                 Same id-not-username keying and the same self-carried divider,
                 for the same reasons. */}
-            <AchievementsSection userId={profile.id} isOwn={isMe} />
+            <AchievementsSection
+              userId={profile.id}
+              username={profile.username}
+              isOwn={isMe}
+            />
 
             {/* Match diary. Keyed by USERNAME, not id — the showcase endpoint
                 is /matches/summary/<username>, the one match route that names
