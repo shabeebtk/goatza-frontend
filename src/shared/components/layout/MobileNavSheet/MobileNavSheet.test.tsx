@@ -131,7 +131,14 @@ const TABS: NavDockTab[] = [
     iconActive: "i",
     badge: 3,
   },
-  { kind: "profile", id: "profile", label: "Profile", match: "/profile", initials: "AD" },
+  {
+    kind: "profile",
+    id: "profile",
+    label: "Profile",
+    href: "/profile/shabeeb",
+    match: "/profile",
+    initials: "AD",
+  },
 ]
 
 function org(id: string, name: string, username: string): OrganizationActor {
@@ -255,9 +262,27 @@ describe("one container", () => {
     renderDock({ open: false })
 
     expect(screen.queryByText("Swipe up for all")).toBeNull()
-    // The avatar tab is the tap affordance instead.
-    const tab = screen.getByRole("button", { name: "Navigation menu" })
-    expect(tab.getAttribute("aria-expanded")).toBe("false")
+    // Nothing on the bar opens the dock any more: the swipe up is the one
+    // way in, so no tab claims to be a disclosure.
+    expect(screen.queryByRole("button", { name: "Navigation menu" })).toBeNull()
+    expect(document.querySelector("[aria-haspopup]")).toBeNull()
+  })
+
+  it("sends the profile tab to the profile, not to the dock", () => {
+    const { onOpen } = renderDock({ open: false })
+
+    const tab = screen.getByRole("link", { name: "Profile" })
+    expect(tab.getAttribute("href")).toBe("/profile/shabeeb")
+    // Not a disclosure any more.
+    expect(tab.getAttribute("aria-haspopup")).toBeNull()
+    expect(tab.getAttribute("aria-expanded")).toBeNull()
+    expect(tab.getAttribute("aria-controls")).toBeNull()
+
+    fireEvent.click(tab)
+
+    // Collapsed, there is no overlay entry to consume: a plain push.
+    expect(push).toHaveBeenCalledWith("/profile/shabeeb")
+    expect(onOpen).not.toHaveBeenCalled()
   })
 
   it("renders nothing at all where the chrome is hidden", () => {
@@ -481,31 +506,32 @@ describe("the ways out", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it("collapses from the handle's close button", () => {
-    const { onClose } = renderDock()
-
-    fireEvent.click(screen.getByRole("button", { name: "Close navigation menu" }))
-
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it("collapses from the avatar tab while expanded", () => {
-    const { onClose } = renderDock()
-
-    // One tab, both directions: aria-expanded says which way it goes, and
-    // its name stays put so it never collides with the handle's close button.
-    const tab = screen.getByRole("button", { name: "Navigation menu" })
-    expect(tab.getAttribute("aria-expanded")).toBe("true")
-    fireEvent.click(tab)
-
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it("gives the two close controls distinct names", () => {
+  it("has no close button in the handle — four ways out is enough", () => {
     renderDock()
 
-    expect(screen.getAllByRole("button", { name: "Close navigation menu" })).toHaveLength(1)
-    expect(screen.getAllByRole("button", { name: "Navigation menu" })).toHaveLength(1)
+    // Drag down, backdrop, back gesture, Esc. A fifth control only took
+    // room from the handle that teaches the first.
+    expect(screen.queryByRole("button", { name: "Close navigation menu" })).toBeNull()
+    expect(document.querySelector('[data-icon="mdi:close"]')).toBeNull()
+  })
+
+  it("keeps the dialog named without it", () => {
+    renderDock()
+
+    const dialog = screen.getByRole("dialog")
+    const labelId = dialog.getAttribute("aria-labelledby")
+    expect(labelId).toBeTruthy()
+    expect(document.getElementById(labelId!)?.textContent).toBe("Navigation")
+  })
+
+  it("leaves by the profile tab while expanded, consuming the entry", () => {
+    const { onClose } = renderDock()
+
+    fireEvent.click(screen.getByRole("link", { name: "Profile" }))
+
+    // Expanded, it leaves the way every other tile does.
+    expect(navigateAway).toHaveBeenCalledWith("/profile/shabeeb")
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it("navigates and collapses on a tile tap, consuming its history entry", () => {
@@ -529,13 +555,38 @@ describe("the ways out", () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it("logs out and collapses from the footer", () => {
-    const { onClose, onLogout } = renderDock()
+  it("collapses and asks before logging out", () => {
+    const { onClose, onLogout, rerender } = renderDock()
 
     fireEvent.click(screen.getByRole("button", { name: "Log out" }))
 
-    expect(onLogout).toHaveBeenCalledTimes(1)
+    // The dock goes down first — the question is asked on an empty screen,
+    // not on top of the menu.
     expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onLogout).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+
+    // The parent owns `open`, so mirror the collapse it would commit.
+    rerender(<MobileNavSheet {...props({ open: false, onClose, onLogout })} />)
+
+    const dialog = screen.getByRole("alertdialog")
+    expect(dialog.textContent).toContain("Log out?")
+    expect(onLogout).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }))
+    expect(onLogout).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets the reader back out of logging out", () => {
+    const { onClose, onLogout, rerender } = renderDock()
+
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }))
+    rerender(<MobileNavSheet {...props({ open: false, onClose, onLogout })} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(onLogout).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
   })
 })
 
@@ -546,23 +597,21 @@ describe("focus", () => {
     expect(document.activeElement).toBe(screen.getByRole("dialog"))
   })
 
-  it("hands focus back to the avatar tab when it collapses", () => {
+  it("hands focus back to whatever had it when it collapses", () => {
     const onOpen = vi.fn()
     const { rerender } = render(<MobileNavSheet {...props({ open: false, onOpen })} />)
 
-    const tab = screen.getByRole("button", { name: "Navigation menu" })
+    // The dock opens by dragging the bar up, so there is no opener button to
+    // record: the focus contract is "wherever the reader was".
+    const tab = screen.getByRole("link", { name: "Home" })
     tab.focus()
-    fireEvent.click(tab)
-    expect(onOpen).toHaveBeenCalledTimes(1)
 
-    // The parent owns `open`, so mirror the state change it would make.
+    // The parent owns `open`, so mirror the state change the drag would make.
     rerender(<MobileNavSheet {...props({ open: true, onOpen })} />)
     expect(document.activeElement).toBe(screen.getByRole("dialog"))
 
     rerender(<MobileNavSheet {...props({ open: false, onOpen })} />)
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Navigation menu" })
-    )
+    expect(document.activeElement).toBe(screen.getAllByRole("link", { name: "Home" })[0])
   })
 
   it("traps Tab inside the body", () => {

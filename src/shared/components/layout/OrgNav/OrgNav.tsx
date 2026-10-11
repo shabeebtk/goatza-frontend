@@ -7,7 +7,8 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import styles from "./OrgNav.module.css"
 import { useAuthStore } from "@/store/auth.store"
-import { useLogout } from "@/features/auth/hooks/useLogout"
+import { LOGOUT_CONFIRM, useLogout } from "@/features/auth/hooks/useLogout"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import CreateMenu, { type CreateAction } from "@/shared/components/layout/CreateMenu/CreateMenu"
@@ -390,6 +391,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       kind: "profile" as const,
       id: "org_profile_tab",
       label: "Organization profile",
+      // The tab goes to the page it is named after; the dock opens by
+      // swiping the bar up, the same as in the user shell.
+      href: `${orgBase(orgId)}/profile`,
       match: `${orgBase(orgId)}/profile`,
       avatarUrl: currentOrg?.logo,
       initials: currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR",
@@ -416,6 +420,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   // One logout path for the whole app (the user nav uses the same hook);
   // AccountSwitcher closes its own dropdown / sheet after calling it.
   const handleLogout = useLogout()
+  // ...and it asks first. The dock's footer runs its own ask, after it has
+  // collapsed — see MobileNavSheet.
+  const [logoutAsk, setLogoutAsk] = useState(false)
 
   const handleSwitchToUser = () => {
     switchToUser()
@@ -623,7 +630,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
                 onCloseSheet={() => setSheetOpen(false)}
                 onSwitchToUser={handleSwitchToUser}
                 onSwitchToOrganization={handleSwitchToOrganization}
-                onLogout={handleLogout}
+                onLogout={() => setLogoutAsk(true)}
                 enableSheet={false}
               />
             </div>
@@ -707,6 +714,17 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         onSwitchToUser={handleSwitchToUser}
         onSwitchToOrganization={handleSwitchToOrganization}
         onLogout={handleLogout}
+      />
+
+      <ConfirmDialog
+        open={logoutAsk}
+        {...LOGOUT_CONFIRM}
+        tone="danger"
+        onConfirm={() => {
+          setLogoutAsk(false)
+          handleLogout()
+        }}
+        onCancel={() => setLogoutAsk(false)}
       />
 
       {postModalOpen && currentOrg?.username && (

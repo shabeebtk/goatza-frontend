@@ -396,28 +396,6 @@
         background: var(--color-border);
     }
 
-    .closeBtn {
-        position: absolute;
-        right: var(--space-3);
-        top: 50%;
-        transform: translateY(-50%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 36px;
-        height: 36px;
-        border-radius: var(--radius-md);
-        background: transparent;
-        border: none;
-        color: var(--color-text-muted);
-        cursor: pointer;
-    }
-
-    .closeBtn:active {
-        background: var(--color-brand-subtle);
-        color: var(--color-brand);
-    }
-
     /* ── Account header ─────────────────────────────────────── */
 
     .account {
@@ -847,4 +825,17 @@
     .backdrop {
         display: none !important;
     }
+}
+
+/* ── Long press: the dock is all gesture ─────────────────────
+   Every pixel of the dock is something to press, swipe or drag — a tab, the
+   handle, a tile, an account row. There is nothing here to copy, and a held
+   tab that selected its label (or raised iOS's callout over the bar) was
+   only ever in the way of the swipe that opens it. */
+.dock,
+.bar,
+.panel {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }

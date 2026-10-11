@@ -477,3 +477,24 @@
 .loadMoreBtn:hover {
   text-decoration: underline;
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+.commentRow,
+.commentHeader,
+.commentTime,
+.commentActions {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* What somebody actually came to copy out of a thread. */
+.commentText {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}

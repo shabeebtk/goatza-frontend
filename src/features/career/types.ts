@@ -60,6 +60,19 @@ export const MAX_CAREER_ENTRIES = 10
 /** How many entries the profile shows before "Show more". */
 export const CAREER_PAGE_SIZE = 3
 
+/**
+ * MORE THAN THIS MANY AND THE SECTION HANDS OVER.
+ *
+ * A profile section paging entries three at a time is right up to about ten:
+ * the section is one of a dozen on that screen, and two presses show the lot.
+ * Past ten, pressing "Show more" four times is not paging a section any more,
+ * it is reading a list in the wrong place — so after the first press the
+ * button becomes the way to /profile/<username>/career, which holds all of them.
+ *
+ * At or below it, nothing changes.
+ */
+export const CAREER_SEE_ALL_OVER = 10
+
 /** Server rule: the `title` column width. */
 export const MAX_CAREER_TITLE_LENGTH = 100
 

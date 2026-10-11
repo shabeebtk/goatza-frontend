@@ -382,3 +382,21 @@
 @media (min-width: 400px) {
   .actionBtn span { display: inline; }
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold on a card is how it opens, not how it is copied. The
+   chrome stops being selectable and stops raising iOS's callout; the words
+   somebody would actually copy get both back, below. */
+
+.card {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The caption — the one thing on a post card worth copying. */
+.contentText {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}

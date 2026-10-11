@@ -772,3 +772,26 @@
   height: 100%;
   background: var(--color-surface-raised);
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold here is a gesture, not a selection. The chrome stops
+   being selectable and stops raising iOS's callout; the words somebody
+   would actually copy get both back, below. */
+
+.bubbleRow,
+.bubble,
+.bubbleTime,
+.dateDivider,
+.header {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The message itself. MessageActions' own long-press menu (its own pointer
+   timer, not the native callout) still opens on the bubble around it. */
+.bubbleText {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}

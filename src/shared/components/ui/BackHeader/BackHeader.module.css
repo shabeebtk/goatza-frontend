@@ -23,7 +23,24 @@
   background: var(--color-surface-hover, rgba(0, 0, 0, 0.06));
 }
 
+/* A column only when there is a subtitle to sit under the title; with the
+   title alone this is a plain box around one line and nothing moves. */
+.titleWrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .title {
   font-weight: 600;
   font-size: var(--font-lg);
+}
+
+.subtitle {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

@@ -12,7 +12,8 @@
 import { useState } from "react"
 
 import { BackHeader } from "@/shared/components/ui"
-import { useLogout } from "@/features/auth/hooks/useLogout"
+import { LOGOUT_CONFIRM, useLogout } from "@/features/auth/hooks/useLogout"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import ProblemReportSheet from "@/features/support/components/ProblemReportSheet/ProblemReportSheet"
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
@@ -35,6 +36,9 @@ export default function SettingsPage() {
   const { data: profile } = useMyProfile()
   const togglePublic = useTogglePublicProfile()
   const [reportOpen, setReportOpen] = useState(false)
+  // Log out asks first, here as everywhere else: it is one tap from the end
+  // of a session, and this row sits next to "Delete account".
+  const [logoutAsk, setLogoutAsk] = useState(false)
 
   // Public by default, and that is also the right optimistic answer while the
   // profile is still loading — the row must not flicker "off" and back.
@@ -173,7 +177,7 @@ export default function SettingsPage() {
         <SettingsActionRow
           icon="mdi:logout"
           label="Log out"
-          onClick={logout}
+          onClick={() => setLogoutAsk(true)}
           destructive
         />
       </SettingsRows>
@@ -189,6 +193,17 @@ export default function SettingsPage() {
       {reportOpen && (
         <ProblemReportSheet onClose={() => setReportOpen(false)} />
       )}
+
+      <ConfirmDialog
+        open={logoutAsk}
+        {...LOGOUT_CONFIRM}
+        tone="danger"
+        onConfirm={() => {
+          setLogoutAsk(false)
+          logout()
+        }}
+        onCancel={() => setLogoutAsk(false)}
+      />
     </div>
   )
 }

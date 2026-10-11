@@ -9,7 +9,8 @@ import styles from "./AppNav.module.css"
 import { LOGO_URL } from "@/constants"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import { useAuthStore } from "@/store/auth.store"
-import { useLogout } from "@/features/auth/hooks/useLogout"
+import { LOGOUT_CONFIRM, useLogout } from "@/features/auth/hooks/useLogout"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
@@ -206,6 +207,12 @@ export default function AppNav() {
   }, [])
 
   const handleLogout = useLogout()
+  /**
+   * The desktop dropdown's Log out asks first. The dock's footer asks for
+   * itself — it has to collapse before the question can be seen, so it owns
+   * that sequence and is handed the real logout.
+   */
+  const [logoutAsk, setLogoutAsk] = useState(false)
 
   const handleSwitchToUser = () => {
     switchToUser()
@@ -285,6 +292,9 @@ export default function AppNav() {
         kind: "profile" as const,
         id: item.id,
         label: item.label,
+        // Straight to the real URL, like the tile and the desktop avatar —
+        // the tab is a destination now, not the dock's open button.
+        href: profileHref,
         // The config's /profile, so viewing anyone's profile lights the tab
         // up exactly as it did before.
         match: item.href,
@@ -464,7 +474,7 @@ export default function AppNav() {
                 onCloseSheet={() => setMobileSheetOpen(false)}
                 onSwitchToUser={handleSwitchToUser}
                 onSwitchToOrganization={handleSwitchToOrganization}
-                onLogout={handleLogout}
+                onLogout={() => setLogoutAsk(true)}
                 enableSheet={false}
               />
             </div>
@@ -539,6 +549,17 @@ export default function AppNav() {
         onSwitchToUser={handleSwitchToUser}
         onSwitchToOrganization={handleSwitchToOrganization}
         onLogout={handleLogout}
+      />
+
+      <ConfirmDialog
+        open={logoutAsk}
+        {...LOGOUT_CONFIRM}
+        tone="danger"
+        onConfirm={() => {
+          setLogoutAsk(false)
+          handleLogout()
+        }}
+        onCancel={() => setLogoutAsk(false)}
       />
 
       {postModalOpen && postingProfile.username && (

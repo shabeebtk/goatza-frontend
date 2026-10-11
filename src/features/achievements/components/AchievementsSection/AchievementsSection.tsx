@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { Icon } from "@iconify/react"
 import { toast } from "sonner"
 
@@ -32,6 +33,7 @@ import {
 } from "../../hooks/useAchievementQueries"
 import {
     ACHIEVEMENT_PAGE_SIZE,
+    ACHIEVEMENT_SEE_ALL_OVER,
     MAX_ACHIEVEMENTS,
     MAX_PINNED_ACHIEVEMENTS,
     type Achievement,
@@ -93,6 +95,12 @@ function DeleteConfirm({
 interface AchievementsSectionProps {
     /** The profile owner's user id (`profile.id`), not their username. */
     userId: string
+    /**
+     * Their username — the URL half, for the "See all" page. Optional: a
+     * caller that does not pass one simply keeps paging in place, which is
+     * what every caller did before the page existed.
+     */
+    username?: string
     isOwn: boolean
 }
 
@@ -103,6 +111,7 @@ type FormState =
 
 export default function AchievementsSection({
     userId,
+    username,
     isOwn,
 }: AchievementsSectionProps) {
     // On a public profile the awards arrived with the server-rendered bundle;
@@ -248,6 +257,23 @@ export default function AchievementsSection({
     const hasMore = remaining > 0
     const atCap = achievements.length >= MAX_ACHIEVEMENTS
 
+    /**
+     * SHOW MORE, OR SEE ALL.
+     *
+     * Ten or fewer: "Show more", exactly as before, until there is nothing
+     * left to show. More than ten: the first press still opens the next
+     * three — the reader asked for a little more, not for another screen —
+     * and from then on the button is the way to the page that has them all.
+     *
+     * Needs the username to link to, so a caller that passes none keeps the
+     * old behaviour rather than rendering a button that goes nowhere.
+     */
+    const seeAllHref = username ? `/profile/${username}/achievements` : null
+    const showSeeAll =
+        !!seeAllHref
+        && achievements.length > ACHIEVEMENT_SEE_ALL_OVER
+        && visibleCount > ACHIEVEMENT_PAGE_SIZE
+
     return (
         <>
             {/* `#achievements` is the anchor the achievement_verified /
@@ -343,7 +369,18 @@ export default function AchievementsSection({
                             )}
                         </div>
 
-                        {hasMore && (
+                        {showSeeAll ? (
+                            <Link
+                                href={seeAllHref}
+                                className={styles.seeAllBtn}
+                            >
+                                See all
+                                <span className={styles.showMoreCount}>
+                                    ({achievements.length})
+                                </span>
+                                <Icon icon="mdi:arrow-right" width={16} height={16} />
+                            </Link>
+                        ) : hasMore ? (
                             <button
                                 className={styles.showMoreBtn}
                                 onClick={() =>
@@ -357,7 +394,7 @@ export default function AchievementsSection({
                                     of {remaining}
                                 </span>
                             </button>
-                        )}
+                        ) : null}
                     </>
                 )}
             </div>

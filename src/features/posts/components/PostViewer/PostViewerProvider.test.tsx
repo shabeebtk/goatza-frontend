@@ -292,6 +292,14 @@ describe("PostViewerProvider", () => {
 
         fireEvent.click(screen.getByRole("link", { name: /Meera/ }))
 
+        // GONE ALREADY — before the router has been asked for anything. The
+        // close used to wait for navigateAway's popstate, which left the
+        // viewer open across the route change: coming back then put the page
+        // up with the viewer still on it, and it closed a frame later.
+        expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
+        expect(usePostViewerStore.getState().open).toBe(false)
+        expect(push).not.toHaveBeenCalled()
+
         await waitFor(() => expect(push).toHaveBeenCalledWith("/profile/meera"))
         expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
         expect(landOnPost).not.toHaveBeenCalled()

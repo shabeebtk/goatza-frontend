@@ -545,3 +545,14 @@
   text-align: center;
   font-size: var(--text-sm);
 }
+
+/* ── Long press: chrome is not copy ──────────────────────────
+   A press-and-hold here is a gesture, not a selection. The chrome stops
+   being selectable and stops raising iOS's callout; the words somebody
+   would actually copy get both back, below. */
+
+.row {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}

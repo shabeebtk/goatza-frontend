@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * AchievementsSection — the show-more gate.
+ * AchievementsSection — the show-more / see-all gate.
  *
  * ACHIEVEMENT_PAGE_SIZE is three so the shelf pages at the same rate as the
  * Career timeline sitting directly above it. That number is a UI decision with
@@ -17,11 +17,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { ACHIEVEMENT_PAGE_SIZE, type Achievement } from "../../types"
+import {
+    ACHIEVEMENT_PAGE_SIZE,
+    ACHIEVEMENT_SEE_ALL_OVER,
+    type Achievement,
+} from "../../types"
 import AchievementsSection from "./AchievementsSection"
 
 vi.mock("@iconify/react", () => ({
     Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />,
+}))
+
+vi.mock("next/link", () => ({
+    default: ({
+        href,
+        children,
+    }: {
+        href: string
+        children: React.ReactNode
+    }) => <a href={href}>{children}</a>,
 }))
 
 // Not a public profile — the section should read the query, not the bundle.
@@ -71,7 +85,7 @@ const achievement = (n: number): Achievement => ({
     created_at: "2025-06-02T00:00:00Z",
 })
 
-const renderWith = (count: number) => {
+const renderWith = (count: number, username?: string) => {
     useUserAchievements.mockReturnValue({
         data: {
             count,
@@ -84,8 +98,13 @@ const renderWith = (count: number) => {
         isRefetching: false,
     })
 
-    return render(<AchievementsSection userId="u1" isOwn={false} />)
+    return render(
+        <AchievementsSection userId="u1" username={username} isOwn={false} />
+    )
 }
+
+const seeAll = () => screen.queryByRole("link", { name: /See all/ })
+const showMore = () => screen.queryByRole("button", { name: /Show .* more/ })
 
 const titles = () => screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)
 
@@ -132,5 +151,53 @@ describe("AchievementsSection show more", () => {
 
         expect(titles()).toHaveLength(8)
         expect(screen.queryByRole("button", { name: /Show .* more/ })).toBeNull()
+    })
+})
+
+/**
+ * THE HAND-OVER. Ten or fewer is a section; past ten it is a list, and the
+ * section stops trying to be one — after the first "Show more" the button
+ * becomes the way to the page that holds them all.
+ */
+describe("AchievementsSection see all", () => {
+    it("hands over past the threshold, but not before the first press", () => {
+        renderWith(ACHIEVEMENT_SEE_ALL_OVER + 2, "shabeeb")
+
+        // Un-expanded, the reader is still offered the next three: they asked
+        // for a bit more, not for another screen.
+        expect(showMore()).toBeTruthy()
+        expect(seeAll()).toBeNull()
+
+        fireEvent.click(showMore()!)
+
+        expect(titles()).toHaveLength(ACHIEVEMENT_PAGE_SIZE * 2)
+        expect(showMore()).toBeNull()
+
+        const link = seeAll()
+        expect(link).toBeTruthy()
+        expect(link!.textContent).toContain(String(ACHIEVEMENT_SEE_ALL_OVER + 2))
+        expect(link!.getAttribute("href")).toBe("/profile/shabeeb/achievements")
+    })
+
+    it("keeps paging in place at the threshold itself", () => {
+        renderWith(ACHIEVEMENT_SEE_ALL_OVER, "shabeeb")
+
+        fireEvent.click(showMore()!)
+
+        // Ten is still a section: no hand-over, just the next page.
+        expect(seeAll()).toBeNull()
+        expect(showMore()).toBeTruthy()
+    })
+
+    // The org side gets these pages later; until a caller passes a username
+    // there is nowhere to send anybody, and a button that goes nowhere is
+    // worse than the one that already works.
+    it("keeps paging in place when no username was passed", () => {
+        renderWith(ACHIEVEMENT_SEE_ALL_OVER + 2)
+
+        fireEvent.click(showMore()!)
+
+        expect(seeAll()).toBeNull()
+        expect(showMore()).toBeTruthy()
     })
 })

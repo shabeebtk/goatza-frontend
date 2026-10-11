@@ -319,3 +319,35 @@
   animation: spin 0.65s linear infinite;
   flex-shrink: 0;
 }
+
+/* ── See all ─────────────────────────────────────────────────
+   The same pill as "Show more", because it stands in the same place and
+   answers the same question — it just goes somewhere instead of growing the
+   list. Brand-coloured so the hand-over reads as a step forward rather than
+   one more press of the button that was already there. */
+
+.seeAllBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 44px;
+  padding: 10px var(--space-4);
+  background: var(--color-brand-subtle);
+  border: 1.5px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-brand-hover);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.seeAllBtn:hover {
+  background: var(--color-brand-muted);
+  border-color: var(--color-brand);
+}
