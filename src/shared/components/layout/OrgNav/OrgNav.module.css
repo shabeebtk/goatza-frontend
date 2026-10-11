@@ -147,22 +147,6 @@
   line-height: 0;
 }
 
-.orgBadgePipSm {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 13px;
-  height: 13px;
-  border-radius: var(--radius-full);
-  background: var(--color-brand);
-  color: #fff;
-  border: 1.5px solid var(--color-surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-}
-
 /* ─────────────────────────────────────────────────────────────
    DESKTOP TOP NAV  (≥ 768px)
    ───────────────────────────────────────────────────────────── */
@@ -188,8 +172,15 @@
   }
 }
 
+/* Three columns: logo left, the primary destinations CENTRED, the controls
+   right — matching AppNav. A grid rather than a flex row with auto margins,
+   because the nav has to be centred on the BAR, not on the space left over
+   between two clusters of different widths. The two 1fr tracks keep the
+   middle one centred; each has an auto minimum, so a cluster wider than its
+   track pushes rather than overflows. */
 .topNavInner {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--space-4);
   max-width: var(--container-wide);
@@ -198,30 +189,48 @@
   height: 57px; /* 60px - 3px stripe */
 }
 
-/* Nav links row — centered */
-.topNavCenter {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  padding-inline: var(--space-4);
+.topNavInner > .logoLink {
+  justify-self: start;
+  min-width: 0;
 }
 
 .topNavLinks {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-self: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Create · Messages · Alerts · avatar, pinned to the right-hand track. The
+   create pill gets a little more air than the two ghost icon buttons, which
+   read as a pair. */
+.topNavRight {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.topNavRight > .createBtnWrap {
+  margin-right: var(--space-2);
 }
 
 .topNavLink {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 18px;
-  border-radius: var(--radius-md);
+  gap: var(--space-2);
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   text-decoration: none;
   position: relative;
+  background: transparent;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
   transition:
     color var(--duration-fast),
     background var(--duration-base) var(--ease-out);
@@ -232,19 +241,18 @@
   background: var(--color-brand-subtle);
 }
 
+/* A soft brand pill, matching AppNav — the old underline read as a tab strip. */
 .topNavLinkActive {
   color: var(--color-brand);
+  background: var(--color-brand-subtle);
 }
 
-.topNavLinkActive::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 20%;
-  right: 20%;
-  height: 2px;
-  background: var(--color-brand);
-  border-radius: 2px 2px 0 0;
+.topNavLinkActive .topNavLinkLabel {
+  font-weight: var(--weight-bold);
+}
+
+.topNavMoreBtn {
+  flex-shrink: 0;
 }
 
 .topNavLinkIcon {
@@ -252,6 +260,7 @@
   display: flex;
   align-items: center;
   line-height: 0;
+  flex-shrink: 0;
 }
 
 .topNavLinkLabel {
@@ -261,6 +270,100 @@
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
   line-height: 1;
+}
+
+/* ── Right cluster: Messages/Alerts icon buttons ───────────────── */
+
+.topNavIconBtn {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .topNavIconBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: color var(--duration-fast), background var(--duration-base) var(--ease-out);
+  }
+
+  .topNavIconBtn:hover {
+    color: var(--color-brand);
+    background: var(--color-brand-subtle);
+  }
+
+  .topNavIconBtnActive {
+    color: var(--color-brand);
+    background: var(--color-brand-subtle);
+  }
+
+  .topNavIconWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    line-height: 0;
+  }
+}
+
+/* "Post / Recruit" — the button's two actions named on the button itself at
+   a comfortable width. It is the first text in the right cluster to go when
+   the window narrows; the icon and the aria-label carry it from there. */
+.createBtnLabel {
+  font-size: 0.68rem;
+}
+
+@media (max-width: 1279px) {
+  .createBtnLabel {
+    display: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   NARROW DESKTOP  (768px — 1099px)
+
+   Nothing in the bar is elastic now that the search field is gone, so a
+   narrow window is answered by dropping text. This tier starts sooner than
+   the user app's (1023px): there are five pills here, not four, and
+   "Dashboard" and "Recruitments" are long, so the labelled row needs about
+   1100px before it is comfortable. Below that the pills go icon-only (the
+   aria-labels carry the names) and the org name goes with them, which
+   leaves the bar well inside a 820px window.
+   ───────────────────────────────────────────────────────────── */
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .topNavInner {
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+  }
+
+  .topNavLinkLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .topNavLink {
+    padding: 8px 10px;
+  }
+
+  /* The mark and the Admin badge still say whose admin this is. */
+  .logoText {
+    display: none;
+  }
+
+  .topNavRight > .createBtnWrap {
+    margin-right: 0;
+  }
 }
 
 /* Avatar area */
@@ -337,6 +440,7 @@
     cursor: pointer;
     transition: background var(--duration-fast), transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-base);
     flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .topNavCreateBtn:hover {
@@ -595,125 +699,10 @@
   line-height: 0;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   MOBILE BOTTOM TAB BAR  (< 768px)
+/* The mobile tab bar lives in the nav dock (MobileNavSheet) now, which owns
+   it in both states — its CSS went with it. OrgNav has no role skeleton, so
+   nothing here needs a placeholder bar.
    ───────────────────────────────────────────────────────────── */
-.bottomBar { display: none; }
-
-@media (max-width: 767px) {
-  .bottomBar {
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
-    height: calc(var(--bottom-nav-h) + var(--safe-bottom));
-    padding-bottom: var(--safe-bottom);
-    padding-left: var(--safe-left);
-    padding-right: var(--safe-right);
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
-    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
-    animation: tabBarUp 0.4s var(--ease-out) 0.1s both;
-    /* Scroll-linked auto-hide — at progress 1 slides off the bottom (incl.
-       safe-area padding). See .mobileTopBar. */
-    transform: translateY(calc(var(--chrome-progress, 0) * 100%)) !important;
-    transition: transform 0s;
-    will-change: transform;
-  }
-}
-
-/* Settle transition — enabled only while data-chrome-snap is set on <html>,
-   so the follow phase stays 1:1 with the scroll and the settle eases. */
-:global(html[data-chrome-snap]) .mobileTopBar,
-:global(html[data-chrome-snap]) .bottomBar {
-  transition: transform 280ms var(--ease-out);
-}
-
-.bottomTab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  height: 100%;
-  position: relative;
-  color: var(--color-text-muted);
-  text-decoration: none;
-  transition: color var(--duration-fast);
-  min-width: 44px;
-}
-
-.bottomTab:active { color: var(--color-brand); }
-
-.bottomTabActive { color: var(--color-brand); }
-
-/* Active pip — org color */
-.bottomTabActive::before {
-  content: '';
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 20px;
-  height: 3px;
-  background: var(--color-brand);
-  border-radius: 0 0 3px 3px;
-}
-
-.bottomTabIcon {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-}
-
-.bottomTabCreate {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  height: 100%;
-  text-decoration: none;
-}
-
-.bottomTabCreateInner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-full);
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-  box-shadow: var(--shadow-brand);
-  transition:
-    background var(--duration-fast),
-    transform var(--duration-fast) var(--ease-spring),
-    box-shadow var(--duration-base);
-  margin-top: -8px;
-}
-
-.bottomTabCreate:active .bottomTabCreateInner {
-  background: var(--color-brand-hover);
-  transform: scale(0.93);
-}
-
-/* Avatar tab button */
-.bottomTabAvatarBtn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.bottomTabAvatarActive {
-  border: 2px solid var(--color-brand) !important;
-  box-shadow: 0 0 0 1px var(--color-brand-subtle) !important;
-}
 
 /* ─────────────────────────────────────────────────────────────
    MOBILE ACCOUNT SHEET

@@ -16,13 +16,44 @@ import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQu
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import MobileNavSheet, {
+  type NavDockTab,
+  type NavSheetGroup,
+  type NavSheetTile,
+} from "@/shared/components/layout/MobileNavSheet/MobileNavSheet"
+import { ROLE_META } from "@/shared/constants/roles"
+import NavMoreMenu, { type MoreMenuRow } from "@/shared/components/layout/NavMoreMenu/NavMoreMenu"
 import {
   getBottomNav,
-  getDesktopNav,
+  getDesktopMore,
+  getDesktopPrimary,
+  getDesktopRight,
   getNavItems,
+  getSheetFooter,
+  getSheetSections,
   getTopBarNav,
+  type LinkNavItem,
   type NavBadgeKey,
+  type NavDestination,
 } from "@/config/navigation"
+
+/** Group ids from the config, titled for the sheet. */
+const SHEET_GROUP_TITLES: Record<string, string> = {
+  discover: "Discover",
+  you: "You",
+}
+
+/**
+ * Help has no route of its own; "Report a problem" is where a reader goes for
+ * one, so the sheet's Help footer item points there.
+ */
+const HELP_TILE: NavSheetTile = {
+  id: "help",
+  label: "Help",
+  href: "/report-problem",
+  icon: "mdi:help-circle-outline",
+  iconActive: "mdi:help-circle",
+}
 
 function LogoMark() {
   return (
@@ -89,6 +120,8 @@ export default function AppNav() {
   const queryClient = useQueryClient()
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreBtnRef = useRef<HTMLButtonElement | null>(null)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
 
@@ -110,7 +143,10 @@ export default function AppNav() {
   // scroll down and follow you back on the way up, settling smoothly when you
   // stop. Inert on chat pages (bars already fully hidden there) and, via CSS,
   // on desktop. Drives the `--chrome-progress` var on <html> — no re-renders.
-  useScrollChrome({ enabled: !isChatPage })
+  // The sheet sits over the bar and the bar is the thing it grew out of —
+  // letting the scroll hide it mid-sheet would pull the floor away. Disabled
+  // also forces the chrome fully visible, which is exactly what is wanted.
+  useScrollChrome({ enabled: !isChatPage && !mobileSheetOpen })
 
   // Nav is driven entirely by the role config — no role branching in JSX.
   const navItems = getNavItems(user?.role)
@@ -153,28 +189,15 @@ export default function AppNav() {
         displayName: user?.name || "You",
       }
 
-  const pressTimer = useRef<NodeJS.Timeout | null>(null)
-  const wasLongPressed = useRef(false)
-
-  const startPress = () => {
-    wasLongPressed.current = false
-    pressTimer.current = setTimeout(() => {
-      wasLongPressed.current = true
-      setMobileSheetOpen(true)
-      if (window.navigator?.vibrate) window.navigator.vibrate(50)
-    }, 450)
-  }
-
-  const clearPress = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current)
-  }
-
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= 768) {
         setMobileSheetOpen(false)
       } else {
         setDropdownOpen(false)
+        // The More panel is portalled, so it would otherwise outlive the bar
+        // it hangs off when the window crosses into mobile.
+        setMoreOpen(false)
       }
     }
 
@@ -205,9 +228,94 @@ export default function AppNav() {
     return <NavSkeleton />
   }
 
-  const desktopItems = getDesktopNav(navItems)
+  // Three desktop clusters, not one flat list: destinations inline on the
+  // left, Messages/Alerts as icons on the right, the rest behind More.
+  const primaryItems = getDesktopPrimary(navItems)
+  const rightItems = getDesktopRight(navItems)
+  const moreItems = getDesktopMore(navItems)
   const topBarItems = getTopBarNav(navItems)
   const bottomItems = getBottomNav(navItems)
+
+  // ── Expand-sheet data ──────────────────────────────────────────────────────
+  // The sheet takes plain tiles rather than nav items, so OrgNav — which is
+  // not config-driven — can feed the same component. The mapping is the only
+  // place the two shapes meet.
+  const toTile = (item: NavDestination): NavSheetTile => ({
+    id: item.id,
+    label: item.label,
+    // The profile tile goes straight to the real URL for the same reason the
+    // tab does, but still matches the config's /profile for its active state.
+    href: item.kind === "profile" ? profileHref : item.href,
+    match: item.kind === "profile" ? item.href : undefined,
+    icon: item.icon,
+    iconActive: item.iconActive,
+    badge: badgeCount(item.badge),
+    disabled: item.disabled,
+    comingSoon: item.comingSoon,
+  })
+
+  const sheetSections: NavSheetGroup[] = getSheetSections(navItems).map((section) => ({
+    id: section.group,
+    title: SHEET_GROUP_TITLES[section.group] ?? section.group,
+    items: section.items.map(toTile),
+  }))
+
+  const settingsItem: LinkNavItem | null = getSheetFooter(navItems)
+  const sheetFooterItems: NavSheetTile[] = settingsItem
+    ? [toTile(settingsItem), HELP_TILE]
+    : [HELP_TILE]
+
+  const roleLabel = user?.role ? ROLE_META[user.role].label : "Account"
+
+  // The five tabs, shaped for the dock, which renders the bar itself so
+  // there is one implementation of it for both shells. Destinations and
+  // order are the config's, unchanged.
+  const dockTabs: NavDockTab[] = bottomItems.map((item) => {
+    if (item.kind === "create") {
+      return {
+        kind: "create" as const,
+        id: item.id,
+        label: "Create post",
+        icon: "mdi:plus",
+        onSelect: () => setPostModalOpen(true),
+      }
+    }
+    if (item.kind === "profile") {
+      return {
+        kind: "profile" as const,
+        id: item.id,
+        label: item.label,
+        // The config's /profile, so viewing anyone's profile lights the tab
+        // up exactly as it did before.
+        match: item.href,
+        avatarUrl: user?.profile_photo,
+        initials: user?.name?.slice(0, 2).toUpperCase() || "U",
+      }
+    }
+    return {
+      kind: "link" as const,
+      id: item.id,
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+      iconActive: item.iconActive,
+      badge: badgeCount(item.badge),
+    }
+  })
+
+  // The More panel: destinations only. Switch account and Log out are one
+  // click away in the avatar dropdown at the other end of the same cluster,
+  // and having them in both places made the panel look like an account menu.
+  const moreRows: MoreMenuRow[] = moreItems.map((item) => ({
+    kind: "link",
+    id: item.id,
+    label: item.label,
+    href: item.href,
+    icon: item.icon,
+    active: pathname.startsWith(item.href),
+    disabled: item.disabled,
+    comingSoon: item.comingSoon,
+  }))
 
   return (
     <>
@@ -216,9 +324,26 @@ export default function AppNav() {
           <LogoMark />
 
           <nav className={styles.topNavLinks} aria-label="Main navigation">
-            {desktopItems.map((item) => {
+            {primaryItems.map((item) => {
               const isActive = pathname.startsWith(item.href)
-              const alertCount = badgeCount(item.badge)
+
+              // Coming soon: present, so the roadmap is visible, but not a
+              // link and not focusable — there is nowhere to go yet.
+              if (item.disabled) {
+                return (
+                  <span
+                    key={item.id}
+                    className={`${styles.topNavLink} ${styles.topNavLinkDisabled}`}
+                    aria-disabled="true"
+                  >
+                    <span className={styles.topNavLinkIcon} aria-hidden="true">
+                      <Icon icon={item.icon} width={20} height={20} />
+                    </span>
+                    <span className={styles.topNavLinkLabel}>{item.label}</span>
+                    {item.comingSoon && <span className={styles.topNavSoon}>Soon</span>}
+                  </span>
+                )
+              }
 
               return (
                 <Link
@@ -229,13 +354,27 @@ export default function AppNav() {
                   aria-current={isActive ? "page" : undefined}
                 >
                   <span className={styles.topNavLinkIcon} aria-hidden="true">
-                    <Icon icon={isActive ? item.iconActive : item.icon} width={22} height={22} />
-                    {alertCount > 0 && <NotifDot count={alertCount} />}
+                    <Icon icon={isActive ? item.iconActive : item.icon} width={20} height={20} />
                   </span>
                   <span className={styles.topNavLinkLabel}>{item.label}</span>
                 </Link>
               )
             })}
+
+            <button
+              ref={moreBtnRef}
+              type="button"
+              className={`${styles.topNavLink} ${styles.topNavMoreBtn} ${moreOpen ? styles.topNavLinkActive : ""}`}
+              onClick={() => setMoreOpen((isOpen) => !isOpen)}
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              aria-label="More"
+            >
+              <span className={styles.topNavLinkIcon} aria-hidden="true">
+                <Icon icon="mdi:dots-horizontal" width={20} height={20} />
+              </span>
+              <span className={styles.topNavLinkLabel}>More</span>
+            </button>
           </nav>
 
           <div className={styles.topNavRight}>
@@ -247,6 +386,30 @@ export default function AppNav() {
             >
               <Icon icon="mdi:plus" width={18} height={18} />
             </button>
+
+            {/* Messages and Alerts are icons here rather than inline links, so
+                the left of the bar holds only destinations. */}
+            {rightItems.map((item) => {
+              const isActive = pathname.startsWith(item.href)
+              const alertCount = badgeCount(item.badge)
+
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={`${styles.topNavIconBtn} ${isActive ? styles.topNavIconBtnActive : ""}`}
+                  aria-label={
+                    alertCount > 0 ? `${item.label}, ${alertCount} unread` : item.label
+                  }
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <span className={styles.topNavIconWrap} aria-hidden="true">
+                    <Icon icon={isActive ? item.iconActive : item.icon} width={22} height={22} />
+                    <NotifDot count={alertCount} />
+                  </span>
+                </Link>
+              )
+            })}
 
             <div className={styles.topNavAvatar}>
               <div className={styles.avatarBtn}>
@@ -294,7 +457,9 @@ export default function AppNav() {
                 organizations={organizations}
                 user={user}
                 openDropdown={dropdownOpen}
-                openSheet={mobileSheetOpen}
+                // The dropdown is the whole of this instance; the mobile
+                // surface is MobileNavSheet now.
+                openSheet={false}
                 onCloseDropdown={() => setDropdownOpen(false)}
                 onCloseSheet={() => setMobileSheetOpen(false)}
                 onSwitchToUser={handleSwitchToUser}
@@ -306,6 +471,14 @@ export default function AppNav() {
           </div>
         </div>
       </header>
+
+      <NavMoreMenu
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        anchorRef={moreBtnRef}
+        rows={moreRows}
+        label="More navigation"
+      />
 
       <header
         className={`${styles.mobileTopBar} ${isChatPage ? styles.mobileTopBarHidden : ""}`}
@@ -340,107 +513,32 @@ export default function AppNav() {
         </div>
       </header>
 
-      <nav
-        className={`${styles.bottomBar} ${isChatPage ? styles.bottomBarHidden : ""}`}
-        aria-label="Tab navigation"
-      >
-        {bottomItems.map((item) => {
-          if (item.kind === "create") {
-            return (
-              <button
-                key={item.id}
-                className={styles.bottomTabCreate}
-                style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-                aria-label="Create post"
-                onClick={() => setPostModalOpen(true)}
-              >
-                <span className={styles.bottomTabCreateInner} aria-hidden="true">
-                  <Icon icon="mdi:plus" width={28} height={28} />
-                </span>
-              </button>
-            )
-          }
-
-          const isActive = pathname.startsWith(item.href)
-
-          if (item.kind === "profile") {
-            return (
-              <Link
-                key={item.id}
-                href={profileHref}
-                className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
-                aria-label="Profile (Long press for account switcher)"
-                aria-current={isActive ? "page" : undefined}
-                onTouchStart={startPress}
-                onTouchEnd={clearPress}
-                onTouchMove={clearPress}
-                onMouseDown={startPress}
-                onMouseUp={clearPress}
-                onMouseLeave={clearPress}
-                onContextMenu={(event) => {
-                  event.preventDefault()
-                  wasLongPressed.current = true
-                  setMobileSheetOpen(true)
-                }}
-                onClick={(event) => {
-                  if (wasLongPressed.current) {
-                    event.preventDefault()
-                  }
-                }}
-              >
-                {user ? (
-                  <Avatar
-                    src={user.profile_photo}
-                    initials={user.name?.slice(0, 2).toUpperCase() || "U"}
-                    size="xs"
-                    className={isActive ? styles.bottomTabAvatar : ""}
-                  />
-                ) : (
-                  <Icon icon="mdi:account-circle-outline" width={26} height={26} />
-                )}
-              </Link>
-            )
-          }
-
-          // kind === "link"
-          const alertCount = badgeCount(item.badge)
-
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className={`${styles.bottomTab} ${isActive ? styles.bottomTabActive : ""}`}
-              aria-label={item.label}
-              aria-current={isActive ? "page" : undefined}
-            >
-              {item.badge ? (
-                <span className={styles.bottomTabIcon} aria-hidden="true">
-                  <Icon icon={isActive ? item.iconActive : item.icon} width={26} height={26} />
-                  <NotifDot count={alertCount} />
-                </span>
-              ) : (
-                <Icon icon={isActive ? item.iconActive : item.icon} width={26} height={26} />
-              )}
-            </Link>
-          )
-        })}
-      </nav>
-
-      <AccountSwitcher
+      {/* Mobile navigation: ONE dock holding the tab bar and the sheet it
+          expands into. It owns account switching on mobile — the long-press
+          switcher it replaced put it behind a gesture nobody found. */}
+      <MobileNavSheet
+        open={mobileSheetOpen}
+        onOpen={() => setMobileSheetOpen(true)}
+        onClose={() => setMobileSheetOpen(false)}
+        tabs={dockTabs}
+        sections={sheetSections}
+        footerItems={sheetFooterItems}
+        pathname={pathname}
+        visible={!isChatPage}
+        account={{
+          name: user?.name || "You",
+          avatarUrl: user?.profile_photo,
+          initials: user?.name?.slice(0, 2).toUpperCase() || "U",
+          roleLabel: `${roleLabel} · Switch account`,
+        }}
         mode="user"
-        styles={styles}
         actorType={actorType}
         actorId={actorId}
         organizations={organizations}
         user={user}
-        openDropdown={dropdownOpen}
-        openSheet={mobileSheetOpen}
-        onCloseDropdown={() => setDropdownOpen(false)}
-        onCloseSheet={() => setMobileSheetOpen(false)}
         onSwitchToUser={handleSwitchToUser}
         onSwitchToOrganization={handleSwitchToOrganization}
         onLogout={handleLogout}
-        enableDropdown={false}
       />
 
       {postModalOpen && postingProfile.username && (
