@@ -137,8 +137,10 @@
 .cancelBtn:active,
 .confirmBtn:active { transform: scale(0.97) }
 
-/* The two buttons stack on a narrow phone rather than squeezing their words. */
-@media (max-width: 360px) {
+/* Only on a genuinely tiny screen do the two buttons stack rather than
+   squeeze their words — at 360px a Cancel/Delete pair still fits a line with
+   room over, and stacking there only made the sheet taller. */
+@media (max-width: 320px) {
   .actions { flex-direction: column-reverse }
   .cancelBtn,
   .confirmBtn { width: 100% }

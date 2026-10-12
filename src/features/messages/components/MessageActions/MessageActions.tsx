@@ -8,6 +8,7 @@ import {
   useState,
 } from "react"
 import { createPortal } from "react-dom"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { Icon } from "@iconify/react"
 import styles from "./MessageActions.module.css"
@@ -62,6 +63,17 @@ export default function MessageActions({
   /** Where the menu is anchored: the finger, or the ⋯ button. */
   const pointRef = useRef<{ x: number; y: number } | null>(null)
   const [open, setOpen] = useState(false)
+  /**
+   * The delete confirmation, which is NOT part of the menu.
+   *
+   * It used to be a second face of this little anchored popup — two lines and
+   * two buttons squeezed into a 200px box pinned to wherever the finger
+   * happened to be. Deleting a message for everyone is not a 200px decision,
+   * and at the edge of the screen the box had nowhere to grow. So the menu
+   * closes and the shared ConfirmDialog takes the middle of the screen (a
+   * bottom sheet on a phone), where the question is legible and the two
+   * answers are full-size targets.
+   */
   const [confirming, setConfirming] = useState(false)
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
 
@@ -72,9 +84,10 @@ export default function MessageActions({
   // (a mouse wheel still closes it — see the scroll listener below).
   useBodyScrollLock(open)
 
+  // Closes the MENU only. The confirmation outlives it on purpose: pressing
+  // Delete closes this and asks in the middle of the screen.
   const closeMenu = useCallback(() => {
     setOpen(false)
-    setConfirming(false)
     // Drop the position too — the next open must be measured afresh, never
     // flash at the previous message's coordinates.
     setAnchor(null)
@@ -118,12 +131,12 @@ export default function MessageActions({
     []
   )
 
-  // Re-measure before paint: on open, and whenever the menu changes height
-  // (switching to the confirm step).
+  // Re-measure before paint, on open. The menu has one height now — the
+  // confirmation is its own dialog, not a taller second face of this box.
   useIsoLayoutEffect(() => {
     if (!open) return
     place()
-  }, [open, confirming, place])
+  }, [open, place])
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -165,6 +178,30 @@ export default function MessageActions({
 
   useEffect(() => clearTimer, [clearTimer])
 
+  /**
+   * NOTHING GETS SELECTED UNDER A HELD FINGER.
+   *
+   * The CSS already refuses selection on a touch device, but a trackpad or a
+   * stylus can still start one mid-press, and Safari begins a selection
+   * BEFORE the press timer is up. A started selection raises the Copy / Look
+   * Up bar, which is the second menu this component exists to avoid.
+   *
+   * Native rather than React's onSelectStart: the event must be cancellable
+   * on the wrapper itself, and this is the one place in the file that needs
+   * a listener React does not type consistently across versions.
+   */
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const onSelectStart = (e: Event) => {
+      // Only while a press is being held, or while our menu is up — an
+      // ordinary click-and-drag with no press in flight is left alone.
+      if (timerRef.current || open) e.preventDefault()
+    }
+    el.addEventListener("selectstart", onSelectStart)
+    return () => el.removeEventListener("selectstart", onSelectStart)
+  }, [open])
+
   // Close on Escape, and on scroll/resize (the anchor would be stale).
   useEffect(() => {
     if (!open) return
@@ -190,9 +227,16 @@ export default function MessageActions({
   }, [copyText, closeMenu])
 
   const handleDelete = useCallback(() => {
+    setConfirming(false)
     onDelete()
+  }, [onDelete])
+
+  // Close FIRST, then ask — the same order Report uses, and for the same
+  // reason: two overlays must never share a backdrop tap.
+  const askDelete = useCallback(() => {
     closeMenu()
-  }, [onDelete, closeMenu])
+    setConfirming(true)
+  }, [closeMenu])
 
   // Close FIRST, then open the sheet: this menu is a portal positioned at the
   // press point, and leaving it up behind a modal sheet leaves two overlays
@@ -211,8 +255,11 @@ export default function MessageActions({
       onPointerUp={clearTimer}
       onPointerCancel={clearTimer}
       onContextMenu={(e) => {
-        // Long press also fires the native context menu on some browsers.
-        if (open) e.preventDefault()
+        // UNCONDITIONAL. A long press fires the native context menu on the
+        // press itself — before our own menu is up — so a guard on `open`
+        // was always one beat too late and let the browser's menu through
+        // first. Inside this wrapper the long press belongs to us.
+        e.preventDefault()
       }}
     >
       {children}
@@ -260,7 +307,7 @@ export default function MessageActions({
               </button>
             )}
 
-            {canReportHere && !confirming && (
+            {canReportHere && (
               <button
                 type="button"
                 className={`${styles.item} ${styles.itemDanger}`}
@@ -272,43 +319,34 @@ export default function MessageActions({
               </button>
             )}
 
-            {canDelete && !confirming && (
+            {canDelete && (
               <button
                 type="button"
                 className={`${styles.item} ${styles.itemDanger}`}
-                onClick={() => setConfirming(true)}
+                onClick={askDelete}
                 role="menuitem"
               >
                 <Icon icon="mdi:delete-outline" width={17} height={17} />
                 Delete
               </button>
             )}
-
-            {canDelete && confirming && (
-              <div className={styles.confirm}>
-                <p className={styles.confirmText}>Delete for everyone?</p>
-                <div className={styles.confirmRow}>
-                  <button
-                    type="button"
-                    className={styles.confirmCancel}
-                    onClick={closeMenu}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.confirmDelete}
-                    onClick={handleDelete}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </>,
         document.body
       )}
+
+      {/* Centred on desktop, a bottom sheet on a phone — and it portals
+          itself, so it is not inside the anchored popup's box. */}
+      <ConfirmDialog
+        open={confirming}
+        title="Delete message?"
+        message="This removes it for everyone in this chat. It can't be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        tone="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   )
 }

@@ -385,8 +385,8 @@
 
 /* ── Long press: chrome is not copy ──────────────────────────
    A press-and-hold on a card is how it opens, not how it is copied. The
-   chrome stops being selectable and stops raising iOS's callout; the words
-   somebody would actually copy get both back, below. */
+   chrome stops being selectable and stops raising iOS's callout; the
+   caption gets both back where there is a pointer to select with. */
 
 .card {
   user-select: none;
@@ -394,9 +394,29 @@
   -webkit-touch-callout: none;
 }
 
-/* The caption — the one thing on a post card worth copying. */
+/* SELECTION IS A POINTER THING HERE.
+
+   On iOS a long press on SELECTABLE TEXT starts a native selection and
+   raises the Copy / Look Up / Translate bar. `-webkit-touch-callout` does
+   not suppress that — it governs the callout for links and images only.
+
+   The caption also carries inline hashtag and mention LINKS, and a held
+   link IS the thing that callout governs: on a phone the link sheet came
+   up over a feed card nobody meant to press.
+
+   So a finger gets no selection here — pressing a card is how you open it
+   — and a mouse or trackpad keeps the ordinary drag-to-select, which
+   raises no callout and competes with no gesture. */
 .contentText {
-  user-select: text;
-  -webkit-user-select: text;
-  -webkit-touch-callout: default;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .contentText {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
 }

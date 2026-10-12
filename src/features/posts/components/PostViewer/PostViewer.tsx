@@ -241,10 +241,25 @@ export default function PostViewer({
   // Set before the close, so the close knows the page is about to change
   // ("navigate") rather than the reader having shut the viewer ("close").
   const leavingRef = useRef(false)
-  // Closed once. A leave closes the viewer itself and THEN pops the overlay
-  // stack; the popstate that lands afterwards would otherwise report the same
-  // close a second time if the unmount had not committed in between.
+  // Closed once. Every path ends at the same popstate-driven close, and a
+  // second report of it would land the provider twice; the guard is cheaper
+  // than reasoning about which path got there first.
   const closedRef = useRef(false)
+  /**
+   * ON THE WAY OUT — hidden, but still mounted.
+   *
+   * A link tap hides the viewer in the same frame it is tapped, because
+   * waiting for the history round-trip to finish before anything happens
+   * reads as a dead tap. What it must NOT do is unmount: useBackToClose
+   * still has an entry in play for this overlay, and a real unmount with an
+   * entry outstanding is its definition of an ORPHAN — it would schedule a
+   * pop to clear it while navigateAway is already popping that very entry
+   * itself. Two pops and one push leaves history an entry too deep, and the
+   * back press from the profile lands on a stale entry instead of the list.
+   *
+   * So: hidden now, unmounted later, by the close that the pop triggers.
+   */
+  const [leaving, setLeaving] = useState(false)
 
   const handleClose = useCallback(() => {
     if (closedRef.current) return
@@ -272,35 +287,33 @@ export default function PostViewer({
   }, [setViewerOpen])
 
   /**
-   * A LINK INSIDE THE VIEWER — and the viewer is gone from this moment.
+   * A LINK INSIDE THE VIEWER.
    *
-   * It used to leave the closing to `navigateAway`, which pops the overlay
-   * stack and closes on the popstate that follows: asynchronously, and after
-   * the route had been handed to the router. So the owner's "the viewer is
-   * open" state was still set as the page was swapped out, and coming back
-   * put that page up as it was left — viewer and all — which then closed
-   * itself a frame later as the close finally arrived. A flash that reads,
-   * correctly, as a bug.
+   * Three things happen, in this order and no other:
    *
-   * The state goes first now, synchronously, inside the tap's own handler:
-   * the owner drops the viewer (PostViewerProvider's `open`, or the
-   * single-post card's slide) and the store's "a viewer is on screen" flag
-   * goes down BEFORE navigateAway touches history or the router. There is
-   * no window in which a route change can preserve an open viewer.
+   *   1. the viewer HIDES — this frame, so the tap is answered at once;
+   *   2. the store's "a viewer is on screen" flag goes down, so the inline
+   *      carousels on the page underneath are free again;
+   *   3. navigateAway pops every overlay entry and then pushes the route.
    *
-   * The close still reports "navigate", so the list does not scroll itself
-   * onto a post on a page the reader is leaving; a real close still reports
-   * "close" and still lands.
+   * What is deliberately NOT here is the close. Telling the owner to drop
+   * the viewer now would unmount this component mid-navigation, and
+   * useBackToClose would read its still-outstanding history entry as an
+   * orphan and pop it a second time — see `leaving` above. The close comes
+   * back to us through the pop: navigateAway's popstate runs
+   * closeDeeperThan(0), which calls handleClose, which reads leavingRef and
+   * reports "navigate" — so the provider drops the viewer THEN, and still
+   * skips landing the list on a post the reader is leaving.
    */
   const leave = useCallback(
     (href: string) => {
       if (leavingRef.current) return
       leavingRef.current = true
-      handleClose()
+      setLeaving(true)
       setViewerOpen(false)
       navigateAway(href)
     },
-    [handleClose, navigateAway, setViewerOpen]
+    [navigateAway, setViewerOpen]
   )
 
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -455,11 +468,16 @@ export default function PostViewer({
   return createPortal(
     <div
       ref={dialogRef}
-      className={`${styles.root} ${isDesktop ? styles.rootDesktop : styles.rootPhone}`}
+      className={`${styles.root} ${isDesktop ? styles.rootDesktop : styles.rootPhone} ${leaving ? styles.rootLeaving : ""}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Post by ${post.author.name}`}
       tabIndex={-1}
+      // On the way out it is hidden rather than gone: `inert` and
+      // aria-hidden take it out of the accessibility tree and off the tab
+      // order for the frames it is still mounted (see `leaving`).
+      inert={leaving || undefined}
+      aria-hidden={leaving || undefined}
       onClickCapture={onClickCapture}
     >
       <PostViewerBody

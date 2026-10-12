@@ -3118,11 +3118,24 @@ export default function CreateRecruitmentModal({
                     // push, so back from the list does not reopen a ghost.
                     const href = `/organization/admin/${orgId}/recruitments`
                     const back = backRef.current
-                    closingRef.current = true
                     onCreated?.(res.recruitment_id)
-                    onClose()
-                    if (back) back.navigateAway(href)
-                    else router.push(href)
+                    if (back) {
+                        // CLOSED BY THE POP, not before it — the same shape
+                        // closeNow() uses. Calling onClose() here first would
+                        // unmount BackGuard with its history entry still
+                        // outstanding, and useBackToClose would read that as
+                        // an orphan and pop it a second time while
+                        // navigateAway was already popping it. Two pops and
+                        // one push leaves history an entry too deep, and back
+                        // from the list bounces on a dead entry. closingRef
+                        // is what tells handleBackGesture that the pop it is
+                        // about to hear means "leave", not "go back a step".
+                        closingRef.current = true
+                        back.navigateAway(href)
+                    } else {
+                        onClose()
+                        router.push(href)
+                    }
                 }, 2000)
             }
         } catch (submitErr) {

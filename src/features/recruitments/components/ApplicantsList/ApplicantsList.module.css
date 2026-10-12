@@ -1052,9 +1052,20 @@
 }
 
 /* The applicant's name is the one thing an organiser copies off the row —
-   into a message, a sheet, or the gate list. */
+   into a message, a sheet, or the gate list. But the row IS a button, and
+   on a phone a press that starts selecting a name is a press that did not
+   open the drawer, with iOS's Copy bar over the list to show for it. So the
+   selection is the pointer's; the finger gets the row. */
 .name {
-  user-select: text;
-  -webkit-user-select: text;
-  -webkit-touch-callout: default;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .name {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
 }
