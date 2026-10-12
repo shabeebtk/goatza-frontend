@@ -26,6 +26,7 @@ import {
 } from "react"
 import type { FetchPostsParams, Post } from "@/features/posts/services/posts.api"
 import { landOnPost } from "@/features/posts/utils/landOnPost"
+import { clearRestoreState, readRestoreState } from "@/shared/hooks/useBackToClose"
 import { usePostViewerStore } from "@/store/postViewer.store"
 import PostViewer, { type PostViewerCloseReason } from "./PostViewer"
 import { viewablePosts, nextActiveId } from "./viewerList"
@@ -70,7 +71,57 @@ interface PostViewerProviderProps {
   children: ReactNode
 }
 
-type OpenState = { postId: string; slide: number } | null
+type OpenState = {
+  postId: string
+  slide: number
+  /**
+   * The viewer was reopened from a history entry it had left behind, rather
+   * than opened by a tap. It adopts that entry instead of pushing another.
+   */
+  restored?: boolean
+} | null
+
+/** The shape the viewer writes onto its history entry. */
+type RestorePayload = { postId: string; slide: number }
+
+function asRestorePayload(value: unknown): RestorePayload | null {
+  if (typeof value !== "object" || value === null) return null
+  const { postId, slide } = value as { postId?: unknown; slide?: unknown }
+  if (typeof postId !== "string" || typeof slide !== "number") return null
+  return { postId, slide }
+}
+
+/**
+ * THE VIEWER THE READER LEFT, if this entry is carrying one and the list can
+ * still show it.
+ *
+ * The post may be gone (deleted, blocked, or simply not in this list's
+ * cache any more), so the same fallback a change under the reader uses
+ * applies: the nearest survivor. With no previous ordering to walk, that
+ * resolves to the first viewable post — better than nothing, and the slide
+ * only means anything on the post it was read on.
+ *
+ * An empty list is the reload case: the page came back with no cache and
+ * the first page has not arrived. There is nothing to reopen onto, and a
+ * viewer with no post is worse than no viewer, so the payload is dropped
+ * and the reader gets the list.
+ */
+function restoreFrom(posts: Post[]): OpenState {
+  const payload = asRestorePayload(readRestoreState())
+  if (!payload) return null
+
+  const ids = viewablePosts(posts).map((p) => p.id)
+  if (ids.length === 0) return null
+
+  const target = nextActiveId([], ids, payload.postId)
+  if (!target) return null
+
+  return {
+    postId: target,
+    slide: target === payload.postId ? payload.slide : 0,
+    restored: true,
+  }
+}
 
 export default function PostViewerProvider({
   posts,
@@ -84,7 +135,16 @@ export default function PostViewerProvider({
   disabled = false,
   children,
 }: PostViewerProviderProps) {
-  const [open, setOpen] = useState<OpenState>(null)
+  /**
+   * COMING BACK FROM A PROFILE the reader tapped through to.
+   *
+   * Read during the first render, not in an effect: the entry already says
+   * the viewer was open, and an effect would paint the list for a frame
+   * first — the flash this whole mechanism exists to avoid. `posts` is the
+   * list's React Query cache, which on a client-side back is already warm,
+   * so the post is there to reopen on.
+   */
+  const [open, setOpen] = useState<OpenState>(() => restoreFrom(posts))
   // Set by the close callback, consumed by the effect once the viewer has
   // actually unmounted — landing must not race the scroll lock's release.
   const pendingLandRef = useRef<{ postId: string; slide: number } | null>(null)
@@ -95,6 +155,27 @@ export default function PostViewerProvider({
   // the landing effect below, so that one still sees the old ordering.
   const idsRef = useRef<string[]>([])
 
+  // The live list, for the popstate listener — which is registered once and
+  // must not close over the first render's posts.
+  const postsRef = useRef(posts)
+  useEffect(() => { postsRef.current = posts })
+
+  /**
+   * A payload this page cannot honour — the reload case: the reader came
+   * back to an entry that says a viewer was open, but the list arrived with
+   * no cache behind it and there is nothing to reopen onto. Dropping it is
+   * what stops it springing the viewer open later, once a page has loaded,
+   * long after the press that would have explained it.
+   *
+   * Mount only, and only when the first render already decided not to
+   * restore (clearing it from the render itself would be a side effect in
+   * render, and StrictMode would do it twice).
+   */
+  useEffect(() => {
+    if (!open && readRestoreState()) clearRestoreState()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
+
   const actions = useMemo<PostViewerActions>(
     () => ({ open: (postId, slide) => setOpen({ postId, slide }) }),
     []
@@ -103,13 +184,46 @@ export default function PostViewerProvider({
   const handleClose = useCallback(
     (lastPostId: string, lastSlide: number, reason: PostViewerCloseReason) => {
       setOpen(null)
-      // A link was tapped: the page is changing, nothing to land on.
+      // A link was tapped: the page is changing, nothing to land on. (The
+      // viewer SUSPENDS on a link now rather than closing, so this is the
+      // belt to that braces — nothing should reach it.)
       if (reason === "navigate") return
       land(lastPostId, lastSlide)
       pendingLandRef.current = { postId: lastPostId, slide: lastSlide }
     },
     [land]
   )
+
+  /**
+   * BACK AND FORWARD, while this page stays mounted.
+   *
+   * Two cases, and the entry answers both. Landing on an entry that carries
+   * a viewer reopens it — coming back from a profile when the page was kept
+   * alive, or a forward press onto a viewer the reader backed out of.
+   * Landing on one that does not takes the viewer away: that is the second
+   * back press, and it must not leave an overlay standing over the list.
+   *
+   * The close CALLBACK is not involved either way — on a real close
+   * useBackToClose has already run it before this hears the same popstate,
+   * and setOpen(null) twice is setOpen(null).
+   */
+  useEffect(() => {
+    const onPopState = () => {
+      const restored = restoreFrom(postsRef.current)
+      setOpen((current) => {
+        if (!restored) return current ? null : current
+        // Already showing exactly that: keep the SAME object. A new one
+        // would change the viewer's props for no reason, and its history
+        // hook would tear down and re-register an entry that never moved.
+        if (current && current.postId === restored.postId && current.slide === restored.slide) {
+          return current
+        }
+        return restored
+      })
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => window.removeEventListener("popstate", onPopState)
+  }, [])
 
   // After the viewer has unmounted (and released the body scroll lock): put
   // the list on the post the reader was looking at — however deep, including
@@ -145,6 +259,7 @@ export default function PostViewerProvider({
           posts={posts}
           initialPostId={open.postId}
           initialSlide={open.slide}
+          restored={open.restored}
           onClose={handleClose}
           pagination={{ hasNextPage, isFetchingNextPage, fetchNextPage, isError }}
           onPostSeen={onPostSeen}

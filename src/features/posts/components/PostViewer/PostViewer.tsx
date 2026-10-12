@@ -73,6 +73,15 @@ const SEEN_MS = 1000
  */
 const REQUEST_GUARD_MS = 10_000
 
+/**
+ * How long the viewer waits before writing the reader's position onto its
+ * history entry. Long enough that flicking through five posts writes once
+ * or twice rather than five times (Safari rate-limits replaceState), short
+ * enough that a reader who stops to read has it recorded long before they
+ * tap anything. A navigation flushes it anyway.
+ */
+const RESTORE_WRITE_MS = 250
+
 const EMPTY_QUERY_PARAMS: FetchPostsParams = {}
 
 export interface PostViewerPagination {
@@ -103,6 +112,12 @@ export interface PostViewerProps {
   queryParams?: FetchPostsParams
   /** Profile preview list — deletes refetch rather than filter (PostOptionsSheet). */
   isPreview?: boolean
+  /**
+   * This mount is the reader COMING BACK to a viewer they left by tapping a
+   * link — the overlay's history entry is still there and the browser is
+   * sitting on it, so adopt it instead of pushing a second one.
+   */
+  restored?: boolean
 }
 
 /** Everything a layout needs; both layouts take exactly this. */
@@ -130,7 +145,12 @@ export interface ViewerLayoutProps {
   openOptions: () => void
   openLikes: () => void
   requestClose: () => void
-  navigateAway: (href: string) => void
+  /**
+   * Follow a link out of the viewer. Named for what it does to the VIEWER:
+   * it leaves, the viewer stays open in history, and a back press brings it
+   * back. (It is not useBackToClose's navigateAway, which would close it.)
+   */
+  leaveToHref: (href: string) => void
   /** Make `id` the active post (the phone's observer, desktop's nav). */
   activatePost: (id: string) => void
   goToPost: (delta: 1 | -1) => void
@@ -199,6 +219,7 @@ export default function PostViewer({
   endLabel = "Back to feed",
   queryParams = EMPTY_QUERY_PARAMS,
   isPreview = false,
+  restored = false,
 }: PostViewerProps) {
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
 
@@ -238,26 +259,26 @@ export default function PostViewer({
   useEffect(() => { positionRef.current = { postId: activePostId, slide } })
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose })
-  // Set before the close, so the close knows the page is about to change
-  // ("navigate") rather than the reader having shut the viewer ("close").
+  // A link tap is in flight. Re-entrancy guard first — a second tap while
+  // the router is working must not navigate twice — and the answer to "did
+  // this close because the reader shut it, or because they left?" second.
+  // Nothing SHOULD close while leaving (the viewer suspends rather than
+  // closing), which is why "navigate" is now only a safety net.
   const leavingRef = useRef(false)
   // Closed once. Every path ends at the same popstate-driven close, and a
   // second report of it would land the provider twice; the guard is cheaper
   // than reasoning about which path got there first.
   const closedRef = useRef(false)
   /**
-   * ON THE WAY OUT — hidden, but still mounted.
+   * SUSPENDED — hidden here, still open in history.
    *
    * A link tap hides the viewer in the same frame it is tapped, because
-   * waiting for the history round-trip to finish before anything happens
-   * reads as a dead tap. What it must NOT do is unmount: useBackToClose
-   * still has an entry in play for this overlay, and a real unmount with an
-   * entry outstanding is its definition of an ORPHAN — it would schedule a
-   * pop to clear it while navigateAway is already popping that very entry
-   * itself. Two pops and one push leaves history an entry too deep, and the
-   * back press from the profile lands on a stale entry instead of the list.
-   *
-   * So: hidden now, unmounted later, by the close that the pop triggers.
+   * waiting for the router before anything happens reads as a dead tap.
+   * What it must NOT do is close: the entry stays, the profile is pushed on
+   * top of it, and a back press comes back to this viewer on this post. The
+   * component is unmounted a moment later by the route change itself, with
+   * its entry deliberately left outstanding (useBackToClose's suspended
+   * list is what stops the orphan check popping it).
    */
   const [leaving, setLeaving] = useState(false)
 
@@ -274,7 +295,13 @@ export default function PostViewer({
   // Reserve ONE history entry so the back button/gesture closes the viewer
   // instead of navigating away; a sheet opened on top reserves its own, so
   // back there closes only the sheet. URL never changes.
-  const { requestClose, navigateAway } = useBackToClose(handleClose)
+  //
+  // On a restore the entry already exists — the reader is standing on it —
+  // so it is adopted rather than pushed again.
+  const { requestClose, navigateKeeping, setRestoreState } = useBackToClose(
+    handleClose,
+    { adoptCurrentEntry: restored }
+  )
   useBodyScrollLock()
   // Covers the mobile bars: the toasts stop offsetting themselves by them.
   useHtmlFlag("chrome-covered")
@@ -287,23 +314,58 @@ export default function PostViewer({
   }, [setViewerOpen])
 
   /**
-   * A LINK INSIDE THE VIEWER.
+   * WHERE THE READER IS, ON THE HISTORY ENTRY.
    *
-   * Three things happen, in this order and no other:
+   * The entry is what a back press from a profile lands on, and the payload
+   * is all the provider has to reopen from — so it has to say post #7, not
+   * the post the viewer happened to open on. Coalesced because a swipe can
+   * change the active post several times in a second and replaceState is
+   * rate-limited in Safari; flushed before any navigation, which is the one
+   * moment it has to be exact.
+   */
+  const writeRestoreRef = useRef(0)
+  const flushRestore = useCallback(() => {
+    if (writeRestoreRef.current) {
+      window.clearTimeout(writeRestoreRef.current)
+      writeRestoreRef.current = 0
+    }
+    setRestoreState({
+      postId: positionRef.current.postId,
+      slide: positionRef.current.slide,
+    })
+  }, [setRestoreState])
+
+  useEffect(() => {
+    // positionRef is updated by the effect declared above this one, so it is
+    // already this render's position by the time the timer is armed.
+    if (writeRestoreRef.current) window.clearTimeout(writeRestoreRef.current)
+    writeRestoreRef.current = window.setTimeout(() => {
+      writeRestoreRef.current = 0
+      setRestoreState({
+        postId: positionRef.current.postId,
+        slide: positionRef.current.slide,
+      })
+    }, RESTORE_WRITE_MS)
+    return () => {
+      if (writeRestoreRef.current) {
+        window.clearTimeout(writeRestoreRef.current)
+        writeRestoreRef.current = 0
+      }
+    }
+  }, [activePostId, slide, setRestoreState])
+
+  /**
+   * A LINK INSIDE THE VIEWER — the viewer is SUSPENDED, not closed.
    *
-   *   1. the viewer HIDES — this frame, so the tap is answered at once;
-   *   2. the store's "a viewer is on screen" flag goes down, so the inline
-   *      carousels on the page underneath are free again;
-   *   3. navigateAway pops every overlay entry and then pushes the route.
+   * The entry stays where it is and the profile is pushed on top of it, so
+   * history reads [list] → [viewer] → [profile] and one back press comes
+   * back HERE. Nothing is closed: no handleClose, no reason, no landing —
+   * there is nothing to land on yet, because the reader has not finished
+   * with the viewer.
    *
-   * What is deliberately NOT here is the close. Telling the owner to drop
-   * the viewer now would unmount this component mid-navigation, and
-   * useBackToClose would read its still-outstanding history entry as an
-   * orphan and pop it a second time — see `leaving` above. The close comes
-   * back to us through the pop: navigateAway's popstate runs
-   * closeDeeperThan(0), which calls handleClose, which reads leavingRef and
-   * reports "navigate" — so the provider drops the viewer THEN, and still
-   * skips landing the list on a post the reader is leaving.
+   * In order: hide this frame (the tap must be answered at once), let the
+   * inline carousels under the page play again, make sure the entry knows
+   * which post the reader is on, and only then navigate.
    */
   const leave = useCallback(
     (href: string) => {
@@ -311,10 +373,23 @@ export default function PostViewer({
       leavingRef.current = true
       setLeaving(true)
       setViewerOpen(false)
-      navigateAway(href)
+      flushRestore()
+      navigateKeeping(href)
     },
-    [navigateAway, setViewerOpen]
+    [flushRestore, navigateKeeping, setViewerOpen]
   )
+
+  /**
+   * An ORDINARY close — the ✕, Escape, the backdrop, the end slide.
+   *
+   * The payload goes first: the entry survives a back press as a forward
+   * entry, and one left carrying a position would reopen the viewer on a
+   * forward press after the reader had deliberately shut it.
+   */
+  const closeViewer = useCallback(() => {
+    setRestoreState(null)
+    requestClose()
+  }, [requestClose, setRestoreState])
 
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -337,8 +412,8 @@ export default function PostViewer({
   // Nothing left to show (every post deleted or blocked) — leave. In
   // single-post mode the card unmounts this first.
   useEffect(() => {
-    if (!post) requestClose()
-  }, [post, requestClose])
+    if (!post) closeViewer()
+  }, [post, closeViewer])
 
   // Read = active for a full second. Swiping straight past is not reading.
   const onPostSeenRef = useRef(onPostSeen)
@@ -447,9 +522,9 @@ export default function PostViewer({
   // ── Links: leave through the overlay stack ───────────────────
   // Author, hashtag, mention and comment-author links all render as <Link>.
   // Captured here (portals still bubble through the React tree, so the
-  // comments sheet's links arrive too) and routed through navigateAway, which
-  // pops every overlay entry before pushing — back from the profile then
-  // returns to the list, not to a blank viewer entry.
+  // comments sheet's links arrive too) and routed through `leave`, which
+  // suspends the viewer rather than closing it — back from the profile
+  // comes back to this post, and the press after that closes to the list.
   const onClickCapture = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null
     const anchor = target?.closest?.("a[href]") as HTMLAnchorElement | null
@@ -491,8 +566,8 @@ export default function PostViewer({
         dialogRef={dialogRef}
         queryParams={queryParams}
         isPreview={isPreview}
-        requestClose={requestClose}
-        navigateAway={leave}
+        requestClose={closeViewer}
+        leaveToHref={leave}
         tail={tail}
         endLabel={endLabel}
         onRetry={onRetry}
@@ -517,7 +592,7 @@ interface PostViewerBodyProps {
   queryParams: FetchPostsParams
   isPreview: boolean
   requestClose: () => void
-  navigateAway: (href: string) => void
+  leaveToHref: (href: string) => void
   tail: TailSlide
   endLabel: string
   onRetry: () => void
@@ -536,7 +611,7 @@ function PostViewerBody({
   queryParams,
   isPreview,
   requestClose,
-  navigateAway,
+  leaveToHref,
   tail,
   endLabel,
   onRetry,
@@ -697,7 +772,7 @@ function PostViewerBody({
     openOptions,
     openLikes,
     requestClose,
-    navigateAway,
+    leaveToHref,
     activatePost,
     goToPost,
     hasPrevPost,

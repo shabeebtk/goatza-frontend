@@ -389,10 +389,11 @@ describe("PostViewer", () => {
             fireEvent.click(screen.getByRole("link", { name: "#kochi" }))
             expect(toggleLike).not.toHaveBeenCalled()
 
-            // The link closes the viewer to navigate (through history.back());
-            // awaited so its popstate cannot land in the next test.
+            // The link SUSPENDS the viewer: it hides and the route is pushed
+            // on top of its history entry, so a back press comes back to it.
+            // Nothing closes, so nothing is reported to the owner.
             await waitFor(() => expect(push).toHaveBeenCalledWith("/search?q=%23kochi"))
-            await waitFor(() => expect(onClose).toHaveBeenCalledWith("post-text", 0, "navigate"))
+            expect(onClose).not.toHaveBeenCalled()
         })
 
         it("offers Read more only when the clamp hides something", () => {
