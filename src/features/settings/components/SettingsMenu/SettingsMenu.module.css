@@ -230,3 +230,62 @@
 .copyBtn:hover {
   background: var(--color-surface);
 }
+
+/* ── Choice row ──────────────────────────────────────────── */
+/* Like the toggle row: not a tap target itself, only the buttons
+   inside it are, so no cursor/hover on the row. */
+
+.rowChoice {
+  cursor: default;
+}
+
+.rowChoice:hover {
+  background: transparent;
+}
+
+.choiceGroup {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+
+  padding: 2px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.choiceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 5px var(--space-3);
+  border: none;
+  border-radius: var(--radius-full);
+
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  cursor: pointer;
+
+  transition: background-color 0.18s var(--ease-out), color 0.18s var(--ease-out);
+}
+
+/* Same signal .switchOn gives: brand fill, white label. */
+.choiceBtnOn {
+  background: var(--color-brand);
+  color: #fff;
+  font-weight: var(--weight-semi);
+}
+
+.choiceBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choiceBtn {
+    transition: none;
+  }
+}

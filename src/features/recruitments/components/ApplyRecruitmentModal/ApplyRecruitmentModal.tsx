@@ -66,11 +66,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Step = "details" | "questions" | "review" | "success"
 
-const STEP_LABELS: Record<Step, string> = {
+// The steps the player actually walks. "success" is the terminal
+// confirmation screen, not a step, so it is never counted or drawn.
+type ProgressStep = Exclude<Step, "success">
+
+const STEP_LABELS: Record<ProgressStep, string> = {
   details: "Your details",
   questions: "Questions",
   review: "Review",
-  success: "Done",
 }
 
 // Per-question local answer: free text OR chosen option ids (never both).
@@ -247,14 +250,15 @@ export default function ApplyRecruitmentModal({
     [needsSession, recruitment.sessions, recruitment.timezone],
   )
 
-  // Review always sits between the last question and the send. It is the step
-  // the back/primary buttons are driven from too — the footer reads this
-  // order rather than naming steps, so "what comes next" is stated once.
-  const stepOrder: Step[] = useMemo(
+  // Review is the LAST step and the one that submits — nothing follows it in
+  // the count. It is the step the back/primary buttons are driven from too:
+  // the footer reads this order rather than naming steps, so "what comes
+  // next" is stated once.
+  const stepOrder: ProgressStep[] = useMemo(
     () =>
       hasQuestions
-        ? ["details", "questions", "review", "success"]
-        : ["details", "review", "success"],
+        ? ["details", "questions", "review"]
+        : ["details", "review"],
     [hasQuestions]
   )
 
@@ -663,7 +667,7 @@ export default function ApplyRecruitmentModal({
     }
   }, [recruitment.fee_amount, recruitment.fee_currency, recruitment.is_paid])
 
-  const activeIndex = stepOrder.indexOf(step)
+  const activeIndex = stepOrder.findIndex((s) => s === step)
   const stepLabels = stepOrder.map((s) => STEP_LABELS[s])
   // Back is Cancel only on the first step (and on an index the order does not
   // know, which would otherwise read as "back to step -1").
