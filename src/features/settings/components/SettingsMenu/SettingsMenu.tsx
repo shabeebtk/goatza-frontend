@@ -187,3 +187,64 @@ export function SettingsToggleRow({
     </div>
   )
 }
+
+/**
+ * A row that picks one of a few named values — a segmented control instead of
+ * a switch. Generic rather than theme-specific on purpose: the next two- or
+ * three-way setting is one row and no new component.
+ *
+ * No description line. A labelled icon per option already says what each one
+ * does, and a paragraph under a two-option picker is noise.
+ */
+export function SettingsChoiceRow<T extends string>({
+  icon,
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  icon: string
+  label: string
+  value: T
+  options: { value: T; label: string; icon: string }[]
+  onChange: (next: T) => void
+  disabled?: boolean
+}) {
+  const labelId = useId()
+
+  return (
+    <div className={`${styles.row} ${styles.rowChoice}`}>
+      <span className={styles.rowIcon} aria-hidden="true">
+        <Icon icon={icon} width={20} height={20} />
+      </span>
+
+      <span className={styles.rowLabel} id={labelId}>
+        {label}
+      </span>
+
+      <span
+        className={styles.choiceGroup}
+        role="radiogroup"
+        aria-labelledby={labelId}
+      >
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={`${styles.choiceBtn} ${
+              option.value === value ? styles.choiceBtnOn : ""
+            }`}
+          >
+            <Icon icon={option.icon} width={16} height={16} aria-hidden="true" />
+            {option.label}
+          </button>
+        ))}
+      </span>
+    </div>
+  )
+}

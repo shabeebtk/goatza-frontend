@@ -18,12 +18,14 @@ import ProblemReportSheet from "@/features/support/components/ProblemReportSheet
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
 import { useThemeStore } from "@/store/theme.store"
+import type { Theme } from "@/store/theme.store"
 import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
 import LegalSettingsSection from "@/features/legal/components/LegalSettingsSection"
 import DeleteAccountSection from "./components/DeleteAccountSection/DeleteAccountSection"
 import ProfileLinkRow from "./components/SettingsMenu/ProfileLinkRow"
 import {
   SettingsActionRow,
+  SettingsChoiceRow,
   SettingsRow,
   SettingsRows,
   SettingsSection,
@@ -81,14 +83,17 @@ export default function SettingsPage() {
       {/* Straight after Account and before Privacy: it is about how the app
           looks on THIS device, not about what other people can see. Light is
           the default whatever the phone is set to — the OS theme is not
-          consulted anywhere — so this switch is the one way to go dark. */}
+          consulted anywhere. */}
       <SettingsSection title="Appearance">
-        <SettingsToggleRow
-          icon="mdi:weather-night"
-          label="Dark mode"
-          description="Only on this device — it isn't saved to your account"
-          checked={theme === "dark"}
-          onChange={(next) => setTheme(next ? "dark" : "light")}
+        <SettingsChoiceRow<Theme>
+          icon="mdi:theme-light-dark"
+          label="Theme"
+          value={theme}
+          options={[
+            { value: "light", label: "Light", icon: "mdi:white-balance-sunny" },
+            { value: "dark", label: "Dark", icon: "mdi:weather-night" },
+          ]}
+          onChange={setTheme}
         />
       </SettingsSection>
 
