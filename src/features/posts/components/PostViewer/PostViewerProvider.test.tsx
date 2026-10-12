@@ -292,10 +292,11 @@ describe("PostViewerProvider", () => {
 
         fireEvent.click(screen.getByRole("link", { name: /Meera/ }))
 
-        // GONE ALREADY — before the router has been asked for anything. The
-        // close used to wait for navigateAway's popstate, which left the
-        // viewer open across the route change: coming back then put the page
-        // up with the viewer still on it, and it closed a frame later.
+        // GONE ALREADY — before the router has been asked for anything.
+        // Hidden and out of the accessibility tree, which is what getByRole
+        // answers; the component itself stays mounted for a few more frames
+        // on purpose, until navigateAway's pop closes it (see `leaving` in
+        // PostViewer — unmounting it here would orphan its history entry).
         expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
         expect(usePostViewerStore.getState().open).toBe(false)
         expect(push).not.toHaveBeenCalled()

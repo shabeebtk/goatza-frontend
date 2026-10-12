@@ -36,6 +36,22 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* ── On the way out ──────────────────────────────────────────
+   A link inside the viewer hides it in the same frame it is tapped, but
+   the component stays mounted until the history pop that follows closes
+   it properly (see PostViewer's `leaving` state).
+
+   visibility, NOT display: none. The body scroll lock measures and holds
+   this element, and taking it out of the layout mid-navigation drops that
+   hold — on iOS the page jolts under the overlay as it goes. Hidden it
+   still occupies the same box, still covers nothing new, and paints
+   nothing. No transition either: the point is that it is gone NOW. */
+.rootLeaving {
+  visibility: hidden;
+  pointer-events: none;
+  animation: none;
+}
+
 /* ══════════════════════════════════════════════════════════════
    PHONE — reels
    ══════════════════════════════════════════════════════════════ */
