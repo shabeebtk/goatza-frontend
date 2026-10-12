@@ -53,6 +53,32 @@ type OverlayEntry = {
   close: () => void
 }
 
+/**
+ * What an overlay writes into its own history entry.
+ *
+ * `restore` is OPAQUE here: this hook carries it and hands it back, and has
+ * no opinion about what is in it. The post viewer puts the post and slide the
+ * reader is on into it, so that coming back to the entry can reopen the
+ * viewer where they left it. Nothing else uses it today.
+ *
+ * NOTE ON NEXT: we pushState with our own object and no URL. Next's app
+ * router PATCHES history.pushState/replaceState and copies its own `__NA`
+ * and route-tree keys into any state it did not write itself — which is what
+ * makes an overlay entry survivable: a back press that lands on one gives
+ * Next a state it recognises and it traverses to the same route, instead of
+ * taking the `if (!event.state.__NA) window.location.reload()` branch. The
+ * replaceState below spreads the existing state for the same reason.
+ */
+type OverlayHistoryState = { id: number; depth: number; restore?: unknown }
+
+/**
+ * Overlay ids whose history entry is deliberately outstanding while the
+ * component is gone — see navigateKeeping. Without this the unmount that the
+ * route change causes would look exactly like an abandoned overlay and the
+ * orphan check would pop the very entry we are navigating on top of.
+ */
+const suspendedIds = new Set<number>()
+
 // Every open overlay, bottom to top. Module-level on purpose: the overlays are
 // mounted by unrelated components (a card's comments sheet over a viewer) and
 // the only thing they share is the browser's history.
@@ -99,6 +125,52 @@ const RESTORE_ON_INTENT_EVENTS = ["pointerdown", "keydown"] as const
 // while it is not ours to give back.
 let scrollRestorationBefore: History["scrollRestoration"] | null = null
 let scrollRestorationTimer: number | null = null
+
+/** The overlay payload on a history state, or null when it is not ours. */
+function overlayStateOf(state: unknown): OverlayHistoryState | null {
+  if (typeof state !== "object" || state === null) return null
+  const overlay = (state as Record<string, unknown>)[OVERLAY_STATE_KEY]
+  if (typeof overlay !== "object" || overlay === null) return null
+  const { id, depth } = overlay as { id?: unknown; depth?: unknown }
+  if (typeof id !== "number" || typeof depth !== "number") return null
+  return overlay as OverlayHistoryState
+}
+
+/**
+ * The restore payload on the entry the browser is on, or null.
+ *
+ * Module-level and readable without the hook on purpose: the component that
+ * decides whether to OPEN an overlay has to know before it renders, which is
+ * before any overlay exists to hold a hook.
+ */
+export function readRestoreState(): unknown | null {
+  if (typeof window === "undefined") return null
+  return overlayStateOf(window.history.state)?.restore ?? null
+}
+
+/**
+ * Drop the restore payload from the entry the browser is on.
+ *
+ * For the owner that read one it cannot use — a payload saying "the viewer
+ * was on post X" is worthless to a page whose list came back empty after a
+ * reload, and left in place it would spring the viewer open on some later
+ * press. Module-level for the same reason readRestoreState is: the decision
+ * is made before any overlay exists.
+ */
+export function clearRestoreState(): void {
+  if (typeof window === "undefined") return
+  const current = overlayStateOf(window.history.state)
+  if (!current || current.restore === undefined) return
+  const withoutRestore = { ...current }
+  delete withoutRestore.restore
+  window.history.replaceState(
+    {
+      ...(window.history.state as Record<string, unknown>),
+      [OVERLAY_STATE_KEY]: withoutRestore,
+    },
+    ""
+  )
+}
 
 function depthOf(state: unknown): number {
   if (typeof state !== "object" || state === null) return 0
@@ -248,6 +320,21 @@ function popOrphanEntries() {
 export interface UseBackToCloseOptions {
   /** False → no history entry; requestClose() simply calls onClose. */
   enabled?: boolean
+  /**
+   * Mount onto the overlay entry the browser is ALREADY sitting on instead
+   * of pushing a new one.
+   *
+   * For the way back from a navigateKeeping: the reader presses back, the
+   * browser lands on the entry the overlay left behind, the page remounts
+   * and the overlay opens again — all while that entry is the current one.
+   * Pushing here would stack a duplicate and take two back presses to undo.
+   * The id and depth come from the entry, so the overlay picks up exactly
+   * the identity it had before it was suspended.
+   *
+   * Ignored when the current entry is not an overlay entry, so a caller that
+   * passes it wrongly simply gets the ordinary push.
+   */
+  adoptCurrentEntry?: boolean
 }
 
 export interface BackToClose {
@@ -264,11 +351,33 @@ export interface BackToClose {
    * "overlay" entry.
    */
   navigateAway: (href: string) => void
+  /**
+   * Go to `href` and LEAVE THIS OVERLAY'S ENTRY WHERE IT IS.
+   *
+   * The opposite trade from navigateAway: the destination is pushed on top
+   * of the overlay entry rather than in place of it, so history reads
+   * [page] → [overlay] → [destination] and one back press comes back to the
+   * overlay rather than past it. Nothing is closed and no close callback
+   * runs — the overlay is suspended, not finished — so the owner is
+   * responsible for hiding it, and for reopening it on the way back (see
+   * readRestoreState and adoptCurrentEntry).
+   *
+   * Opt-in, and the post viewer is the only caller: for a nav sheet or a
+   * lightbox, coming back to a reopened overlay is wrong.
+   */
+  navigateKeeping: (href: string) => void
+  /**
+   * Store an opaque value on THIS overlay's history entry, for the mount
+   * that adopts it later to read back. Replaces, never pushes, and does
+   * nothing at all unless the entry the browser is on is this overlay's —
+   * with a sheet open on top of us, the current entry is the sheet's.
+   */
+  setRestoreState: (value: unknown) => void
 }
 
 export function useBackToClose(
   onClose: () => void,
-  { enabled = true }: UseBackToCloseOptions = {}
+  { enabled = true, adoptCurrentEntry = false }: UseBackToCloseOptions = {}
 ): BackToClose {
   const router = useRouter()
 
@@ -293,25 +402,42 @@ export function useBackToClose(
     }
     if (!enabled) return
 
-    if (idRef.current === null) idRef.current = nextOverlayId++
-    const id = idRef.current
-
     if (!pushedRef.current) {
-      // The stack is about to go from empty to one: the page's entry must be
-      // manual BEFORE the push, or the new entry inherits "auto" and a pop
-      // back onto the page restores the scroll position over the landing.
-      if (openOverlays.length === 0) takeScrollRestoration()
-      // One deeper than the entry we are on — not the stack length. After a
-      // forward press the browser can sit on a stale overlay entry with nothing
-      // open; measuring from history keeps a fresh overlay strictly deeper than
-      // whatever is underneath, so one back still closes exactly it.
-      depthRef.current = currentDepth() + 1
-      window.history.pushState(
-        { [OVERLAY_STATE_KEY]: { id, depth: depthRef.current } },
-        ""
-      )
+      // COMING BACK to an entry this overlay left behind: take it over
+      // rather than pushing a second one. Its id and depth are the ones it
+      // had before, so the stack, the depth arithmetic and requestClose all
+      // behave as though it had never been away — and the id comes off the
+      // suspended list, because it is no longer outstanding.
+      const adopted = adoptCurrentEntry ? overlayStateOf(window.history.state) : null
+
+      if (adopted) {
+        idRef.current = adopted.id
+        depthRef.current = adopted.depth
+        suspendedIds.delete(adopted.id)
+        // Re-entering an overlay: the page's entry goes manual again, the
+        // same as it would for a fresh push.
+        if (openOverlays.length === 0) takeScrollRestoration()
+      } else {
+        if (idRef.current === null) idRef.current = nextOverlayId++
+        // The stack is about to go from empty to one: the page's entry must be
+        // manual BEFORE the push, or the new entry inherits "auto" and a pop
+        // back onto the page restores the scroll position over the landing.
+        if (openOverlays.length === 0) takeScrollRestoration()
+        // One deeper than the entry we are on — not the stack length. After a
+        // forward press the browser can sit on a stale overlay entry with nothing
+        // open; measuring from history keeps a fresh overlay strictly deeper than
+        // whatever is underneath, so one back still closes exactly it.
+        depthRef.current = currentDepth() + 1
+        window.history.pushState(
+          { [OVERLAY_STATE_KEY]: { id: idRef.current, depth: depthRef.current } },
+          ""
+        )
+      }
       pushedRef.current = true
     }
+
+    if (idRef.current === null) idRef.current = nextOverlayId++
+    const id = idRef.current
     // An overlay is open (again): whatever restore was pending is off.
     cancelScrollRestorationRestore()
 
@@ -329,13 +455,19 @@ export function useBackToClose(
       // it; a real unmount lets it run and pop our entry if it is still there.
       removeFromStack(id)
       detachListener()
+      // SUSPENDED: this unmount is the route change navigateKeeping asked
+      // for, and the entry underneath the new route is the thing the reader
+      // comes back to. It is outstanding on purpose, so the orphan check —
+      // which exists for an overlay that really did vanish — must not run
+      // for it and pop the entry out from under the navigation.
+      if (suspendedIds.has(id)) return
       orphanCheckRef.current = window.setTimeout(() => {
         orphanCheckRef.current = null
         pushedRef.current = false
         popOrphanEntries()
       }, 0)
     }
-  }, [enabled])
+  }, [enabled, adoptCurrentEntry])
 
   const requestClose = useCallback(() => {
     const id = idRef.current
@@ -379,5 +511,40 @@ export function useBackToClose(
     pop(depth)
   }, [router])
 
-  return { requestClose, navigateAway }
+  /**
+   * Leave, and keep the entry. No pop, no close callback — see the type.
+   *
+   * scrollRestoration goes back to what it was before the push for the same
+   * reason navigateAway restores it: the entry the browser is about to push
+   * the destination onto inherits the mode, and back from the destination
+   * has to restore its scroll position the ordinary way.
+   */
+  const navigateKeeping = useCallback((href: string) => {
+    const id = idRef.current
+    if (id !== null && pushedRef.current) suspendedIds.add(id)
+    restoreScrollRestoration()
+    router.push(href)
+  }, [router])
+
+  const setRestoreState = useCallback((value: unknown) => {
+    const id = idRef.current
+    if (!enabled || id === null || typeof window === "undefined") return
+    const current = overlayStateOf(window.history.state)
+    // Only ever OUR entry: with a sheet open on top of us the current entry
+    // is the sheet's, and writing this overlay's position onto it would put
+    // the payload on the wrong entry entirely.
+    if (!current || current.id !== id) return
+    window.history.replaceState(
+      {
+        // Spread first: the entry already carries Next's own route state,
+        // and replacing it wholesale would make a back press onto this
+        // entry a full page reload.
+        ...(window.history.state as Record<string, unknown>),
+        [OVERLAY_STATE_KEY]: { ...current, restore: value },
+      },
+      ""
+    )
+  }, [enabled])
+
+  return { requestClose, navigateAway, navigateKeeping, setRestoreState }
 }

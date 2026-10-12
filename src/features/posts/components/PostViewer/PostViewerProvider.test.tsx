@@ -284,25 +284,62 @@ describe("PostViewerProvider", () => {
         await waitFor(() => expect(landOnPost).toHaveBeenCalledWith("p4", { slide: 0 }))
     })
 
-    // A link tap navigates away: the list is about to be gone, and landing
-    // on it would scroll a page the reader is leaving.
-    it("does not land when the viewer closed to follow a link", async () => {
+    /**
+     * A link tap SUSPENDS the viewer rather than closing it: it hides at
+     * once, its history entry stays, and the profile is pushed on top. So
+     * there is nothing to land on — the reader has not finished with the
+     * viewer, and scrolling the list they are leaving would be work thrown
+     * away.
+     */
+    it("suspends rather than closes when the viewer follows a link", async () => {
         renderList()
         fireEvent.click(screen.getByRole("button", { name: "open p3" }))
 
         fireEvent.click(screen.getByRole("link", { name: /Meera/ }))
 
-        // GONE ALREADY — before the router has been asked for anything.
-        // Hidden and out of the accessibility tree, which is what getByRole
-        // answers; the component itself stays mounted for a few more frames
-        // on purpose, until navigateAway's pop closes it (see `leaving` in
-        // PostViewer — unmounting it here would orphan its history entry).
+        // Hidden in the same frame, and out of the accessibility tree —
+        // which is what getByRole answers. The component itself stays
+        // mounted: unmounting it would orphan the entry the reader is
+        // about to come back to.
         expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
         expect(usePostViewerStore.getState().open).toBe(false)
-        expect(push).not.toHaveBeenCalled()
 
         await waitFor(() => expect(push).toHaveBeenCalledWith("/profile/meera"))
-        expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
         expect(landOnPost).not.toHaveBeenCalled()
+    })
+
+    /**
+     * ...and the entry it left is what brings it back. The payload says
+     * which post the reader was on, so the viewer reopens there rather than
+     * on the post it was first opened at.
+     */
+    it("reopens on the recorded post when the page comes back to the entry", () => {
+        window.history.pushState(
+            { goatzaOverlay: { id: 77, depth: 1, restore: { postId: "p4", slide: 0 } } },
+            ""
+        )
+
+        renderList()
+
+        // No tap, no effect, no frame of bare list first: the first render
+        // already has the viewer up, on p4.
+        const dialog = screen.getByRole("dialog", { name: /post by/i })
+        expect(dialog.getAttribute("aria-label")).toBe("Post by Dev")
+    })
+
+    it("shows the list when the entry's post is not in it (a cold reload)", () => {
+        window.history.pushState(
+            { goatzaOverlay: { id: 78, depth: 1, restore: { postId: "p4", slide: 0 } } },
+            ""
+        )
+
+        renderList({ posts: [] })
+
+        expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull()
+        // ...and the payload is dropped, so it cannot spring the viewer
+        // open later once a page has loaded.
+        const overlay = (window.history.state as { goatzaOverlay: { restore?: unknown } })
+            .goatzaOverlay
+        expect(overlay.restore).toBeUndefined()
     })
 })

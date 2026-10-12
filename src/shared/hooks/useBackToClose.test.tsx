@@ -15,7 +15,9 @@ import { act, cleanup, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  clearRestoreState,
   OVERLAY_STATE_KEY,
+  readRestoreState,
   SCROLL_RESTORATION_RESTORE_MS,
   useBackToClose,
   type BackToClose,
@@ -30,12 +32,14 @@ function Overlay({
   onClose,
   apiRef,
   enabled,
+  adoptCurrentEntry,
 }: {
   onClose: () => void
   apiRef: { current: BackToClose | null }
   enabled?: boolean
+  adoptCurrentEntry?: boolean
 }) {
-  const api = useBackToClose(onClose, { enabled })
+  const api = useBackToClose(onClose, { enabled, adoptCurrentEntry })
   // Published in an effect, not during render — the tests read it after
   // render() has committed anyway.
   useEffect(() => {
@@ -355,5 +359,111 @@ describe("scroll restoration", () => {
     expect(push).toHaveBeenCalledTimes(1)
     expect(modeAtPush).toBe("auto")
     expect(mode()).toBe("auto")
+  })
+})
+
+/**
+ * SUSPENDING AN OVERLAY — navigateKeeping.
+ *
+ * The other half of navigateAway. Instead of popping the overlay's entry
+ * and pushing the destination in its place, the destination goes ON TOP and
+ * the entry stays, so one back press comes back to the overlay. Only the
+ * post viewer uses it; everything else still wants its entry consumed.
+ */
+describe("navigateKeeping", () => {
+  function overlayState() {
+    return window.history.state?.[OVERLAY_STATE_KEY] as
+      | { id: number; depth: number; restore?: unknown }
+      | undefined
+  }
+
+  it("pushes without popping, and closes nothing", () => {
+    const api = apiHolder()
+    const onClose = vi.fn()
+    render(<Overlay onClose={onClose} apiRef={api} />)
+    expect(depth()).toBe(1)
+
+    act(() => api.current!.navigateKeeping("/profile/meera"))
+
+    expect(push).toHaveBeenCalledWith("/profile/meera")
+    // The entry is still ours and still there — the destination lands on
+    // top of it, which is the whole point.
+    expect(depth()).toBe(1)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("leaves the entry alone when the overlay then unmounts", async () => {
+    const api = apiHolder()
+    const { unmount } = render(<Overlay onClose={() => {}} apiRef={api} />)
+    act(() => api.current!.navigateKeeping("/profile/meera"))
+
+    // The route change unmounts the overlay with its entry outstanding —
+    // which is exactly what the orphan check exists to clean up, and
+    // exactly what must NOT happen here.
+    unmount()
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
+
+    expect(depth()).toBe(1)
+  })
+
+  it("records a payload on its own entry, and reads it back", () => {
+    const api = apiHolder()
+    render(<Overlay onClose={() => {}} apiRef={api} />)
+
+    act(() => api.current!.setRestoreState({ postId: "p7", slide: 2 }))
+
+    expect(readRestoreState()).toEqual({ postId: "p7", slide: 2 })
+    // Replaced, never pushed.
+    expect(depth()).toBe(1)
+  })
+
+  it("refuses to write onto another overlay's entry", () => {
+    const first = apiHolder()
+    const second = apiHolder()
+    render(<Overlay onClose={() => {}} apiRef={first} />)
+    render(<Overlay onClose={() => {}} apiRef={second} />)
+    expect(depth()).toBe(2)
+
+    // The sheet on top owns the current entry; the viewer underneath must
+    // not stamp its position onto it.
+    act(() => first.current!.setRestoreState({ postId: "p7", slide: 0 }))
+
+    expect(readRestoreState()).toBeNull()
+  })
+
+  it("adopts the entry it is standing on instead of pushing a second", () => {
+    const api = apiHolder()
+    render(<Overlay onClose={() => {}} apiRef={api} />)
+    act(() => api.current!.setRestoreState({ postId: "p7", slide: 0 }))
+    const before = overlayState()!
+    cleanup()
+
+    // Coming back: the browser is still on that entry and the overlay
+    // mounts onto it.
+    render(<Overlay onClose={() => {}} apiRef={api} adoptCurrentEntry />)
+
+    const after = overlayState()!
+    expect(after.id).toBe(before.id)
+    expect(after.depth).toBe(before.depth)
+    expect(depth()).toBe(1)
+  })
+
+  it("still pushes when there is no entry to adopt", () => {
+    const api = apiHolder()
+    render(<Overlay onClose={() => {}} apiRef={api} adoptCurrentEntry />)
+
+    // Nothing of ours underneath, so adoptCurrentEntry is simply ignored.
+    expect(depth()).toBe(1)
+  })
+
+  it("clearRestoreState drops the payload and leaves the entry", () => {
+    const api = apiHolder()
+    render(<Overlay onClose={() => {}} apiRef={api} />)
+    act(() => api.current!.setRestoreState({ postId: "p7", slide: 0 }))
+
+    clearRestoreState()
+
+    expect(readRestoreState()).toBeNull()
+    expect(depth()).toBe(1)
   })
 })

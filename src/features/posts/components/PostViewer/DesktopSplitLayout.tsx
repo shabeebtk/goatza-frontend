@@ -61,7 +61,7 @@ export default function DesktopSplitLayout({
   openOptions,
   openLikes,
   requestClose,
-  navigateAway,
+  leaveToHref,
   hasPrevPost,
   hasNextPost,
   goToPost,
@@ -316,7 +316,7 @@ export default function DesktopSplitLayout({
               postId={post.id}
               commentsCount={post.comments_count}
               isPostOwner={isPostOwner}
-              onNavigate={navigateAway}
+              onNavigate={leaveToHref}
             />
           </div>
         </aside>
