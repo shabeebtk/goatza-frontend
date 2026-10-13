@@ -189,6 +189,40 @@
   opacity: 0.75;
 }
 
+/* Removed by the club: the body recedes, the strip and the note do not.
+   The cover stays — it is how the player recognises which trial it was. */
+.bodyRemoved {
+  opacity: 0.55;
+}
+
+/* The club's note, quoted under the body in the same left-ruled shape the
+   removal email uses. */
+.removedNote {
+  margin: 0;
+  padding: 2px 0 2px var(--space-3);
+  border-left: 3px solid var(--color-border);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.removedNote strong {
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+/* Fills the box exactly; the box's own radius + overflow clip it. */
+.thumbImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .bodyText {
   display: flex;
   flex-direction: column;

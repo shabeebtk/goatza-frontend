@@ -139,6 +139,13 @@
   line-height: 1.2;
 }
 
+/* Sets Delete apart from the status moves above it — it is not one. */
+.divider {
+  height: 1px;
+  margin: var(--space-1) var(--space-3);
+  background: var(--color-border);
+}
+
 /* ── Inline confirm panel (destructive) ── */
 .confirmPanel {
   display: flex;

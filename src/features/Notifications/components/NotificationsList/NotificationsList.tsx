@@ -32,6 +32,7 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   message: "mdi:share-variant",
   recruitment_application: "mdi:account-multiple-plus",
   recruitment_application_status: "mdi:clipboard-check-outline",
+  recruitment_removed: "mdi:delete-outline",
   career_verification_request: "mdi:shield-search",
   career_verified: "mdi:check-decagram",
   career_rejected: "mdi:shield-off-outline",
@@ -53,6 +54,8 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   message: "#0ea5e9",
   recruitment_application: "var(--color-brand)",
   recruitment_application_status: "#7c3aed",
+  // Muted, not red: the club called it off, the player did nothing wrong.
+  recruitment_removed: "var(--color-text-muted)",
   career_verification_request: "#f59e0b",
   career_verified: "var(--color-brand)",
   career_rejected: "var(--color-text-muted)",
@@ -88,6 +91,10 @@ function NotificationItem({
   // icon to show. The destination comes from the backend.
   const isApply = notif.type === "recruitment_application"
   const isStatus = notif.type === "recruitment_application_status"
+  // The text already names the club and the trial; the second line is the
+  // club's own reason. The row opens the Applied tab (server URL).
+  const isRemoved = notif.type === "recruitment_removed"
+  const removedNote = isRemoved ? notif.data?.note?.trim() : undefined
 
   const isCareerDecision =
     notif.type === "career_verified" || notif.type === "career_rejected"
@@ -157,7 +164,14 @@ function NotificationItem({
       <div className={styles.content}>
         <p className={styles.text}>{notif.text}</p>
 
-        {isRecruitment || isCareerDecision || isCareerRequest ? (
+        {isRemoved ? (
+          removedNote && (
+            <p className={styles.commentSnippet}>
+              <Icon icon="mdi:format-quote-open" width={11} height={11} />
+              {removedNote}
+            </p>
+          )
+        ) : isRecruitment || isCareerDecision || isCareerRequest ? (
           contextTitle && (
             <p className={styles.recruitmentContext}>
               <Icon

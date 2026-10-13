@@ -913,6 +913,21 @@ export type MyApplicationRecruitment = {
   recruitment_type: RecruitmentTypeValue
   status: RecruitmentStatus
   city: string
+  /**
+   * The same first media the list card shows (one server helper picks both).
+   * Optional: payloads cached before it shipped have none, and the row
+   * falls back to the sport icon.
+   */
+  cover_media?: RecruitmentCoverMedia | null
+  /**
+   * The club deleted this recruitment (or a moderator took it down). The
+   * row stays — it is the player's history — greyed, with no link to the
+   * dead page. Optional: payloads from before the delete shipped.
+   */
+  is_removed?: boolean
+  removed_at?: string | null
+  /** The club's note to applicants. Blank for a takedown or a quiet delete. */
+  removed_note?: string
   event_date: string | null
   application_deadline: string | null
   /**
@@ -1012,6 +1027,42 @@ export const changeRecruitmentStatusApi = async (
   return res.data.data
 }
 
+// ── Delete (owner / admin) ────────────────────────────────────
+
+/**
+ * What the delete dialog needs before it draws. `needs_note` and
+ * `notify_count` come from the SAME server function the delete runs, so the
+ * dialog can never ask for a note the server ignores or skip one it demands.
+ * `can_delete` is an answer rather than a 403, so a coach is shown why.
+ */
+export type DeleteCheckResponse = {
+  needs_note: boolean
+  notify_count: number
+  can_delete: boolean
+}
+
+export const getDeleteCheckApi = async (
+  recruitmentId: string
+): Promise<DeleteCheckResponse> => {
+  const res = await api.get(`/recruitments/${recruitmentId}/delete-check`)
+  return res.data.data
+}
+
+/**
+ * POST, not DELETE — it carries the note to applicants. A 400 puts the
+ * note's problem under `data.errors.note`.
+ */
+export const deleteRecruitmentApi = async (
+  recruitmentId: string,
+  note?: string
+): Promise<{ recruitment_id: string }> => {
+  const res = await api.post(
+    `/recruitments/${recruitmentId}/delete`,
+    note ? { note } : {}
+  )
+  return res.data.data
+}
+
 // ── Apply (player) ────────────────────────────────────────────
 
 export type ApplyAnswerPayload = {
@@ -1101,6 +1152,12 @@ export type ApplicantListItem = {
    * Optional only for older cached payloads.
    */
   age_mismatch_at_apply?: boolean
+  /**
+   * The applicant's profile birth year, for the row's "Born 2009" chip. The
+   * list's own annotation — null when no birthdate is on file, and always
+   * null on the DETAIL payload, which reads `applicant_birth_year` instead.
+   */
+  birth_year: number | null
 }
 
 export type ApplicationAnswer = {
@@ -1192,30 +1249,122 @@ export type FetchRecruitmentApplicantsParams = {
    * for: narrow to "says selected", select all, mark Selected.
    */
   self_outcome?: SelfReportedOutcome | "attended" | "not_attended"
+  /** Off the applicant's PROFILE. */
+  gender?: "male" | "female" | "other"
+  /**
+   * A SportPosition id of the recruitment's own sport — a position the player
+   * LISTS on their profile. Another sport's id is ignored server-side.
+   */
+  position?: string
+  /** Substring of the profile city. */
+  city?: string
+  /** Narrows to players with at least one clip a recruiter can watch. */
+  has_highlights?: boolean
+  /**
+   * "YYYY-MM-DD", inclusive, on THE TRIAL's calendar. A backwards pair is
+   * ignored by the server.
+   */
+  applied_from?: string
+  applied_to?: string
   /** Newest first by default; birth_year sorts unknowns LAST either way. */
   sort?: "birth_year" | "-birth_year"
   limit?: number
   offset?: number
 }
 
+/**
+ * The applicants list's query string — THE one builder. The list and the
+ * Excel download both go through it, so "download this view" sends exactly
+ * the params the list is showing.
+ */
+export const buildApplicantsQuery = (params: FetchRecruitmentApplicantsParams) => {
+  const {
+    status, fee_paid, age_mismatch, has_highlights, self_outcome, city, ...rest
+  } = params
+  return {
+    ...rest,
+    status: Array.isArray(status) ? status.join(",") || undefined : status,
+    // Booleans go out as the strings the backend reads; `undefined`
+    // keeps the key off the query string entirely.
+    fee_paid: fee_paid === undefined ? undefined : String(fee_paid),
+    age_mismatch: age_mismatch ? "true" : undefined,
+    has_highlights: has_highlights ? "true" : undefined,
+    // "all" is not a value the server knows; it is the absence of a filter.
+    self_outcome: self_outcome || undefined,
+    city: city?.trim() || undefined,
+  }
+}
+
 export const fetchRecruitmentApplicantsApi = async (
   recruitmentId: string,
   params: FetchRecruitmentApplicantsParams
 ): Promise<RecruitmentApplicantsResponse> => {
-  const { status, fee_paid, age_mismatch, self_outcome, ...rest } = params
   const res = await api.get(`/recruitments/${recruitmentId}/applications`, {
-    params: {
-      ...rest,
-      status: Array.isArray(status) ? status.join(",") || undefined : status,
-      // Booleans go out as the strings the backend reads; `undefined`
-      // keeps the key off the query string entirely.
-      fee_paid: fee_paid === undefined ? undefined : String(fee_paid),
-      age_mismatch: age_mismatch ? "true" : undefined,
-      // "all" is not a value the server knows; it is the absence of a filter.
-      self_outcome: self_outcome || undefined,
-    },
+    params: buildApplicantsQuery(params),
   })
   return res.data.data
+}
+
+// ── Applicants download (owner / admin) ──────────────────────
+
+/** "This view" (tab, search, filters) or every non-withdrawn applicant. */
+export type ApplicantsExportScope = "filtered" | "all"
+
+/** One file holds at most this many rows — the server's own cap. */
+export const APPLICANTS_EXPORT_BATCH = 100
+
+/**
+ * Rows `start`..`start + 99` as an .xlsx, plus the server's filename.
+ *
+ * The body of a FAILED request is a Blob too (responseType is per request,
+ * not per status), so the error is re-thrown with the server's JSON message
+ * parsed out of it — the caller toasts it like any other API error.
+ */
+export const downloadApplicantsApi = async (
+  recruitmentId: string,
+  params: FetchRecruitmentApplicantsParams,
+  scope: ApplicantsExportScope,
+  start: number,
+  /** The batch's last row as the caller counted it — for the fallback name. */
+  end: number
+): Promise<{ blob: Blob; filename: string }> => {
+  try {
+    const res = await api.get(`/recruitments/${recruitmentId}/applications/export`, {
+      params: { ...buildApplicantsQuery(params), scope, start },
+      responseType: "blob",
+    })
+    return {
+      blob: res.data as Blob,
+      filename:
+        filenameFromDisposition(res.headers?.["content-disposition"]) ??
+        `goatza-applicants-${start}-${end}.xlsx`,
+    }
+  } catch (err) {
+    throw await withBlobErrorBody(err)
+  }
+}
+
+/** `attachment; filename="x.xlsx"` → "x.xlsx". Null when there is none. */
+function filenameFromDisposition(header: unknown): string | null {
+  if (typeof header !== "string") return null
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header)
+  return match ? decodeURIComponent(match[1].trim()) : null
+}
+
+/**
+ * An axios error whose `response.data` is a Blob, with the Blob swapped for
+ * its parsed JSON — so getApiErrorMessage reads the server's sentence
+ * ("Nothing left to download.") instead of falling back.
+ */
+async function withBlobErrorBody(err: unknown): Promise<unknown> {
+  const response = (err as { response?: { data?: unknown } })?.response
+  if (!response || !(response.data instanceof Blob)) return err
+  try {
+    response.data = JSON.parse(await response.data.text())
+  } catch {
+    // Not JSON (a proxy's HTML error page): leave it for the fallback copy.
+  }
+  return err
 }
 
 export const fetchApplicationDetailApi = async (

@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
+import { posterSrc, thumbSrc } from "@/shared/services/mediaDelivery"
 import { formatReportingTime } from "../../eligibility"
 import { playerStatusMeta } from "../../applicationStatus"
 import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver, trialDay } from "../../trialEnded"
@@ -129,7 +131,15 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
   const timeZone = r.timezone || FALLBACK_TRIAL_TIME_ZONE
 
   const meta = playerStatusMeta(application.status, r.recruitment_type)
-  const tone = TONE_BY_STATUS[application.status] ?? "neutral"
+
+  // THE CLUB DELETED IT. The row stays — it is their history — but every
+  // link and action on it would lead to a page that 404s, so the card goes
+  // quiet: no title link, no pass, no feedback, no announcements, and the
+  // club's note where the next step used to be.
+  const isRemoved = r.is_removed === true
+  const removedNote = r.removed_note?.trim() ?? ""
+
+  const tone = isRemoved ? "muted" : TONE_BY_STATUS[application.status] ?? "neutral"
 
   // The group they applied under, and when it reports — the one thing they
   // need to remember on the day.
@@ -164,7 +174,7 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
    * question they actually ask about a quiet application.
    */
   const upcoming =
-    application.status === "trial_confirmed" && !trialOver
+    application.status === "trial_confirmed" && !trialOver && !isRemoved
       ? countdownLabel(daysUntil(trialDateIso, timeZone))
       : null
   const contextLine =
@@ -175,11 +185,11 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
    * fee AND the org has not recorded it: a paid one needs no line, and a free
    * trial must never read as a debt.
    */
-  const feeUnpaid = !!r.is_paid && !application.fee_paid
+  const feeUnpaid = !!r.is_paid && !application.fee_paid && !isRemoved
 
   // The pass exists once the org has CALLED them to the trial — that is the
   // status the whole thing is issued against.
-  const hasPass = application.status === "trial_confirmed"
+  const hasPass = application.status === "trial_confirmed" && !isRemoved
 
   // Context for the feedback prompt: the city and the date they went on, so
   // "How did the trial go?" names WHICH trial without a second line of prose.
@@ -197,42 +207,75 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
 
   const isLookingForPlayers = r.recruitment_type === "player_looking"
 
+  // The small copy only: a 66px box never needs the original. A video's
+  // poster, never the clip itself — an <img> cannot draw a video URL, and
+  // thumbSrc would fall back to exactly that on a video with no poster.
+  const cover = r.cover_media ?? null
+  const coverSrc = cover
+    ? cover.media_type === "video"
+      ? posterSrc(cover)
+      : thumbSrc(cover)
+    : ""
+  // Keyed by URL rather than a boolean, so a row that is handed a different
+  // cover tries again instead of staying on the icon.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const showCover = !!coverSrc && failedSrc !== coverSrc
+
   return (
     <article className={`${styles.card} ${styles[TONE_CLASS[tone]]}`}>
       {/* ── The status strip ── First, full width, and tinted: the status is
           the only reason this tab gets opened. ── */}
       <div className={styles.strip}>
         <span className={styles.stripStatus}>
-          <Icon icon={meta.icon} width={15} height={15} />
-          <span className={styles.stripLabel}>{meta.label}</span>
+          <Icon icon={isRemoved ? "mdi:delete-outline" : meta.icon} width={15} height={15} />
+          <span className={styles.stripLabel}>
+            {isRemoved ? "Removed by club" : meta.label}
+          </span>
           {/* A fact about the calendar, not about the application — the club
               may still be deciding, so this sits beside the status rather
               than replacing it. */}
-          {trialOver && <span className={styles.endedBadge}>Trial ended</span>}
+          {trialOver && !isRemoved && <span className={styles.endedBadge}>Trial ended</span>}
         </span>
         <span className={styles.stripContext}>{contextLine}</span>
       </div>
 
       {/* ── Body ── */}
-      <div className={styles.body}>
+      {/* Greyed, not the strip: the strip still has to read as the status. */}
+      <div className={`${styles.body} ${isRemoved ? styles.bodyRemoved : ""}`}>
         {/* FIXED in both dimensions, and never stretched to the column beside
-            it. The my-applications payload carries no cover media, so this is
-            always one of the two designed fallbacks rather than a photo. */}
+            it. The recruitment's cover when it has one; otherwise — or when
+            the image fails to load — one of the two designed fallbacks. */}
         <div className={styles.thumb} aria-hidden="true">
-          <Icon
-            icon={
-              isLookingForPlayers
-                ? "mdi:account-search-outline"
-                : r.sport.icon_name || "mdi:trophy-outline"
-            }
-            className={styles.thumbGlyph}
-          />
+          {showCover ? (
+            /* eslint-disable-next-line @next/next/no-img-element -- media-domain URL, no loader */
+            <img
+              src={coverSrc}
+              alt=""
+              className={styles.thumbImg}
+              loading="lazy"
+              decoding="async"
+              onError={() => setFailedSrc(coverSrc)}
+            />
+          ) : (
+            <Icon
+              icon={
+                isLookingForPlayers
+                  ? "mdi:account-search-outline"
+                  : r.sport.icon_name || "mdi:trophy-outline"
+              }
+              className={styles.thumbGlyph}
+            />
+          )}
         </div>
 
         <div className={styles.bodyText}>
-          <Link href={toRecruitment(r.id)} className={styles.titleLink}>
+          {isRemoved ? (
             <h3 className={styles.title}>{r.title}</h3>
-          </Link>
+          ) : (
+            <Link href={toRecruitment(r.id)} className={styles.titleLink}>
+              <h3 className={styles.title}>{r.title}</h3>
+            </Link>
+          )}
 
           <Link
             href={toProfile(r.organization.username, "organization")}
@@ -290,26 +333,43 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
         </div>
       </div>
 
+      {/* What the club said when it removed it — the one thing left to read
+          here. A moderator takedown carries no note. */}
+      {isRemoved && (
+        <p className={styles.removedNote}>
+          {removedNote ? (
+            <>
+              <strong>{r.organization.name}:</strong> &ldquo;{removedNote}&rdquo;
+            </>
+          ) : (
+            "This recruitment was removed."
+          )}
+        </p>
+      )}
+
       {/* Updates addressed to THIS player. The server decides which ones
           reach them — an "all applicants" notice is public to anyone who can
-          see the posting, a targeted one only to its own audience. */}
-      <AnnouncementList recruitmentId={r.id} timeZone={timeZone} />
+          see the posting, a targeted one only to its own audience. Not on a
+          removed one: its announcements went with it. */}
+      {!isRemoved && <AnnouncementList recruitmentId={r.id} timeZone={timeZone} />}
 
       {/* HOW DID IT GO? Inline, at the foot of the card, because this tab is
           where a player actually meets the question. Renders itself only when
           the server says to ask — or a quiet summary once they have answered,
           and nothing when neither. Never a banner, never a modal that opens
           by itself. */}
-      <TrialFeedbackPrompt
-        applicationId={application.id}
-        application={application}
-        recruitmentId={r.id}
-        orgName={r.organization.name}
-        subtitle={feedbackSubtitle}
-        className={styles.feedback}
-      />
+      {!isRemoved && (
+        <TrialFeedbackPrompt
+          applicationId={application.id}
+          application={application}
+          recruitmentId={r.id}
+          orgName={r.organization.name}
+          subtitle={feedbackSubtitle}
+          className={styles.feedback}
+        />
+      )}
 
-      {hasActions(application.status) && (
+      {!isRemoved && hasActions(application.status) && (
         <div className={styles.actionRow}>
           {hasPass && (
             <Link

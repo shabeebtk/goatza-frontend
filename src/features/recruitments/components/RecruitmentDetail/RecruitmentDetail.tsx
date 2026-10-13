@@ -42,6 +42,7 @@ import RecruitmentHeroCarousel from "../RecruitmentHeroCarousel/RecruitmentHeroC
 import HeroThumbs from "../RecruitmentHeroCarousel/HeroThumbs"
 import ApplyRecruitmentModal from "../ApplyRecruitmentModal/ApplyRecruitmentModal"
 import StatusChangeMenu from "../StatusChangeMenu/StatusChangeMenu"
+import DeleteRecruitmentDialog from "../DeleteRecruitmentDialog/DeleteRecruitmentDialog"
 import StatusBadge from "../StatusBadge/StatusBadge"
 import TrialFeedbackPrompt from "../TrialFeedback/TrialFeedbackPrompt"
 import ReportSheet from "@/features/moderation/components/ReportSheet/ReportSheet"
@@ -51,6 +52,7 @@ import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import ApplicationSheet from "./ApplicationSheet"
 import LatestApplicants from "./LatestApplicants"
 import {
+  useIsOrgReviewer,
   useRecruitmentDetail,
   useToggleSaveRecruitment,
 } from "../../hooks/useRecruitments"
@@ -474,6 +476,7 @@ export default function RecruitmentDetail({
   const [reportOpen, setReportOpen] = useState(false)
   const [appSheetOpen, setAppSheetOpen] = useState(false)
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [previewAsPlayer, setPreviewAsPlayer] = useState(false)
 
@@ -491,6 +494,9 @@ export default function RecruitmentDetail({
   const trialOver = isTrialOver(data)
   const countdown = useCountdown(data?.application_deadline, effectiveStatus, trialOver)
   const isDesktop = useIsDesktop()
+  // Owner/admin may delete — in every status, so this also keeps the status
+  // menu reachable on a cancelled recruitment that has no transitions left.
+  const canDelete = useIsOrgReviewer(isOrgView ? data?.organization?.id : undefined)
 
   const onReapply = useCallback(() => {
     setAppSheetOpen(false)
@@ -535,6 +541,7 @@ export default function RecruitmentDetail({
   const isSaved = r.is_saved === true
   const fee = formatFee(r)
   const canChangeStatus = (STATUS_TRANSITIONS[orgStatus] ?? []).length > 0
+  const canOpenStatusMenu = canChangeStatus || canDelete
   const applicantsHref = `/organization/admin/${r.organization.id}/recruitments/${r.id}?tab=applicants`
 
   const allPositions = r.positions ?? []
@@ -690,20 +697,25 @@ export default function RecruitmentDetail({
         type="button"
         onClick={() => setStatusMenuOpen((o) => !o)}
         onMouseDown={(e) => e.stopPropagation()}
-        disabled={!canChangeStatus}
-        title={canChangeStatus ? "Change status" : "This recruitment is cancelled"}
+        disabled={!canOpenStatusMenu}
+        title={canOpenStatusMenu ? "Change status" : "This recruitment is cancelled"}
         aria-haspopup="menu"
         aria-expanded={statusMenuOpen}
       >
         {ORG_STATUS_LABEL[orgStatus] ?? orgStatus}
-        {canChangeStatus && <Icon icon="mdi:chevron-down" width={14} height={14} />}
+        {canOpenStatusMenu && <Icon icon="mdi:chevron-down" width={14} height={14} />}
       </button>
-      {canChangeStatus && statusMenuOpen && (
+      {canOpenStatusMenu && statusMenuOpen && (
         <StatusChangeMenu
           open
           onClose={() => setStatusMenuOpen(false)}
           recruitmentId={recruitmentId}
           currentStatus={orgStatus}
+          orgId={r.organization.id}
+          onDelete={() => {
+            setStatusMenuOpen(false)
+            setDeleteOpen(true)
+          }}
         />
       )}
     </div>
@@ -1549,7 +1561,7 @@ export default function RecruitmentDetail({
                         Share via…
                       </button>
                     )}
-                    {canChangeStatus && (
+                    {canOpenStatusMenu && (
                       <button
                         className={styles.moreItem}
                         role="menuitem"
@@ -1617,6 +1629,14 @@ export default function RecruitmentDetail({
       {/* ── Overlays ── */}
       {applyOpen && (
         <ApplyRecruitmentModal recruitment={r} onClose={() => setApplyOpen(false)} />
+      )}
+
+      {deleteOpen && asOrganiser && canDelete && (
+        <DeleteRecruitmentDialog
+          recruitmentId={r.id}
+          orgId={r.organization.id}
+          onClose={() => setDeleteOpen(false)}
+        />
       )}
 
       {appSheetOpen && r.my_application && (

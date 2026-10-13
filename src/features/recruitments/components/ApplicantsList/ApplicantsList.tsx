@@ -25,11 +25,23 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import {
+  useIsOrgReviewer,
   useRecruitmentApplicants,
   useBulkUpdateApplicationStatus,
   useBulkUpdateApplicationFee,
   useUpdateApplicationStatus,
+  type ApplicantsQueryParams,
 } from "../../hooks/useRecruitments"
+import { useSportPositions } from "@/features/profile/hooks/useSportsQueries"
+import {
+  EMPTY_APPLICANT_FILTERS,
+  applicantFilterParams,
+  buildApplicantChips,
+  type ApplicantFilterContext,
+  type ApplicantFilters,
+} from "../../applicantFilters"
+import ApplicantFiltersSheet from "../ApplicantFiltersSheet/ApplicantFiltersSheet"
+import DownloadApplicantsSheet from "../DownloadApplicantsSheet/DownloadApplicantsSheet"
 import HighlightsChip from "@/features/highlights/components/HighlightsChip/HighlightsChip"
 import HighlightPipelineViewer, {
   type PipelinePlayer,
@@ -58,7 +70,6 @@ import type {
   BulkStatusTarget,
   RecruitmentAgeCategory,
   RecruitmentTypeValue,
-  SelfReportedOutcome,
   SessionMode,
   StatusChangeSkip,
   TrialSession,
@@ -67,9 +78,9 @@ import StatusBadge from "../StatusBadge/StatusBadge"
 import ApplicantDetailDrawer from "../ApplicantDetailDrawer/ApplicantDetailDrawer"
 import {
   formatSessionDate,
+  formatSessionTimeRange,
   isMultiPlace,
   liveSessions,
-  sessionOptionLabel,
 } from "../../sessionDisplay"
 import { useMessageApplicants } from "../../hooks/useAnnouncements"
 import { waLink } from "../../whatsapp/waLink"
@@ -84,6 +95,10 @@ type ListView = PipelineStage | "withdrawn"
 type GroupFilter = string
 
 const WITHDRAWN: ApplicationStatus[] = ["withdrawn"]
+
+// A stable empty list while the sport's positions load — a fresh [] each
+// render would make the filter context look new every time.
+const NO_POSITIONS: { id: string; name: string }[] = []
 
 // What each view says when it has nothing to show (and no search/group
 // filter is narrowing it).
@@ -117,16 +132,22 @@ function summarizeSkips(skips: StatusChangeSkip[]): string {
 }
 
 // ── Row skeleton (mirrors RecruitmentCardSkeleton shimmer) ─────
+// The real card's silhouette — avatar top-left, name + sub line, a chip row —
+// so the list does not change shape when the rows land.
 
 function ApplicantRowSkeleton() {
   return (
-    <div className={styles.row} aria-hidden="true">
-      <div className={styles.avatarSkeleton} />
+    <div className={`${styles.rowCard} ${styles.rowCardSkeleton}`} aria-hidden="true">
+      <div className={`${styles.shimmer} ${styles.avatarSkeleton}`} />
       <div className={styles.rowMain}>
         <div className={`${styles.shimmer} ${styles.lineName}`} />
         <div className={`${styles.shimmer} ${styles.lineSub}`} />
+        <div className={styles.metaChips}>
+          <div className={`${styles.shimmer} ${styles.chipSkeleton}`} />
+          <div className={`${styles.shimmer} ${styles.chipSkeleton} ${styles.chipSkeletonWide}`} />
+          <div className={`${styles.shimmer} ${styles.chipSkeleton} ${styles.chipSkeletonNarrow}`} />
+        </div>
       </div>
-      <div className={`${styles.shimmer} ${styles.badgeSkeleton}`} />
     </div>
   )
 }
@@ -196,25 +217,33 @@ function ShortlistAction({
 
 // ── "Says: …" — the PLAYER'S CLAIM, never a status ────────────
 //
-// Deliberately a DIFFERENT SHAPE from StatusBadge next to it: a square-ish
-// outlined tag with a "Says:" prefix, against the badge's filled pill. An org
-// glancing down the column must never read a claim as a decision, and colour
-// alone does not carry that — a colour-blind reviewer, or anyone scanning
-// fast, would see two pills and trust both equally.
+// Deliberately NOT StatusBadge's shape: the caller hands it the row's outlined
+// meta chip, and it adds a DASHED border and a "Says:" prefix, against the
+// badge's filled uppercase pill. An org glancing down the column must never
+// read a claim as a decision, and colour alone does not carry that — a
+// colour-blind reviewer, or anyone scanning fast, would see two pills and
+// trust both equally.
 //
 // Renders NOTHING when there is no answer. "No answer yet" on 300 rows is 300
 // rows of noise, and absence already says it.
 
-function SelfReportTag({ item }: { item: ApplicantListItem }) {
+function SelfReportTag({
+  item,
+  className = "",
+}: {
+  item: ApplicantListItem
+  className?: string
+}) {
   const outcome = item.outcome_self_reported || ""
   const attended = item.attended_self_reported
+  const root = `${className} ${styles.saysClaim}`
 
   // Not answered at all.
   if (!item.feedback_at && attended == null && !outcome) return null
 
   if (attended === false) {
     return (
-      <span className={`${styles.saysTag} ${styles.saysMuted}`} title="The player said they couldn't make it">
+      <span className={`${root} ${styles.saysMuted}`}>
         Didn&apos;t attend
       </span>
     )
@@ -240,14 +269,14 @@ function SelfReportTag({ item }: { item: ApplicantListItem }) {
   // server has since stopped producing). Say the true, smaller thing.
   if (!label) {
     return (
-      <span className={`${styles.saysTag} ${styles.saysNeutral}`} title="The player said they attended">
+      <span className={`${root} ${styles.saysNeutral}`}>
         Says: attended
       </span>
     )
   }
 
   return (
-    <span className={`${styles.saysTag} ${tone}`} title="What the player said — not a status">
+    <span className={`${root} ${tone}`}>
       Says: {label}
     </span>
   )
@@ -282,20 +311,50 @@ function ApplicantRow({
   onOpenHighlights: () => void
 }) {
   const { applicant } = item
+  const name = item.shared_name || applicant.name
   const hasHighlights = (item.highlights_count ?? 0) > 0
+
+  // One muted line instead of two differently styled ones.
+  const subLine = [
+    applicant.username ? `@${applicant.username}` : null,
+    `Applied ${dayjs(item.applied_at).fromNow()}`,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  // PLACE FIRST, then the day, then the time: on a city tour the city is
+  // what the gate staff are sorting by, so when a narrow chip ellipsises it
+  // is the time that goes, never the city. The venue name gives way to the
+  // city — it is the longest part and the least needed at a glance.
+  const session = item.session
+  const sessionChip = session
+    ? [
+        session.city?.trim() || session.venue_name?.trim() || null,
+        formatSessionDate(session.date, timeZone),
+        formatSessionTimeRange(session),
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "No centre"
+
   return (
-    <div className={`${styles.rowCard} ${selectable ? styles.rowCardSelectable : ""} ${selected ? styles.rowCardSelected : ""} ${hasHighlights ? styles.rowCardWithChip : ""}`}>
+    <div
+      className={[
+        styles.rowCard,
+        selectable ? styles.rowCardSelectable : "",
+        selected ? styles.rowCardSelected : "",
+      ].filter(Boolean).join(" ")}
+    >
       {/* Round selector overlaid at the card's top-left (photo-gallery style).
-          Withdrawn rows get no circle. stopPropagation so it never opens the drawer. */}
+          Withdrawn rows get no circle. Above the stretched open button on
+          z-index, so it toggles and never opens the drawer. */}
       {selectable && (
         <button
           className={styles.selectCircle}
           onClick={(e) => { e.stopPropagation(); onToggle() }}
           type="button"
           aria-pressed={selected}
-          aria-label={selected
-            ? `Deselect ${item.shared_name || applicant.name}`
-            : `Select ${item.shared_name || applicant.name}`}
+          aria-label={selected ? `Deselect ${name}` : `Select ${name}`}
         >
           <span className={`${styles.selectDot} ${selected ? styles.selectDotOn : ""}`}>
             {selected && <Icon icon="mdi:check" width={12} height={12} />}
@@ -303,93 +362,108 @@ function ApplicantRow({
         </button>
       )}
 
-      <button className={styles.row} onClick={onOpen} type="button">
-        <Avatar
-          src={applicant.avatar}
-          initials={(item.shared_name || applicant.name)?.slice(0, 2).toUpperCase()}
-          size="md"
-        />
-        <div className={styles.rowMain}>
-          <div className={styles.rowTop}>
-            <span className={styles.name}>{item.shared_name || applicant.name}</span>
-            {applicant.username && <span className={styles.username}>@{applicant.username}</span>}
-            {/* A flag to check at the desk, not an accusation — amber, and it
-                never blocks a thing. Frozen at apply time; the drawer shows
-                whether the profile has changed since. */}
-            {item.age_mismatch_at_apply && (
-              <span
-                className={styles.ageMismatch}
-                title="Their profile birth year was outside this group when they applied"
-              >
-                <Icon icon="mdi:alert-outline" width={12} height={12} />
-                Age mismatch
-              </span>
-            )}
-          </div>
-          {applicant.headline && <span className={styles.headline}>{applicant.headline}</span>}
-          <span className={styles.appliedAt}>
-            <Icon icon="mdi:clock-outline" width={12} height={12} />
-            Applied {dayjs(item.applied_at).fromNow()}
+      <Avatar
+        src={applicant.avatar}
+        initials={name?.slice(0, 2).toUpperCase()}
+        size="md"
+      />
+
+      <div className={styles.rowMain}>
+        <div className={styles.rowTop}>
+          {/* THE CARD'S TAP TARGET. Its ::after stretches over the whole card,
+              so a tap anywhere opens the drawer while the select circle and
+              the highlights chip — siblings, not children — stay their own
+              buttons above it. No button inside a button, no padding hack. */}
+          <button
+            className={styles.rowOpen}
+            onClick={onOpen}
+            type="button"
+            aria-label={`Open ${name}'s application`}
+          >
+            <span className={styles.name}>{name}</span>
+          </button>
+          <span className={styles.rowStatus}>
+            <StatusBadge status={item.status} recruitmentType={recruitmentType} />
+            <Icon icon="mdi:chevron-right" width={18} height={18} className={styles.rowChevron} />
           </span>
-          {/* The group they applied under. "—" rather than nothing, so a row
-              with no group reads as answered, not as missing data.
+        </div>
+
+        <span className={styles.subLine}>{subLine}</span>
+        {applicant.headline && <span className={styles.headline}>{applicant.headline}</span>}
+
+        <div className={styles.metaChips}>
+          {/* The group they applied under. "No group" rather than nothing, so
+              a row with no group reads as answered, not as missing data.
 
               The gender word rides along only when the CATEGORY names one
-              (no trial gender is passed on purpose — see the chips below). */}
-          <span className={styles.groupTag}>
+              (no trial gender is passed on purpose — see the filter chips). */}
+          <span className={styles.metaChip}>
             <Icon icon="mdi:account-group-outline" width={12} height={12} />
-            {item.age_category
-              ? [item.age_category.title, ageGroupGenderWord(item.age_category)]
-                  .filter(Boolean)
-                  .join(" ")
-              : "—"}
+            <span className={styles.metaChipText}>
+              {item.age_category
+                ? [item.age_category.title, ageGroupGenderWord(item.age_category)]
+                    .filter(Boolean)
+                    .join(" ")
+                : "No group"}
+            </span>
           </span>
-          {/* Which city they said they were coming to. */}
+
+          {/* Which centre they said they were coming to. */}
           {showSession && (
-            <span className={styles.groupTag}>
-              <Icon icon="mdi:calendar-check" width={12} height={12} />
-              {item.session
-                ? sessionOptionLabel(item.session, { timezone: timeZone })
-                : "—"}
+            <span className={styles.metaChip}>
+              <Icon icon="mdi:map-marker-outline" width={12} height={12} />
+              <span className={styles.metaChipText}>{sessionChip}</span>
             </span>
           )}
+
+          {/* How old they actually ARE, beside the group they chose. Absent
+              rather than "Born —" when no birthdate is on file. */}
+          {item.birth_year != null && (
+            <span className={styles.metaChip}>
+              <Icon icon="mdi:cake-variant-outline" width={12} height={12} />
+              Born {item.birth_year}
+            </span>
+          )}
+
           {/* The fee as the gate recorded it. INFORMATION: it gates
               nothing, here or on the server. */}
           {showFee && (
             <span
-              className={`${styles.feeTag} ${item.fee_paid ? styles.feeTagPaid : ""}`}
-              title={
-                item.fee_paid
-                  ? `Marked paid${item.fee_marked_by ? ` by ${item.fee_marked_by.name}` : ""}`
-                  : "Fee not marked"
-              }
+              className={`${styles.metaChip} ${item.fee_paid ? styles.metaChipPaid : styles.metaChipDue}`}
             >
               <Icon icon={item.fee_paid ? "mdi:cash-check" : "mdi:cash-remove"} width={12} height={12} />
               {item.fee_paid ? "Fee paid" : "Fee due"}
             </span>
           )}
-          {/* What the player said about the trial. Renders itself or nothing. */}
-          <SelfReportTag item={item} />
-        </div>
-        <div className={styles.rowRight}>
-          <StatusBadge status={item.status} recruitmentType={recruitmentType} />
-          <Icon icon="mdi:chevron-right" width={18} height={18} className={styles.rowChevron} />
-        </div>
-      </button>
 
-      {/* Overlaid, and OUTSIDE the row button on purpose — a button inside a
-          button is invalid HTML and steals the row's keyboard semantics. The
-          count ships with the row, so this costs no request and no reflow (the
-          row reserves its space via .rowCardWithChip). */}
-      {hasHighlights && (
-        <div className={styles.rowChip}>
-          <HighlightsChip
-            username={applicant.username}
-            count={item.highlights_count}
-            onOpen={onOpenHighlights}
-          />
+          {/* Lifted above the stretched open button, so a tap here opens the
+              reel and not the drawer. The count ships with the row, so this
+              costs no request and no reflow. */}
+          {hasHighlights && (
+            <span className={styles.chipLift}>
+              <HighlightsChip
+                username={applicant.username}
+                count={item.highlights_count}
+                onOpen={onOpenHighlights}
+                className={styles.highlightsChip}
+              />
+            </span>
+          )}
+
+          {/* A flag to check at the desk, not an accusation — amber, and it
+              never blocks a thing. Frozen at apply time; the drawer shows
+              whether the profile has changed since. */}
+          {item.age_mismatch_at_apply && (
+            <span className={`${styles.metaChip} ${styles.metaChipWarn}`}>
+              <Icon icon="mdi:alert-outline" width={12} height={12} />
+              Age mismatch
+            </span>
+          )}
+
+          {/* What the player said about the trial. Renders itself or nothing. */}
+          <SelfReportTag item={item} className={styles.metaChip} />
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -407,8 +481,14 @@ export default function ApplicantsList({
   recruitmentTitle,
   orgName,
   timezone = FALLBACK_TRIAL_TIME_ZONE,
+  sportId,
+  orgId,
 }: {
   recruitmentId: string
+  /** The recruitment's sport — whose positions the Position filter offers. */
+  sportId?: string
+  /** The owning org — whose `my_role` decides whether Download is offered. */
+  orgId?: string
   /** The recruitment's own age groups — empty when it is open to all ages. */
   ageCategories?: RecruitmentAgeCategory[]
   /**
@@ -442,9 +522,6 @@ export default function ApplicantsList({
   const searchParams = useSearchParams()
   const [view, setView] = useState<ListView>("screening")
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("all")
-  // WHICH CENTRE, on a trial that visits several. "all" is the absence of a
-  // filter, not a value the server knows — the same contract groupFilter has.
-  const [centreFilter, setCentreFilter] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   /**
@@ -486,40 +563,30 @@ export default function ApplicantsList({
   // Which player's reel the viewer starts on; null = viewer closed.
   const [reelStart, setReelStart] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  // THE FEE, and the OTHER age question. The group chips above say which
-  // group somebody applied UNDER; these two say how old they actually ARE
-  // and whether they have paid. Deliberately a separate row so the org
-  // never reads one as the other.
-  const [feeFilter, setFeeFilter] = useState<"all" | "paid" | "unpaid">("all")
-  const [birthYearMin, setBirthYearMin] = useState("")
-  const [birthYearMax, setBirthYearMax] = useState("")
-  const [mismatchOnly, setMismatchOnly] = useState(false)
-  const [sort, setSort] = useState<"" | "birth_year" | "-birth_year">("")
-  // WHAT THE PLAYER SAID. A different question from the stage tabs above,
-  // which are what the ORG decided. "" is no filter, not a value.
-  const [selfOutcome, setSelfOutcome] = useState<
-    "" | SelfReportedOutcome | "attended" | "not_attended"
-  >("")
-
-  // Junk is simply not a filter — the same leniency the server applies, so
-  // a half-typed year never empties the list.
-  const asYear = (value: string) => {
-    const year = Number(value)
-    return value.trim() && Number.isInteger(year) && year >= 1900 && year <= 2100
-      ? year
-      : undefined
-  }
-  const minYear = asYear(birthYearMin)
-  const maxYear = asYear(birthYearMax)
-  const rangeActive = minYear !== undefined || maxYear !== undefined
+  /**
+   * EVERY FILTER BUT THE TOOLBAR'S OWN (tab, search, age group) — the
+   * modal's COMMITTED state. The sheet edits a draft of its own; this moves
+   * only on "Show results", or when a chip is removed.
+   */
+  const [filters, setFilters] = useState<ApplicantFilters>(EMPTY_APPLICANT_FILTERS)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [downloadOpen, setDownloadOpen] = useState(false)
+  // Which download batches this page has fetched — the sheet's ✓ marks.
+  // Here, not in the sheet, so they survive it closing.
+  const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set())
+  // Owner/admin only, like the server's own gate.
+  const canDownload = useIsOrgReviewer(orgId)
+  const positionsQuery = useSportPositions(sportId ?? "")
+  const positions = positionsQuery.data ?? NO_POSITIONS
 
   const showFeeColumn = hasFee
   const showSessionColumn = sessionMode === "choose_one"
 
-  // THE WORKFLOW THIS EXISTS FOR: on the Result tab, narrow to "says
-  // selected", select all, mark Selected. Only that tab — before the trial
-  // nobody has said anything, and on Screening the question is not yet asked.
-  const showSelfOutcomeFilter = view === "result"
+  // THE WORKFLOW the self-report filter exists for: on the Result tab,
+  // narrow to "says selected", select all, mark Selected. Only that tab —
+  // before the trial nobody has said anything.
+  const isResultTab = view === "result"
+  const rangeActive = !!(filters.bornFrom || filters.bornTo)
 
   // Marking a fee is not a pipeline move, so it is available on the two tabs
   // where the gate actually stands: people being screened, and people who are
@@ -563,7 +630,8 @@ export default function ApplicantsList({
     isTrialDayAhead(eventDate, undefined, timezone)
 
   /**
-   * THE CENTRES, for the chip row.
+   * THE CENTRES, for the Centre filter — only on a choose_one trial, the one
+   * mode where an applicant names a date at all.
    *
    * Every live date, in the order the posting lists them — deliberately NOT
    * `upcomingSessions`: an org works through yesterday's applicants for days
@@ -575,7 +643,10 @@ export default function ApplicantsList({
    * nothing, while four cities is exactly what the person holding the list
    * is standing in.
    */
-  const centres = useMemo(() => liveSessions(sessions), [sessions])
+  const centres = useMemo(
+    () => (showSessionColumn ? liveSessions(sessions) : []),
+    [sessions, showSessionColumn],
+  )
   const centresDiffer = useMemo(() => isMultiPlace({ sessions }), [sessions])
   const centreLabel = useCallback(
     (session: TrialSession) =>
@@ -591,14 +662,36 @@ export default function ApplicantsList({
     return () => clearTimeout(t)
   }, [search])
 
+  // What decides which filters apply here, for the sheet, the chips and the
+  // params alike — so none of the three can disagree about it.
+  const filterContext: ApplicantFilterContext = {
+    isResultTab,
+    hasFee,
+    centres,
+    centreLabel,
+    positions,
+  }
+  const filterChips = buildApplicantChips(filters, filterContext)
+
+  /**
+   * THE LIST'S PARAMS — and, unchanged, the download's. One object, so
+   * "download this view" is exactly what is on screen.
+   */
+  const queryParams: ApplicantsQueryParams = {
+    status: viewStatuses,
+    search: debouncedSearch || undefined,
+    age_category: groupFilter === "all" ? undefined : groupFilter,
+    ...applicantFilterParams(filters, filterContext),
+  }
+
   // A selection only makes sense within one tab/filter/search view. Reset it
   // the moment that view changes — render-phase reset (React's recommended
   // alternative to a setState-in-effect), so it happens before paint.
-  // selfOutcome is in here: narrowing the list changes WHICH rows are on
+  // EVERY filter is in here: narrowing the list changes WHICH rows are on
   // screen, and a selection carried across that would mark people the org can
   // no longer see.
   const viewKey =
-    `${view}|${groupFilter}|${centreFilter}|${debouncedSearch}|${selfOutcome}`
+    `${view}|${groupFilter}|${debouncedSearch}|${JSON.stringify(filters)}`
   const [selectionViewKey, setSelectionViewKey] = useState(viewKey)
   if (selectionViewKey !== viewKey) {
     setSelectionViewKey(viewKey)
@@ -613,21 +706,7 @@ export default function ApplicantsList({
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  } = useRecruitmentApplicants(recruitmentId, {
-    status: viewStatuses,
-    search: debouncedSearch || undefined,
-    age_category: groupFilter === "all" ? undefined : groupFilter,
-    session: centreFilter === "all" ? undefined : centreFilter,
-    fee_paid:
-      !showFeeColumn || feeFilter === "all"
-        ? undefined
-        : feeFilter === "paid",
-    birth_year_min: minYear,
-    birth_year_max: maxYear,
-    age_mismatch: mismatchOnly || undefined,
-    self_outcome: showSelfOutcomeFilter ? selfOutcome || undefined : undefined,
-    sort: sort || undefined,
-  })
+  } = useRecruitmentApplicants(recruitmentId, queryParams)
 
   // ── Infinite scroll ──────────────────────────────────────────
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -689,13 +768,28 @@ export default function ApplicantsList({
   )
   const withdrawnCount = countOf(WITHDRAWN) ?? 0
 
+  // Sort is a chip but narrows nothing, so it never makes a list "filtered".
   const filtersActive =
     groupFilter !== "all"
-    || centreFilter !== "all"
     || debouncedSearch.length > 0
-    || feeFilter !== "all"
-    || rangeActive
-    || mismatchOnly
+    || filterChips.some((chip) => !chip.clears.includes("sort"))
+
+  const removeChip = (clears: (keyof ApplicantFilters)[]) =>
+    setFilters((current) => {
+      const next = { ...current }
+      for (const key of clears) {
+        // Each key gets its own empty value back — "" or false.
+        Object.assign(next, { [key]: EMPTY_APPLICANT_FILTERS[key] })
+      }
+      return next
+    })
+
+  // The download sheet's two counts. "All" is every stage minus withdrawn,
+  // off the status_counts every page already carries.
+  const viewCount = data?.pages[0]?.count ?? 0
+  const allCount = statusCounts
+    ? Object.values(statusCounts).reduce((sum, n) => sum + (n ?? 0), 0) - withdrawnCount
+    : 0
 
   // How many applicants the range is hiding because they have no birth
   // year on file. The server only counts it while a range is active.
@@ -845,19 +939,47 @@ export default function ApplicantsList({
 
   return (
     <div className={styles.wrapper}>
-      {/* Search */}
-      <div className={styles.searchWrap}>
-        <Icon icon="mdi:magnify" width={18} height={18} className={styles.searchIcon} />
-        <input
-          className={styles.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or @username"
-          type="search"
-        />
-        {search && (
-          <button className={styles.searchClear} onClick={() => setSearch("")} type="button" aria-label="Clear search">
-            <Icon icon="mdi:close" width={15} height={15} />
+      {/* Search, then the two things that act on the WHOLE list: the filter
+          modal (with how many are on) and, for owners/admins, the download. */}
+      <div className={styles.toolbar}>
+        <div className={styles.searchWrap}>
+          <Icon icon="mdi:magnify" width={18} height={18} className={styles.searchIcon} />
+          <input
+            className={styles.searchInput}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or @username"
+            type="search"
+          />
+          {search && (
+            <button className={styles.searchClear} onClick={() => setSearch("")} type="button" aria-label="Clear search">
+              <Icon icon="mdi:close" width={15} height={15} />
+            </button>
+          )}
+        </div>
+        <button
+          className={styles.filtersBtn}
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={`Filters${filterChips.length ? `, ${filterChips.length} active` : ""}`}
+        >
+          <Icon icon="mdi:tune-variant" width={17} height={17} />
+          <span className={styles.filtersLabel}>Filters</span>
+          {filterChips.length > 0 && (
+            <span className={styles.filtersBadge}>{filterChips.length}</span>
+          )}
+        </button>
+        {canDownload && (
+          <button
+            className={styles.iconBtn}
+            type="button"
+            onClick={() => setDownloadOpen(true)}
+            aria-haspopup="dialog"
+            aria-label="Download applicants"
+            title="Download applicants"
+          >
+            <Icon icon="mdi:download-outline" width={18} height={18} />
           </button>
         )}
       </div>
@@ -926,37 +1048,31 @@ export default function ApplicantsList({
         </div>
       )}
 
-      {/* CENTRE chips — THE GATE LIST. The staff standing at the Kozhikode
-          ground want the Kozhikode players; the other three cities are
-          somebody else's morning, and scrolling past them at a gate with a
-          queue in front of you is the whole problem.
-
-          Only where there is more than one date to choose between, and the
-          backend ignores a session id it doesn't own, so a stale chip can
-          never wrongly empty the list. */}
-      {centres.length > 1 && (
-        <div className={styles.chipRow}>
-          <button
-            className={`${styles.chip} ${centreFilter === "all" ? styles.chipActive : ""}`}
-            onClick={() => setCentreFilter("all")}
-            type="button"
-          >
-            All centres
-          </button>
-          {centres.map((session) => (
+      {/* What the modal has narrowed this list to — each one removable, so a
+          filter never hides people without saying so. */}
+      {filterChips.length > 0 && (
+        <div className={styles.activeChips}>
+          {filterChips.map((chip) => (
             <button
-              key={session.id}
-              className={`${styles.chip} ${centreFilter === session.id ? styles.chipActive : ""}`}
-              onClick={() => setCentreFilter(session.id)}
+              key={chip.clears.join("|")}
               type="button"
-              title={formatSessionDate(session.date, timezone)}
+              className={styles.activeChip}
+              onClick={() => removeChip(chip.clears)}
+              aria-label={`Remove filter: ${chip.label}`}
             >
-              {centreLabel(session)}
+              <span>{chip.label}</span>
+              <Icon icon="mdi:close" width={13} height={13} />
             </button>
           ))}
+          <button
+            type="button"
+            className={styles.clearAll}
+            onClick={() => setFilters(EMPTY_APPLICANT_FILTERS)}
+          >
+            Clear all
+          </button>
         </div>
       )}
-
 
       {/* The night-before list for the org's own staff group. NO PHONE
           NUMBERS in it: this text lands in a group chat, and a column of
@@ -1006,92 +1122,6 @@ export default function ApplicantsList({
         </div>
       )}
 
-      {/* THE OTHER AGE QUESTION. The chips above are the group somebody
-          applied UNDER; this is how old they actually ARE. Birth years, never
-          ages — the groups are modelled in birth years and mixing the two
-          produces an off-by-one every January. */}
-      <div className={styles.filterRow}>
-        <span className={styles.filterLabel}>Birth year</span>
-        <input
-          className={styles.yearInput}
-          type="number"
-          inputMode="numeric"
-          placeholder="min"
-          value={birthYearMin}
-          onChange={(e) => setBirthYearMin(e.target.value)}
-          aria-label="Minimum birth year"
-        />
-        <span className={styles.filterDash}>–</span>
-        <input
-          className={styles.yearInput}
-          type="number"
-          inputMode="numeric"
-          placeholder="max"
-          value={birthYearMax}
-          onChange={(e) => setBirthYearMax(e.target.value)}
-          aria-label="Maximum birth year"
-        />
-
-        <label className={styles.filterCheck}>
-          <input
-            type="checkbox"
-            checked={mismatchOnly}
-            onChange={(e) => setMismatchOnly(e.target.checked)}
-          />
-          Age mismatch only
-        </label>
-
-        <button
-          className={`${styles.chip} ${sort ? styles.chipActive : ""}`}
-          type="button"
-          onClick={() =>
-            setSort((prev) =>
-              prev === "" ? "birth_year" : prev === "birth_year" ? "-birth_year" : ""
-            )
-          }
-          aria-pressed={!!sort}
-          title="Sort by birth year — applicants with none sort last either way"
-        >
-          <Icon
-            icon={
-              sort === "birth_year"
-                ? "mdi:sort-calendar-ascending"
-                : sort === "-birth_year"
-                  ? "mdi:sort-calendar-descending"
-                  : "mdi:sort-variant"
-            }
-            width={13}
-            height={13}
-          />
-          {sort === "birth_year"
-            ? "Oldest first"
-            : sort === "-birth_year"
-              ? "Youngest first"
-              : "Newest first"}
-        </button>
-
-        {/* Only a trial that charges one has a fee to filter by. */}
-        {showFeeColumn && (
-          <div className={styles.feeFilter} role="group" aria-label="Fee">
-            {([
-              { value: "all" as const, label: "All" },
-              { value: "paid" as const, label: "Fee paid" },
-              { value: "unpaid" as const, label: "Fee due" },
-            ]).map((option) => (
-              <button
-                key={option.value}
-                className={`${styles.chip} ${feeFilter === option.value ? styles.chipActive : ""}`}
-                onClick={() => setFeeFilter(option.value)}
-                type="button"
-                aria-pressed={feeFilter === option.value}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Without this line a range filter silently loses people and the org
           never finds out. */}
       {rangeActive && noBirthYearCount > 0 && (
@@ -1100,32 +1130,6 @@ export default function ApplicantsList({
           {noBirthYearCount} applicant{noBirthYearCount === 1 ? " has" : "s have"} no
           birth year set and aren&apos;t shown.
         </p>
-      )}
-
-      {/* WHAT THE PLAYER SAID — the filter the whole self-report feature is
-          for. Placed DIRECTLY above the select-all row on purpose: "says
-          selected → select all → Mark Selected" is the path, and putting
-          anything between these two is what makes an org scroll and give up. */}
-      {showSelfOutcomeFilter && (
-        <div className={styles.chipRow} role="group" aria-label="What the player said">
-          {([
-            { value: "" as const, label: "All" },
-            { value: "selected" as const, label: "Says selected" },
-            { value: "not_selected" as const, label: "Says not selected" },
-            { value: "waiting" as const, label: "Waiting" },
-            { value: "not_attended" as const, label: "Didn't attend" },
-          ]).map((option) => (
-            <button
-              key={option.value || "all"}
-              className={`${styles.chip} ${selfOutcome === option.value ? styles.chipActive : ""}`}
-              onClick={() => setSelfOutcome(option.value)}
-              type="button"
-              aria-pressed={selfOutcome === option.value}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
       )}
 
       {/* Select-all header (only when there are selectable rows) */}
@@ -1178,7 +1182,9 @@ export default function ApplicantsList({
             {filtersActive ? "No matching applicants" : emptyCopy.title}
           </p>
           <p className={styles.emptyBody}>
-            {filtersActive ? "Try a different group or search term." : emptyCopy.body}
+            {filtersActive
+              ? "Try a different search, group or filter."
+              : emptyCopy.body}
           </p>
         </div>
       ) : (
@@ -1396,6 +1402,29 @@ export default function ApplicantsList({
             </div>
           )}
         </div>
+      )}
+
+      {filtersOpen && (
+        <ApplicantFiltersSheet
+          committed={filters}
+          context={filterContext}
+          onApply={setFilters}
+          onClose={() => setFiltersOpen(false)}
+        />
+      )}
+
+      {downloadOpen && canDownload && (
+        <DownloadApplicantsSheet
+          recruitmentId={recruitmentId}
+          queryParams={queryParams}
+          viewCount={viewCount}
+          allCount={allCount}
+          downloaded={downloaded}
+          onDownloaded={(key) =>
+            setDownloaded((current) => new Set(current).add(key))
+          }
+          onClose={() => setDownloadOpen(false)}
+        />
       )}
 
       {openApplicationId && (

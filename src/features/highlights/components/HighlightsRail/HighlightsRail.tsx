@@ -68,10 +68,29 @@ export default function HighlightsRail({
     // profile gets the read-only rail (the API would reject the write anyway).
     const canManage = isOwn && role === "player" && actorType === "user"
 
+    // The first load holds the rail's real height rather than rendering
+    // nothing. The profile skeleton already drew a rail here, so silence
+    // would collapse it and then grow it back — two jumps where this is at
+    // most one (a visitor whose player turns out to have no clips sees it
+    // close once). For the owner it also replaces the empty-rail hint, which
+    // used to flash on every load. Decoration only: nothing to announce.
+    if (isLoading) {
+        return (
+            <div className={styles.section} aria-hidden="true">
+                <div className={styles.header}>
+                    <span className={`${styles.shimmer} ${styles.skeletonTitle}`} />
+                </div>
+                <div className={styles.skeletonRail}>
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <span key={i} className={`${styles.shimmer} ${styles.skeletonTile}`} />
+                    ))}
+                </div>
+            </div>
+        )
+    }
+
     // Non-owners with nothing to see get no section at all — not an empty one.
-    // Also stay silent on the first load so the profile never flashes a rail
-    // that turns out to be empty.
-    if (!canManage && (clips.length === 0 || isLoading)) return null
+    if (!canManage && clips.length === 0) return null
 
     return (
         <section className={styles.section} aria-label="Highlights">

@@ -20,7 +20,7 @@
  * second band under it would be a visible extra bar.
  *
  * The two shapes live in one file because they share every primitive — the
- * lines, chips, rows and the pulse. They are two shapes rather than one
+ * lines, chips, rows and the shimmer. They are two shapes rather than one
  * because the difference is the first thing on the page: a full-width cover
  * that then vanishes is a worse wait for a CV than no cover at all.
  */
@@ -38,7 +38,10 @@ type SkeletonProps = {
 
 /**
  * The profile shape: cover → avatar overlapping it → name, chips, stats,
- * buttons — the top of the real card, in the same 760px centred column.
+ * buttons — the top of the real card, in the same 760px centred column —
+ * then the sections UserProfile renders under it, in its order and with its
+ * dividers: About, Sports, Highlights, the posts preview, Career. Without
+ * those the bottom half of the page popped in after the skeleton had gone.
  */
 export default function ProfileSkeleton({ withNavBand = false }: SkeletonProps) {
   return (
@@ -69,6 +72,76 @@ export default function ProfileSkeleton({ withNavBand = false }: SkeletonProps) 
             <div className={styles.row}>
               <span className={styles.btn} />
               <span className={styles.btn} />
+            </div>
+
+            <div className={styles.sections}>
+              {/* About — title, then three lines of bio. */}
+              <div className={styles.divider} />
+              <div className={styles.about}>
+                <span className={styles.titleBar} />
+                <div>
+                  <span className={styles.textLine} />
+                  <span className={styles.textLine} />
+                  <span className={`${styles.textLine} ${styles.textLineShort}`} />
+                </div>
+              </div>
+
+              {/* Sports — the two cards UserSportsSection draws while it loads. */}
+              <div className={styles.divider} />
+              <div className={styles.group}>
+                <span className={styles.titleBar} />
+                <div className={styles.stack}>
+                  <span className={styles.sportCard} />
+                  <span className={styles.sportCard} />
+                </div>
+              </div>
+
+              {/* Highlights — carries its own top rule, as HighlightsRail does.
+                  Four tiles at the rail's real size; the column clips them. */}
+              <div className={`${styles.ruled} ${styles.railSection}`}>
+                <span className={styles.titleBar} />
+                <div className={styles.rail}>
+                  <span className={styles.tile} />
+                  <span className={styles.tile} />
+                  <span className={styles.tile} />
+                  <span className={styles.tile} />
+                </div>
+              </div>
+
+              {/* Posts — the preview's small heading, then one post card. */}
+              <div className={styles.divider} />
+              <div className={styles.posts}>
+                <span className={styles.postsTitle} />
+                <div className={styles.post}>
+                  <div className={styles.postHeader}>
+                    <span className={styles.postAvatar} />
+                    <div className={styles.postLines}>
+                      <span className={styles.postLine} />
+                      <span className={styles.postLineSm} />
+                    </div>
+                  </div>
+                  <span className={styles.postText} />
+                  <span className={styles.postMedia} />
+                  <span className={styles.postActions} />
+                </div>
+              </div>
+
+              {/* Career — its own top rule too, and the two rows CareerSection
+                  holds while it loads. */}
+              <div className={`${styles.ruled} ${styles.group}`}>
+                <span className={styles.titleBar} />
+                <div className={styles.stack}>
+                  {[0, 1].map((row) => (
+                    <div key={row} className={styles.careerRow}>
+                      <span className={styles.careerLogo} />
+                      <div className={styles.careerLines}>
+                        <span className={styles.careerLine} />
+                        <span className={styles.careerLineSm} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

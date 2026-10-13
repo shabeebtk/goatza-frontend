@@ -8,7 +8,7 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
-import { useChangeRecruitmentStatus } from "../../hooks/useRecruitments"
+import { useChangeRecruitmentStatus, useIsOrgReviewer } from "../../hooks/useRecruitments"
 import { STATUS_TRANSITIONS, type RecruitmentStatusAction } from "../../statusTransitions"
 import type { RecruitmentStatus } from "../../services/recruitments.api"
 import styles from "./StatusChangeMenu.module.css"
@@ -18,6 +18,11 @@ import styles from "./StatusChangeMenu.module.css"
  * through its lifecycle. Desktop: anchored dropdown. Mobile: bottom sheet
  * (mirrors the AccountSwitcher sheet pattern). Only valid next-statuses are
  * offered; the server stays authoritative on legality.
+ *
+ * DELETE sits at the bottom, after a divider, in EVERY status — cancelled
+ * included. It is not a transition (it is not in STATUS_TRANSITIONS); it hands
+ * off to the parent's DeleteRecruitmentDialog, because this menu unmounts as
+ * it closes. Owners and admins only — the server refuses anyone else.
  */
 
 interface StatusChangeMenuProps {
@@ -25,6 +30,10 @@ interface StatusChangeMenuProps {
   onClose: () => void
   recruitmentId: string
   currentStatus: RecruitmentStatus
+  /** The owning org — whose `my_role` decides whether Delete is offered. */
+  orgId?: string
+  /** Opens the delete dialog. Without it there is no Delete row. */
+  onDelete?: () => void
 }
 
 export default function StatusChangeMenu({
@@ -32,8 +41,11 @@ export default function StatusChangeMenu({
   onClose,
   recruitmentId,
   currentStatus,
+  orgId,
+  onDelete,
 }: StatusChangeMenuProps) {
   const actions = STATUS_TRANSITIONS[currentStatus] ?? []
+  const canDelete = useIsOrgReviewer(orgId) && !!onDelete
   const [confirming, setConfirming] = useState<RecruitmentStatusAction | null>(null)
   const [error, setError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -155,6 +167,26 @@ export default function StatusChangeMenu({
           </span>
         </button>
       ))}
+      {canDelete && (
+        <>
+          {actions.length > 0 && <div className={styles.divider} role="separator" />}
+          <button
+            type="button"
+            role="menuitem"
+            className={`${styles.menuItem} ${styles.menuItemDanger}`}
+            onClick={() => onDelete?.()}
+            disabled={isPending}
+          >
+            <span className={styles.menuItemIcon} aria-hidden="true">
+              <Icon icon="mdi:delete-outline" width={18} height={18} />
+            </span>
+            <span className={styles.menuItemText}>
+              <span className={styles.menuItemLabel}>Delete</span>
+              <span className={styles.menuItemHelper}>Remove it from Goatza for good</span>
+            </span>
+          </button>
+        </>
+      )}
       {error && (
         <p className={styles.error} role="alert">
           <Icon icon="mdi:alert-circle-outline" width={13} height={13} />

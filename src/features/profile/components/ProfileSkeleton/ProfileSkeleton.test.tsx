@@ -51,6 +51,19 @@ describe("ProfileSkeleton", () => {
 
     expect(container.firstElementChild?.getAttribute("aria-hidden")).toBe("true")
   })
+
+  // The sections under the header are what used to pop in after the
+  // skeleton had gone; the CV sheet has none of them.
+  it("stands in for the sections below the card's header too", () => {
+    const { container } = render(<ProfileSkeleton />)
+
+    expect(count(container, styles.sections)).toBe(1)
+    expect(count(container, styles.tile)).toBe(4)
+    expect(count(container, styles.post)).toBe(1)
+    expect(count(container, styles.careerRow)).toBe(2)
+
+    expect(count(render(<CVSkeleton />).container, styles.sections)).toBe(0)
+  })
 })
 
 describe("CVSkeleton", () => {

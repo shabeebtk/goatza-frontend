@@ -54,6 +54,7 @@ vi.mock("@/shared/services/navigation.service", () => ({
 // react-hook-form, the media pipeline and the share/report stacks.
 vi.mock("../ApplyRecruitmentModal/ApplyRecruitmentModal", () => ({ default: () => null }))
 vi.mock("../StatusChangeMenu/StatusChangeMenu", () => ({ default: () => null }))
+vi.mock("../DeleteRecruitmentDialog/DeleteRecruitmentDialog", () => ({ default: () => null }))
 vi.mock("@/features/moderation/components/ReportSheet/ReportSheet", () => ({ default: () => null }))
 vi.mock("@/features/messages/components/ShareSheet/ShareSheet", () => ({ default: () => null }))
 vi.mock("../RecruitmentSharePreview/RecruitmentSharePreview", () => ({ default: () => null }))
@@ -77,6 +78,8 @@ vi.mock("../../hooks/useRecruitments", () => ({
     useRecruitmentDetail: () => detailQuery(),
     useToggleSaveRecruitment: () => ({ mutate: toggleSave }),
     useWithdrawApplication: () => ({ mutate: vi.fn(), isPending: false }),
+    // A coach's view: no Delete, so the status chip follows transitions only.
+    useIsOrgReviewer: () => false,
 }))
 
 /**
