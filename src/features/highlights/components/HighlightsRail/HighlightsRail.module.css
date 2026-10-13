@@ -232,6 +232,37 @@
   line-height: var(--leading-normal);
 }
 
+/* ── First-load placeholder ──────────────────────────────── */
+/* The profile skeleton's sweep (static under reduced motion), composed rather
+   than copied so the page has one shimmer. Sizes are the real header line and
+   tiles above, so the rail lands without moving. */
+
+.shimmer { composes: shimmer from "../../../profile/components/ProfileSkeleton/ProfileSkeleton.module.css"; }
+
+/* .title's line (--text-base at --leading-normal), drawn as a bar. */
+.skeletonTitle {
+  display: block;
+  width: 112px;
+  height: 16px;
+  margin-block: 4px;
+  border-radius: var(--radius-sm);
+}
+
+/* Clipped, not scrolled — there is nothing to reach yet. */
+.skeletonRail {
+  display: flex;
+  gap: var(--space-3);
+  overflow: hidden;
+  padding-bottom: 2px;
+}
+
+.skeletonTile {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 160px;
+  border-radius: var(--radius-md);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tile,
   .addTile { transition: none; }

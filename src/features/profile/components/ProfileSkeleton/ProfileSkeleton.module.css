@@ -25,6 +25,16 @@
     height: calc(var(--top-nav-h) + var(--safe-top));
 }
 
+/* ── The shimmer ───────────────────────────────────────────
+   A highlight sweeping across the base colour, from the surface and border
+   tokens so it is right in both themes. The same recipe the profile's own
+   section skeletons use (UserSportsSection, CareerSection), so the hand-off
+   from this page-level placeholder to theirs does not change texture.
+
+   `.shimmer` is exported for the section placeholders that compose it
+   (HighlightsRail), so there is one sweep on the page, not several. */
+
+.shimmer,
 .navBand,
 .cover,
 .avatar,
@@ -35,9 +45,29 @@
 .btn,
 .box,
 .section,
-.cvPhoto {
-    background: var(--color-surface-raised);
-    animation: skeletonPulse 1.4s ease-in-out infinite;
+.cvPhoto,
+.titleBar,
+.textLine,
+.sportCard,
+.tile,
+.postsTitle,
+.postAvatar,
+.postLine,
+.postLineSm,
+.postText,
+.postMedia,
+.postActions,
+.careerLogo,
+.careerLine,
+.careerLineSm {
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-raised) 25%,
+        var(--color-border) 50%,
+        var(--color-surface-raised) 75%
+    );
+    background-size: 800px 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
 
 /* ── Shared pieces ─────────────────────────────────────────── */
@@ -143,6 +173,234 @@
     }
 }
 
+/* ── Profile shape: the sections under the header ──────────
+   .profileBody spaces EVERY child --space-4 apart, dividers included; the
+   header above keeps its tighter --space-3, so the extra 4px here puts the
+   first divider where the real one lands. */
+
+.sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-top: calc(var(--space-4) - var(--space-3));
+}
+
+/* .sectionDivider. */
+.divider {
+    height: 1px;
+    background: var(--color-border);
+}
+
+/* HighlightsRail and CareerSection draw their own top rule instead of
+   taking a divider from the page. */
+.ruled {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-4);
+}
+
+/* A section heading (.sectionTitle: --text-base at --leading-normal, a
+   ~25px line), drawn as a bar inside the same line box. */
+.titleBar {
+    display: block;
+    height: 16px;
+    width: 112px;
+    margin-block: 4px;
+    border-radius: var(--radius-sm);
+}
+
+/* .aboutBlock. */
+.about {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* .aboutText is --text-base at --leading-loose: a 28px line. */
+.textLine {
+    display: block;
+    height: 12px;
+    width: 100%;
+    margin-block: 8px;
+    border-radius: var(--radius-sm);
+}
+
+.textLineShort {
+    width: 60%;
+}
+
+/* UserSportsSection's / CareerSection's .section. */
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* UserSportsSection's .skeletonCard. */
+.sportCard {
+    display: block;
+    height: 120px;
+    border-radius: var(--radius-lg);
+}
+
+/* HighlightsRail's .section and .rail: --space-5 under its rule, tiles
+   96×160 with --space-3 between. Clipped, not scrolled — four tiles are
+   wider than a phone's column and nothing here is reachable anyway. */
+.railSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-5);
+}
+
+.rail {
+    display: flex;
+    gap: var(--space-3);
+    overflow: hidden;
+    padding-bottom: 2px;
+}
+
+.tile {
+    flex: 0 0 auto;
+    width: 96px;
+    height: 160px;
+    border-radius: var(--radius-md);
+}
+
+/* PostsList's preview: a small heading (.previewTitle, --text-sm, plus the
+   header's --space-1 margin), then one card. The card is PostCardSkeleton's
+   measurements — what PostsList itself draws while it loads. A real post's
+   media ratio is per post (0.8–1.78), so there is no truer box to reserve. */
+.posts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.postsTitle {
+    display: block;
+    height: 12px;
+    width: 64px;
+    margin-block: 5px calc(5px + var(--space-1));
+    border-radius: var(--radius-sm);
+}
+
+.post {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.postHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) 0;
+}
+
+.postAvatar {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 50%;
+}
+
+.postLines {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.postLine,
+.postLineSm {
+    display: block;
+    border-radius: var(--radius-sm);
+}
+
+.postLine {
+    height: 13px;
+    width: 55%;
+}
+
+.postLineSm {
+    height: 10px;
+    width: 35%;
+}
+
+.postText {
+    display: block;
+    height: 48px;
+    margin: var(--space-1);
+    border-radius: var(--radius-sm);
+}
+
+.postMedia {
+    display: block;
+    height: 220px;
+    margin-top: var(--space-1);
+}
+
+.postActions {
+    display: block;
+    height: 44px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* CareerSection's 132px .skeletonCard, drawn as the row it stands in for:
+   CareerEntryCard's bordered body with the org's square 48px logo and the
+   title + club lines beside it. */
+.careerRow {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    height: 132px;
+    padding: var(--space-4);
+    background: var(--color-bg);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.careerLogo {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+}
+
+.careerLines {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: 3px;
+}
+
+.careerLine,
+.careerLineSm {
+    display: block;
+    border-radius: var(--radius-sm);
+}
+
+.careerLine {
+    height: 14px;
+    width: 60%;
+}
+
+.careerLineSm {
+    height: 11px;
+    width: 40%;
+}
+
 /* ── CV shape ──────────────────────────────────────────────── */
 
 /* Mirrors PublicCVView's .sheet. */
@@ -191,20 +449,21 @@
     border-radius: var(--radius-md);
 }
 
-@keyframes skeletonPulse {
-
-    0%,
-    100% {
-        opacity: 1;
+@keyframes skeletonShimmer {
+    0% {
+        background-position: -400px 0;
     }
 
-    50% {
-        opacity: 0.55;
+    100% {
+        background-position: 400px 0;
     }
 }
 
+/* Static blocks: no sweep, and no frozen highlight band either — a gradient
+   stopped mid-sweep reads as a stripe painted on the block. */
 @media (prefers-reduced-motion: reduce) {
 
+    .shimmer,
     .navBand,
     .cover,
     .avatar,
@@ -215,7 +474,22 @@
     .btn,
     .box,
     .section,
-    .cvPhoto {
+    .cvPhoto,
+    .titleBar,
+    .textLine,
+    .sportCard,
+    .tile,
+    .postsTitle,
+    .postAvatar,
+    .postLine,
+    .postLineSm,
+    .postText,
+    .postMedia,
+    .postActions,
+    .careerLogo,
+    .careerLine,
+    .careerLineSm {
         animation: none;
+        background: var(--color-surface-raised);
     }
 }

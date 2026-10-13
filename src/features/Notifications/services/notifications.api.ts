@@ -49,6 +49,12 @@ export type NotificationType =
   | "message"
   | "recruitment_application"
   | "recruitment_application_status"
+  /**
+   * Player-side: the club deleted a recruitment they were still waiting on.
+   * `data.note` is the club's reason; the URL is the Applied tab, never the
+   * deleted posting.
+   */
+  | "recruitment_removed"
   /** Org-side: a player listed this org on their career and wants it verified. */
   | "career_verification_request"
   /** Player-side: the org confirmed / declined a career entry. */
@@ -98,6 +104,8 @@ export type NotificationData = {
   organization_name?: string
   owner_username?: string
   reason?: string
+  /** recruitment_removed: the club's note to applicants. */
+  note?: string
   [key: string]: unknown
 }
 

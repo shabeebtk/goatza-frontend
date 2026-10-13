@@ -128,6 +128,9 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
             sessionMode={recruitment?.session_mode}
             recruitmentTitle={recruitment?.title}
             orgName={recruitment?.organization?.name}
+            // The Position filter's list, and whose role decides Download.
+            sportId={recruitment?.sport?.id}
+            orgId={recruitment?.organization?.id}
           />
         </div>
       )}

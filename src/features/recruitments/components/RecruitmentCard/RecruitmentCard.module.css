@@ -272,23 +272,46 @@
    The text is white over a photograph nobody vetted. The real uploads
    are text-heavy posters and several of them are BRIGHT — white and
    pale-yellow grounds. A subtle gradient looks correct on the dark
-   sample in the designs and is unreadable on those, so this is a
-   NEAR-SOLID PANEL THAT FADES OUT, not a wash:
+   sample in the designs and is unreadable on those.
 
-     · it holds at >= 0.94 of the page's dark ground through the whole
-       text block (the bottom 54% — measured with a two-line title, a
-       chip line and the action row at 360px wide), and
-     · eases to transparent by 70% of the card's height.
+   It used to be a near-solid panel (>= 0.94 up to 54%, clear at 70%),
+   which read as a black card with a strip of photo on top. Now it is a
+   RAMP, the shape of the detail hero's scrim: densest at the very
+   bottom, thinning steadily up through the text, and clear soon after
+   the last line.
 
-   Verified against a PURE WHITE image, not the dark sample:
-     white title / date / count / chips  17.1 : 1   (needs 3, then 4.5)
-     muted venue text                     8.9 : 1   (needs 4.5)
-     white text on a 0.14 white chip     11.1 : 1   (needs 4.5)
+   STOPS IN PX FROM THE BOTTOM, NOT PERCENT. The text block is a fixed
+   height whatever the card's width — about 210px to the top of the org
+   line with a two-line title — while the card's height follows its 4:5
+   width. A percentage curve is therefore too short in a 280px rail (the
+   org line used to sit on a fading 0.5) and needlessly tall on a 430px
+   phone. In px the dense part is exactly the text block: clear above
+   66% of a 360px phone's card, 60% at 390px, 54% at 430px. A rail stays
+   darker (clear above 77%) because there the text really is that tall.
+
+     0px → 0.95   the count and Apply row
+     117 → 0.82   top of the date + venue line
+     210 → 0.75   top of the org line — the HIGHEST text, the binding stop
+     → 0 by 270   a 60px eased fade into the photo
+
+   `--scrim-lift` raises the upper stops by the extra centres line
+   (.moreCentres) when a trial lists one, since it pushes the org line up
+   by the same 26px.
+
+   Verified against a PURE WHITE image, two-line title, every stop above:
+     muted org line   (highest)      4.6 : 1   (needs 4.5)
+     white title                     9.6 : 1   (needs 3)
+     white date / muted venue  11.6 / 6.0 : 1  (needs 4.5)
+     white text on a 0.14 chip       8.3 : 1   (needs 4.5)
+     muted count                     7.5 : 1   (needs 4.5)
+   The text-shadow on .content is a softener on top of that, not part of
+   the arithmetic.
 
    If a string ever fails here, STRENGTHEN THIS GRADIENT. Lightening the
    text to compensate is the same bug one level further down. */
 
 .posterScrim {
+  --scrim-lift: 0px;
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -304,18 +327,38 @@
       rgba(var(--color-poster-ground-rgb), 0.07) 18%,
       rgba(var(--color-poster-ground-rgb), 0) 25%),
     linear-gradient(to top,
-      rgba(var(--color-poster-ground-rgb), 0.97) 0%,
-      rgba(var(--color-poster-ground-rgb), 0.94) 54%,
-      rgba(var(--color-poster-ground-rgb), 0.82) 59%,
-      rgba(var(--color-poster-ground-rgb), 0.54) 63%,
-      rgba(var(--color-poster-ground-rgb), 0.24) 67%,
-      rgba(var(--color-poster-ground-rgb), 0) 70%);
+      rgba(var(--color-poster-ground-rgb), 0.95) 0px,
+      rgba(var(--color-poster-ground-rgb), 0.82) calc(117px + var(--scrim-lift)),
+      rgba(var(--color-poster-ground-rgb), 0.75) calc(210px + var(--scrim-lift)),
+      rgba(var(--color-poster-ground-rgb), 0.52) calc(226px + var(--scrim-lift)),
+      rgba(var(--color-poster-ground-rgb), 0.26) calc(242px + var(--scrim-lift)),
+      rgba(var(--color-poster-ground-rgb), 0.08) calc(258px + var(--scrim-lift)),
+      rgba(var(--color-poster-ground-rgb), 0) calc(270px + var(--scrim-lift)));
+}
+
+/* The extra centres line sits between the facts and the chips, so it
+   lifts everything above it — see the stops' comment. */
+.card:has(.moreCentres) .posterScrim {
+  --scrim-lift: 26px;
 }
 
 /* Nothing to scrim: the panel is already on the dark ground, and a
    gradient over a flat colour is just a band. */
 .cardNoMedia .posterScrim {
   display: none;
+}
+
+/* Over a photo, every string gets a soft shadow so a bright patch behind
+   a thin stroke cannot swallow it. A photo only — a no-cover card's text
+   sits on the flat ground — and the poster only (reset in the row
+   block). */
+.card:not(.cardNoMedia) .content {
+  text-shadow: 0 1px 2px rgba(var(--color-poster-ground-rgb), 0.55);
+}
+
+/* Apply is solid with dark ink; a shadow would only blur it. */
+.card:not(.cardNoMedia) .actionBtn {
+  text-shadow: none;
 }
 
 /* ── Content column ─────────────────────────────────────────────
@@ -934,6 +977,11 @@
   /* The poster's scrim has nothing to do over a 132px thumb. */
   .posterScrim {
     display: none;
+  }
+
+  /* ...and the text column is on a theme surface, not a photo. */
+  .card:not(.cardNoMedia) .content {
+    text-shadow: none;
   }
 
   .mediaSport {

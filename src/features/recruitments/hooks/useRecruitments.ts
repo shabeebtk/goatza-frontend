@@ -21,6 +21,8 @@ import {
   createRecruitmentApi,
   updateRecruitmentApi,
   changeRecruitmentStatusApi,
+  getDeleteCheckApi,
+  deleteRecruitmentApi,
   applyRecruitmentApi,
   fetchRecruitmentApplicantsApi,
   fetchApplicationDetailApi,
@@ -47,6 +49,7 @@ import {
   type SavedRecruitmentsResponse,
 } from "../services/saved.api"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { useOrgDetail } from "@/features/organization/hooks/useOrganizations"
 
 
 // ── Query keys ────────────────────────────────────────────────
@@ -361,29 +364,82 @@ export const useChangeRecruitmentStatus = () => {
   })
 }
 
+// ── Owner / admin gate ────────────────────────────────────────
+
+/**
+ * Org roles that speak FOR the club — delete a recruitment, download its
+ * applicants. The server's REVIEWER_ROLES; it refuses everyone else anyway,
+ * so this only decides what the UI offers.
+ */
+export const REVIEWER_ROLES: readonly string[] = ["owner", "admin"]
+
+/** Whether the signed-in member of `orgId` is an owner or admin. */
+export const useIsOrgReviewer = (orgId: string | undefined) => {
+  const { data: org } = useOrgDetail(orgId ?? "", "id", !!orgId)
+  return REVIEWER_ROLES.includes(org?.my_role ?? "")
+}
+
+// ── Delete (owner / admin) ────────────────────────────────────
+
+export const deleteCheckKey = (recruitmentId: string) =>
+  ["recruitments", "delete-check", recruitmentId] as const
+
+/**
+ * Fetched only while the dialog is open, and never cached past it: who is
+ * still waiting changes by the minute, and a stale "nobody to tell" would
+ * delete without the note the server is about to demand.
+ */
+export const useDeleteCheck = (recruitmentId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: deleteCheckKey(recruitmentId),
+    queryFn: () => getDeleteCheckApi(recruitmentId),
+    enabled: enabled && !!recruitmentId,
+    staleTime: 0,
+    gcTime: 0,
+  })
+
+export const useDeleteRecruitment = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ recruitmentId, note }: { recruitmentId: string; note?: string }) =>
+      deleteRecruitmentApi(recruitmentId, note),
+    onSuccess: (_data, { recruitmentId }) => {
+      // Every list that can hold it: the org's own, the ranked/discover
+      // rails, the shortlist, and its applicants.
+      for (const queryKey of [
+        ["recruitments", "list"],
+        ["recruitments", "discover"],
+        savedRecruitmentKeys.all,
+        ["recruitments", "applicants", recruitmentId],
+      ]) {
+        queryClient.invalidateQueries({ queryKey: [...queryKey] })
+      }
+      // Stale, but NOT refetched: the page that shows it is the one being
+      // left, and a refetch now would flash its 404 on the way out.
+      queryClient.invalidateQueries({
+        queryKey: recruitmentKeys.detail(recruitmentId),
+        refetchType: "none",
+      })
+    },
+  })
+}
+
 // ── Org-side applicants (read-only) ───────────────────────────
 
 const APPLICANTS_LIMIT = 20
 
+/**
+ * Every param the list can send, paging aside. The WHOLE object is in the
+ * query key, so each combination of tab, centre and filter is its own cached
+ * page — and the download sheet reads the same object to ask for the same
+ * rows.
+ */
+export type ApplicantsQueryParams = Omit<FetchRecruitmentApplicantsParams, "limit" | "offset">
+
 export const useRecruitmentApplicants = (
   recruitmentId: string,
-  params: {
-    status?: FetchRecruitmentApplicantsParams["status"]
-    search?: string
-    age_category?: string
-    // WHICH CENTRE they picked — a trial session id. In the query key, so
-    // each centre's gate list is its own cached page.
-    session?: string
-    fee_paid?: boolean
-    // How old they ARE, not the group they applied UNDER.
-    birth_year_min?: number
-    birth_year_max?: number
-    age_mismatch?: boolean
-    // What the PLAYER said about the trial, as opposed to `status` above,
-    // which is what the org decided.
-    self_outcome?: FetchRecruitmentApplicantsParams["self_outcome"]
-    sort?: FetchRecruitmentApplicantsParams["sort"]
-  } = {}
+  params: ApplicantsQueryParams = {}
 ) =>
   useInfiniteQuery<RecruitmentApplicantsResponse, Error>({
     queryKey: applicantKeys.list(recruitmentId, { ...params, limit: APPLICANTS_LIMIT }),

@@ -73,6 +73,14 @@ const TOAST_PRESENTATION: Record<NotificationType, ToastPresentation> = {
     duration: 6000,
     actionLabel: "View application",
   },
+  // The body carries the club's note, so it stays up long enough to read.
+  // The action goes to the Applied tab (data.url) — the posting is gone.
+  recruitment_removed: {
+    icon: "mdi:delete-outline",
+    variant: "default",
+    duration: 7000,
+    actionLabel: "My applications",
+  },
   career_verification_request: {
     icon: "mdi:shield-search",
     variant: "warning",
