@@ -54,11 +54,24 @@ const SECRET_PATH_PATTERN = /\/(guardian)((?:\/(?:consent))?)\/[^/?#\s"']+/gi
 // Another query parameter goes in as `(?:token|other)`.
 const SECRET_QUERY_PATTERN = /([?&](?:token)=)[^&#\s"']*/gi
 
+/*
+  A PRESIGNED STORAGE URL. Media goes straight from the browser to R2 with a
+  presigned PUT, and that URL's query string IS the credential: anyone holding
+  the whole URL can write that object until it expires (an hour). Sentry's XHR
+  breadcrumbs record every request URL by default — every PUT to the bucket
+  among them, multipart parts included — so the query of any SigV4-signed URL
+  is dropped entirely, leaving origin and path, which is all a debugger needs.
+  Matched on the X-Amz-* parameters rather than the host, so it holds for any
+  bucket or endpoint. Same rule as above: a regex LITERAL.
+*/
+const SIGNED_QUERY_PATTERN = /\?[^#\s"']*X-Amz-(?:Signature|Credential|Security-Token)=[^#\s"']*/gi
+
 /** Replace any secret path segment or query value in a string. Safe on non-URLs. */
 export function redactSecretPaths<T>(value: T): T {
   if (typeof value !== "string") return value
 
   return value
+    .replace(SIGNED_QUERY_PATTERN, "")
     .replace(
       SECRET_PATH_PATTERN,
       (_match, prefix: string, kept: string) => `/${prefix}${kept}/[redacted]`,

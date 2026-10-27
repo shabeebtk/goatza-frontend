@@ -19,7 +19,7 @@ import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { VIDEO_ACCEPT } from "@/shared/constants/media"
 import { OPTIMIZING_LABEL, isVideoAudioLostError } from "@/shared/services/videoEncode"
-import { UPLOAD_CANCELLED } from "@/shared/services/mediaUpload"
+import { OFFLINE_MESSAGE, UPLOAD_CANCELLED } from "@/shared/services/mediaUpload"
 import { getApiErrorMessage, isUploadCancellation } from "@/shared/services/apiError"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
@@ -28,9 +28,10 @@ import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageC
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import Select from "@/shared/components/ui/Select/Select"
-import UploadOverlay from "@/shared/components/ui/UploadOverlay/UploadOverlay"
+import UploadOverlay, { retryLabelFor } from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import styles from "./CreatePostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -352,9 +353,16 @@ export default function CreatePostModal({
   const [confirmSilent,  setConfirmSilent]  = useState(false)
   // "Cancel upload?" — asked before an in-flight upload is thrown away.
   const [confirmCancel,  setConfirmCancel]  = useState(false)
+  // "Retrying… (2/4)" / "Resuming…" under the ring while a PUT starts over.
+  const [retryLabel,     setRetryLabel]     = useState<string | null>(null)
   // The upload in flight, so Cancel (and unmount) can pull the plug on the
   // compressor, the encoder, the signature request and every PUT at once.
   const abortRef = useRef<AbortController | null>(null)
+
+  // An auto-locking phone suspends the page and kills the upload with it —
+  // the most common "random" iPhone failure. Keep the screen on until the
+  // post exists.
+  useScreenWakeLock(phase === "uploading" || phase === "posting")
 
   /**
    * PRESELECTED, not forced. Most people post about the one sport they are
@@ -427,6 +435,7 @@ export default function CreatePostModal({
     controller?.abort(new Error(UPLOAD_CANCELLED))
     setEntries(prev => prev.map(e => ({ ...e, status: "idle", progress: 0, optimizing: false, error: null, result: null })))
     setSubmitError(null)
+    setRetryLabel(null)
     setPhase("idle")
   }, [])
 
@@ -528,6 +537,13 @@ export default function CreatePostModal({
       return
     }
 
+    // No connection at all: say so now, before compressing or encoding
+    // anything that could only fail at the first byte.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setSubmitError(OFFLINE_MESSAGE)
+      return
+    }
+
     let uploadedMedia: PostMediaPayload[] = []
 
     if (entries.length > 0) {
@@ -538,15 +554,18 @@ export default function CreatePostModal({
       const { signal } = controller
 
       setPhase("uploading")
+      setRetryLabel(null)
       setEntries(prev => prev.map(e => ({ ...e, status: "uploading", progress: 0, error: null })))
       try {
         const results = await uploadMediaFile(
           entries.map(e => e.file),
-          (fileIndex, loaded, total, uploadPhase) => {
+          (fileIndex, loaded, total, uploadPhase, meta) => {
             // A late progress event from a cancelled upload must not touch the
             // composer the cancel just put back.
             if (signal.aborted) return
             const pct = Math.round((loaded / total) * 100)
+            // A retry restarts the bar; say why instead of jumping to 0%.
+            setRetryLabel(retryLabelFor(meta))
             setEntries(prev => prev.map((e, i) => i === fileIndex
               ? { ...e, progress: pct, optimizing: uploadPhase === "encoding" }
               : e))
@@ -554,6 +573,7 @@ export default function CreatePostModal({
           { allowSilentAudio: opts?.allowSilentAudio, signal }
         )
         if (signal.aborted) return
+        setRetryLabel(null)
         for (let i = 0; i < results.length; i++) {
           setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, optimizing: false, result: results[i] } : e))
           if (i < results.length - 1) await new Promise(r => setTimeout(r, 120))
@@ -576,11 +596,13 @@ export default function CreatePostModal({
         }
 
         // The overlay goes away and the composer shows what went wrong — the
-        // server's own words when it has some, the upload helpers' otherwise,
-        // and never axios's "Request failed with status code …".
+        // server's own words when it has some, the upload helpers' otherwise
+        // (an UploadError's ends in its code, e.g. "(UPLOAD_NETWORK)"), and
+        // never axios's "Request failed with status code …".
         const msg = getApiErrorMessage(err, "Couldn't upload your media. Please try again.")
         setEntries(prev => prev.map(e => e.status !== "done" ? { ...e, status: "error", optimizing: false, error: msg } : e))
         setSubmitError(msg)
+        setRetryLabel(null)
         setPhase("idle")
         return
       } finally {
@@ -791,6 +813,7 @@ export default function CreatePostModal({
             }))}
             phase={phase}
             optimizingLabel={OPTIMIZING_LABEL}
+            retryLabel={retryLabel}
             onCancel={() => setConfirmCancel(true)}
             onDone={handleDoneRedirect}
           />

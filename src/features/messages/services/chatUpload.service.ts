@@ -9,9 +9,10 @@ import {
 import {
     describeBlob,
     getUploadConfigApi,
-    putToR2,
+    putVideoFor,
+    uploadSignedBatch,
     UPLOAD_CANCELLED as SHARED_UPLOAD_CANCELLED,
-    type UploadProgress,
+    type SignBatch,
 } from "@/shared/services/mediaUpload"
 import { describeVideo } from "@/features/posts/services/postUpload.service"
 import {
@@ -270,6 +271,13 @@ export function captureVideoThumbnail(file: File): Promise<string> {
  */
 export const UPLOAD_CANCELLED = SHARED_UPLOAD_CANCELLED
 
+/**
+ * The chat config request. Chat has one folder per actor, so a re-sign needs
+ * no batch id — `uploadSignedBatch` passes none, the server would ignore one.
+ */
+const signChat = (signal?: AbortSignal): SignBatch => (files) =>
+    getUploadConfigApi("chat", files, undefined, signal)
+
 // ── Public: compress → sign → upload one chat image ───────────
 
 /**
@@ -309,18 +317,21 @@ export async function uploadChatImage(
 
     // One request for both objects: same order in, same order out, and the
     // server's pairing rules are checked once instead of twice.
-    const res = await getUploadConfigApi("chat", [
-        describeBlob(compressed, "image"),
-        describeBlob(thumb, "thumb"),
-    ])
-
-    const [fullEntry, thumbEntry] = res.uploads ?? []
-    if (!fullEntry || !thumbEntry) throw new Error("Upload config missing")
-
-    // The full image owns the progress bar — the thumb is tens of KB and would
-    // only make the bar jump backwards when it starts.
-    await putToR2(compressed, fullEntry, onProgress as UploadProgress, signal)
-    await putToR2(thumb, thumbEntry, undefined, signal)
+    const {
+        entries: [fullEntry, thumbEntry],
+    } = await uploadSignedBatch(
+        [
+            {
+                blob: compressed,
+                descriptor: describeBlob(compressed, "image"),
+                // The full image owns the progress bar — the thumb is tens of
+                // KB and would only make the bar jump backwards when it starts.
+                onProgress: (loaded, total) => onProgress?.(loaded, total),
+            },
+            { blob: thumb, descriptor: describeBlob(thumb, "thumb") },
+        ],
+        { sign: signChat(signal), signal, flow: "chat" }
+    )
 
     return {
         media_url: fullEntry.public_url,
@@ -375,17 +386,22 @@ export async function uploadChatVideo(
 
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    const res = await getUploadConfigApi("chat", [
-        describeVideo(encoded.blob),
-        describeBlob(poster, "thumb"),
-    ])
-
-    const [videoEntry, posterEntry] = res.uploads ?? []
-    if (!videoEntry || !posterEntry) throw new Error("Upload config missing")
-
-    // The clip owns the progress bar; the poster is a few tens of KB.
-    await putToR2(encoded.blob, videoEntry, onUpload as UploadProgress, signal)
-    await putToR2(poster, posterEntry, undefined, signal)
+    const {
+        entries: [videoEntry, posterEntry],
+    } = await uploadSignedBatch(
+        [
+            {
+                blob: encoded.blob,
+                descriptor: describeVideo(encoded.blob),
+                // The clip owns the progress bar; the poster is a few tens of KB.
+                onProgress: (loaded, total) => onUpload(loaded, total),
+                // Parts above the multipart threshold, under this batch's key.
+                put: putVideoFor("chat"),
+            },
+            { blob: poster, descriptor: describeBlob(poster, "thumb") },
+        ],
+        { sign: signChat(signal), signal, flow: "chat" }
+    )
 
     const durationSec = encoded.duration || localDurationSec
 

@@ -30,6 +30,7 @@ import {
 import type { Highlight, HighlightVisibility } from "../types"
 import { useCreateHighlight } from "./useHighlights"
 import { isVideoAudioLostError } from "@/shared/services/videoEncode"
+import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 
 // ── State ─────────────────────────────────────────────────────
 
@@ -95,6 +96,10 @@ export function useHighlightUpload(options?: {
     onCreated?: (highlight: Highlight) => void
 }) {
     const [state, setState] = useState<HighlightUploadState>(IDLE_STATE)
+
+    // A phone that auto-locks mid-upload suspends the page and kills the PUT;
+    // keep the screen on from the encode to the saved row.
+    useScreenWakeLock(state.status === "uploading" || state.status === "saving")
 
     const createHighlight = useCreateHighlight()
 

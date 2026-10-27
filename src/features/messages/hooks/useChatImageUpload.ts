@@ -37,8 +37,9 @@ import {
     isVideoAudioLostError,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
-import { isUploadCancelled } from "@/shared/services/mediaUpload"
+import { UploadError, isUploadCancelled } from "@/shared/services/mediaUpload"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { holdScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 
 type OptimisticMedia = Message & Partial<ChatMessage>
 
@@ -241,6 +242,11 @@ export function useChatMediaUpload(conversationId: string | null) {
             const controller = new AbortController()
             job.controller = controller
 
+            // The screen stays on until this send settles: an auto-lock
+            // suspends the page and kills the PUT. Counted, so several photos
+            // in flight hold one lock between them.
+            const releaseWakeLock = holdScreenWakeLock()
+
             patchMessage(tempId, {
                 failed: false,
                 pending: true,
@@ -355,12 +361,23 @@ export function useChatMediaUpload(conversationId: string | null) {
                 }
 
                 // A failed bubble alone cannot say WHY. It matters most for the
-                // one case the user can act on: a video this device could not
-                // encode, where "try a different file" is the whole fix.
+                // cases the user can act on: a video this device could not
+                // encode, where "try a different file" is the whole fix, and
+                // an upload that died — offline, or Goatza left the screen —
+                // whose message says what to do and ends in a code they can
+                // quote.
                 const message = err instanceof Error ? err.message : ""
                 if (message === VIDEO_UNSUPPORTED_MESSAGE) {
                     toast.show({ title: message, variant: "error" })
+                } else if (err instanceof UploadError) {
+                    toast.show({
+                        title: "Couldn't send that",
+                        message,
+                        variant: "error",
+                    })
                 }
+            } finally {
+                releaseWakeLock()
             }
         },
         [conversationId, cacheKey, patchMessage, reconcile, queryClient, toast]

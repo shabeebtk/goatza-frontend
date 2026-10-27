@@ -192,3 +192,46 @@ describe("scrubEvent", () => {
     expect(() => scrubEvent({})).not.toThrow()
   })
 })
+
+describe("presigned storage URLs", () => {
+  // The browser PUTs straight to R2, and Sentry's XHR breadcrumbs record the
+  // full URL of every PUT. Its query string IS the credential — whoever holds
+  // it can write that object for an hour — so nothing of it may survive.
+  const ORIGIN_AND_PATH =
+    "https://acct.r2.cloudflarestorage.com/goatza-media/users/1/posts/t/a.webp"
+  const PUT_URL =
+    `${ORIGIN_AND_PATH}?X-Amz-Algorithm=AWS4-HMAC-SHA256` +
+    "&X-Amz-Credential=KEYID%2F20261028%2Fauto%2Fs3%2Faws4_request" +
+    "&X-Amz-Date=20261028T000000Z&X-Amz-Expires=3600" +
+    "&X-Amz-SignedHeaders=content-type%3Bhost&X-Amz-Signature=deadbeef"
+
+  it("drops the whole signed query, keeping origin and path", () => {
+    expect(redactSecretPaths(PUT_URL)).toBe(ORIGIN_AND_PATH)
+  })
+
+  it("does the same for a multipart part URL, upload id and all", () => {
+    const part =
+      "https://acct.r2.cloudflarestorage.com/b/users/1/posts/t/v.mp4" +
+      "?partNumber=2&uploadId=abc123&X-Amz-Algorithm=AWS4-HMAC-SHA256" +
+      "&X-Amz-Signature=beef"
+
+    expect(redactSecretPaths(part)).toBe(
+      "https://acct.r2.cloudflarestorage.com/b/users/1/posts/t/v.mp4",
+    )
+  })
+
+  it("cleans the xhr breadcrumb Sentry records for a PUT", () => {
+    const crumb = scrubBreadcrumb({
+      data: { method: "PUT", url: PUT_URL, status_code: 0 },
+    })
+
+    expect(crumb.data?.url).toBe(ORIGIN_AND_PATH)
+    expect(JSON.stringify(crumb)).not.toContain("X-Amz")
+    expect(crumb.data?.method).toBe("PUT")
+  })
+
+  it("leaves an unsigned query alone — the cache-buster is not a secret", () => {
+    const url = "https://media.goatza.com/users/1/profile.webp?v=1730000000"
+    expect(redactSecretPaths(url)).toBe(url)
+  })
+})

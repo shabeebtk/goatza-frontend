@@ -27,8 +27,9 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     /**
      * Raises the 1s default Testing Library gives `findBy` and `waitFor`,
-     * which the suite cannot meet under its own parallel load. The reasoning
-     * is the same as the testTimeout below; see vitest.setup.ts.
+     * which the suite cannot meet under its own parallel load (the reasoning
+     * is the same as the testTimeout below), and stubs `@sentry/nextjs`, which
+     * cannot be imported under vitest at all. See vitest.setup.ts.
      */
     setupFiles: ["./vitest.setup.ts"],
     /**

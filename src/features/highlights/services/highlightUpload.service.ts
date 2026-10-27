@@ -20,7 +20,8 @@ import {
 import {
     describeBlob,
     getUploadConfigApi,
-    putToR2,
+    putVideoFor,
+    uploadSignedBatch,
 } from "@/shared/services/mediaUpload"
 import { describeVideo } from "@/features/posts/services/postUpload.service"
 import {
@@ -146,6 +147,10 @@ export async function checkHighlightDuration(
  * `localMeta` is what the add-modal already probed off the ORIGINAL file. It is
  * only a fallback: the encoder reports the post-encode dimensions, which are
  * what actually got stored.
+ *
+ * Signed as "posts", the batch gets a `temp_post_id` folder like any post, so
+ * a re-sign after an expiry or a 403 names that folder and the poster stays
+ * beside its clip. Above the multipart threshold the clip goes up in parts.
  */
 export async function uploadHighlightVideo(
     file: File,
@@ -192,17 +197,26 @@ export async function uploadHighlightVideo(
 
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    const res = await getUploadConfigApi("posts", [
-        describeVideo(encoded.blob),
-        describeBlob(poster, "thumb"),
-    ])
-
-    const [videoEntry, posterEntry] = res.uploads ?? []
-    if (!videoEntry || !posterEntry) throw new Error("Upload config missing")
-
-    // The clip owns the bar; the poster is a few tens of KB.
-    await putToR2(encoded.blob, videoEntry, onUpload, signal)
-    await putToR2(poster, posterEntry, undefined, signal)
+    const {
+        entries: [videoEntry, posterEntry],
+    } = await uploadSignedBatch(
+        [
+            {
+                blob: encoded.blob,
+                descriptor: describeVideo(encoded.blob),
+                // The clip owns the bar; the poster is a few tens of KB.
+                onProgress: (loaded, total) => onUpload(loaded, total),
+                put: putVideoFor("posts"),
+            },
+            { blob: poster, descriptor: describeBlob(poster, "thumb") },
+        ],
+        {
+            sign: (files, tempPostId) =>
+                getUploadConfigApi("posts", files, undefined, signal, tempPostId),
+            signal,
+            flow: "highlight",
+        }
+    )
 
     const localMeta = options?.localMeta
     const durationSec = encoded.duration || localMeta?.durationSec
