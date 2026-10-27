@@ -138,6 +138,27 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
+/* "Retrying… (2/4)" / "Resuming…" — says why the ring went back */
+.retry {
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.12);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: #ffffff;
+}
+
+/* "Keep Goatza open until the upload finishes" — sentence case, quiet */
+.hint {
+  max-width: 280px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.55);
+}
+
 /* Cancel — only while optimizing or uploading */
 .cancelBtn {
   position: relative;

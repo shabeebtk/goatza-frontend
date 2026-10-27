@@ -19,10 +19,12 @@ import {
     UPLOAD_CANCELLED,
     describeBlob,
     getUploadConfigApi,
-    putToR2,
+    uploadSignedBatch,
+    type SignedBatchItem,
 } from "@/shared/services/mediaUpload"
 import { isUploadCancellation } from "@/shared/services/apiError"
-import UploadOverlay from "@/shared/components/ui/UploadOverlay/UploadOverlay"
+import UploadOverlay, { retryLabelFor } from "@/shared/components/ui/UploadOverlay/UploadOverlay"
+import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { useAuthStore } from "@/store/auth.store"
@@ -1845,6 +1847,11 @@ export default function CreateRecruitmentModal({
     // The upload in flight, so Cancel (and unmount) can pull the plug on the
     // signature request and the PUTs rather than let them finish unseen.
     const abortRef = useRef<AbortController | null>(null)
+    // "Retrying… (2/4)" / "Resuming…" under the ring while a PUT starts over.
+    const [retryLabel, setRetryLabel] = useState<string | null>(null)
+    // An auto-locking phone suspends the page and kills the upload with it;
+    // the screen stays on until the recruitment is saved.
+    useScreenWakeLock(phase === "uploading" || phase === "posting")
     // What the overlay says while the request is in flight: set by
     // handleSubmit, read at render.
     const [postingLabel, setPostingLabel] = useState("Publishing…")
@@ -2264,6 +2271,7 @@ export default function CreateRecruitmentModal({
         abortRef.current = null
         controller?.abort(new Error(UPLOAD_CANCELLED))
         setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "idle", progress: 0, error: null })))
+        setRetryLabel(null)
         setPhase("idle")
     }
 
@@ -2986,58 +2994,77 @@ export default function CreateRecruitmentModal({
                 }
 
                 // files: [img0, thumb0, img1, thumb1, …] → image i at 2i.
-                const sigRes = await getUploadConfigApi(
-                    "recruitments",
-                    prepared.flatMap(p => [
-                        describeBlob(p.full, "image"),
-                        describeBlob(p.thumb, "thumb"),
-                    ]),
-                    orgId,
-                    signal
-                )
-                const uploads = sigRes.uploads
-
-                for (let i = 0; i < prepared.length; i++) {
-                    const { entryId, full, thumb } = prepared[i]
-                    const fullEntry = uploads[i * 2]
-                    const thumbEntry = uploads[i * 2 + 1]
-                    try {
-                        if (!fullEntry || !thumbEntry) throw new Error("Upload config mismatch")
-
-                        // The full image is nearly all of the bytes; the thumb
-                        // is the last stretch. Per-entry progress feeds the
-                        // aggregate bar, so it moves with the bytes rather
-                        // than jumping once per file.
-                        // A late progress event from a cancelled upload must
-                        // not touch the composer the cancel just put back.
-                        const setProgress = (pct: number) => {
-                            if (signal.aborted) return
-                            setMediaEntries(prev => prev.map(e =>
-                                e.id === entryId ? { ...e, progress: Math.min(99, Math.max(e.progress, pct)) } : e
-                            ))
-                        }
-                        await putToR2(full, fullEntry, (loaded, total) =>
-                            setProgress(Math.round((loaded / total) * 90)), signal)
-                        await putToR2(thumb, thumbEntry, (loaded, total) =>
-                            setProgress(90 + Math.round((loaded / total) * 10)), signal)
-
-                        const uploaded: UploadedMedia = {
-                            file_url: fullEntry.public_url,
-                            public_id: fullEntry.key,
-                            media_type: "image",
-                            thumbnail_url: thumbEntry.public_url,
-                            order: 0,
-                        }
-                        uploadedByEntryId.set(entryId, uploaded)
+                // uploadSignedBatch makes the one config request, PUTs in
+                // order, and — should the URLs run out or R2 refuse one —
+                // re-signs whatever is left into the SAME folder (the batch's
+                // temp_post_id) and carries on.
+                const doneIds = new Set<string>()
+                const items = prepared.flatMap(({ entryId, full, thumb }): SignedBatchItem[] => {
+                    // The full image is nearly all of the bytes; the thumb
+                    // is the last stretch. Per-entry progress feeds the
+                    // aggregate bar, so it moves with the bytes rather
+                    // than jumping once per file.
+                    // A late progress event from a cancelled upload must
+                    // not touch the composer the cancel just put back.
+                    const setProgress = (pct: number) => {
+                        if (signal.aborted) return
                         setMediaEntries(prev => prev.map(e =>
-                            e.id === entryId ? { ...e, status: "done", progress: 100, result: uploaded } : e
+                            e.id === entryId ? { ...e, progress: Math.min(99, Math.max(e.progress, pct)) } : e
                         ))
-                    } catch (uploadErr) {
-                        if (signal.aborted || isUploadCancellation(uploadErr)) throw uploadErr
-                        const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
-                        setMediaEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: "error", error: msg } : e))
-                        throw new Error(msg)
                     }
+                    let fullEntry: { public_url: string; key: string } | null = null
+                    return [
+                        {
+                            blob: full,
+                            descriptor: describeBlob(full, "image"),
+                            onProgress: (loaded, total, meta) => {
+                                if (!signal.aborted) setRetryLabel(retryLabelFor(meta))
+                                setProgress(Math.round((loaded / total) * 90))
+                            },
+                            onUploaded: (entry) => { fullEntry = entry },
+                        },
+                        {
+                            blob: thumb,
+                            descriptor: describeBlob(thumb, "thumb"),
+                            onProgress: (loaded, total) => setProgress(90 + Math.round((loaded / total) * 10)),
+                            // From the entries ACTUALLY uploaded to — a re-sign
+                            // can swap them part-way through the batch.
+                            onUploaded: (thumbEntry) => {
+                                if (!fullEntry) return
+                                const uploaded: UploadedMedia = {
+                                    file_url: fullEntry.public_url,
+                                    public_id: fullEntry.key,
+                                    media_type: "image",
+                                    thumbnail_url: thumbEntry.public_url,
+                                    order: 0,
+                                }
+                                doneIds.add(entryId)
+                                uploadedByEntryId.set(entryId, uploaded)
+                                setMediaEntries(prev => prev.map(e =>
+                                    e.id === entryId ? { ...e, status: "done", progress: 100, result: uploaded } : e
+                                ))
+                            },
+                        },
+                    ]
+                })
+
+                try {
+                    await uploadSignedBatch(items, {
+                        sign: (files, tempPostId) =>
+                            getUploadConfigApi("recruitments", files, orgId, signal, tempPostId),
+                        signal,
+                        flow: "recruitment",
+                    })
+                } catch (uploadErr) {
+                    if (signal.aborted || isUploadCancellation(uploadErr)) throw uploadErr
+                    // The entry that was uploading when it stopped carries the
+                    // message; the toast below says it once for the batch.
+                    const failedId = prepared.find(p => !doneIds.has(p.entryId))?.entryId
+                    const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
+                    setMediaEntries(prev => prev.map(e => e.id === failedId ? { ...e, status: "error", error: msg } : e))
+                    throw new Error(msg)
+                } finally {
+                    setRetryLabel(null)
                 }
             } catch (uploadErr) {
                 // The author cancelled: cancelUpload has already put the
@@ -4351,6 +4378,7 @@ export default function CreateRecruitmentModal({
                         }))}
                         phase={phase}
                         postingLabel={postingLabel}
+                        retryLabel={retryLabel}
                         doneLabel={draftSaved ? "Draft Saved!" : isEdit && !isDraftRecord ? "Changes Saved!" : "Recruitment Published!"}
                         doneHint={isEdit ? "Updating…" : "Redirecting…"}
                         onCancel={() => setConfirmCancel(true)}

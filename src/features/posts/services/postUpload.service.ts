@@ -11,10 +11,12 @@ import {
     UPLOAD_CANCELLED,
     describeBlob,
     getUploadConfigApi,
-    putToR2,
+    putVideoFor,
+    uploadSignedBatch,
     type MediaUploadType,
     type UploadConfigResponse,
     type UploadFileDescriptor,
+    type UploadProgressMeta,
 } from "@/shared/services/mediaUpload"
 import {
     VIDEO_PREPARE_FAILED_MESSAGE,
@@ -32,6 +34,19 @@ export type UploadProgressCallback = (loaded: number, total: number) => void
 
 /** Re-exported so the modal can label the encode half of the bar. */
 export type { VideoUploadPhase }
+
+/**
+ * Progress for file `index` of a post. `meta` rides along while bytes move:
+ * it says when a PUT is being retried, or resumed after the app was hidden,
+ * so the composer can say so instead of the bar silently dropping to 0.
+ */
+export type MediaProgressCallback = (
+    index: number,
+    loaded: number,
+    total: number,
+    phase?: VideoUploadPhase,
+    meta?: UploadProgressMeta
+) => void
 
 export type UploadMediaOptions = {
     /**
@@ -185,15 +200,19 @@ function throwIfAborted(signal?: AbortSignal) {
  * post. "Thumbnail is larger than 1MB" is true and useless to them; what they
  * can do is try again. The server's own message is kept in development so the
  * actual rule that fired is not lost.
+ *
+ * `tempPostId` is set when `uploadSignedBatch` re-signs the rest of a batch,
+ * so the new keys land in the folder the first request named.
  */
 async function signPostBatch(
     type: MediaUploadType,
     files: UploadFileDescriptor[],
     signal: AbortSignal | undefined,
-    prepareFailedMessage: string
+    prepareFailedMessage: string,
+    tempPostId?: string
 ): Promise<UploadConfigResponse> {
     try {
-        return await getUploadConfigApi(type, files, undefined, signal)
+        return await getUploadConfigApi(type, files, undefined, signal, tempPostId)
     } catch (err) {
         if (isUploadCancellation(err)) throw err
         if (isAxiosError(err) && err.response?.status === 400) {
@@ -226,16 +245,16 @@ async function signPostBatch(
  * `order` still carries the position the user arranged, independent of upload
  * order.
  *
+ * `uploadSignedBatch` owns steps 2–3: if the URLs run out, or R2 refuses one,
+ * part-way through a 20-PUT batch, it re-signs the files that are left into
+ * the SAME folder (via `temp_post_id`) and carries on, so the results below
+ * are built from the entries that were ACTUALLY uploaded to.
+ *
  * `options.signal` cancels at any point; see {@link UploadMediaOptions}.
  */
 export async function uploadMediaFile(
     files: File[],
-    onProgress?: (
-        index: number,
-        loaded: number,
-        total: number,
-        phase?: VideoUploadPhase
-    ) => void,
+    onProgress?: MediaProgressCallback,
     options?: UploadMediaOptions
 ): Promise<MediaUploadResult[]> {
     if (!files.length) return []
@@ -285,33 +304,38 @@ export async function uploadMediaFile(
         })
     }
 
-    // ── 2. One config request for the whole post ──
-    const descriptors: UploadFileDescriptor[] = prepared.flatMap((p) => [
-        describeBlob(p.full, "image"),
-        describeBlob(p.thumb, "thumb"),
-    ])
+    // ── 2. One config request for the whole post, then PUT every object ──
+    const { entries } = await uploadSignedBatch(
+        prepared.flatMap((p, i) => [
+            {
+                blob: p.full,
+                descriptor: describeBlob(p.full, "image"),
+                // The full image owns the progress bar; the thumb is tens of
+                // KB and would only make the bar jump backwards when it starts.
+                onProgress: (loaded: number, total: number, meta?: UploadProgressMeta) =>
+                    onProgress?.(i, loaded, total, undefined, meta),
+            },
+            { blob: p.thumb, descriptor: describeBlob(p.thumb, "thumb") },
+        ]),
+        {
+            sign: (descriptors, tempPostId) =>
+                signPostBatch(
+                    "posts",
+                    descriptors,
+                    signal,
+                    PHOTOS_PREPARE_FAILED_MESSAGE,
+                    tempPostId
+                ),
+            signal,
+            flow: "post",
+        }
+    )
 
-    const res = await signPostBatch("posts", descriptors, signal, PHOTOS_PREPARE_FAILED_MESSAGE)
-    const uploads = res.uploads
-
-    if (!uploads || uploads.length !== descriptors.length) {
-        throw new Error("Upload config mismatch")
-    }
-
-    // ── 3. PUT every object ──
-    const results: MediaUploadResult[] = []
-
-    for (let i = 0; i < prepared.length; i++) {
-        const { full, thumb, width, height } = prepared[i]
-        const fullEntry = uploads[i * 2]
-        const thumbEntry = uploads[i * 2 + 1]
-
-        // The full image owns the progress bar; the thumb is tens of KB and
-        // would only make the bar jump backwards when it starts.
-        await putToR2(full, fullEntry, (l, t) => onProgress?.(i, l, t), signal)
-        await putToR2(thumb, thumbEntry, undefined, signal)
-
-        results.push({
+    // ── 3. The media payload, from the entries actually uploaded to ──
+    return prepared.map(({ full, width, height }, i): MediaUploadResult => {
+        const fullEntry = entries[i * 2]
+        const thumbEntry = entries[i * 2 + 1]
+        return {
             file_url: fullEntry.public_url,
             public_id: fullEntry.key,
             media_type: "image",
@@ -320,10 +344,8 @@ export async function uploadMediaFile(
             height: height || undefined,
             size_bytes: full.size,
             order: i,
-        })
-    }
-
-    return results
+        }
+    })
 }
 
 // ── The single video of a post ────────────────────────────────
@@ -335,15 +357,14 @@ export async function uploadMediaFile(
  * images and their thumbs are: the server pairs a "video" kind with exactly one
  * "thumb" kind and requires them to land in the same folder, and `temp_post_id`
  * names one folder per request.
+ *
+ * Above the multipart threshold the video goes up in parts, under the key this
+ * batch issued for it — so it still lands in its poster's folder — and a
+ * dropped connection or a locked screen costs one part, not the whole encode.
  */
 async function uploadPostVideo(
     file: File,
-    onProgress?: (
-        index: number,
-        loaded: number,
-        total: number,
-        phase?: VideoUploadPhase
-    ) => void,
+    onProgress?: MediaProgressCallback,
     options?: UploadMediaOptions
 ): Promise<MediaUploadResult> {
     const signal = options?.signal
@@ -357,9 +378,11 @@ async function uploadPostVideo(
 
     throwIfAborted(signal)
 
-    // One bar for the whole operation: encode 0→70%, upload 70→100%.
+    // One bar for the whole operation: encode 0→70%, upload 70→100%. The
+    // upload half carries the PUT's retry state through to the composer.
+    let uploadMeta: UploadProgressMeta | undefined
     const { onEncode, onUpload } = videoProgressSplit((fraction, phase) =>
-        onProgress?.(0, fraction * 100, 100, phase)
+        onProgress?.(0, fraction * 100, 100, phase, phase === "uploading" ? uploadMeta : undefined)
     )
 
     // Rejects with `VideoAudioLostError` when the sound cannot be kept and
@@ -381,19 +404,35 @@ async function uploadPostVideo(
 
     throwIfAborted(signal)
 
-    const res = await signPostBatch(
-        "posts",
-        [describeVideo(encoded.blob), describeBlob(poster, "thumb")],
-        signal,
-        VIDEO_PREPARE_FAILED_MESSAGE
+    const {
+        entries: [videoEntry, posterEntry],
+    } = await uploadSignedBatch(
+        [
+            {
+                blob: encoded.blob,
+                descriptor: describeVideo(encoded.blob),
+                // The video owns the progress bar; the poster is tens of KB.
+                onProgress: (loaded, total, meta) => {
+                    uploadMeta = meta
+                    onUpload(loaded, total)
+                },
+                put: putVideoFor("posts"),
+            },
+            { blob: poster, descriptor: describeBlob(poster, "thumb") },
+        ],
+        {
+            sign: (descriptors, tempPostId) =>
+                signPostBatch(
+                    "posts",
+                    descriptors,
+                    signal,
+                    VIDEO_PREPARE_FAILED_MESSAGE,
+                    tempPostId
+                ),
+            signal,
+            flow: "post",
+        }
     )
-
-    const [videoEntry, posterEntry] = res.uploads ?? []
-    if (!videoEntry || !posterEntry) throw new Error("Upload config mismatch")
-
-    // The video owns the progress bar; the poster is tens of KB.
-    await putToR2(encoded.blob, videoEntry, onUpload, signal)
-    await putToR2(poster, posterEntry, undefined, signal)
 
     // Prefer what the encoder measured; fall back to the probe for a
     // passthrough, where nothing was decoded. A <video> reports Infinity for

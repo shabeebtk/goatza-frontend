@@ -10,6 +10,10 @@
  * moving. Once the create request itself is in flight ("Publishing…") the
  * record cannot be un-sent, so Cancel goes with it.
  *
+ * While bytes move it also says the two things a phone user needs: why the
+ * ring went back ("Retrying… (2/4)", "Resuming…" — `retryLabel`), and to keep
+ * the app on screen, because iOS suspends a hidden page and kills its upload.
+ *
  * Shared by the post composer and the recruitment wizard. The host owns the
  * upload (AbortController, entry state) and the wording — this only draws.
  *
@@ -19,9 +23,26 @@
 
 import { useEffect } from "react"
 import { Icon } from "@iconify/react"
+import type { UploadProgressMeta } from "@/shared/services/mediaUpload"
 import styles from "./UploadOverlay.module.css"
 
 export type UploadOverlayPhase = "uploading" | "posting" | "done"
+
+/** Shown while bytes move: a hidden page kills the request on iOS. */
+export const KEEP_OPEN_HINT = "Keep Goatza open until the upload finishes"
+
+/**
+ * What to say when a PUT starts over, from the progress meta mediaUpload
+ * sends: "Resuming…" after the app was hidden, "Retrying… (2/4)" after a
+ * failure, nothing on a first attempt. Without it the ring silently jumps
+ * back to 0%, which reads as a bug.
+ */
+export function retryLabelFor(meta?: UploadProgressMeta): string | null {
+  if (!meta) return null
+  if (meta.resuming) return "Resuming…"
+  if (meta.attempt > 1) return `Retrying… (${meta.attempt}/${meta.maxAttempts})`
+  return null
+}
 
 /** The slice of a composer's file entry the overlay needs. */
 export type UploadOverlayItem = {
@@ -50,6 +71,10 @@ export interface UploadOverlayProps {
   doneLabel?: string
   /** Small line under the done label ("Redirecting…"). */
   doneHint?: string
+  /** "Retrying… (2/4)" / "Resuming…" — see {@link retryLabelFor}. */
+  retryLabel?: string | null
+  /** The one-line hint while uploading; {@link KEEP_OPEN_HINT} by default. */
+  keepOpenHint?: string
   onCancel: () => void
   /** Called `doneDelayMs` after the phase turns "done". Omit to leave the
    *  timing to the host. */
@@ -73,6 +98,8 @@ export default function UploadOverlay({
   postingLabel = "Publishing…",
   doneLabel = "Posted!",
   doneHint,
+  retryLabel,
+  keepOpenHint = KEEP_OPEN_HINT,
   onCancel,
   onDone,
   doneDelayMs = 1800,
@@ -146,6 +173,10 @@ export default function UploadOverlay({
 
         <span className={styles.label}>{label}</span>
 
+        {canCancel && retryLabel && (
+          <span className={styles.retry}>{retryLabel}</span>
+        )}
+
         {isDone && doneHint && (
           <span className={styles.meta}>{doneHint}</span>
         )}
@@ -155,6 +186,10 @@ export default function UploadOverlay({
             {total > 1 ? `${total} files · ` : ""}{fmtBytes(totalBytes)}
             {!isPosting ? ` · ${overallPct}%` : ""}
           </span>
+        )}
+
+        {canCancel && keepOpenHint && (
+          <span className={styles.hint}>{keepOpenHint}</span>
         )}
       </div>
 

@@ -15,7 +15,7 @@
 
 import { isAxiosError, isCancel } from "axios"
 
-import { UPLOAD_CANCELLED } from "@/shared/services/mediaUpload"
+import { UPLOAD_CANCELLED, UploadError } from "@/shared/services/mediaUpload"
 import { ENCODE_CANCELLED } from "@/shared/services/videoEncode"
 
 type ApiErrorBody = {
@@ -32,13 +32,15 @@ const nonEmpty = (value: unknown): value is string =>
 
 /**
  * True when `err` is the user cancelling, in any of the shapes the pipeline
- * produces: the shared `upload_cancelled` sentinel (`putToR2`, `encodeVideo`,
+ * produces: an `UploadError` with code CANCELLED (`putToR2` and the batch and
+ * multipart uploaders), the shared `upload_cancelled` sentinel (`encodeVideo`,
  * and an `AbortController.abort(new Error(UPLOAD_CANCELLED))`), axios's
  * `CanceledError`, or a bare `AbortError` (an `abort()` with no reason
  * reaching `browser-image-compression`, which rethrows `signal.reason`).
  */
 export function isUploadCancellation(err: unknown): boolean {
     if (isCancel(err)) return true
+    if (err instanceof UploadError && err.code === "CANCELLED") return true
     if (err instanceof Error) {
         if (err.message === UPLOAD_CANCELLED || err.message === ENCODE_CANCELLED)
             return true
@@ -78,6 +80,10 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
         if (nonEmpty(error)) return error
         return fallback
     }
+
+    // Already written for the author, code suffix and all ("Network error
+    // while uploading (UPLOAD_NETWORK)") — the code is what they can quote.
+    if (err instanceof UploadError) return err.message
 
     if (err instanceof Error && nonEmpty(err.message)) {
         return AXIOS_STATUS_MESSAGE.test(err.message) ? fallback : err.message
