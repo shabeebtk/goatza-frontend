@@ -19,12 +19,26 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Progress ring ─────────────────────────────────────────────
 
-function ProgressRing({ progress }: { progress: number }) {
+function ProgressRing({
+    progress,
+    spinning = false,
+}: {
+    progress: number
+    /** The server is converting: a turning arc, not a count. */
+    spinning?: boolean
+}) {
     const r = 24
     const c = 2 * Math.PI * r
-    const dash = c * (1 - Math.min(100, Math.max(0, progress)) / 100)
+    const dash = spinning
+        ? c * 0.75
+        : c * (1 - Math.min(100, Math.max(0, progress)) / 100)
     return (
-        <svg className={styles.ring} viewBox="0 0 56 56" width={56} height={56}>
+        <svg
+            className={`${styles.ring} ${spinning ? styles.ringSpinning : ""}`}
+            viewBox="0 0 56 56"
+            width={56}
+            height={56}
+        >
             <circle className={styles.ringTrack} cx="28" cy="28" r={r} />
             <circle
                 className={styles.ringFill}
@@ -187,13 +201,21 @@ export default function ImageMessage({
                                 }}
                                 aria-label="Cancel upload"
                             >
-                                <ProgressRing progress={msg.uploadProgress ?? 0} />
+                                <ProgressRing
+                                    progress={msg.uploadProgress ?? 0}
+                                    spinning={Boolean(msg.processing)}
+                                />
                                 <span className={styles.cancelIcon}>
                                     <Icon icon="mdi:close" width={20} height={20} />
                                 </span>
                             </button>
                             <span className={styles.uploadingLabel}>
-                                Uploading {Math.round(msg.uploadProgress ?? 0)}%
+                                {/* The original is up; the server is
+                                    converting a photo this browser could
+                                    not open. */}
+                                {msg.processing
+                                    ? "Processing…"
+                                    : <>Uploading {Math.round(msg.uploadProgress ?? 0)}%</>}
                             </span>
                         </div>
                     )}

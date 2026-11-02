@@ -1,6 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import imageCompression from "browser-image-compression"
-
 import api from "@/core/api/axios"
 import type { UploadType } from "@/features/profile/services/upload.api"
 import {
@@ -9,6 +7,8 @@ import {
   putToR2,
   withCacheBust,
 } from "@/shared/services/mediaUpload"
+import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
+import { checkRawImageSize } from "@/shared/constants/media"
 import { orgKeys } from "./useOrganizations"
 
 // ── Types ────────────────────────────────────────────────────
@@ -26,12 +26,13 @@ const UPLOAD_TYPE_MAP: Record<OrgPhotoType, UploadType> = {
   cover: "organization_cover",
 }
 
+// Format chosen per browser at upload time (`preferredImageType`) — an
+// iPhone asked for WebP returns a PNG that `maxSizeMB` cannot shrink.
 const COMPRESSION_OPTIONS = {
   maxSizeMB:        2,        // higher ceiling → keeps logo/cover crisp
   maxWidthOrHeight: 2000,     // higher resolution cap
   initialQuality:   0.9,      // near-lossless starting quality
   useWebWorker:     true,
-  fileType:         "image/webp" as const,
 }
 
 // ── Org media update API ──────────────────────────────────────
@@ -69,9 +70,17 @@ export const useOrgPhotoUpload = (orgId: string) => {
         type: croppedBlob.type || "image/jpeg",
       })
 
-      if (file.size > 5 * 1024 * 1024) throw new Error("File must be under 5 MB")
+      // The shared 25 MB pick-time ceiling; the server's 5 MB cap is on the
+      // compressed file, which compressImage holds it to.
+      const tooLarge = checkRawImageSize(file)
+      if (tooLarge) throw new Error(tooLarge)
 
-      const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
+      const fileType = await preferredImageType()
+      const compressed = await compressImage(
+        file,
+        { ...COMPRESSION_OPTIONS, fileType },
+        { flow: "single", surface: UPLOAD_TYPE_MAP[type] }
+      )
 
       // org_id is passed explicitly: a user acting personally can still upload
       // for an org they belong to, and it is what scopes the key to that org.

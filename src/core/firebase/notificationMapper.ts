@@ -123,6 +123,17 @@ const TOAST_PRESENTATION: Record<NotificationType, ToastPresentation> = {
     duration: 5000,
     actionLabel: "View profile",
   },
+  // A post or highlight the server was holding could not be published. The
+  // payload's title is already by target ("Your post couldn't be published" /
+  // "Your highlight couldn't be added") and its body is the server's reason,
+  // so it stays up long enough to read; data.url is the author's own posts
+  // list or highlights screen. No actor: the icon stands in for one.
+  publication_failed: {
+    icon: "mdi:alert-circle-outline",
+    variant: "error",
+    duration: 8000,
+    actionLabel: "View",
+  },
 }
 
 // A type this build doesn't know about still gets an action — the URL is

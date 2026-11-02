@@ -28,6 +28,8 @@ import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCrop
 import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./PhotoEditModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { ensureDecodableImage } from "@/shared/services/imageVariants"
+import { checkRawImageSize } from "@/shared/constants/media"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -81,14 +83,28 @@ export default function PhotoEditModal({
 
   // ── File selection ────────────────────────────────────────
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0]
+    // Clear input so same file can be re-selected
+    e.target.value = ""
+    if (!picked) return
     setError(null)
 
-    // 5 MB gate
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File must be under 5 MB.")
+    // The shared 25 MB pick-time ceiling — the server's 5 MB cap is on the
+    // compressed file, which usePhotoUpload holds it to.
+    const tooLarge = checkRawImageSize(picked)
+    if (tooLarge) {
+      setError(tooLarge)
+      return
+    }
+
+    // The cropper renders the photo itself, so a HEIC this browser cannot
+    // decode (Chrome, Firefox) is converted to JPEG before it gets there.
+    let file: File
+    try {
+      file = await ensureDecodableImage(picked, { flow: "single", surface: type })
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Couldn't open that photo.")
       return
     }
 
@@ -102,8 +118,6 @@ export default function PhotoEditModal({
       setState("crop")
     }
     reader.readAsDataURL(file)
-    // Clear input so same file can be re-selected
-    e.target.value = ""
   }
 
   const onCropComplete = useCallback(

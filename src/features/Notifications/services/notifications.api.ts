@@ -67,6 +67,14 @@ export type NotificationType =
   /** Owner-side: the org confirmed / declined an achievement. */
   | "achievement_verified"
   | "achievement_rejected"
+  /**
+   * Author-side: a post or highlight the server was holding while its media
+   * converted could not be published. Platform-voiced — NO actor. The text
+   * is already "Your post couldn't be published" / "Your highlight couldn't
+   * be added" (by `data.target`); `data.error_message` says why. A success
+   * sends nothing: it only updates the upload bar (publication_updated).
+   */
+  | "publication_failed"
 
 export type NotificationRecruitment = {
   id: string
@@ -106,6 +114,11 @@ export type NotificationData = {
   reason?: string
   /** recruitment_removed: the club's note to applicants. */
   note?: string
+  /** publication_failed: what was held, and the server's sentence for why. */
+  publication_id?: string
+  target?: "post" | "highlight"
+  error_code?: string
+  error_message?: string
   [key: string]: unknown
 }
 

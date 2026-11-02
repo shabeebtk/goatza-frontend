@@ -15,14 +15,14 @@
  * three uploads after they press the button.
  */
 
-import imageCompression from "browser-image-compression"
-
 import {
     describeBlob,
     getUploadConfigApi,
     putToR2,
     type UploadProgress,
 } from "@/shared/services/mediaUpload"
+import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
+import { MAX_RAW_IMAGE_MB, isImageFile } from "@/shared/constants/media"
 
 import type { ProblemScreenshot } from "./support.api"
 
@@ -30,13 +30,14 @@ import type { ProblemScreenshot } from "./support.api"
 export const MAX_SCREENSHOTS = 3
 
 /**
- * The gate before compression, not a storage limit.
+ * The gate before compression, not a storage limit — the shared 25 MB
+ * pick-time ceiling every photo flow uses.
  *
- * A screenshot is a screenshot — a phone writes them at well under this — so
- * anything larger is a photo of a screen, or the wrong file. Compression takes
- * whatever passes down to about 1MB regardless.
+ * A screenshot is usually far under it, but what gets attached is sometimes a
+ * photo of a screen taken with the camera, which is a full-size still.
+ * Compression takes whatever passes down to about 1MB regardless.
  */
-export const MAX_SCREENSHOT_MB = 10
+export const MAX_SCREENSHOT_MB = MAX_RAW_IMAGE_MB
 
 const COMPRESSION_OPTIONS = {
     // A screenshot is READ, unlike a match photo or an avatar: the point is
@@ -47,12 +48,14 @@ const COMPRESSION_OPTIONS = {
     maxWidthOrHeight: 1920,
     initialQuality: 0.9,
     useWebWorker: true,
-    fileType: "image/webp",
+    // The format is chosen per browser at upload time (`preferredImageType`)
+    // — an iPhone asked for WebP returns a PNG that `maxSizeMB` cannot shrink.
 }
 
 /** Returns a message when the file cannot be used, or null when it can. */
 export const validateScreenshot = (file: File): string | null => {
-    if (!file.type.startsWith("image/")) {
+    // By type, or by extension when the browser gave none (a .heic on Windows).
+    if (!isImageFile(file)) {
         return "Pick an image — a screenshot of what went wrong."
     }
 
@@ -77,7 +80,12 @@ export const uploadScreenshot = async (
     onProgress?: UploadProgress,
     signal?: AbortSignal
 ): Promise<ProblemScreenshot> => {
-    const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
+    const fileType = await preferredImageType()
+    const compressed = await compressImage(
+        file,
+        { ...COMPRESSION_OPTIONS, fileType },
+        { flow: "single", surface: "support", signal }
+    )
 
     const res = await getUploadConfigApi("support", [describeBlob(compressed)])
     const entry = res.uploads[0]

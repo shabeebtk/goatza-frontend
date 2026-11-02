@@ -22,6 +22,8 @@ import {
     getCroppedBlob,
     type PixelCrop,
 } from "@/features/profile/utils/getCroppedBlob"
+import { ensureDecodableImage } from "@/shared/services/imageVariants"
+import { IMAGE_TOO_LARGE_MESSAGE, MAX_RAW_IMAGE_MB } from "@/shared/constants/media"
 import {
     MAX_IMAGE_BYTES,
     useAchievementImageUpload,
@@ -61,14 +63,25 @@ export default function AchievementImageField({
     const cropping = Boolean(imageSrc)
     const busy = upload.isPending
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const picked = e.target.files?.[0]
+        // Clear the input so re-picking the same file still fires onChange.
+        e.target.value = ""
+        if (!picked) return
         setError(null)
 
-        if (file.size > MAX_IMAGE_BYTES) {
-            setError("That image is over 5 MB. Pick a smaller one.")
-            e.target.value = ""
+        if (picked.size > MAX_IMAGE_BYTES) {
+            setError(IMAGE_TOO_LARGE_MESSAGE)
+            return
+        }
+
+        // The cropper renders the photo itself, so a HEIC this browser cannot
+        // decode (Chrome, Firefox) is converted to JPEG before it gets there.
+        let file: File
+        try {
+            file = await ensureDecodableImage(picked, { flow: "single", surface: "achievements" })
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Couldn't open that photo.")
             return
         }
 
@@ -80,8 +93,6 @@ export default function AchievementImageField({
             setZoom(1)
         }
         reader.readAsDataURL(file)
-        // Clear the input so re-picking the same file still fires onChange.
-        e.target.value = ""
     }
 
     const onCropComplete = useCallback(
@@ -243,7 +254,7 @@ export default function AchievementImageField({
                 <Icon icon="mdi:image-plus-outline" width={26} height={26} />
                 <span className={styles.imageDropzoneLabel}>Add a photo</span>
                 <span className={styles.imageDropzoneHint}>
-                    Certificate or trophy — optional, up to 5 MB
+                    Certificate or trophy — optional, up to {MAX_RAW_IMAGE_MB} MB
                 </span>
             </button>
 

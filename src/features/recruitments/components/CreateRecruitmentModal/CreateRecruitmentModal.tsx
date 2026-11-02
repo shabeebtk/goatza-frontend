@@ -4,18 +4,17 @@ import { useCallback, useRef, useState, useEffect } from "react"
 import dayjs from "dayjs"
 import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
-import imageCompression from "browser-image-compression"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Select from "@/shared/components/ui/Select/Select"
 import PostLocationPicker from "@/features/posts/components/PostLocationPicker/PostLocationPicker"
 import PostImageCropper, { type CropState } from "@/features/posts/components/PostImageCropper/PostImageCropper"
 import {
     POSTER_THUMB_MAX_DIMENSION,
-    imageFileName,
-    makeThumb,
     preferredImageType,
 } from "@/shared/services/imageVariants"
+import { checkRawImageSize, isImageFile } from "@/shared/constants/media"
 import {
+    OFFLINE_MESSAGE,
     UPLOAD_CANCELLED,
     describeBlob,
     getUploadConfigApi,
@@ -23,6 +22,12 @@ import {
     type SignedBatchItem,
 } from "@/shared/services/mediaUpload"
 import { isUploadCancellation } from "@/shared/services/apiError"
+import { prepareImageForUpload } from "@/shared/services/videoPrep"
+import {
+    createMediaJob,
+    uploadSource,
+    waitForMediaJob,
+} from "@/shared/services/sourceUpload"
 import UploadOverlay, { retryLabelFor } from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 import type { PlaceResult } from "@/shared/services/places.service"
@@ -120,6 +125,8 @@ type MediaEntry = {
     preview: string
     progress: number
     status: "idle" | "uploading" | "done" | "error"
+    /** Uploaded as the original; the server is converting it ("Processing photo…"). */
+    processing?: boolean
     error: string | null
     result: UploadedMedia | null
     existing?: boolean           // true → already on the server, skip the upload pipeline
@@ -128,6 +135,9 @@ type MediaEntry = {
 }
 
 type SubmitPhase = "idle" | "uploading" | "posting" | "done"
+
+/** Photos one recruitment carries — the server allows no more. */
+const MAX_RECRUITMENT_PHOTOS = 5
 
 
 /**
@@ -2270,7 +2280,7 @@ export default function CreateRecruitmentModal({
         const controller = abortRef.current
         abortRef.current = null
         controller?.abort(new Error(UPLOAD_CANCELLED))
-        setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "idle", progress: 0, error: null })))
+        setMediaEntries(prev => prev.map(e => (e.existing ? e : { ...e, status: "idle", progress: 0, processing: false, error: null })))
         setRetryLabel(null)
         setPhase("idle")
     }
@@ -2817,13 +2827,26 @@ export default function CreateRecruitmentModal({
         const files = Array.from(e.target.files ?? [])
         e.target.value = ""
         if (!files.length) return
-        const imageFiles = files.filter(f => f.type.startsWith("image/"))
-        const newEntries: MediaEntry[] = imageFiles.slice(0, 5 - mediaEntries.length).map(f => ({
+        // By type, or by extension when the browser gave none (a .heic on
+        // Windows) — compressImage converts what this browser cannot decode.
+        // A photo over the 25 MB pick-time ceiling is left out, and said so;
+        // anything under it is compressed well below the server's 5 MB cap.
+        const imageFiles = files.filter(isImageFile)
+        const tooLarge = imageFiles.map(checkRawImageSize).find(Boolean)
+        if (tooLarge) toast.show({ title: "Photo too large", message: tooLarge, variant: "error" })
+        const usable = imageFiles.filter(f => !checkRawImageSize(f))
+        // Anything past the cap is left out — and said so, rather than the
+        // sixth photo quietly never appearing.
+        const room = Math.max(0, MAX_RECRUITMENT_PHOTOS - mediaEntries.length)
+        if (usable.length > room) {
+            toast.show({ title: `You can add up to ${MAX_RECRUITMENT_PHOTOS} photos`, variant: "error" })
+        }
+        const newEntries: MediaEntry[] = usable.slice(0, room).map(f => ({
             id: uid(), file: f, originalFile: f, preview: URL.createObjectURL(f),
             progress: 0, status: "idle", error: null, result: null,
         }))
         setMediaEntries(prev => [...prev, ...newEntries])
-    }, [mediaEntries])
+    }, [mediaEntries, toast])
 
     const removeMedia = useCallback((id: string) => {
         setMediaEntries(prev => {
@@ -2953,6 +2976,13 @@ export default function CreateRecruitmentModal({
         }
         setFieldErrors({})
 
+        // No connection at all: say so now, before compressing anything that
+        // could only fail at the first byte — the post composer's check.
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            toast.show({ title: "You're offline", message: OFFLINE_MESSAGE, variant: "error" })
+            return
+        }
+
         // 1) Upload only newly-added media. Existing media is preserved as-is.
         const uploadedByEntryId = new Map<string, UploadedMedia>()
         const newEntries = mediaEntries.filter(e => !e.existing)
@@ -2971,25 +3001,31 @@ export default function CreateRecruitmentModal({
                 // names one folder per request, and the server's same-folder
                 // rule binds a thumbnail to the image it posters.
                 const prepared: { entryId: string; full: File; thumb: File }[] = []
+                // Photos this browser cannot open, when the server can: they
+                // go up as the original after the batch, into its folder.
+                const originals: { entryId: string; file: File }[] = []
                 const fileType = await preferredImageType()
                 for (const entry of newEntries) {
                     const file = entry.file
                     if (!file) continue
                     // Compress first — same sizes/formats the feed uses. The
                     // name and type follow what was REALLY written.
-                    const compressed = await imageCompression(file, { ...IMAGE_COMPRESSION_OPTIONS, fileType })
-                    const type = compressed.type || fileType
-                    const full = new File([compressed], imageFileName(file.name || "photo", type), { type })
+                    // Converts a HEIC this browser cannot decode, holds the
+                    // result to the server's cap, and reports a coded error.
                     // The thumb is the picture here, not a placeholder for
                     // it: the poster card renders this file full-bleed at
                     // the width of the phone, so it is built at 1080 rather
                     // than the app-wide 640.
-                    prepared.push({
-                        entryId: entry.id,
-                        full,
-                        thumb: await makeThumb(full, signal, POSTER_THUMB_MAX_DIMENSION),
-                    })
-                    // Compression is not abortable; stop between files instead.
+                    const ready = await prepareImageForUpload(
+                        file,
+                        { ...IMAGE_COMPRESSION_OPTIONS, fileType },
+                        { flow: "recruitment", signal },
+                        { thumbMaxDimension: POSTER_THUMB_MAX_DIMENSION }
+                    )
+                    if (ready.mode === "source") originals.push({ entryId: entry.id, file })
+                    else prepared.push({ entryId: entry.id, full: ready.full, thumb: ready.thumb })
+                    // The compressor rejects mid-file on abort; the thumb
+                    // pass does too. Stop between files as well.
                     if (signal.aborted) throw new Error(UPLOAD_CANCELLED)
                 }
 
@@ -3048,20 +3084,80 @@ export default function CreateRecruitmentModal({
                     ]
                 })
 
+                // The batch's folder, so an original lands beside the rest.
+                let tempPostId: string | undefined
                 try {
-                    await uploadSignedBatch(items, {
-                        sign: (files, tempPostId) =>
-                            getUploadConfigApi("recruitments", files, orgId, signal, tempPostId),
-                        signal,
-                        flow: "recruitment",
-                    })
+                    if (items.length > 0) {
+                        const batch = await uploadSignedBatch(items, {
+                            sign: (files, resignInto) =>
+                                getUploadConfigApi("recruitments", files, orgId, signal, resignInto),
+                            signal,
+                            flow: "recruitment",
+                        })
+                        tempPostId = batch.tempPostId
+                    }
+
+                    // Each original: up as it is → a media job → wait for the
+                    // worker. A recruitment is ONE form submit, so the wizard
+                    // waits here ("Processing photo…") and uses the outputs as
+                    // that photo's files.
+                    for (const { entryId, file } of originals) {
+                        const setProgress = (pct: number) => {
+                            if (signal.aborted) return
+                            setMediaEntries(prev => prev.map(e =>
+                                e.id === entryId ? { ...e, progress: Math.min(99, Math.max(e.progress, pct)) } : e
+                            ))
+                        }
+                        const uploaded = await uploadSource(file, {
+                            uploadType: "recruitments",
+                            purpose: "recruitments",
+                            orgId,
+                            tempPostId,
+                            signal,
+                            flow: "recruitment",
+                            onProgress: (loaded, total, meta) => {
+                                if (!signal.aborted) setRetryLabel(retryLabelFor(meta))
+                                setProgress(total > 0 ? Math.round((loaded / total) * 90) : 0)
+                            },
+                        })
+                        tempPostId = uploaded.tempPostId ?? tempPostId
+                        const job = await createMediaJob({
+                            key: uploaded.key,
+                            purpose: "recruitments",
+                            uploadType: "recruitments",
+                            orgId,
+                            signal,
+                            flow: "recruitment",
+                        })
+                        if (!signal.aborted) {
+                            setMediaEntries(prev => prev.map(e =>
+                                e.id === entryId ? { ...e, processing: true } : e
+                            ))
+                        }
+                        const converted = await waitForMediaJob(job.id, { signal, orgId, flow: "recruitment" })
+                        const result: UploadedMedia = {
+                            file_url: converted.file_url ?? "",
+                            public_id: converted.public_id ?? "",
+                            media_type: "image",
+                            ...(converted.thumbnail_url ? { thumbnail_url: converted.thumbnail_url } : {}),
+                            order: 0,
+                        }
+                        doneIds.add(entryId)
+                        uploadedByEntryId.set(entryId, result)
+                        setMediaEntries(prev => prev.map(e =>
+                            e.id === entryId ? { ...e, status: "done", processing: false, progress: 100, result } : e
+                        ))
+                    }
                 } catch (uploadErr) {
                     if (signal.aborted || isUploadCancellation(uploadErr)) throw uploadErr
                     // The entry that was uploading when it stopped carries the
-                    // message; the toast below says it once for the batch.
-                    const failedId = prepared.find(p => !doneIds.has(p.entryId))?.entryId
+                    // message; the toast below says it once for the batch. A
+                    // photo the server could not convert carries its sentence.
+                    const failedId =
+                        prepared.find(p => !doneIds.has(p.entryId))?.entryId ??
+                        originals.find(o => !doneIds.has(o.entryId))?.entryId
                     const msg = getApiErrorMessage(uploadErr, "Upload failed. Please try again.")
-                    setMediaEntries(prev => prev.map(e => e.id === failedId ? { ...e, status: "error", error: msg } : e))
+                    setMediaEntries(prev => prev.map(e => e.id === failedId ? { ...e, status: "error", processing: false, error: msg } : e))
                     throw new Error(msg)
                 } finally {
                     setRetryLabel(null)
@@ -3929,13 +4025,13 @@ export default function CreateRecruitmentModal({
 
             <div className={styles.fieldGroup} data-field="media">
                 <label className={styles.fieldLabel}>Banner / Photos</label>
-                <p className={styles.fieldSubLabel}>Up to 5 photos, shown in 4:5 portrait — anything wider is centred and cropped to fit. Tap Adjust to reframe one.</p>
+                <p className={styles.fieldSubLabel}>Up to {MAX_RECRUITMENT_PHOTOS} photos, shown in 4:5 portrait — anything wider is centred and cropped to fit. Tap Adjust to reframe one.</p>
                 <MediaPreview entries={mediaEntries} onRemove={removeMedia} onCropEntry={cropMedia} disabled={isSubmitting} />
                 {renderFieldError("media")}
-                {mediaEntries.length < 5 && (
+                {mediaEntries.length < MAX_RECRUITMENT_PHOTOS && (
                     <button className={styles.mediaAddBtn} onClick={() => fileInputRef.current?.click()} type="button" disabled={isSubmitting}>
                         <Icon icon="mdi:image-plus-outline" width={18} height={18} />
-                        {mediaEntries.length === 0 ? "Add Photos" : `Add More (${mediaEntries.length}/5)`}
+                        {mediaEntries.length === 0 ? "Add Photos" : `Add More (${mediaEntries.length}/${MAX_RECRUITMENT_PHOTOS})`}
                     </button>
                 )}
             </div>
@@ -4375,8 +4471,13 @@ export default function CreateRecruitmentModal({
                     <UploadOverlay
                         entries={mediaEntries.filter(e => !e.existing).map(e => ({
                             preview: e.preview, progress: e.progress, status: e.status, size: e.file?.size ?? 0,
+                            optimizing: e.processing,
                         }))}
                         phase={phase}
+                        // Shown while a photo this browser could not open is
+                        // converted on the server — the overlay's "busy, not
+                        // counting" label.
+                        optimizingLabel="Processing photo…"
                         postingLabel={postingLabel}
                         retryLabel={retryLabel}
                         doneLabel={draftSaved ? "Draft Saved!" : isEdit && !isDraftRecord ? "Changes Saved!" : "Recruitment Published!"}

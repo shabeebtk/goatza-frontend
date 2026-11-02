@@ -1,11 +1,5 @@
-import imageCompression from "browser-image-compression"
-
-import {
-    getBlobDimensions,
-    imageFileName,
-    makeThumb,
-    preferredImageType,
-} from "@/shared/services/imageVariants"
+import type { RequestActor } from "@/core/api/axios"
+import { preferredImageType } from "@/shared/services/imageVariants"
 import {
     describeBlob,
     getUploadConfigApi,
@@ -15,18 +9,22 @@ import {
     type SignBatch,
 } from "@/shared/services/mediaUpload"
 import { describeVideo } from "@/features/posts/services/postUpload.service"
+import { checkVideoExtension, isImageFile } from "@/shared/constants/media"
 import {
     capturePoster,
-    encodeVideo,
     videoProgressSplit,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
+import { prepareImageForUpload, prepareVideoForUpload } from "@/shared/services/videoPrep"
+import { createMediaJob, uploadSource, waitForMediaJob } from "@/shared/services/sourceUpload"
 
 // ── Constants ─────────────────────────────────────────────────
 
 export const MAX_CHAT_IMAGES = 5
-// Server hard limit is 10MB; we compress well under it. This gates the ORIGINAL
-// the user picks, before compression, so we reject absurd files early.
+// The server caps the COMPRESSED image at 5MB; we compress well under it (and
+// `compressImage` holds the output to that cap). This gates the ORIGINAL the
+// user picks, before compression, so we reject absurd files early — the same
+// 25MB as MAX_RAW_IMAGE_MB everywhere else.
 export const MAX_CHAT_IMAGE_MB = 25
 
 // Video limits mirror the backend (_validate_chat_video).
@@ -44,8 +42,6 @@ export const MAX_CHAT_VIDEO_MB = 80
 export const MAX_RAW_CHAT_VIDEO_MB = 300
 
 export const MAX_CHAT_VIDEO_SECONDS = 90
-// Mirrors CHAT_VIDEO_EXTENSIONS in messaging/services/message_service.py.
-const CHAT_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"])
 
 // Compression target — chat photos are viewed smaller than feed posts, so a
 // tighter ceiling than posts keeps uploads fast on mobile data. The format is
@@ -80,6 +76,19 @@ export type ChatUploadProgress = (
     phase?: VideoUploadPhase
 ) => void
 
+export type ChatUploadOptions = {
+    /**
+     * The file went up as the ORIGINAL and the server is converting it; the
+     * bubble says "Processing…" until the upload resolves.
+     */
+    onProcessing?: () => void
+    /**
+     * The account the send started as — every request is made as it, so a
+     * switch mid-upload cannot move the file into another actor's folder.
+     */
+    actor?: RequestActor
+}
+
 // ── Validation ────────────────────────────────────────────────
 
 export function validateChatImages(files: File[]): string | null {
@@ -88,7 +97,9 @@ export function validateChatImages(files: File[]): string | null {
         return `You can send up to ${MAX_CHAT_IMAGES} photos at once.`
 
     for (const f of files) {
-        if (!f.type.startsWith("image/"))
+        // By type, or by extension when the browser gave none (a .heic on
+        // Windows) — compressImage converts what this browser cannot decode.
+        if (!isImageFile(f))
             return "Only image files can be sent here."
         if (f.size > MAX_CHAT_IMAGE_MB * 1024 * 1024)
             return `Each image must be under ${MAX_CHAT_IMAGE_MB} MB.`
@@ -99,18 +110,34 @@ export function validateChatImages(files: File[]): string | null {
 /**
  * Size/format gate for a video, checked before we read its duration. Duration
  * is enforced separately (async) after metadata loads.
+ *
+ * `serverProcessing` widens the containers to the ones the server converts.
  */
-export function validateChatVideoFile(file: File): string | null {
+export function validateChatVideoFile(
+    file: File,
+    { serverProcessing = false }: { serverProcessing?: boolean } = {}
+): string | null {
     if (!file.type.startsWith("video/")) return "That file isn't a video."
     if (file.size > MAX_RAW_CHAT_VIDEO_MB * 1024 * 1024)
         return `Video must be under ${MAX_RAW_CHAT_VIDEO_MB} MB.`
-    // Mirror the backend's CHAT_VIDEO_EXTENSIONS. Without this the user waits
+    // Mirrors the backend's CHAT_VIDEO_EXTENSIONS. Without this the user waits
     // through a doomed encode to be told at the end. A .mov IS accepted — it is
-    // encoded to H.264/MP4 before upload, never sent raw.
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
-    if (ext && !CHAT_VIDEO_EXTENSIONS.has(ext))
-        return "Videos must be MP4, MOV or WebM."
-    return null
+    // encoded to H.264/MP4 before upload, never sent raw. With the server
+    // converting, an .mkv or .avi is too: it goes up as the original.
+    return checkVideoExtension(file.name, { serverProcessing })
+}
+
+/**
+ * What the chat picker handed over, split into videos and photos. Photos by
+ * type OR extension (`isImageFile`): Windows Chrome hands a .heic over with
+ * type "", and a `type.startsWith("image/")` filter dropped it without a word.
+ * Anything that is neither is left out, as before.
+ */
+export function partitionChatMedia(files: File[]): { videos: File[]; images: File[] } {
+    return {
+        videos: files.filter((f) => f.type.startsWith("video/")),
+        images: files.filter(isImageFile),
+    }
 }
 
 /** Intrinsic pixel size of an image File (for reserving bubble space). */
@@ -275,8 +302,8 @@ export const UPLOAD_CANCELLED = SHARED_UPLOAD_CANCELLED
  * The chat config request. Chat has one folder per actor, so a re-sign needs
  * no batch id — `uploadSignedBatch` passes none, the server would ignore one.
  */
-const signChat = (signal?: AbortSignal): SignBatch => (files) =>
-    getUploadConfigApi("chat", files, undefined, signal)
+const signChat = (signal?: AbortSignal, actor?: RequestActor): SignBatch => (files) =>
+    getUploadConfigApi("chat", files, undefined, signal, undefined, actor)
 
 // ── Public: compress → sign → upload one chat image ───────────
 
@@ -291,29 +318,33 @@ const signChat = (signal?: AbortSignal): SignBatch => (files) =>
  *
  * width/height/bytes are measured here. The upload response is empty now, so
  * there is nothing authoritative to read them back from.
+ *
+ * A photo this browser cannot open, when the server can, goes up as the
+ * ORIGINAL instead and is converted before the message is sent — see
+ * {@link uploadChatSource}. The result has the same shape either way.
  */
 export async function uploadChatImage(
     file: File,
     onProgress?: ChatUploadProgress,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: ChatUploadOptions
 ): Promise<ChatImageUploadResult> {
     const fileType = await preferredImageType()
-    const raw = await imageCompression(file, {
-        ...CHAT_IMAGE_COMPRESSION,
-        fileType,
-        signal,
-    })
-    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
-
     // Named and typed by what was REALLY written — the PUT's Content-Type is
     // signed, and the object key's extension comes from it.
-    const type = raw.type || fileType
-    const compressed = new File([raw], imageFileName(file.name, type), { type })
-
-    const thumb = await makeThumb(compressed, signal)
+    const prepared = await prepareImageForUpload(
+        file,
+        { ...CHAT_IMAGE_COMPRESSION, fileType },
+        { flow: "chat", signal }
+    )
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    const dims = await getBlobDimensions(compressed)
+    if (prepared.mode === "source") {
+        return uploadChatSource(file, onProgress, signal, options)
+    }
+
+    const { full: compressed, thumb } = prepared
+    const dims = { width: prepared.width, height: prepared.height }
 
     // One request for both objects: same order in, same order out, and the
     // server's pairing rules are checked once instead of twice.
@@ -330,7 +361,7 @@ export async function uploadChatImage(
             },
             { blob: thumb, descriptor: describeBlob(thumb, "thumb") },
         ],
-        { sign: signChat(signal), signal, flow: "chat" }
+        { sign: signChat(signal, options?.actor), signal, flow: "chat" }
     )
 
     return {
@@ -350,13 +381,17 @@ export async function uploadChatImage(
  * a video and checks it shares the video's folder — which one config request
  * guarantees. `localDurationSec` is what the composer already probed off the
  * ORIGINAL; the encoder's own measurement wins when it has one.
+ *
+ * With the server converting, a clip the phone cannot prepare quickly and
+ * surely goes up as the ORIGINAL instead ({@link uploadChatSource}); the
+ * sound is the server's to keep then, so "Send without sound" is never asked.
  */
 export async function uploadChatVideo(
     file: File,
     onProgress?: ChatUploadProgress,
     localDurationSec?: number,
     signal?: AbortSignal,
-    options?: {
+    options?: ChatUploadOptions & {
         /**
          * Send without the sound when this browser cannot keep it. Only set
          * after the sender has chosen "Send without sound" — the encoder
@@ -371,18 +406,31 @@ export async function uploadChatVideo(
         onProgress?.(fraction * 100, 100, phase)
     )
 
-    const encoded = await encodeVideo(file, {
+    const prepared = await prepareVideoForUpload(file, {
+        purpose: "chat",
         maxBytes: MAX_CHAT_VIDEO_MB * 1024 * 1024,
-        onProgress: onEncode,
+        flow: "chat",
         signal,
+        onProgress: onEncode,
         allowSilentAudio: options?.allowSilentAudio,
     })
 
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
-    // From the ENCODED blob — it is H.264/MP4, which every browser can decode a
-    // frame out of. A raw HEVC .mov is exactly what one may refuse to open.
-    const poster = await capturePoster(encoded.blob, { mode: "feed" })
+    if (prepared.mode === "source") {
+        return uploadChatSource(file, onProgress, signal, options)
+    }
+
+    const encoded = prepared.encoded
+
+    // From the ENCODED blob — normally H.264/MP4, which every browser can
+    // decode a frame out of. A raw HEVC .mov is exactly what one may refuse
+    // to open; capturePoster falls back rather than block the send.
+    const poster = await capturePoster(encoded.blob, {
+        mode: "feed",
+        flow: "chat",
+        size: encoded,
+    })
 
     if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
 
@@ -396,11 +444,11 @@ export async function uploadChatVideo(
                 // The clip owns the progress bar; the poster is a few tens of KB.
                 onProgress: (loaded, total) => onUpload(loaded, total),
                 // Parts above the multipart threshold, under this batch's key.
-                put: putVideoFor("chat"),
+                put: putVideoFor("chat", undefined, options?.actor),
             },
             { blob: poster, descriptor: describeBlob(poster, "thumb") },
         ],
-        { sign: signChat(signal), signal, flow: "chat" }
+        { sign: signChat(signal, options?.actor), signal, flow: "chat" }
     )
 
     const durationSec = encoded.duration || localDurationSec
@@ -415,6 +463,61 @@ export async function uploadChatVideo(
         duration_ms:
             durationSec != null && durationSec > 0
                 ? Math.round(durationSec * 1000)
+                : undefined,
+    }
+}
+
+// ── An original the server converts ───────────────────────────
+
+/**
+ * The original up as it is → a media job → wait for the worker → the same
+ * result the browser's own pipeline returns, built from the job's outputs.
+ *
+ * Unlike a post, a chat message cannot be held by the server: it is sent once
+ * the files exist. So the bubble waits — "Processing…" from `onProcessing` —
+ * while `waitForMediaJob` listens for media_job_updated and polls. A job that
+ * fails rejects with a `MediaJobError` carrying the server's sentence; a
+ * cancel (the bubble's ✕) aborts the wait like any upload.
+ *
+ * The outputs land beside the source in this actor's chat folder, with the
+ * poster beside the video — the send endpoint's same-folder rule holds.
+ */
+async function uploadChatSource(
+    file: File,
+    onProgress: ChatUploadProgress | undefined,
+    signal: AbortSignal | undefined,
+    { onProcessing, actor }: ChatUploadOptions = {}
+): Promise<ChatVideoUploadResult> {
+    const uploaded = await uploadSource(file, {
+        uploadType: "chat",
+        purpose: "chat",
+        signal,
+        flow: "chat",
+        onProgress: (loaded, total) => onProgress?.(loaded, total, "uploading"),
+        actor,
+    })
+    const job = await createMediaJob({
+        key: uploaded.key,
+        purpose: "chat",
+        uploadType: "chat",
+        signal,
+        flow: "chat",
+        actor,
+    })
+
+    onProcessing?.()
+    const ready = await waitForMediaJob(job.id, { signal, flow: "chat", actor })
+
+    return {
+        media_url: ready.file_url ?? "",
+        media_public_id: ready.public_id ?? "",
+        thumbnail_url: ready.thumbnail_url || undefined,
+        width: ready.width || undefined,
+        height: ready.height || undefined,
+        size_bytes: ready.size_bytes || undefined,
+        duration_ms:
+            ready.duration != null && ready.duration > 0
+                ? Math.round(ready.duration * 1000)
                 : undefined,
     }
 }

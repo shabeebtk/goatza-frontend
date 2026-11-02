@@ -120,6 +120,22 @@
   transform: rotate(-90deg);
 }
 
+/* "Processing…": the server is converting — a quarter arc turning. */
+.ringSpinning {
+  animation: ringSpin 1.1s linear infinite;
+}
+
+@keyframes ringSpin {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(270deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ringSpinning {
+    animation: none;
+  }
+}
+
 .ringTrack {
   fill: none;
   stroke: rgba(255, 255, 255, 0.28);

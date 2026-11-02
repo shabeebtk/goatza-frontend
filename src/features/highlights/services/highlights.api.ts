@@ -8,8 +8,9 @@
 
 import { z } from "zod"
 
-import api from "@/core/api/axios"
+import api, { withActor, type RequestActor } from "@/core/api/axios"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
+import type { PendingPublication } from "@/shared/services/publications"
 import {
     highlightSchema,
     highlightStatsSchema,
@@ -57,10 +58,49 @@ export type UpdateHighlightPayload = {
 // ── Calls ─────────────────────────────────────────────────────
 
 export const createHighlightApi = async (
-    payload: CreateHighlightPayload
+    payload: CreateHighlightPayload,
+    actor?: RequestActor
 ): Promise<Highlight> => {
-    const res = await api.post(`${BASE}/create`, payload)
+    const res = await api.post(`${BASE}/create`, payload, withActor(actor))
     return highlightSchema.parse(res.data.data)
+}
+
+/** A clip the media worker converts (shared/services/sourceUpload.ts). */
+export type CreateHighlightJobPayload = {
+    media_job_id: string
+    title?: string
+    visibility?: HighlightVisibility
+}
+
+/**
+ * What a create became: the clip, now (201), or a publication the server will
+ * finish itself when the job is done (202).
+ *
+ * A 201 IS a created highlight whatever its body looks like. Parsing it
+ * strictly once turned a schema drift into a "failed" upload whose Retry
+ * created the clip a second time; the parsed row is only a bonus.
+ */
+export type SubmitHighlightResult =
+    | { kind: "created"; highlightId: string; highlight?: Highlight }
+    | { kind: "pending"; publication: PendingPublication }
+
+export const submitHighlightApi = async (
+    payload: CreateHighlightPayload | CreateHighlightJobPayload,
+    actor?: RequestActor
+): Promise<SubmitHighlightResult> => {
+    const res = await api.post(`${BASE}/create`, payload, withActor(actor))
+    const data = res.data?.data ?? {}
+    if (res.status === 202 && data.pending_publication) {
+        return { kind: "pending", publication: data.pending_publication as PendingPublication }
+    }
+    const parsed = highlightSchema.safeParse(data)
+    if (parsed.success) {
+        return { kind: "created", highlightId: parsed.data.id, highlight: parsed.data }
+    }
+    if (process.env.NODE_ENV === "development") {
+        console.warn("[highlights] created, but the response did not parse", parsed.error)
+    }
+    return { kind: "created", highlightId: typeof data.id === "string" ? data.id : "" }
 }
 
 export const fetchHighlightsByUsernameApi = async (

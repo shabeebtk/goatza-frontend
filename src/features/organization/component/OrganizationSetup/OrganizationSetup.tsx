@@ -11,6 +11,7 @@ import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import styles from "./OrganizationSetup.module.css"
 import { CreateOrganizationPayload, OrgLevel, OrgType } from "../../types"
+import { MAX_RAW_IMAGE_MB, checkRawImageSize, isImageFile } from "@/shared/constants/media"
 
 // ── Org type definitions ──────────────────────────────────────────
 
@@ -175,7 +176,7 @@ function LogoUploader({
         </button>
       )}
 
-      <p className={styles.logoHint}>PNG or JPG · Max 5 MB · Square recommended</p>
+      <p className={styles.logoHint}>PNG or JPG · Max {MAX_RAW_IMAGE_MB} MB · Square recommended</p>
       <p className={styles.logoHint} style={{ color: "var(--color-brand-hover)" }}>
         Logo will be uploaded after your page is created
       </p>
@@ -183,7 +184,9 @@ function LogoUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp"
+        // Any photo, like every other picture surface: compressImage converts
+        // what this browser cannot decode (a HEIC) before upload.
+        accept="image/*"
         onChange={handleFile}
         className={styles.hiddenInput}
         aria-hidden="true"
@@ -285,8 +288,17 @@ export default function OrganizationSetup() {
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
 
   const handleLogoSelect = useCallback((file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((e) => ({ ...e, logo: "File must be under 5 MB" }))
+    // By type, or by extension when the browser gave none (a .heic on
+    // Windows) — `accept` is only a hint the picker's "All files" defeats.
+    if (!isImageFile(file)) {
+      setErrors((e) => ({ ...e, logo: "Pick an image for your logo." }))
+      return
+    }
+    // The shared 25 MB pick-time ceiling; the server's 5 MB cap is on the
+    // compressed logo, which compressImage holds it to.
+    const tooLarge = checkRawImageSize(file)
+    if (tooLarge) {
+      setErrors((e) => ({ ...e, logo: tooLarge }))
       return
     }
     // Revoke previous object URL to avoid memory leaks

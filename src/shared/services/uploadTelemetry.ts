@@ -22,17 +22,37 @@
  *
  * Without a DSN every Sentry call here is a no-op, which is the normal state
  * on localhost.
+ *
+ * PREPARING MEDIA FAILS TOO, before a byte is sent. A video that could not be
+ * made playable, a poster that could not be drawn, a photo the browser could
+ * not decode: each is a coded error (`VideoPrepareError` in videoEncode.ts,
+ * `ImagePrepareError` in imageVariants.ts) carrying what was known about the
+ * source and every step that was tried. The reporters below send those, once,
+ * from the one place each pipeline finally gives up — and a warning whenever a
+ * video only got through on a fallback, so the inputs that need one are known
+ * rather than guessed at. Neither ever sees a URL: the facts are measured off
+ * the file, and the file's name is not sent.
  */
 
 import * as Sentry from "@sentry/nextjs"
 
 import type { UploadError } from "@/shared/services/mediaUpload"
+import type {
+    SourceFacts,
+    StepRecord,
+    VideoPrepareError,
+} from "@/shared/services/videoEncode"
+import type { ImagePrepareError } from "@/shared/services/imageVariants"
+import type { MediaJobError } from "@/shared/services/sourceUpload"
 
 /** Which composer the upload belongs to. "single" covers every one-file flow. */
 export type UploadFlow = "post" | "highlight" | "chat" | "recruitment" | "single"
 
-/** What was being uploaded when it failed. "part" is one part of a multipart video. */
-export type UploadTelemetryKind = "image" | "thumb" | "video" | "part"
+/**
+ * What was being uploaded when it failed. "part" is one part of a multipart
+ * upload; "source" an original sent for the server to convert.
+ */
+export type UploadTelemetryKind = "image" | "thumb" | "video" | "part" | "source"
 
 export type UploadTelemetryContext = {
     flow: UploadFlow
@@ -129,5 +149,139 @@ export function reportUploadFailure(
                 ...rows,
             ].join("\n")
         )
+    }
+}
+
+// ── Preparing media ───────────────────────────────────────────
+
+/** The steps that actually ran, in order — a Sentry tag, so it is searchable. */
+const pathTried = (steps: StepRecord[]): string =>
+    steps
+        .filter((s) => s.outcome !== "skipped")
+        .map((s) => s.name)
+        .join(" > ") || "none"
+
+function logSteps(heading: string, steps: StepRecord[]) {
+    if (process.env.NODE_ENV !== "development") return
+    console.warn(heading)
+    console.table(steps)
+}
+
+/**
+ * A video that could not be made uploadable by any step. Called once, from
+ * the place `encodeVideo` (or `capturePoster`) finally throws, so posts,
+ * highlights and chat are all covered without knowing this exists. A cancel
+ * or an audio-lost decision never reaches here — neither is a failure.
+ */
+export function reportVideoPrepareFailure(
+    err: VideoPrepareError,
+    ctx: { flow: UploadFlow }
+): void {
+    try {
+        Sentry.captureException(err, {
+            tags: {
+                "video.code": err.code,
+                "video.codec": err.facts.videoCodec ?? "unknown",
+                "video.container": err.facts.container ?? "unknown",
+                "video.path_tried": pathTried(err.steps),
+                "upload.flow": ctx.flow,
+                "upload.standalone": String(isStandalone()),
+            },
+            extra: { facts: err.facts, steps: err.steps },
+        })
+    } catch {
+        // Telemetry never replaces the error the author needs to see.
+    }
+
+    logSteps(`[videoEncode] ${ctx.flow} failed: VIDEO_${err.code}`, err.steps)
+}
+
+/**
+ * A video that DID get through, but only on a fallback (anything but the fast
+ * path or the normal encode) — or a poster that had to be a placeholder. Not
+ * an error: a warning, so which real-world files need which fallback is a
+ * query rather than a guess. `path` is the step name, or a fixed label
+ * ("hevc_last_resort", "poster_placeholder") for the ones worth alerting on.
+ */
+export function reportVideoFallbackUsed(
+    path: string,
+    facts: SourceFacts,
+    flow: UploadFlow,
+    steps: StepRecord[] = []
+): void {
+    try {
+        Sentry.captureMessage(`video prepared via fallback: ${path}`, {
+            level: "warning",
+            tags: {
+                "video.path": path,
+                "video.codec": facts.videoCodec ?? "unknown",
+                "video.container": facts.container ?? "unknown",
+                "upload.flow": flow,
+                "upload.standalone": String(isStandalone()),
+            },
+            extra: { facts, steps },
+        })
+    } catch {
+        // As above.
+    }
+
+    if (steps.length) logSteps(`[videoEncode] ${flow} used a fallback: ${path}`, steps)
+}
+
+/**
+ * A photo that could not be decoded, or was still over the server's cap after
+ * compressing. `surface` narrows a "single" flow down to the screen it came
+ * from (profile, cover, match, …).
+ */
+export function reportImagePrepareFailure(
+    err: ImagePrepareError,
+    ctx: { flow: UploadFlow; surface?: string }
+): void {
+    try {
+        Sentry.captureException(err, {
+            tags: {
+                "image.code": err.code,
+                "image.type": err.facts.fileType || "none",
+                "image.extension": err.facts.extension || "none",
+                "upload.flow": ctx.flow,
+                ...(ctx.surface ? { "upload.surface": ctx.surface } : {}),
+                "upload.standalone": String(isStandalone()),
+            },
+            extra: { facts: err.facts, steps: err.steps },
+        })
+    } catch {
+        // As above.
+    }
+
+    logSteps(`[image] ${ctx.surface ?? ctx.flow} failed: ${err.code}`, err.steps)
+}
+
+// ── Server-side conversion ────────────────────────────────────
+
+/**
+ * A source original the media worker could not convert, or refused to take
+ * (VIDEO_TOO_LONG, SOURCE_UNREADABLE, PROCESSING_TIMEOUT…). Tagged with the
+ * server's code; the job id and key are not sent — nothing here needs them,
+ * and a key is half of a URL.
+ */
+export function reportMediaJobFailure(
+    err: MediaJobError,
+    ctx: { flow: UploadFlow }
+): void {
+    try {
+        Sentry.captureException(err, {
+            level: "warning",
+            tags: {
+                "media.code": err.code,
+                "upload.flow": ctx.flow,
+                "upload.standalone": String(isStandalone()),
+            },
+        })
+    } catch {
+        // As above.
+    }
+
+    if (process.env.NODE_ENV === "development") {
+        console.warn(`[media] ${ctx.flow} job failed: ${err.code} — ${err.message}`)
     }
 }

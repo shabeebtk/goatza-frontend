@@ -11,6 +11,40 @@ const TERMS_REQUIRED_CODE = "TERMS_ACCEPTANCE_REQUIRED"
 /** The other gate's marker (guardians/permissions.py). */
 const GUARDIAN_REQUIRED_CODE = "GUARDIAN_CONSENT_REQUIRED"
 
+/**
+ * The account a request is made AS. Normally the active one, read when the
+ * request is sent. Work that outlives the screen that started it — a post
+ * uploading in the background, a chat photo still converting — captures it
+ * when it starts and passes it on every request, so switching account
+ * mid-upload cannot turn an org's post into the person's.
+ */
+export type RequestActor = {
+  type: "user" | "organization"
+  /** The org's id; absent for a person. */
+  id?: string
+}
+
+declare module "axios" {
+  interface AxiosRequestConfig {
+    /**
+     * Who this request is made as, instead of the store's active actor. Kept
+     * on the config, so the 401 refresh-and-retry below sends it again.
+     */
+    actor?: RequestActor
+  }
+}
+
+/** The active actor, frozen — for work that must keep using it. */
+export function captureRequestActor(): RequestActor {
+  const { actorType, actorId } = useAuthStore.getState()
+  return actorType === "organization" && actorId
+    ? { type: "organization", id: actorId }
+    : { type: "user" }
+}
+
+/** `{ actor }` for a request config, or nothing — the store decides then. */
+export const withActor = (actor?: RequestActor) => (actor ? { actor } : {})
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
   withCredentials: true,
@@ -25,11 +59,17 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${accessToken}`
   }
 
-  // Actor headers
-  config.headers["X-Actor-Type"] = actorType
+  // Actor headers — the request's own actor when it carries one.
+  const type = config.actor?.type ?? actorType
+  const id = config.actor ? config.actor.id : actorId
 
-  if (actorType === "organization" && actorId) {
-    config.headers["X-Actor-Id"] = actorId
+  config.headers["X-Actor-Type"] = type
+
+  if (type === "organization" && id) {
+    config.headers["X-Actor-Id"] = id
+  } else {
+    // A retried config still has the first send's headers.
+    config.headers.delete("X-Actor-Id")
   }
 
   return config

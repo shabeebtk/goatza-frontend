@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import imageCompression from "browser-image-compression"
 import api from "@/core/api/axios"
 
 import {
@@ -23,6 +22,7 @@ import {
   getUploadConfigApi,
   putToR2,
 } from "@/shared/services/mediaUpload"
+import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
 
 // ── Query keys ────────────────────────────────────────────────────
 
@@ -34,12 +34,12 @@ export const orgKeys = {
 
 // ── Compression (shared with OrgPhotoUpload) ──────────────────────
 
+// Format chosen per browser at upload time (`preferredImageType`).
 const LOGO_COMPRESSION = {
   maxSizeMB:        1,        // was 0.5 — less aggressive, sharper logo
   maxWidthOrHeight: 1200,     // was 800
   initialQuality:   0.9,
   useWebWorker:     true,
-  fileType:         "image/webp" as const,
 }
 
 // ── List ──────────────────────────────────────────────────────────
@@ -106,7 +106,12 @@ export const useCreateOrganization = () => {
       // Step 2 — upload logo if user picked one
       if (logoFile) {
         try {
-          const compressed = await imageCompression(logoFile, LOGO_COMPRESSION)
+          const fileType = await preferredImageType()
+          const compressed = await compressImage(
+            logoFile,
+            { ...LOGO_COMPRESSION, fileType },
+            { flow: "single", surface: "organization_logo" }
+          )
 
           // Pass org_id so the backend scopes the object key to this org — the
           // actor is still the person, who has only just become its owner.
