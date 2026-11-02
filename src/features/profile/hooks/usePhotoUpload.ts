@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import imageCompression from "browser-image-compression"
 import { updateMediaApi, type UploadType } from "../services/upload.api"
 import {
   describeBlob,
@@ -7,6 +6,8 @@ import {
   putToR2,
   withCacheBust,
 } from "@/shared/services/mediaUpload"
+import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
+import { checkRawImageSize } from "@/shared/constants/media"
 import { profileKeys } from "@/features/profile/hooks/useProfileQueries"
 import type { UserProfile } from "@/features/profile/services/profile.api"
 import { useAuthStore } from "@/store/auth.store"
@@ -23,12 +24,14 @@ export type PhotoUploadInput = {
 
 // ── Compression options ──────────────────────────────────────
 
+// The format is chosen per browser at upload time (`preferredImageType`):
+// WebP where the canvas can write it, JPEG otherwise — an iPhone asked for
+// WebP quietly returns a PNG, which `maxSizeMB` cannot shrink.
 const COMPRESSION_OPTIONS = {
   maxSizeMB: 2,             // higher ceiling → keeps profile/cover crisp
   maxWidthOrHeight: 2000,   // higher resolution cap for fullscreen viewing
   initialQuality: 0.9,      // near-lossless starting quality
   useWebWorker: true,
-  fileType: "image/webp",   // modern format
 }
 
 // ── Cache sync ───────────────────────────────────────────────
@@ -72,13 +75,18 @@ export const usePhotoUpload = (username: string) => {
         type: croppedBlob.type || "image/jpeg",
       })
 
-      // 2. Validate size (5 MB hard cap before compression)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error("File must be under 5 MB")
-      }
+      // 2. The shared 25 MB pick-time ceiling. The server's 5 MB cap is on
+      //    the COMPRESSED file, which compressImage holds it to.
+      const tooLarge = checkRawImageSize(file)
+      if (tooLarge) throw new Error(tooLarge)
 
-      // 3. Compress
-      const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
+      // 3. Compress — coded, reported ImagePrepareError on failure
+      const fileType = await preferredImageType()
+      const compressed = await compressImage(
+        file,
+        { ...COMPRESSION_OPTIONS, fileType },
+        { flow: "single", surface: type }
+      )
 
       // 4. Get a presigned PUT for exactly this blob
       const res = await getUploadConfigApi(type, [describeBlob(compressed)])

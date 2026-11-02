@@ -1,6 +1,7 @@
 /**
  * Direct upload for a highlight clip: validate → encode → sign → upload →
- * hand back exactly the fields `POST /highlights/` wants.
+ * create — run in the background by the upload queue
+ * (shared/upload/uploadQueue.ts), not by the modal.
  *
  * No new media plumbing (HIGHLIGHTS_SPEC.md §2): the signature comes from the
  * existing `/user/get/upload/signature` endpoint. It has no `highlights` type
@@ -8,11 +9,17 @@
  * player's post videos use. Add a dedicated `highlights` type server-side if
  * you want them stored apart.
  *
+ * When the server converts what the phone cannot (mediaCapabilities.ts), a
+ * clip the browser cannot prepare goes up as the ORIGINAL instead and the
+ * highlight names its media job; the server adds it to the rail once the job
+ * is done (202).
+ *
  * The video probe (`getVideoMeta`) and the cancellation sentinel are reused from
  * the chat uploader rather than written a third time — that probe carries real
  * mobile-Safari workarounds (timeouts, NaN duration) worth keeping in one place.
  */
 
+import type { RequestActor } from "@/core/api/axios"
 import {
     UPLOAD_CANCELLED,
     getVideoMeta,
@@ -22,18 +29,22 @@ import {
     getUploadConfigApi,
     putVideoFor,
     uploadSignedBatch,
+    type UploadProgressMeta,
 } from "@/shared/services/mediaUpload"
 import { describeVideo } from "@/features/posts/services/postUpload.service"
 import {
     capturePoster,
-    encodeVideo,
     videoProgressSplit,
+    type EncodedVideo,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
-import {
-    VIDEO_EXTENSIONS,
-    VIDEO_FORMAT_MESSAGE,
-} from "@/shared/constants/media"
+import { prepareVideoForUpload } from "@/shared/services/videoPrep"
+import { createMediaJob, uploadSource } from "@/shared/services/sourceUpload"
+import { checkVideoExtension } from "@/shared/constants/media"
+import { UploadRefusal } from "@/shared/upload/retryable"
+import type { QueueRunContext, QueueRunOutcome } from "@/store/uploadQueue.store"
+import { submitHighlightApi, type SubmitHighlightResult } from "./highlights.api"
+import type { HighlightVisibility } from "../types"
 
 // ── Limits (mirror the backend) ───────────────────────────────
 
@@ -51,15 +62,10 @@ export const MAX_HIGHLIGHT_MB = 40
  *
  * Deliberately far above the post-encode cap: a 90s 4K iPhone clip is ~200MB
  * and encodes to well under 40MB, so gating the PICK at 40 would refuse clips
- * the app handles fine. This only stops someone waiting on a 2GB file.
+ * the app handles fine. This only stops someone waiting on a 2GB file. It is
+ * also the server's source cap for an original it converts.
  */
 export const MAX_RAW_HIGHLIGHT_MB = 300
-
-/**
- * What the picker accepts. Shared with posts — see
- * `@/shared/constants/media`. A .mov is encoded to MP4 before upload.
- */
-const HIGHLIGHT_VIDEO_EXTENSIONS = VIDEO_EXTENSIONS
 
 export type HighlightUploadProgress = (
     loaded: number,
@@ -87,17 +93,20 @@ export const isUploadCancelled = (err: unknown): boolean =>
 /**
  * Cheap checks that need no decoding: mime, size, container. Duration comes
  * from `checkHighlightDuration` once metadata has loaded.
+ *
+ * `serverProcessing` widens the containers to the ones the server can convert
+ * (a .m4v, a .3gp, an .mkv…); off, it is the MP4/MOV/WebM rule as always.
  */
-export function validateHighlightFile(file: File): string | null {
+export function validateHighlightFile(
+    file: File,
+    { serverProcessing = false }: { serverProcessing?: boolean } = {}
+): string | null {
     if (!file.type.startsWith("video/")) return "That file isn't a video."
 
     if (file.size > MAX_RAW_HIGHLIGHT_MB * 1024 * 1024)
         return `A highlight must be under ${MAX_RAW_HIGHLIGHT_MB} MB.`
 
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
-    if (ext && !HIGHLIGHT_VIDEO_EXTENSIONS.has(ext)) return VIDEO_FORMAT_MESSAGE
-
-    return null
+    return checkVideoExtension(file.name, { serverProcessing })
 }
 
 export const tooLongMessage = (seconds: number): string =>
@@ -114,8 +123,9 @@ export type HighlightVideoMeta = {
  * Read the clip's metadata and enforce the 90s cap before a single byte is
  * uploaded. `meta` is null when the browser refused to tell us (a probe that
  * times out must not block a legitimate upload) — the encoder measures the real
- * duration during `uploadHighlightVideo`, which re-checks the cap before a
- * single byte moves, so a clip that slips past here is still caught.
+ * duration during the upload, which re-checks the cap before a single byte
+ * moves, and the server measures an original it converts — so a clip that
+ * slips past here is still caught.
  */
 export async function checkHighlightDuration(
     file: File
@@ -134,11 +144,112 @@ export async function checkHighlightDuration(
     return { meta, error: null }
 }
 
-// ── Upload: encode → poster → presigned PUTs ─────────────────
+// ── A queued highlight, start to finish ───────────────────────
+
+/** What the add modal hands the queue: the picked clip, in memory, and its fields. */
+export type HighlightDraft = {
+    file: File
+    /** What the modal's pick-time probe found; a fallback for the encoder's. */
+    meta: HighlightVideoMeta | null
+    title?: string
+    visibility?: HighlightVisibility
+}
 
 /**
- * Encode the clip, grab its 9:16 poster, and put both objects into one
- * presigned batch.
+ * Everything a highlight does after Add — the upload queue's `run`:
+ *
+ *   ready  → encode → poster → one presigned batch → create (201 → done)
+ *   source → the original up as it is → media job → create naming the job
+ *            (202 → the server adds it once the job is done)
+ *
+ * With the server off it is only the first, exactly as before — including
+ * the `VideoAudioLostError` that the bar turns into "Add without sound".
+ *
+ * Every request carries `ctx.actor`: the player may switch account while it
+ * runs, and the clip is still theirs.
+ */
+export async function runHighlightUpload(
+    draft: HighlightDraft,
+    ctx: QueueRunContext
+): Promise<QueueRunOutcome> {
+    const { signal } = ctx
+    const fields = {
+        ...(draft.title ? { title: draft.title } : {}),
+        ...(draft.visibility ? { visibility: draft.visibility } : {}),
+    }
+
+    // One bar: encode 0→70%, upload 70→100% — the same split posts and chat
+    // use. The upload half carries the PUT's retry state, so the bar can say
+    // "Retrying… (2/4)" / "Resuming…" rather than jump back.
+    let uploading = false
+    let uploadMeta: UploadProgressMeta | undefined
+    const { onEncode, onUpload } = videoProgressSplit((fraction, phase) => {
+        if (phase === "uploading" && !uploading) {
+            uploading = true
+            ctx.setStatus("uploading")
+        }
+        ctx.setProgress(fraction, phase === "uploading" ? uploadMeta : undefined)
+    })
+
+    const prepared = await prepareVideoForUpload(draft.file, {
+        purpose: "highlights",
+        maxBytes: MAX_HIGHLIGHT_MB * 1024 * 1024,
+        flow: "highlight",
+        signal,
+        onProgress: onEncode,
+        allowSilentAudio: ctx.allowSilentAudio,
+    })
+
+    if (signal.aborted) throw new Error(UPLOAD_CANCELLED)
+
+    let result: SubmitHighlightResult
+    if (prepared.mode === "source") {
+        // Signed as "posts" like every clip; converted for "highlights",
+        // which is what holds it to 90 s and refuses a photo.
+        ctx.setStatus("uploading")
+        const uploaded = await uploadSource(draft.file, {
+            uploadType: "posts",
+            purpose: "highlights",
+            signal,
+            flow: "highlight",
+            onProgress: (loaded, total, meta) =>
+                ctx.setProgress(total > 0 ? loaded / total : 0, meta),
+            actor: ctx.actor,
+        })
+        const job = await createMediaJob({
+            key: uploaded.key,
+            purpose: "highlights",
+            uploadType: "posts",
+            signal,
+            flow: "highlight",
+            actor: ctx.actor,
+        })
+        ctx.setStatus("publishing")
+        result = await submitHighlightApi({ media_job_id: job.id, ...fields }, ctx.actor)
+    } else {
+        const uploaded = await uploadEncodedHighlight(prepared.encoded, {
+            signal,
+            localMeta: draft.meta,
+            actor: ctx.actor,
+            onUpload: (loaded, total, meta) => {
+                uploadMeta = meta
+                onUpload(loaded, total)
+            },
+        })
+        ctx.setStatus("publishing")
+        result = await submitHighlightApi({ ...uploaded, ...fields }, ctx.actor)
+    }
+
+    return result.kind === "pending"
+        ? { kind: "processing", publication: result.publication }
+        : { kind: "done", result: { highlightId: result.highlightId || undefined } }
+}
+
+// ── Upload: poster → presigned PUTs ───────────────────────────
+
+/**
+ * Grab the encoded clip's 9:16 poster and put both objects into one presigned
+ * batch.
  *
  * The poster is not optional: nothing derives one server-side any more, and
  * `POST /highlights/` requires `thumbnail_url` and checks it sits in the same
@@ -152,50 +263,39 @@ export async function checkHighlightDuration(
  * a re-sign after an expiry or a 403 names that folder and the poster stays
  * beside its clip. Above the multipart threshold the clip goes up in parts.
  */
-export async function uploadHighlightVideo(
-    file: File,
-    options?: {
-        onProgress?: HighlightUploadProgress
-        signal?: AbortSignal
-        localMeta?: HighlightVideoMeta | null
-        /**
-         * Upload without the sound when this browser cannot keep it. Only set
-         * after the player has chosen "Add without sound" — the encoder
-         * otherwise rejects with `VideoAudioLostError` rather than uploading
-         * a mute clip on the quiet.
-         */
-        allowSilentAudio?: boolean
+async function uploadEncodedHighlight(
+    encoded: EncodedVideo,
+    {
+        signal,
+        localMeta,
+        actor,
+        onUpload,
+    }: {
+        signal: AbortSignal
+        localMeta: HighlightVideoMeta | null
+        actor: RequestActor
+        onUpload: (loaded: number, total: number, meta?: UploadProgressMeta) => void
     }
 ): Promise<HighlightUploadResult> {
-    const signal = options?.signal
-
-    // One bar: encode 0→70%, upload 70→100% — the same split posts and chat use.
-    const { onEncode, onUpload } = videoProgressSplit((fraction, phase) =>
-        options?.onProgress?.(fraction * 100, 100, phase)
-    )
-
-    const encoded = await encodeVideo(file, {
-        maxBytes: MAX_HIGHLIGHT_MB * 1024 * 1024,
-        onProgress: onEncode,
-        signal,
-        allowSilentAudio: options?.allowSilentAudio,
-    })
-
-    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
-
     // Second duration gate, on what the encoder actually measured. The pick-time
     // check can come back empty when a phone's <video> probe times out, and the
     // server clamps an out-of-range duration to NULL rather than rejecting it —
     // so without this a 4-minute clip could reach the rail with no duration.
     if (encoded.duration > MAX_HIGHLIGHT_SECONDS) {
-        throw new Error(tooLongMessage(encoded.duration))
+        throw new UploadRefusal(tooLongMessage(encoded.duration))
     }
 
-    // From the ENCODED blob: it is H.264/MP4, so a <video> can always decode a
-    // frame out of it. A raw HEVC .mov is exactly what a browser may refuse.
-    const poster = await capturePoster(encoded.blob, { mode: "highlight" })
+    // From the ENCODED blob: normally H.264/MP4, so a <video> can decode a
+    // frame out of it. A raw HEVC .mov is exactly what a browser may refuse —
+    // and when the element fails anyway, capturePoster decodes a frame
+    // itself, then falls back to a placeholder, rather than block the clip.
+    const poster = await capturePoster(encoded.blob, {
+        mode: "highlight",
+        flow: "highlight",
+        size: encoded,
+    })
 
-    if (signal?.aborted) throw new Error(UPLOAD_CANCELLED)
+    if (signal.aborted) throw new Error(UPLOAD_CANCELLED)
 
     const {
         entries: [videoEntry, posterEntry],
@@ -205,20 +305,19 @@ export async function uploadHighlightVideo(
                 blob: encoded.blob,
                 descriptor: describeVideo(encoded.blob),
                 // The clip owns the bar; the poster is a few tens of KB.
-                onProgress: (loaded, total) => onUpload(loaded, total),
-                put: putVideoFor("posts"),
+                onProgress: (loaded, total, meta) => onUpload(loaded, total, meta),
+                put: putVideoFor("posts", undefined, actor),
             },
             { blob: poster, descriptor: describeBlob(poster, "thumb") },
         ],
         {
             sign: (files, tempPostId) =>
-                getUploadConfigApi("posts", files, undefined, signal, tempPostId),
+                getUploadConfigApi("posts", files, undefined, signal, tempPostId, actor),
             signal,
             flow: "highlight",
         }
     )
 
-    const localMeta = options?.localMeta
     const durationSec = encoded.duration || localMeta?.durationSec
     const width = encoded.width || localMeta?.width
     const height = encoded.height || localMeta?.height

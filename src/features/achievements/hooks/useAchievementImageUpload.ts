@@ -18,13 +18,14 @@
  */
 
 import { useMutation } from "@tanstack/react-query"
-import imageCompression from "browser-image-compression"
 
 import {
     describeBlob,
     getUploadConfigApi,
     putToR2,
 } from "@/shared/services/mediaUpload"
+import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
+import { MAX_RAW_IMAGE_MB, checkRawImageSize } from "@/shared/constants/media"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -42,15 +43,19 @@ export type AchievementImageResult = {
 
 // ── Limits ───────────────────────────────────────────────────
 
-/** Hard gate before compression, matching usePhotoUpload. */
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+/**
+ * Gate before compression — the shared 25 MB pick-time ceiling. The server's
+ * 5 MB cap is on the compressed file, which lands near 1 MB.
+ */
+export const MAX_IMAGE_BYTES = MAX_RAW_IMAGE_MB * 1024 * 1024
 
+// Format chosen per browser at upload time (`preferredImageType`) — an
+// iPhone asked for WebP returns a PNG that `maxSizeMB` cannot shrink.
 const COMPRESSION_OPTIONS = {
     maxSizeMB: 1,
     maxWidthOrHeight: 1600,
     initialQuality: 0.85,
     useWebWorker: true,
-    fileType: "image/webp",
 }
 
 // ── Hook ─────────────────────────────────────────────────────
@@ -63,11 +68,15 @@ export const useAchievementImageUpload = () =>
                 type: croppedBlob.type || "image/jpeg",
             })
 
-            if (file.size > MAX_IMAGE_BYTES) {
-                throw new Error("File must be under 5 MB")
-            }
+            const tooLarge = checkRawImageSize(file)
+            if (tooLarge) throw new Error(tooLarge)
 
-            const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
+            const fileType = await preferredImageType()
+            const compressed = await compressImage(
+                file,
+                { ...COMPRESSION_OPTIONS, fileType },
+                { flow: "single", surface: "achievements" }
+            )
 
             // `achievements` is user-actor only and scoped server-side to
             // users/<id>/achievements with a fresh public_id per upload, so

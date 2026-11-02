@@ -27,7 +27,10 @@ export const retryQuery = (failureCount: number, error: unknown): boolean => {
 // every loaded page. Set it once as the app-wide default (individual hooks may
 // still override). gcTime is left at the ~5 min default so large post caches
 // free naturally after navigating away.
-const queryClient = new QueryClient({
+// Exported for the few readers that live outside React and must see the SAME
+// cache the components do — the upload queue's runner, which outlives every
+// screen, and getMediaCapabilitiesSync. Components use useQueryClient().
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,

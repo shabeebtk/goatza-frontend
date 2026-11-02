@@ -36,6 +36,7 @@ import { Icon } from "@iconify/react"
 
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { isUploadCancelled } from "@/shared/services/mediaUpload"
+import { isImagePrepareError } from "@/shared/services/imageVariants"
 
 import { useSubmitProblemReport } from "../../hooks/useSupportQueries"
 import { PROBLEM_CATEGORIES } from "../../reportProblemMeta"
@@ -221,7 +222,11 @@ export default function ProblemReportSheet({
           patch(id, { failed: true })
           toast.show({
             title: "Couldn't attach that screenshot",
-            message: "You can send the report without it.",
+            // A photo this device could not open says why, with a code to
+            // quote; anything else is an upload, and the report still goes.
+            message: isImagePrepareError(err)
+              ? err.message
+              : "You can send the report without it.",
             variant: "error",
             position: "top-right",
             duration: 4000,

@@ -18,13 +18,13 @@
  * to wait.
  */
 
-import imageCompression from "browser-image-compression"
-
 import {
     describeBlob,
     getUploadConfigApi,
     putToR2,
 } from "@/shared/services/mediaUpload"
+import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
+import { MAX_RAW_IMAGE_MB, isImageFile } from "@/shared/constants/media"
 
 export type UploadedMatchPhoto = {
     photo_url: string
@@ -32,16 +32,18 @@ export type UploadedMatchPhoto = {
 }
 
 /**
- * The gate before compression, not a storage limit.
+ * The gate before compression, not a storage limit — the shared 25 MB
+ * pick-time ceiling every photo flow uses.
  *
- * Higher than the 5MB posts uses because this is the one place in the app a
- * photo arrives straight from a phone camera with nothing else going on —
- * a 2026 handset writes 8-10MB stills, and refusing them would read as the
+ * A photo arrives here straight from a phone camera, and a 2026 handset
+ * writes 8–12MB stills (a 48 MP shot more); refusing them would read as the
  * feature being broken. Compression takes whatever passes down to about 1MB,
  * so the ceiling only decides what the browser is asked to decode.
  */
-export const MAX_MATCH_PHOTO_MB = 10
+export const MAX_MATCH_PHOTO_MB = MAX_RAW_IMAGE_MB
 
+// Format chosen per browser at upload time (`preferredImageType`) — an
+// iPhone asked for WebP returns a PNG that `maxSizeMB` cannot shrink.
 const COMPRESSION_OPTIONS = {
     // A match photo shows as a 44px thumbnail in the diary row and full-width
     // at most on a detail screen. 1600px at 0.85 is more than either needs and
@@ -50,12 +52,12 @@ const COMPRESSION_OPTIONS = {
     maxWidthOrHeight: 1600,
     initialQuality: 0.85,
     useWebWorker: true,
-    fileType: "image/webp",
 }
 
 /** Returns a message when the file cannot be used, or null when it can. */
 export const validateMatchPhoto = (file: File): string | null => {
-    if (!file.type.startsWith("image/")) {
+    // By type, or by extension when the browser gave none (a .heic on Windows).
+    if (!isImageFile(file)) {
         return "Pick an image — a photo of the match, the scoreboard, the team."
     }
 
@@ -75,7 +77,12 @@ export const validateMatchPhoto = (file: File): string | null => {
 export const uploadMatchPhoto = async (
     file: File
 ): Promise<UploadedMatchPhoto> => {
-    const compressed = await imageCompression(file, COMPRESSION_OPTIONS)
+    const fileType = await preferredImageType()
+    const compressed = await compressImage(
+        file,
+        { ...COMPRESSION_OPTIONS, fileType },
+        { flow: "single", surface: "matches" }
+    )
 
     const res = await getUploadConfigApi("matches", [describeBlob(compressed)])
     const entry = res.uploads[0]

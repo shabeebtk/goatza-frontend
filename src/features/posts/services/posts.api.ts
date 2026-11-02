@@ -1,4 +1,5 @@
-import api from "@/core/api/axios"
+import api, { withActor, type RequestActor } from "@/core/api/axios"
+import type { PendingPublication } from "@/shared/services/publications"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -158,9 +159,49 @@ export type PostUserSport = {
 
 // ── API calls ─────────────────────────────────────────────────
 
-export const createPostApi = async (payload: CreatePostPayload): Promise<Post> => {
-  const res = await api.post("/posts/create", payload)
+export const createPostApi = async (
+  payload: CreatePostPayload,
+  actor?: RequestActor
+): Promise<Post> => {
+  const res = await api.post("/posts/create", payload, withActor(actor))
   return res.data.data
+}
+
+// ── Create, when the media may still be converting ────────────
+
+/**
+ * A media item that names a server-side conversion instead of a ready file
+ * (shared/services/sourceUpload.ts). The server swaps in the job's outputs.
+ */
+export type PostMediaJobPayload = {
+  media_job_id: string
+  order: number
+}
+
+export type SubmitPostPayload = Omit<CreatePostPayload, "media"> & {
+  media?: (PostMediaPayload | PostMediaJobPayload)[]
+}
+
+/**
+ * What a create became: the post, now (200 — every file was ready, exactly
+ * as `createPostApi`), or a publication the server will finish itself when
+ * its jobs are done (202).
+ */
+export type SubmitPostResult =
+  | { kind: "created"; postId: string }
+  | { kind: "pending"; publication: PendingPublication }
+
+/** `actor`: the account the post was written as — see axios.ts, RequestActor. */
+export const submitPostApi = async (
+  payload: SubmitPostPayload,
+  actor?: RequestActor
+): Promise<SubmitPostResult> => {
+  const res = await api.post("/posts/create", payload, withActor(actor))
+  const data = res.data?.data ?? {}
+  if (res.status === 202 && data.pending_publication) {
+    return { kind: "pending", publication: data.pending_publication as PendingPublication }
+  }
+  return { kind: "created", postId: String(data.post_id) }
 }
 
 // ── Edit post (text fields only — media is never changed) ─────

@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { InfiniteData, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@/store/auth.store"
+import { captureRequestActor, type RequestActor } from "@/core/api/axios"
 import {
     conversationKeys,
     invalidateConversationsExceptMessages,
@@ -33,11 +34,13 @@ import {
     captureVideoThumbnail,
 } from "../services/chatUpload.service"
 import {
-    VIDEO_UNSUPPORTED_MESSAGE,
     isVideoAudioLostError,
+    isVideoPrepareError,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
+import { isImagePrepareError } from "@/shared/services/imageVariants"
 import { UploadError, isUploadCancelled } from "@/shared/services/mediaUpload"
+import { isMediaJobError } from "@/shared/services/sourceUpload"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { holdScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 
@@ -58,6 +61,11 @@ type Job = {
      * the clip's audio. Kept on the job so the bubble's own Retry honours it.
      */
     allowSilentAudio?: boolean
+    /**
+     * Who is sending — frozen when the send starts. A photo still uploading
+     * (or converting) after an account switch is still sent as the sender.
+     */
+    actor: RequestActor
 }
 
 export function useChatMediaUpload(conversationId: string | null) {
@@ -250,6 +258,7 @@ export function useChatMediaUpload(conversationId: string | null) {
             patchMessage(tempId, {
                 failed: false,
                 pending: true,
+                processing: false,
                 uploadProgress: 0,
             })
 
@@ -269,6 +278,16 @@ export function useChatMediaUpload(conversationId: string | null) {
                 })
             }
 
+            // The original went up and the server is converting it: the
+            // bubble says "Processing…" until the files exist and the
+            // message is sent (chat cannot be held server-side like a post).
+            const onProcessing = () =>
+                patchMessage(tempId, {
+                    processing: true,
+                    optimizing: false,
+                    uploadProgress: 100,
+                })
+
             try {
                 let serverMsg: Message
                 if (job.kind === "video") {
@@ -277,39 +296,48 @@ export function useChatMediaUpload(conversationId: string | null) {
                         onProgress,
                         job.durationSec,
                         controller.signal,
-                        { allowSilentAudio: job.allowSilentAudio }
+                        { allowSilentAudio: job.allowSilentAudio, onProcessing, actor: job.actor }
                     )
                     // Correlation key for the websocket echo — see below.
                     patchMessage(tempId, { pendingMediaUrl: uploaded.media_url })
-                    serverMsg = await sendVideoMessageApi(conversationId, {
-                        media_url: uploaded.media_url,
-                        media_public_id: uploaded.media_public_id,
-                        // REQUIRED for a video: nothing derives a poster
-                        // server-side, and the send is rejected without one.
-                        thumbnail_url: uploaded.thumbnail_url,
-                        width: uploaded.width,
-                        height: uploaded.height,
-                        duration_ms: uploaded.duration_ms,
-                        size_bytes: uploaded.size_bytes,
-                        caption: job.caption,
-                    })
+                    serverMsg = await sendVideoMessageApi(
+                        conversationId,
+                        {
+                            media_url: uploaded.media_url,
+                            media_public_id: uploaded.media_public_id,
+                            // REQUIRED for a video: nothing derives a poster
+                            // server-side, and the send is rejected without one.
+                            thumbnail_url: uploaded.thumbnail_url,
+                            width: uploaded.width,
+                            height: uploaded.height,
+                            duration_ms: uploaded.duration_ms,
+                            size_bytes: uploaded.size_bytes,
+                            caption: job.caption,
+                        },
+                        job.actor
+                    )
                 } else {
                     const uploaded = await uploadChatImage(
                         job.file,
                         onProgress,
-                        controller.signal
+                        controller.signal,
+                        { onProcessing, actor: job.actor }
                     )
                     // Correlation key for the websocket echo — see below.
                     patchMessage(tempId, { pendingMediaUrl: uploaded.media_url })
-                    serverMsg = await sendImageMessageApi(conversationId, {
-                        media_url: uploaded.media_url,
-                        media_public_id: uploaded.media_public_id,
-                        thumbnail_url: uploaded.thumbnail_url,
-                        width: uploaded.width,
-                        height: uploaded.height,
-                        size_bytes: uploaded.size_bytes,
-                        caption: job.caption,
-                    })
+                    serverMsg = await sendImageMessageApi(
+                        conversationId,
+                        {
+                            media_url: uploaded.media_url,
+                            media_public_id: uploaded.media_public_id,
+                            thumbnail_url: uploaded.thumbnail_url,
+                            width: uploaded.width,
+                            height: uploaded.height,
+                            size_bytes: uploaded.size_bytes,
+                            caption: job.caption,
+                        },
+                        job.actor
+                    )
                 }
 
                 // If the history cache wasn't populated yet (message sent while
@@ -336,7 +364,12 @@ export function useChatMediaUpload(conversationId: string | null) {
                 // removed — don't resurrect them as a failed message.
                 if (!jobsRef.current.has(tempId)) return
                 if (isUploadCancelled(err)) return
-                patchMessage(tempId, { failed: true, pending: false, optimizing: false })
+                patchMessage(tempId, {
+                    failed: true,
+                    pending: false,
+                    optimizing: false,
+                    processing: false,
+                })
 
                 // Nothing was sent: this browser cannot keep the sound, and a
                 // mute clip is the sender's call. The toast offers it; the job
@@ -361,14 +394,20 @@ export function useChatMediaUpload(conversationId: string | null) {
                 }
 
                 // A failed bubble alone cannot say WHY. It matters most for the
-                // cases the user can act on: a video this device could not
-                // encode, where "try a different file" is the whole fix, and
-                // an upload that died — offline, or Goatza left the screen —
-                // whose message says what to do and ends in a code they can
-                // quote.
+                // cases the user can act on: a video or photo this device could
+                // not prepare, whose message says what to try ("a shorter
+                // clip", "a JPG copy"), and an upload that died — offline, or
+                // Goatza left the screen — whose message says what to do. Both
+                // end in a code they can quote. A file the SERVER could not
+                // convert carries the server's own sentence; the bubble's
+                // Retry uploads it again.
                 const message = err instanceof Error ? err.message : ""
-                if (message === VIDEO_UNSUPPORTED_MESSAGE) {
-                    toast.show({ title: message, variant: "error" })
+                if (
+                    isVideoPrepareError(err) ||
+                    isImagePrepareError(err) ||
+                    isMediaJobError(err)
+                ) {
+                    toast.show({ title: "Couldn't send that", message, variant: "error" })
                 } else if (err instanceof UploadError) {
                     toast.show({
                         title: "Couldn't send that",
@@ -391,6 +430,8 @@ export function useChatMediaUpload(conversationId: string | null) {
     const sendImages = useCallback(
         async (files: File[], caption: string) => {
             if (!conversationId || !myId || files.length === 0) return
+            // Before the first await: whoever is sending NOW.
+            const actor = captureRequestActor()
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i]
@@ -428,6 +469,7 @@ export function useChatMediaUpload(conversationId: string | null) {
                     caption: cap,
                     localUrl,
                     optimistic,
+                    actor,
                 })
 
                 insertOptimistic(optimistic)
@@ -480,6 +522,7 @@ export function useChatMediaUpload(conversationId: string | null) {
                 localUrl: "",
                 durationSec,
                 optimistic,
+                actor: captureRequestActor(),
             })
 
             // Show the bubble and START THE UPLOAD FIRST. Everything below is

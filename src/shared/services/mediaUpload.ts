@@ -35,11 +35,19 @@
  *     and a hint, reported to Sentry from here (uploadTelemetry.ts);
  *   - `uploadSignedBatch` re-signs the rest of a batch, into the same folder,
  *     when its URLs expire or R2 answers 403;
- *   - `putVideoToR2` sends a large video in parts, so a lost connection costs
- *     one part and an app switch resumes instead of restarting.
+ *   - `putVideoToR2` sends a large video — or a large source original — in
+ *     parts, so a lost connection costs one part and an app switch resumes
+ *     instead of restarting.
  */
 
-import api from "@/core/api/axios"
+import api, { withActor, type RequestActor } from "@/core/api/axios"
+
+/**
+ * A request config carrying `signal` and `actor` — or none at all when there
+ * is neither, exactly as these calls were made before an actor existed.
+ */
+const callConfig = (signal?: AbortSignal, actor?: RequestActor) =>
+    signal || actor ? { ...(signal ? { signal } : {}), ...withActor(actor) } : undefined
 import {
     connectionType,
     isStandalone,
@@ -73,8 +81,13 @@ export type MediaUploadType =
 /**
  * What a file IS, not what it contains: the server pairs a "video" with exactly
  * one "thumb" in the same request, and rejects a "thumb" with no parent.
+ *
+ * A "source" is an ORIGINAL the browser could not prepare, uploaded for the
+ * media worker to convert (sourceUpload.ts): any common photo or video type,
+ * the larger source caps, a `<uuid>.src.<ext>` key, and no thumb — the worker
+ * makes one. It counts as the image or video it is for every per-type rule.
  */
-export type UploadKind = "image" | "video" | "thumb"
+export type UploadKind = "image" | "video" | "thumb" | "source"
 
 /** One entry in the config request's `files` array. */
 export type UploadFileDescriptor = {
@@ -177,13 +190,17 @@ function onLocalClock<T extends { expires_in?: number; expires_at?: number }>(
  * `tempPostId` re-signs into an in-flight batch's folder (posts/recruitments
  * only — the server ignores it for every other type). It is how
  * {@link uploadSignedBatch} keeps a re-signed thumb in its image's folder.
+ *
+ * `actor` signs as the account a background upload started under, not
+ * whichever is active by the time this runs (axios.ts, RequestActor).
  */
 export const getUploadConfigApi = async (
     type: MediaUploadType,
     files: UploadFileDescriptor[],
     orgId?: string,
     signal?: AbortSignal,
-    tempPostId?: string
+    tempPostId?: string,
+    actor?: RequestActor
 ): Promise<UploadConfigResponse> => {
     const sentAt = Date.now()
     const res = await api.post(
@@ -194,7 +211,7 @@ export const getUploadConfigApi = async (
             ...(tempPostId ? { temp_post_id: tempPostId } : {}),
             files,
         },
-        signal ? { signal } : undefined
+        callConfig(signal, actor)
     )
     const config = res.data.data as UploadConfigResponse
     return {
@@ -1045,11 +1062,12 @@ export async function uploadSignedBatch(
     return { entries, tempPostId }
 }
 
-// ── Large videos: multipart ───────────────────────────────────
+// ── Large files: multipart ────────────────────────────────────
 
 /**
- * Above this a video goes up in parts. Below it a single PUT is one or two
- * minutes even on a poor uplink, and the retry policy already covers it.
+ * Above this a video (or a source original, of either kind) goes up in parts.
+ * Below it a single PUT is one or two minutes even on a poor uplink, and the
+ * retry policy already covers it.
  */
 export const MULTIPART_THRESHOLD_BYTES = 16 * 1024 * 1024
 
@@ -1081,18 +1099,22 @@ export type PutVideoOptions = PutOptions & {
     /** The type the video's entry was signed as. */
     type: MediaUploadType
     orgId?: string
+    /** Who the multipart calls are made as — the batch's signer. */
+    actor?: RequestActor
     onProgress?: UploadProgress
     signal?: AbortSignal
 }
 
 /**
- * Upload an encoded video to its batch entry: one PUT up to
- * {@link MULTIPART_THRESHOLD_BYTES}, parts above it.
+ * Upload a large file to its batch entry: one PUT up to
+ * {@link MULTIPART_THRESHOLD_BYTES}, parts above it. An encoded video, or a
+ * source original of either kind — the parts are typeless and the content
+ * type comes from the entry, so nothing here depends on which.
  *
  * The multipart upload REUSES `entry.key` — the key the signature endpoint
- * issued for this batch — so the video lands in its poster's folder and the
- * server's same-folder rule holds exactly as for a single PUT. `public_url`
- * and `key` on the entry stay the video's.
+ * issued for this batch — so the file lands in its batch's folder (a video in
+ * its poster's) and the server's same-folder rule holds exactly as for a
+ * single PUT. `public_url` and `key` on the entry stay the file's.
  */
 export async function putVideoToR2(
     blob: Blob,
@@ -1112,7 +1134,7 @@ export async function putVideoToR2(
         if (options.reportFailure !== false && err instanceof UploadError) {
             reportUploadFailure(err, {
                 flow: options.telemetry?.flow ?? "single",
-                kind: err.part !== undefined ? "part" : "video",
+                kind: err.part !== undefined ? "part" : (options.telemetry?.kind ?? "video"),
                 contentType: entry.headers["Content-Type"] ?? blob.type,
                 size: blob.size,
             })
@@ -1124,10 +1146,21 @@ export async function putVideoToR2(
 /**
  * {@link putVideoToR2} as a batch item's `put`, for a video signed as `type`.
  */
-export function putVideoFor(type: MediaUploadType, orgId?: string): SignedBatchItem["put"] {
+export function putVideoFor(
+    type: MediaUploadType,
+    orgId?: string,
+    actor?: RequestActor
+): SignedBatchItem["put"] {
     return (blob, entry, onProgress, signal, options) =>
-        putVideoToR2(blob, entry, { ...options, type, orgId, onProgress, signal })
+        putVideoToR2(blob, entry, { ...options, type, orgId, actor, onProgress, signal })
 }
+
+/**
+ * The same, for a `source` original signed as `type` — a 300 MB raw clip is
+ * exactly the file that most needs to resume at a part, and a 25 MB photo
+ * goes up in parts too.
+ */
+export const putSourceFor = putVideoFor
 
 /**
  * Parts go up ONE AT A TIME — the gain here is retryability, not speed — each
@@ -1143,12 +1176,13 @@ export function putVideoFor(type: MediaUploadType, orgId?: string): SignedBatchI
 async function putMultipart(
     blob: Blob,
     entry: R2UploadEntry,
-    { type, orgId, onProgress, signal, maxAttempts }: PutVideoOptions
+    { type, orgId, actor, onProgress, signal, maxAttempts }: PutVideoOptions
 ): Promise<void> {
     const total = blob.size
     const owner = orgId ? { org_id: orgId } : {}
     const budget = Math.max(1, maxAttempts ?? DEFAULT_MAX_ATTEMPTS)
-    const config = signal ? { signal } : undefined
+    // The key belongs to whoever signed it: every call is made as them.
+    const config = callConfig(signal, actor)
 
     if (signal?.aborted) throw new UploadError("CANCELLED")
     if (isOffline()) {
@@ -1252,11 +1286,15 @@ async function putMultipart(
         // Fire and forget: the caller needs the real error now, and the
         // bucket's abort rule clears anything this misses within days.
         void api
-            .post(MULTIPART_ABORT_URL, {
-                ...owner,
-                key: session.key,
-                upload_id: session.upload_id,
-            })
+            .post(
+                MULTIPART_ABORT_URL,
+                {
+                    ...owner,
+                    key: session.key,
+                    upload_id: session.upload_id,
+                },
+                callConfig(undefined, actor)
+            )
             .catch(() => {})
         throw err
     }

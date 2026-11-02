@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import AccountSwitcher from "@/shared/components/layout/AccountSwitcher/AccountSwitcher"
 import CreateMenu, { type CreateAction } from "@/shared/components/layout/CreateMenu/CreateMenu"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import { usePostComposerStore } from "@/features/posts/store/postComposer.store"
 import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateRecruitmentModal/CreateRecruitmentTrigger"
 import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQueries"
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
@@ -287,6 +288,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
+  // A failed post's "Edit" in the upload bar reopens the composer here.
+  const editDraft = usePostComposerStore((s) => s.draft)
+  const clearEditDraft = usePostComposerStore((s) => s.clear)
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
   const [recruitmentOpen, setRecruitmentOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -727,13 +731,19 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         onCancel={() => setLogoutAsk(false)}
       />
 
-      {postModalOpen && currentOrg?.username && (
+      {(postModalOpen || editDraft) && currentOrg?.username && (
         <CreatePostModal
+          // A draft to edit starts a fresh composer, seeded with it.
+          key={editDraft ? "edit" : "new"}
           username={currentOrg.username}
           userAvatarUrl={currentOrg.logo || undefined}
           userInitials={currentOrg.name?.slice(0, 2).toUpperCase() || "OR"}
           displayName={currentOrg.name}
-          onClose={() => setPostModalOpen(false)}
+          initialDraft={editDraft ?? undefined}
+          onClose={() => {
+            setPostModalOpen(false)
+            clearEditDraft()
+          }}
         />
       )}
 

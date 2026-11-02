@@ -10,7 +10,8 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { useAuthStore } from "@/store/auth.store"
 import { useNavigation } from "@/shared/services/navigation.service"
-import { VIDEO_ACCEPT } from "@/shared/constants/media"
+import { videoAcceptFor } from "@/shared/constants/media"
+import { useMediaCapabilities } from "@/shared/services/mediaCapabilities"
 import { useChatSocket } from "../../hooks/useChatSocket"
 import type { ChatMessage } from "../../hooks/useChatSocket" // Will keep this import for local types if needed
 import { useChatMediaUpload } from "../../hooks/useChatImageUpload"
@@ -32,6 +33,7 @@ import ImageMessage from "../ImageMessage/ImageMessage"
 import VideoMessage from "../VideoMessage/VideoMessage"
 import { getMessagePreviewText } from "../../utils/messagePreview"
 import {
+  partitionChatMedia,
   validateChatImages,
   validateChatVideoFile,
   getVideoMeta,
@@ -405,6 +407,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const maybeMarkReadRef = useRef<() => void>(() => {})
 
   const { sendImages, sendVideo, retry: retryImage, remove: removeImage } = useChatMediaUpload(conversationId)
+  // Whether the server converts what the phone cannot: wider video formats.
+  const { server_processing: serverProcessing } = useMediaCapabilities()
 
   // ── Data ──────────────────────────────────────────────────
   const { data: detail, isLoading: detailLoading } = useConversationDetail(conversationId)
@@ -886,19 +890,23 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       toast.show({ title: "Send the video on its own.", variant: "error" })
       return
     }
-    const err = validateChatVideoFile(file)
+    const err = validateChatVideoFile(file, { serverProcessing })
     if (err) {
       toast.show({ title: err, variant: "error" })
       return
     }
     // Block over-length videos BEFORE uploading anything. This probe is timed
-    // out inside getVideoMeta, so it can't hang the composer.
+    // out inside getVideoMeta, so it can't hang the composer. A clip this
+    // browser cannot even open (an .mkv, an .avi) is not a refusal while the
+    // server converts: it measures the file itself and refuses one over 90s.
     let meta = { durationSec: 0, width: 0, height: 0 }
     try {
       meta = await getVideoMeta(file)
     } catch {
-      toast.show({ title: "Couldn't read that video.", variant: "error" })
-      return
+      if (!serverProcessing) {
+        toast.show({ title: "Couldn't read that video.", variant: "error" })
+        return
+      }
     }
     if (meta.durationSec > MAX_CHAT_VIDEO_SECONDS) {
       toast.show({ title: `Videos must be ${MAX_CHAT_VIDEO_SECONDS}s or shorter.`, variant: "error" })
@@ -929,15 +937,15 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         s.kind === "video" && s.url === url ? { ...s, poster } : s
       )
     })
-  }, [staged.length, toast])
+  }, [serverProcessing, staged.length, toast])
 
   const handlePickMedia = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     e.target.value = ""   // allow re-picking the same file
     if (files.length === 0) return
 
-    const videos = files.filter((f) => f.type.startsWith("video/"))
-    const images = files.filter((f) => f.type.startsWith("image/"))
+    // Photos by type OR extension — an untyped .heic (Windows Chrome) is one.
+    const { videos, images } = partitionChatMedia(files)
 
     if (videos.length > 0 && images.length > 0) {
       toast.show({ title: "Can't mix photos and a video.", variant: "error" })
@@ -1284,8 +1292,9 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                   type="file"
                   // Named formats rather than `video/*` — validateChatVideoFile
                   // rejects everything else anyway, so don't let the picker
-                  // offer a file the composer is about to bounce.
-                  accept={`image/*,${VIDEO_ACCEPT}`}
+                  // offer a file the composer is about to bounce. With the
+                  // server converting, any video is fair game.
+                  accept={`image/*,${videoAcceptFor(serverProcessing)}`}
                   multiple
                   onChange={handlePickMedia}
                   hidden

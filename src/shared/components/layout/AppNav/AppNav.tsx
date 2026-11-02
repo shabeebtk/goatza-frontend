@@ -8,6 +8,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import styles from "./AppNav.module.css"
 import { LOGO_URL } from "@/constants"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import { usePostComposerStore } from "@/features/posts/store/postComposer.store"
 import { useAuthStore } from "@/store/auth.store"
 import { LOGOUT_CONFIRM, useLogout } from "@/features/auth/hooks/useLogout"
 import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
@@ -125,6 +126,9 @@ export default function AppNav() {
   const moreBtnRef = useRef<HTMLButtonElement | null>(null)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
+  // A failed post's "Edit" in the upload bar reopens the composer here.
+  const editDraft = usePostComposerStore((s) => s.draft)
+  const clearEditDraft = usePostComposerStore((s) => s.clear)
 
   const user = useAuthStore((state) => state.user)
   const actorType = useAuthStore((state) => state.actorType)
@@ -562,13 +566,19 @@ export default function AppNav() {
         onCancel={() => setLogoutAsk(false)}
       />
 
-      {postModalOpen && postingProfile.username && (
+      {(postModalOpen || editDraft) && postingProfile.username && (
         <CreatePostModal
+          // A draft to edit starts a fresh composer, seeded with it.
+          key={editDraft ? "edit" : "new"}
           username={postingProfile.username}
           userAvatarUrl={postingProfile.avatarUrl || undefined}
           userInitials={postingProfile.initials}
           displayName={postingProfile.displayName}
-          onClose={() => setPostModalOpen(false)}
+          initialDraft={editDraft ?? undefined}
+          onClose={() => {
+            setPostModalOpen(false)
+            clearEditDraft()
+          }}
         />
       )}
     </>

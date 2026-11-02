@@ -6,17 +6,17 @@
  *
  * Pick → local preview (the picked file plays straight from an object URL, so
  * the player sees exactly what they are about to publish) → title + visibility →
- * upload with live progress → created.
+ * Add → the clip goes to the background upload queue and the modal closes.
+ * UploadQueueBar shows its progress, its failure and its Retry from there;
+ * "Highlight added" + View is the success.
  *
- * The upload itself is `useHighlightUpload`; this component only stages the file
- * and renders progress, so validation, the 90s cap, cancel and retry behave
- * identically to every other entry point.
+ * The checks a player can act on run here, before Add: the format, the size,
+ * the 90s cap (on the picked file's metadata) and a full rail.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
-import { Toaster } from "sonner"
 
 import { useHighlightUpload } from "../../hooks/useHighlightUpload"
 import {
@@ -26,8 +26,8 @@ import {
     validateHighlightFile,
     type HighlightVideoMeta,
 } from "../../services/highlightUpload.service"
-import { VIDEO_ACCEPT } from "@/shared/constants/media"
-import { OPTIMIZING_LABEL } from "@/shared/services/videoEncode"
+import { videoAcceptFor } from "@/shared/constants/media"
+import { useMediaCapabilities } from "@/shared/services/mediaCapabilities"
 import { HIGHLIGHT_VISIBILITIES, type HighlightVisibility } from "../../types"
 import { VISIBILITY_META, formatClipDuration } from "../../visibilityMeta"
 import styles from "./AddHighlightModal.module.css"
@@ -37,8 +37,11 @@ const MAX_TITLE = 80
 
 type AddHighlightModalProps = {
     onClose: () => void
-    /** Fired after the clip is created, before the modal closes. */
-    onCreated?: () => void
+    /**
+     * Clips already on the rail, from the list the opening screen loaded —
+     * so a full rail is refused here rather than after the upload.
+     */
+    existingCount: number
 }
 
 function formatBytes(bytes: number): string {
@@ -89,12 +92,13 @@ function PreviewVideo({ src }: { src: string }) {
 
 export default function AddHighlightModal({
     onClose,
-    onCreated,
+    existingCount,
 }: AddHighlightModalProps) {
     const [file, setFile] = useState<File | null>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [durationSec, setDurationSec] = useState<number | null>(null)
     const [pickError, setPickError] = useState<string | null>(null)
+    const [submitError, setSubmitError] = useState<string | null>(null)
     const [title, setTitle] = useState("")
     const [visibility, setVisibility] = useState<HighlightVisibility>(
         "followers_and_recruiters"
@@ -105,15 +109,12 @@ export default function AddHighlightModal({
     /** What the pick-time probe found, handed to the upload so it isn't redone. */
     const metaRef = useRef<HighlightVideoMeta | null>(null)
 
-    const upload = useHighlightUpload({
-        onCreated: () => {
-            onCreated?.()
-            onClose()
-        },
-    })
+    const upload = useHighlightUpload({ existingCount })
+    // Whether the server converts what the phone cannot: wider formats.
+    const { server_processing: serverProcessing } = useMediaCapabilities()
 
-    // Lock the page behind the modal, and let Escape out when nothing is
-    // in flight (closing mid-upload would orphan the progress UI).
+    // Lock the page behind the modal; Escape closes it — nothing here is in
+    // flight any more, the queue owns the upload.
     useBodyScrollLock()
 
     useEffect(
@@ -123,15 +124,13 @@ export default function AddHighlightModal({
         []
     )
 
-    const isBusy = upload.isBusy
-
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && !isBusy) onClose()
+            if (e.key === "Escape") onClose()
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [isBusy, onClose])
+    }, [onClose])
 
     const clearPreview = useCallback(() => {
         if (previewUrlRef.current) {
@@ -145,16 +144,16 @@ export default function AddHighlightModal({
     const pickFile = useCallback(
         async (picked: File) => {
             setPickError(null)
-            upload.reset()
+            setSubmitError(null)
 
-            const problem = validateHighlightFile(picked)
+            const problem = validateHighlightFile(picked, { serverProcessing })
             if (problem) {
                 setPickError(problem)
                 return
             }
 
-            // Same probe the upload uses, so the 90s cap is enforced here too —
-            // before the file is staged, not after the user hits Add.
+            // The same probe the upload falls back to, so the 90s cap is
+            // enforced here too — before the file is staged, not after Add.
             const { meta, error } = await checkHighlightDuration(picked)
             if (error) {
                 setPickError(error)
@@ -170,37 +169,32 @@ export default function AddHighlightModal({
             setPreviewUrl(url)
             setDurationSec(meta?.durationSec ?? null)
         },
-        [clearPreview, upload]
+        [clearPreview, serverProcessing]
     )
 
     const removeFile = useCallback(() => {
         clearPreview()
         setFile(null)
         setPickError(null)
-        upload.reset()
-    }, [clearPreview, upload])
+        setSubmitError(null)
+    }, [clearPreview])
 
     const submit = useCallback(() => {
-        if (!file || isBusy) return
-        void upload.start(file, {
+        if (!file) return
+        const refused = upload.start({
+            file,
+            // Already probed while staging the preview — the encoder's own
+            // measurement wins; this is only its fallback.
+            meta: durationSec != null ? metaRef.current : null,
             title: title.trim() || undefined,
             visibility,
-            // Already probed while staging the preview — don't re-probe and
-            // delay the first progress tick.
-            knownMeta: durationSec != null ? metaRef.current : null,
         })
-    }, [durationSec, file, isBusy, title, upload, visibility])
-
-    const statusLabel =
-        upload.status === "checking"
-            ? "Checking clip…"
-            : upload.status === "saving"
-              ? "Finishing up…"
-              // The encode is the first 70% of the bar and the slower half on a
-              // phone — labelling it "Uploading" reads as a stall.
-              : upload.optimizing
-                ? `${OPTIMIZING_LABEL} ${upload.progress}%`
-                : `Uploading… ${upload.progress}%`
+        if (refused) {
+            setSubmitError(refused)
+            return
+        }
+        onClose()
+    }, [durationSec, file, onClose, title, upload, visibility])
 
     return createPortal(
         <div
@@ -209,14 +203,9 @@ export default function AddHighlightModal({
             aria-modal="true"
             aria-label="Add a highlight"
             onClick={(e) => {
-                if (e.target === e.currentTarget && !isBusy) onClose()
+                if (e.target === e.currentTarget) onClose()
             }}
         >
-            {/* Sonner has no global <Toaster /> — the app-wide toast system is
-                ToastProvider. Mounted here because useHighlightUpload reports
-                every failure (unsupported format, too long, network) through
-                sonner, and without this they are silent no-ops. */}
-            <Toaster position="top-center" richColors />
             <div className={styles.modal}>
                 {/* ── Header ── */}
                 <header className={styles.header}>
@@ -224,7 +213,6 @@ export default function AddHighlightModal({
                         type="button"
                         className={styles.headerBtn}
                         onClick={onClose}
-                        disabled={isBusy}
                         aria-label="Close"
                     >
                         <Icon icon="mdi:close" width={22} height={22} />
@@ -236,9 +224,9 @@ export default function AddHighlightModal({
                         type="button"
                         className={styles.submitBtn}
                         onClick={submit}
-                        disabled={!file || isBusy}
+                        disabled={!file}
                     >
-                        {isBusy ? "Adding…" : "Add"}
+                        Add
                     </button>
                 </header>
 
@@ -258,8 +246,9 @@ export default function AddHighlightModal({
                                     Choose a video
                                 </span>
                                 <span className={styles.dropHint}>
-                                    MP4, MOV or WebM · up to {MAX_HIGHLIGHT_SECONDS}s ·
-                                    under {MAX_HIGHLIGHT_MB} MB
+                                    {serverProcessing
+                                        ? `Any video · up to ${MAX_HIGHLIGHT_SECONDS}s`
+                                        : `MP4, MOV or WebM · up to ${MAX_HIGHLIGHT_SECONDS}s · under ${MAX_HIGHLIGHT_MB} MB`}
                                 </span>
                             </button>
 
@@ -297,7 +286,6 @@ export default function AddHighlightModal({
                                         type="button"
                                         className={styles.replaceBtn}
                                         onClick={removeFile}
-                                        disabled={isBusy}
                                     >
                                         <Icon icon="mdi:swap-horizontal" width={14} height={14} />
                                         Choose another
@@ -317,7 +305,6 @@ export default function AddHighlightModal({
                                     maxLength={MAX_TITLE}
                                     placeholder="e.g. Free kick vs St. Mary's"
                                     onChange={(e) => setTitle(e.target.value)}
-                                    disabled={isBusy}
                                 />
                                 <span className={styles.counter}>
                                     {title.length}/{MAX_TITLE}
@@ -341,7 +328,6 @@ export default function AddHighlightModal({
                                             visibility === value ? styles.segmentActive : ""
                                         }`}
                                         onClick={() => setVisibility(value)}
-                                        disabled={isBusy}
                                     >
                                         <Icon
                                             icon={VISIBILITY_META[value].icon}
@@ -356,28 +342,10 @@ export default function AddHighlightModal({
                                 {VISIBILITY_META[visibility].explanation}
                             </p>
 
-                            {upload.error && !isBusy && (
+                            {submitError && (
                                 <p className={styles.error} role="alert">
                                     <Icon icon="mdi:alert-circle-outline" width={15} height={15} />
-                                    {upload.error}
-                                    {upload.canRetry && (
-                                        <button
-                                            type="button"
-                                            className={styles.retryBtn}
-                                            onClick={upload.retry}
-                                        >
-                                            Retry
-                                        </button>
-                                    )}
-                                    {upload.canRetryWithoutSound && (
-                                        <button
-                                            type="button"
-                                            className={styles.retryBtn}
-                                            onClick={upload.retryWithoutSound}
-                                        >
-                                            Add without sound
-                                        </button>
-                                    )}
+                                    {submitError}
                                 </p>
                             )}
                         </>
@@ -386,7 +354,9 @@ export default function AddHighlightModal({
                     <input
                         ref={inputRef}
                         type="file"
-                        accept={VIDEO_ACCEPT}
+                        // `video/*` when the server converts what the phone
+                        // cannot; MP4/MOV/WebM by name otherwise.
+                        accept={videoAcceptFor(serverProcessing)}
                         className={styles.fileInput}
                         onChange={(e) => {
                             const picked = e.target.files?.[0]
@@ -396,50 +366,6 @@ export default function AddHighlightModal({
                         }}
                     />
                 </div>
-
-                {/* ── Progress ──
-                    Pinned OUTSIDE the scrolling body (same as CreatePostModal):
-                    inside it, the bar sat below the fold on a phone and the
-                    upload looked like it was doing nothing. */}
-                {isBusy && (
-                    <div className={styles.uploadSection}>
-                        <div className={styles.uploadHeader}>
-                            <span className={styles.uploadLabel}>
-                                <span className={styles.uploadSpinner} aria-hidden="true" />
-                                {statusLabel}
-                            </span>
-                            <button
-                                type="button"
-                                className={styles.cancelBtn}
-                                onClick={upload.cancel}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-
-                        <div className={styles.barTrack}>
-                            <div
-                                className={`${styles.barFill} ${
-                                    upload.status !== "uploading"
-                                        ? styles.barFillIndeterminate
-                                        : ""
-                                }`}
-                                style={{
-                                    width:
-                                        upload.status === "uploading"
-                                            ? `${Math.max(upload.progress, 3)}%`
-                                            : "100%",
-                                }}
-                            />
-                        </div>
-
-                        {file && (
-                            <span className={styles.uploadFile}>
-                                {file.name} · {formatBytes(file.size)}
-                            </span>
-                        )}
-                    </div>
-                )}
             </div>
         </div>,
         document.body

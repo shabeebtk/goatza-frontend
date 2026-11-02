@@ -1,4 +1,4 @@
-import api from "@/core/api/axios"
+import api, { withActor, type RequestActor } from "@/core/api/axios"
 import type { RecruitmentTypeValue } from "@/features/recruitments/services/recruitments.api"
 
 // ── Types ────────────────────────────────────────────────────
@@ -399,13 +399,19 @@ export type SendImageMessagePayload = {
     caption?: string
 }
 
+/**
+ * `actor`: the account the photo was picked as — a send that finishes after
+ * an account switch still comes from the sender (axios.ts, RequestActor).
+ */
 export const sendImageMessageApi = async (
     conversationId: string,
-    payload: SendImageMessagePayload
+    payload: SendImageMessagePayload,
+    actor?: RequestActor
 ): Promise<Message> => {
     const res = await api.post(
         `/conversations/${conversationId}/messages/media`,
-        payload
+        payload,
+        withActor(actor)
     )
     return res.data.data
 }
@@ -416,11 +422,13 @@ export type SendVideoMessagePayload = SendImageMessagePayload & {
 
 export const sendVideoMessageApi = async (
     conversationId: string,
-    payload: SendVideoMessagePayload
+    payload: SendVideoMessagePayload,
+    actor?: RequestActor
 ): Promise<Message> => {
     const res = await api.post(
         `/conversations/${conversationId}/messages/media`,
-        { media_type: "video", ...payload }
+        { media_type: "video", ...payload },
+        withActor(actor)
     )
     return res.data.data
 }

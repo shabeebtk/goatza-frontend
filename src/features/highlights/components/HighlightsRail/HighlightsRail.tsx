@@ -187,7 +187,12 @@ export default function HighlightsRail({
                 </p>
             )}
 
-            {addOpen && <AddHighlightModal onClose={() => setAddOpen(false)} />}
+            {addOpen && (
+                <AddHighlightModal
+                    existingCount={clips.length}
+                    onClose={() => setAddOpen(false)}
+                />
+            )}
 
             {viewerIndex !== null && clips.length > 0 && (
                 <HighlightViewer

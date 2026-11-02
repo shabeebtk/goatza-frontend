@@ -43,6 +43,7 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   achievement_verification_request: "mdi:trophy-outline",
   achievement_verified: "mdi:check-decagram",
   achievement_rejected: "mdi:shield-off-outline",
+  publication_failed: "mdi:alert-circle-outline",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -65,6 +66,8 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   achievement_verification_request: "#f59e0b",
   achievement_verified: "var(--color-brand)",
   achievement_rejected: "var(--color-text-muted)",
+  // Red: their post did not go up, and they need to know to try again.
+  publication_failed: "var(--color-error)",
 }
 
 // ── Single notification item ──────────────────────────────────
@@ -102,6 +105,14 @@ function NotificationItem({
   const isCareerPrompt = notif.type === "career_add_prompt"
 
   const isRecruitment = isApply || isStatus || isCareerPrompt
+
+  // Platform-voiced: nobody did this, so there is no actor to show — the row
+  // is from Goatza. The text names what failed; the server's sentence for
+  // why goes underneath. The row opens the author's own posts / highlights.
+  const isPublicationFailed = notif.type === "publication_failed"
+  const publicationError = isPublicationFailed
+    ? notif.data?.error_message?.trim()
+    : undefined
 
   // The backend resolved this against the RECIPIENT's route space, so an
   // org-recipient row keeps the reader inside /organization/admin/<id>/….
@@ -144,6 +155,8 @@ function NotificationItem({
               </span>
             ))}
           </div>
+        ) : isPublicationFailed ? (
+          <Avatar src="/brand/goatza-logo.svg" initials="G" alt="Goatza" size="md" />
         ) : (
           <Avatar
             src={actor?.avatar}
@@ -164,7 +177,11 @@ function NotificationItem({
       <div className={styles.content}>
         <p className={styles.text}>{notif.text}</p>
 
-        {isRemoved ? (
+        {isPublicationFailed ? (
+          publicationError && (
+            <p className={styles.commentSnippet}>{publicationError}</p>
+          )
+        ) : isRemoved ? (
           removedNote && (
             <p className={styles.commentSnippet}>
               <Icon icon="mdi:format-quote-open" width={11} height={11} />

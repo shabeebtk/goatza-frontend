@@ -57,6 +57,12 @@ export type ChatMessage = {
      */
     optimizing?: boolean
     /**
+     * Optimistic-only: the ORIGINAL is uploaded and the server is converting
+     * it (shared/services/sourceUpload.ts). The bubble says "Processing…"
+     * until the converted files exist and the message is sent.
+     */
+    processing?: boolean
+    /**
      * Optimistic-only: the stored media URL, stamped on as soon as the upload
      * finishes but before our own POST returns. Used to match the websocket
      * echo of this very message to its optimistic row.

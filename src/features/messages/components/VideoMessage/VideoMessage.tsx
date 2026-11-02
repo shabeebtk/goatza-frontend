@@ -22,12 +22,26 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
 // ── Progress ring ─────────────────────────────────────────────
 
-function ProgressRing({ progress }: { progress: number }) {
+function ProgressRing({
+    progress,
+    spinning = false,
+}: {
+    progress: number
+    /** The server is converting: a turning arc, not a count. */
+    spinning?: boolean
+}) {
     const r = 24
     const c = 2 * Math.PI * r
-    const dash = c * (1 - Math.min(100, Math.max(0, progress)) / 100)
+    const dash = spinning
+        ? c * 0.75
+        : c * (1 - Math.min(100, Math.max(0, progress)) / 100)
     return (
-        <svg className={styles.ring} viewBox="0 0 56 56" width={56} height={56}>
+        <svg
+            className={`${styles.ring} ${spinning ? styles.ringSpinning : ""}`}
+            viewBox="0 0 56 56"
+            width={56}
+            height={56}
+        >
             <circle className={styles.ringTrack} cx="28" cy="28" r={r} />
             <circle
                 className={styles.ringFill}
@@ -209,7 +223,10 @@ export default function VideoMessage({
                                 }}
                                 aria-label="Cancel upload"
                             >
-                                <ProgressRing progress={msg.uploadProgress ?? 0} />
+                                <ProgressRing
+                                    progress={msg.uploadProgress ?? 0}
+                                    spinning={Boolean(msg.processing)}
+                                />
                                 <span className={styles.cancelIcon}>
                                     <Icon icon="mdi:close" width={20} height={20} />
                                 </span>
@@ -217,9 +234,12 @@ export default function VideoMessage({
                             <span className={styles.uploadingLabel}>
                                 {/* The encode is the first 70% of the bar and
                                     the slower half on a phone — saying
-                                    "Uploading" through it reads as a stall. */}
-                                {msg.optimizing ? OPTIMIZING_LABEL : "Uploading"}{" "}
-                                {Math.round(msg.uploadProgress ?? 0)}%
+                                    "Uploading" through it reads as a stall.
+                                    Once the original is up and the server
+                                    converts it, there is no count to give. */}
+                                {msg.processing
+                                    ? "Processing…"
+                                    : <>{msg.optimizing ? OPTIMIZING_LABEL : "Uploading"}{" "}{Math.round(msg.uploadProgress ?? 0)}%</>}
                             </span>
                         </div>
                     )}

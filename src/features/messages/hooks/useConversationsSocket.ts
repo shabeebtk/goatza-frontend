@@ -1,48 +1,30 @@
-import { useCallback, useEffect } from "react"
-import { useWebSocket } from "@/core/ws/useWebSocket"
-import { useAuthStore } from "@/store/auth.store"
+import { useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
+
+import { realtimeBus } from "@/core/ws/realtimeBus"
 import { invalidateConversationsExceptMessages } from "./useConversationQueries"
 
-function buildNotificationsWsUrl(
-    actorType: "user" | "organization",
-    actorId: string | null
-): string | null {
-    const base = process.env.NEXT_PUBLIC_WS_URL
-    let url = `${base}/ws/notifications/`
-    
-    if (actorType === "organization" && actorId) {
-        url += `?actor_type=organization&org_id=${actorId}`
-    }
-    
-    return url
-}
-
-export function useConversationsSocket() {
-    const user = useAuthStore((s) => s.user)
-    const token = useAuthStore((s) => s.accessToken)
-    const actorType = useAuthStore((s) => s.actorType)
-    const actorId = useAuthStore((s) => s.actorId)
+/**
+ * Keep the conversations list current while it is on screen.
+ *
+ * It no longer opens a socket of its own: the app-wide NotificationsSocket
+ * (AppShell / OrgShell) owns the one ws/notifications/ connection and this
+ * listens on the realtime bus for the same event it always handled.
+ */
+export function useConversationsSocket(): void {
     const queryClient = useQueryClient()
 
-    const handleMessage = useCallback((data: unknown) => {
-        const payload = data as { notification_type?: string, conversation_id?: string }
-        if (payload.notification_type === "conversation_updated") {
-            // Invalidate the conversations list so it fetches the new list.
-            // NOT the message history: that key is prefix-matched by
-            // conversationKeys.all(), and refetching it replaces `data.pages`
-            // wholesale — which deletes any optimistic bubble still uploading.
-            // A long video upload is wide open to this; the open chat is kept
-            // current by its own websocket anyway.
-            invalidateConversationsExceptMessages(queryClient)
-        }
-    }, [queryClient])
-
-    const { status } = useWebSocket({
-        url: user ? buildNotificationsWsUrl(actorType, actorId) : null, // Only connect if logged in
-        token,
-        onMessage: handleMessage,
-    })
-
-    return { status }
+    useEffect(
+        () =>
+            realtimeBus.on("conversation_updated", () => {
+                // Invalidate the conversations list so it fetches the new list.
+                // NOT the message history: that key is prefix-matched by
+                // conversationKeys.all(), and refetching it replaces
+                // `data.pages` wholesale — which deletes any optimistic bubble
+                // still uploading. A long video upload is wide open to this;
+                // the open chat is kept current by its own websocket anyway.
+                invalidateConversationsExceptMessages(queryClient)
+            }),
+        [queryClient]
+    )
 }

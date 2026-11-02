@@ -22,6 +22,8 @@ import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCrop
 import { COVER_ASPECT_RATIO } from "@/constants"
 import styles from "./OrgPhotoEditModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { ensureDecodableImage } from "@/shared/services/imageVariants"
+import { checkRawImageSize } from "@/shared/constants/media"
 
 // ── Config ────────────────────────────────────────────────────
 
@@ -71,11 +73,24 @@ export default function OrgPhotoEditModal({
   useBodyScrollLock()
 
   // ── File pick ─────────────────────────────────────────────
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0]
+    e.target.value = ""
+    if (!picked) return
     setError(null)
-    if (file.size > 5 * 1024 * 1024) { setError("File must be under 5 MB."); return }
+    // The shared 25 MB pick-time ceiling; the server's 5 MB cap is on the
+    // compressed file, which useOrgPhotoUpload holds it to.
+    const tooLarge = checkRawImageSize(picked)
+    if (tooLarge) { setError(tooLarge); return }
+    // The cropper renders the photo itself, so a HEIC this browser cannot
+    // decode (Chrome, Firefox) is converted to JPEG before it gets there.
+    let file: File
+    try {
+      file = await ensureDecodableImage(picked, { flow: "single", surface: `organization_${type}` })
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Couldn't open that photo.")
+      return
+    }
     setOrigName(file.name)
     const reader = new FileReader()
     reader.onload = () => {
@@ -85,7 +100,6 @@ export default function OrgPhotoEditModal({
       setState("crop")
     }
     reader.readAsDataURL(file)
-    e.target.value = ""
   }
 
   const onCropComplete = useCallback(

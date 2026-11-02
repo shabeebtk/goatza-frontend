@@ -20,7 +20,11 @@ const sentry = vi.hoisted(() => ({
 vi.mock("@sentry/nextjs", () => sentry)
 
 const api = vi.hoisted(() => ({ post: vi.fn() }))
-vi.mock("@/core/api/axios", () => ({ default: api }))
+vi.mock("@/core/api/axios", () => ({
+    default: api,
+    // The real helper: an actor rides on the request config, or nothing does.
+    withActor: (actor?: unknown) => (actor ? { actor } : {}),
+}))
 
 // apiError.ts reads only this constant from the encoder; the real module
 // would drag mediabunny into a test about XHRs.

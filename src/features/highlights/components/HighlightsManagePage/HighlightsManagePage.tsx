@@ -358,7 +358,12 @@ export default function HighlightsManagePage() {
                 )}
             </div>
 
-            {addOpen && <AddHighlightModal onClose={() => setAddOpen(false)} />}
+            {addOpen && (
+                <AddHighlightModal
+                    existingCount={usedSlots}
+                    onClose={() => setAddOpen(false)}
+                />
+            )}
 
             {confirmId && (
                 <div className={styles.confirmBackdrop}>

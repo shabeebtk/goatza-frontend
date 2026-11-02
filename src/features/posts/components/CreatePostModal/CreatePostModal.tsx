@@ -1,37 +1,39 @@
 "use client"
 
 import { useCallback, useRef, useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import PostLocationPicker from "../PostLocationPicker/PostLocationPicker"
-import { useCreatePost } from "@/features/posts/hooks/usePostMutations"
 import { CLEAR_SPORT, sportOptions, usePostSports } from "@/features/posts/hooks/usePostSports"
 import {
   validateMediaFiles,
-  uploadMediaFile,
+  runPostUpload,
   MAX_IMAGES,
   MAX_IMAGE_MB,
   MAX_VIDEO_MB,
+  MAX_VIDEO_SECONDS,
+  VIDEO_TOO_LONG_MESSAGE,
+  type PostDraft,
 } from "@/features/posts/services/postUpload.service"
-import type { PostVisibility, PostMediaPayload, PostLocation } from "@/features/posts/services/posts.api"
+import type { PostVisibility, PostLocation } from "@/features/posts/services/posts.api"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
-import { VIDEO_ACCEPT } from "@/shared/constants/media"
-import { OPTIMIZING_LABEL, isVideoAudioLostError } from "@/shared/services/videoEncode"
-import { OFFLINE_MESSAGE, UPLOAD_CANCELLED } from "@/shared/services/mediaUpload"
-import { getApiErrorMessage, isUploadCancellation } from "@/shared/services/apiError"
-import { useNavigation } from "@/shared/services/navigation.service"
-import { useAuthStore } from "@/store/auth.store"
+import { videoAcceptFor } from "@/shared/constants/media"
+import { OFFLINE_MESSAGE } from "@/shared/services/mediaUpload"
+import { useMediaCapabilities } from "@/shared/services/mediaCapabilities"
+import { checkVideoDuration } from "@/shared/services/videoPrep"
+import { enqueueUpload } from "@/shared/upload/uploadQueue"
+import {
+  reopenPostComposer,
+  type PostComposerDraft,
+} from "@/features/posts/store/postComposer.store"
 import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/media"
 import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageCropper"
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
 import Select from "@/shared/components/ui/Select/Select"
-import UploadOverlay, { retryLabelFor } from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import styles from "./CreatePostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
-import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -41,22 +43,20 @@ type FileEntry = {
   originalFile: File      // untouched source — re-cropping always starts here
   preview:  string
   isVideo:  boolean
-  progress: number
-  status:   "idle" | "uploading" | "done" | "error"
-  /** True while the browser is re-encoding this video, before any bytes move. */
-  optimizing?: boolean
-  error:    string | null
-  result:   PostMediaPayload | null
   crop?:    CropState     // saved reposition so re-opening the cropper resumes
   zoom?:    number
 }
 
-type SubmitPhase = "idle" | "uploading" | "posting" | "done"
-
 function uid() { return Math.random().toString(36).slice(2, 10) }
-function fmtBytes(b: number) {
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`
-  return `${(b / (1024 * 1024)).toFixed(1)} MB`
+
+function entryFor(file: File): FileEntry {
+  return {
+    id:           uid(),
+    file,
+    originalFile: file,
+    preview:      URL.createObjectURL(file),
+    isVideo:      file.type.startsWith("video/"),
+  }
 }
 
 // Measure a local file's clamped display ratio (same clamp the feed uses), so
@@ -140,11 +140,10 @@ function VisibilityBtn({ value, onChange }: {
 
 // ── Media carousel preview ────────────────────────────────────
 
-function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
+function MediaCarouselPreview({ entries, onRemove, onCropEntry }: {
   entries: FileEntry[]
   onRemove: (id: string) => void
   onCropEntry: (id: string, file: File, crop: CropState, zoom: number) => void
-  disabled: boolean
 }) {
   // Clamped during render, not corrected afterwards in an effect.
   // `entries` shrinks when the author removes an item, and an index past the
@@ -220,48 +219,19 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
           <img key={current.id} src={current.preview} className={styles.previewMedia} alt={`Preview ${idx + 1}`} />
         )}
 
-        {current.status === "uploading" && (
-          <div className={styles.previewUploadOverlay}>
-            <div className={styles.ringWrap}>
-              <svg viewBox="0 0 44 44" className={styles.ringSvg}>
-                <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3.5"/>
-                <circle cx="22" cy="22" r="18" fill="none" stroke="var(--color-brand)" strokeWidth="3.5"
-                  strokeDasharray={`${current.progress * 1.131} 113.1`} strokeLinecap="round" transform="rotate(-90 22 22)" />
-              </svg>
-              <span className={styles.ringPct}>{current.progress}%</span>
-            </div>
-            <span className={styles.ringSize}>{fmtBytes(current.file.size)}</span>
-          </div>
-        )}
+        <button className={styles.previewRemoveBtn} onClick={() => { onRemove(current.id); if (idx > 0 && idx === total - 1) setIdx(idx - 1) }}
+          type="button" aria-label="Remove">
+          <Icon icon="mdi:close" width={14} height={14} />
+        </button>
 
-        {current.status === "done" && (
-          <div className={styles.previewDoneOverlay}>
-            <span className={styles.doneTick}><Icon icon="mdi:check-circle" width={28} height={28} /></span>
-          </div>
-        )}
-
-        {current.status === "error" && (
-          <div className={styles.previewErrorOverlay}>
-            <Icon icon="mdi:alert-circle" width={24} height={24} />
-            <span className={styles.previewErrorText}>{current.error}</span>
-          </div>
-        )}
-
-        {!disabled && (
-          <button className={styles.previewRemoveBtn} onClick={() => { onRemove(current.id); if (idx > 0 && idx === total - 1) setIdx(idx - 1) }}
-            type="button" aria-label="Remove">
-            <Icon icon="mdi:close" width={14} height={14} />
-          </button>
-        )}
-
-        {current.isVideo && current.status === "idle" && (
+        {current.isVideo && (
           <div className={styles.previewVideoBadge}>
             <Icon icon="mdi:play-circle-outline" width={14} height={14} /> Video
           </div>
         )}
 
-        {/* Adjust / crop — images only, while composing */}
-        {!disabled && !current.isVideo && current.status === "idle" && (
+        {/* Adjust / crop — images only */}
+        {!current.isVideo && (
           <button
             className={styles.previewCropBtn}
             onClick={() => openCropper(current)}
@@ -296,8 +266,6 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
               ) : (
                 <img src={e.preview} className={styles.previewThumbImg} alt="" />
               )}
-              {e.status === "done" && <span className={styles.thumbDone}><Icon icon="mdi:check" width={10} height={10} /></span>}
-              {e.status === "uploading" && <span className={styles.thumbProgress} style={{ "--pct": `${e.progress}%` } as React.CSSProperties} />}
             </button>
           ))}
         </div>
@@ -318,76 +286,60 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry, disabled }: {
   )
 }
 
-// ── Upload overlay ────────────────────────────────────────────
-
 // ── Main CreatePostModal ──────────────────────────────────────
+//
+// Post hands the draft to the upload queue (shared/upload/uploadQueue.ts) and
+// the composer closes at once — the author keeps using the app while the
+// UploadQueueBar shows "Posting… 45%". Failures, Retry and "Post without
+// sound" live in that bar, with the files kept in the task.
 
 interface CreatePostModalProps {
   username:       string
   userAvatarUrl?: string
   userInitials?:  string
   displayName?:   string
+  /** Start from this instead of an empty composer — the queue's "Edit". */
+  initialDraft?:  PostComposerDraft
   onClose:        () => void
 }
 
 export default function CreatePostModal({
-  username, userAvatarUrl, userInitials, displayName, onClose,
+  username, userAvatarUrl, userInitials, displayName, initialDraft, onClose,
 }: CreatePostModalProps) {
-  const router     = useRouter()
-  const createPost = useCreatePost()
   // The ACTOR's sports, not the person's — an org composer must not offer
   // the sports of whoever happens to be signed in behind it.
   const { sports: actorSports, primarySportId } = usePostSports()
-  const { toPostsList } = useNavigation()
-  const actorType = useAuthStore(s => s.actorType)
+  // Whether the server converts what the phone cannot: wider video formats.
+  const { server_processing: serverProcessing } = useMediaCapabilities()
 
   // Compose state
-  const [content,      setContent]      = useState("")
-  const [visibility,   setVisibility]   = useState<PostVisibility>("public")
-  const [sportId,      setSportId]      = useState("")
-  const [entries,      setEntries]      = useState<FileEntry[]>([])
+  const [content,      setContent]      = useState(initialDraft?.content ?? "")
+  const [visibility,   setVisibility]   = useState<PostVisibility>(initialDraft?.visibility ?? "public")
+  const [entries,      setEntries]      = useState<FileEntry[]>(() => (initialDraft?.files ?? []).map(entryFor))
   const [submitError,  setSubmitError]  = useState<string | null>(null)
-  const [phase,        setPhase]        = useState<SubmitPhase>("idle")
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  // The browser could not keep the video's sound: ask before posting it mute.
-  const [confirmSilent,  setConfirmSilent]  = useState(false)
-  // "Cancel upload?" — asked before an in-flight upload is thrown away.
-  const [confirmCancel,  setConfirmCancel]  = useState(false)
-  // "Retrying… (2/4)" / "Resuming…" under the ring while a PUT starts over.
-  const [retryLabel,     setRetryLabel]     = useState<string | null>(null)
-  // The upload in flight, so Cancel (and unmount) can pull the plug on the
-  // compressor, the encoder, the signature request and every PUT at once.
-  const abortRef = useRef<AbortController | null>(null)
-
-  // An auto-locking phone suspends the page and kills the upload with it —
-  // the most common "random" iPhone failure. Keep the screen on until the
-  // post exists.
-  useScreenWakeLock(phase === "uploading" || phase === "posting")
 
   /**
    * PRESELECTED, not forced. Most people post about the one sport they are
    * on file as playing, so the composer starts there and they change it on
    * the rare post that is about something else.
    *
-   * `sportTouched` is what makes it a default rather than a correction: once
-   * the author has picked anything — including clearing it — this stops
-   * having an opinion, so a sport they deliberately removed does not come
-   * back on the next render.
+   * `sportChoice` is what makes it a default rather than a correction: null
+   * until the author picks anything — including clearing it, which is "" —
+   * and from then on the default stops having an opinion, so a sport they
+   * deliberately removed does not come back. Derived during render rather
+   * than copied in by an effect, so a primary sport that loads late is
+   * simply picked up.
    */
-  const [sportTouched, setSportTouched] = useState(false)
-
-  useEffect(() => {
-    if (sportTouched || !primarySportId) return
-    setSportId(primarySportId)
-  }, [primarySportId, sportTouched])
+  const [sportChoice, setSportChoice] = useState<string | null>(initialDraft?.sportId ?? null)
+  const sportId = sportChoice ?? primarySportId ?? ""
 
   const chooseSport = (next: string) => {
-    setSportTouched(true)
-    setSportId(next === CLEAR_SPORT ? "" : next)
+    setSportChoice(next === CLEAR_SPORT ? "" : next)
   }
 
   // Location state — managed outside any form library
-  const [postLocation,  setPostLocation]  = useState<PlaceResult | null>(null)
+  const [postLocation,  setPostLocation]  = useState<PlaceResult | null>(initialDraft?.location ?? null)
   const [locationOpen,  setLocationOpen]  = useState(false)
   // The actor's own coordinates, as a 50 km bias circle for place search.
   // Cache-only: never fetches, and null is a perfectly normal answer.
@@ -397,10 +349,8 @@ export default function CreatePostModal({
   const textareaRef  = useRef<HTMLTextAreaElement>(null)
   const bodyRef      = useRef<HTMLDivElement>(null)
 
-  const isSubmitting = phase !== "idle"
   const hasVideo     = entries.some(e => e.isVideo)
   const hasImages    = entries.some(e => !e.isVideo)
-  const composing    = phase === "idle"
 
   // ── Unsaved-changes guard ─────────────────────────────────────
   const isDirty =
@@ -415,50 +365,12 @@ export default function CreatePostModal({
 
   // Close, but confirm first if the user has started composing.
   const requestClose = () => {
-    if (composing && isDirty) setConfirmDiscard(true)
+    if (isDirty) setConfirmDiscard(true)
     else onClose()
   }
 
   // ── Manage body scroll lock ───────────────────────────────────
   useBodyScrollLock()
-
-  // ── Cancel an in-flight upload ────────────────────────────────
-  // Aborts with the shared sentinel as the reason so every stage — including
-  // browser-image-compression, which rethrows `signal.reason` — rejects with
-  // the same cancellation the catch below stays silent on. The draft (text,
-  // media, sport, location, visibility) is untouched: only the entries'
-  // upload state goes back to idle.
-  const cancelUpload = useCallback(() => {
-    setConfirmCancel(false)
-    const controller = abortRef.current
-    abortRef.current = null
-    controller?.abort(new Error(UPLOAD_CANCELLED))
-    setEntries(prev => prev.map(e => ({ ...e, status: "idle", progress: 0, optimizing: false, error: null, result: null })))
-    setSubmitError(null)
-    setRetryLabel(null)
-    setPhase("idle")
-  }, [])
-
-  // Leaving the screen mid-upload must not leave an encoder or an XHR running
-  // for a composer that no longer exists.
-  useEffect(() => () => {
-    abortRef.current?.abort(new Error(UPLOAD_CANCELLED))
-    abortRef.current = null
-  }, [])
-
-  // Esc while uploading asks to cancel (and closes that question again); it
-  // never closes the modal. Once the post is being published there is nothing
-  // left to cancel, so Esc does nothing.
-  useEffect(() => {
-    if (phase !== "uploading") return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return
-      e.stopPropagation()
-      setConfirmCancel(open => !open)
-    }
-    document.addEventListener("keydown", handler)
-    return () => document.removeEventListener("keydown", handler)
-  }, [phase])
 
   // ── Auto-resize textarea ──────────────────────────────────────
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
@@ -470,7 +382,6 @@ export default function CreatePostModal({
   const mention = useMentionAutocomplete({
     value: content,
     textareaRef,
-    disabled: isSubmitting,
     onChange: (next: string) => {
       setContent(next)
       const ta = textareaRef.current
@@ -486,29 +397,31 @@ export default function CreatePostModal({
   }
 
   // ── File selection ────────────────────────────────────────────
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     e.target.value = ""
     if (!files.length) return
     setSubmitError(null)
 
     const combined = [...entries.map(en => en.file), ...files]
-    const err = validateMediaFiles(combined)
+    const err = validateMediaFiles(combined, { serverProcessing })
     if (err) { setSubmitError(err); return }
 
-    const newEntries: FileEntry[] = files.map(f => ({
-      id:           uid(),
-      file:         f,
-      originalFile: f,
-      preview:      URL.createObjectURL(f),
-      isVideo:      f.type.startsWith("video/"),
-      progress:     0,
-      status:       "idle",
-      error:        null,
-      result:       null,
-    }))
-    setEntries(prev => [...prev, ...newEntries])
-  }, [entries])
+    // A clip over 5 minutes is refused NOW, while the draft is still in
+    // front of the author. After Post it could only fail in the queue bar,
+    // with the caption out of reach. A length the browser cannot read is
+    // left to the upload (and to the server, when it converts).
+    const video = files.find(f => f.type.startsWith("video/"))
+    if (video) {
+      const length = await checkVideoDuration(video, MAX_VIDEO_SECONDS)
+      if (!length.ok && length.reason === "too_long") {
+        setSubmitError(VIDEO_TOO_LONG_MESSAGE)
+        return
+      }
+    }
+
+    setEntries(prev => [...prev, ...files.map(entryFor)])
+  }, [entries, serverProcessing])
 
   // ── Apply a crop — replace the entry's file, keep the original ─
   const handleCropEntry = useCallback((id: string, file: File, crop: CropState, zoom: number) => {
@@ -528,7 +441,10 @@ export default function CreatePostModal({
   }, [])
 
   // ── Submit ────────────────────────────────────────────────────
-  const handleSubmit = async (opts?: { allowSilentAudio?: boolean }) => {
+  // The quick checks run here, while the author can still act on them; then
+  // the draft goes to the queue and the composer closes. Everything slow —
+  // compressing, encoding, uploading, the create — happens in the background.
+  const handleSubmit = () => {
     setSubmitError(null)
     const trimmed = content.trim()
     if (trimmed.length < 3) {
@@ -544,75 +460,9 @@ export default function CreatePostModal({
       return
     }
 
-    let uploadedMedia: PostMediaPayload[] = []
-
-    if (entries.length > 0) {
-      // One controller per attempt; a retry ("Post without sound") gets its own.
-      abortRef.current?.abort(new Error(UPLOAD_CANCELLED))
-      const controller = new AbortController()
-      abortRef.current = controller
-      const { signal } = controller
-
-      setPhase("uploading")
-      setRetryLabel(null)
-      setEntries(prev => prev.map(e => ({ ...e, status: "uploading", progress: 0, error: null })))
-      try {
-        const results = await uploadMediaFile(
-          entries.map(e => e.file),
-          (fileIndex, loaded, total, uploadPhase, meta) => {
-            // A late progress event from a cancelled upload must not touch the
-            // composer the cancel just put back.
-            if (signal.aborted) return
-            const pct = Math.round((loaded / total) * 100)
-            // A retry restarts the bar; say why instead of jumping to 0%.
-            setRetryLabel(retryLabelFor(meta))
-            setEntries(prev => prev.map((e, i) => i === fileIndex
-              ? { ...e, progress: pct, optimizing: uploadPhase === "encoding" }
-              : e))
-          },
-          { allowSilentAudio: opts?.allowSilentAudio, signal }
-        )
-        if (signal.aborted) return
-        setRetryLabel(null)
-        for (let i = 0; i < results.length; i++) {
-          setEntries(prev => prev.map((e, idx) => idx === i ? { ...e, status: "done", progress: 100, optimizing: false, result: results[i] } : e))
-          if (i < results.length - 1) await new Promise(r => setTimeout(r, 120))
-          if (signal.aborted) return
-        }
-        uploadedMedia = results
-      } catch (err: unknown) {
-        // The author cancelled: `cancelUpload` has already put the composer
-        // back, and there is nothing to tell them.
-        if (signal.aborted || isUploadCancellation(err)) return
-
-        // Not a failure yet — a decision. Nothing was uploaded, so put the
-        // composer back exactly as it was and ask; "Post without sound"
-        // re-runs this with the author's permission.
-        if (isVideoAudioLostError(err)) {
-          setEntries(prev => prev.map(e => ({ ...e, status: "idle", progress: 0, optimizing: false, error: null })))
-          setPhase("idle")
-          setConfirmSilent(true)
-          return
-        }
-
-        // The overlay goes away and the composer shows what went wrong — the
-        // server's own words when it has some, the upload helpers' otherwise
-        // (an UploadError's ends in its code, e.g. "(UPLOAD_NETWORK)"), and
-        // never axios's "Request failed with status code …".
-        const msg = getApiErrorMessage(err, "Couldn't upload your media. Please try again.")
-        setEntries(prev => prev.map(e => e.status !== "done" ? { ...e, status: "error", optimizing: false, error: msg } : e))
-        setSubmitError(msg)
-        setRetryLabel(null)
-        setPhase("idle")
-        return
-      } finally {
-        if (abortRef.current === controller) abortRef.current = null
-      }
-    } else {
-      setPhase("uploading")
-    }
-
-    setPhase("posting")
+    const files = entries.map(e => e.file)
+    const invalid = validateMediaFiles(files, { serverProcessing })
+    if (invalid) { setSubmitError(invalid); return }
 
     // Build location payload if selected
     const locationPayload: PostLocation | undefined = postLocation ? {
@@ -630,38 +480,43 @@ export default function CreatePostModal({
       external_id:  postLocation.external_id,
     } : undefined
 
-    try {
-      await createPost.mutateAsync({
+    // The files ride in the task, in memory: Retry (and "Post without
+    // sound") re-run this without the author picking anything again.
+    const draft: PostDraft = {
+      files,
+      payload: {
         content:   trimmed,
         post_type: "normal",
         visibility,
         sport_id:  sportId || undefined,
-        media:     uploadedMedia.length > 0 ? uploadedMedia : undefined,
         location:  locationPayload,
-      })
-      setPhase("done")
-    } catch (err: unknown) {
-      setSubmitError(getApiErrorMessage(err, "Couldn't publish your post. Please try again."))
-      setPhase("idle")
+      },
     }
-  }
+    const first = entries[0]
+    // What "Edit" reopens if this fails in a way no retry can fix.
+    const snapshot: PostComposerDraft = {
+      content, visibility, sportId: sportChoice, location: postLocation, files,
+    }
 
-  // Send the author to their own posts list. For an org actor this resolves to
-  // the org-admin posts page; for a user it stays on the public profile.
-  const postsListHref = toPostsList(username, actorType === "organization" ? "organization" : "user")
-  const handleDoneRedirect = useCallback(() => {
+    enqueueUpload({
+      kind: "post",
+      label: trimmed,
+      preview: { mediaType: first ? (first.isVideo ? "video" : "image") : "none" },
+      previewFile: first?.file,
+      run: (ctx) => runPostUpload(draft, ctx),
+      onEdit: () => reopenPostComposer(snapshot),
+    })
     onClose()
-    router.push(postsListHref)
-  }, [onClose, router, postsListHref])
+  }
 
   const contentLen  = content.length
   const charWarning = contentLen > 2800
-  const canSubmit   = content.trim().length >= 3 && !isSubmitting
+  const canSubmit   = content.trim().length >= 3
 
   return (
     <div
       className={styles.backdrop}
-      onClick={e => { if (e.target === e.currentTarget && composing) requestClose() }}
+      onClick={e => { if (e.target === e.currentTarget) requestClose() }}
       role="dialog"
       aria-modal="true"
       aria-label="Create post"
@@ -671,7 +526,7 @@ export default function CreatePostModal({
         {/* ── Header ── */}
         <div className={styles.header}>
           <h2 className={styles.headerTitle}>Create Post</h2>
-          <button className={styles.closeBtn} onClick={requestClose} disabled={isSubmitting} type="button" aria-label="Close">
+          <button className={styles.closeBtn} onClick={requestClose} type="button" aria-label="Close">
             <Icon icon="mdi:close" width={20} height={20} />
           </button>
         </div>
@@ -686,53 +541,51 @@ export default function CreatePostModal({
               <span className={styles.authorName}>
                 {displayName ? `${displayName} ` : username}
               </span>
-              {composing && (
-                <div className={styles.authorBadges}>
-                  <VisibilityBtn value={visibility} onChange={setVisibility} />
-                  
-                  {/* Sport — a Select wearing a badge, so the row reads as
-                      three chips rather than two chips and a form field. */}
-                  {actorSports.length > 0 && (
-                    <Select
-                      className={styles.sportField}
-                      size="sm"
-                      aria-label="Tag a sport"
-                      sheetTitle="Tag a sport"
-                      placeholder="Sport"
-                      leadingIcon="mdi:shape-outline"
-                      value={sportId}
-                      onChange={chooseSport}
-                      options={sportOptions(actorSports, sportId)}
-                    />
-                  )}
+              <div className={styles.authorBadges}>
+                <VisibilityBtn value={visibility} onChange={setVisibility} />
+                
+                {/* Sport — a Select wearing a badge, so the row reads as
+                    three chips rather than two chips and a form field. */}
+                {actorSports.length > 0 && (
+                  <Select
+                    className={styles.sportField}
+                    size="sm"
+                    aria-label="Tag a sport"
+                    sheetTitle="Tag a sport"
+                    placeholder="Sport"
+                    leadingIcon="mdi:shape-outline"
+                    value={sportId}
+                    onChange={chooseSport}
+                    options={sportOptions(actorSports, sportId)}
+                  />
+                )}
 
-                  {/* Location Toggle / Pill */}
-                  {postLocation ? (
-                    <div className={styles.badgePill}>
-                      <Icon icon="mdi:map-marker" width={12} height={12} />
-                      <span className={styles.badgePillText}>{postLocation.name}</span>
-                      <button
-                        type="button"
-                        className={styles.badgePillClose}
-                        onClick={() => setPostLocation(null)}
-                        aria-label="Remove location"
-                      >
-                        <Icon icon="mdi:close" width={10} height={10} />
-                      </button>
-                    </div>
-                  ) : (
+                {/* Location Toggle / Pill */}
+                {postLocation ? (
+                  <div className={styles.badgePill}>
+                    <Icon icon="mdi:map-marker" width={12} height={12} />
+                    <span className={styles.badgePillText}>{postLocation.name}</span>
                     <button
                       type="button"
-                      className={`${styles.badgeBtn} ${locationOpen ? styles.badgeBtnActive : ""}`}
-                      onClick={() => setLocationOpen(v => !v)}
-                      aria-label="Add location"
+                      className={styles.badgePillClose}
+                      onClick={() => setPostLocation(null)}
+                      aria-label="Remove location"
                     >
-                      <Icon icon="mdi:map-marker-plus-outline" width={13} height={13} />
-                      LOCATION
+                      <Icon icon="mdi:close" width={10} height={10} />
                     </button>
-                  )}
-                </div>
-              )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className={`${styles.badgeBtn} ${locationOpen ? styles.badgeBtnActive : ""}`}
+                    onClick={() => setLocationOpen(v => !v)}
+                    aria-label="Add location"
+                  >
+                    <Icon icon="mdi:map-marker-plus-outline" width={13} height={13} />
+                    LOCATION
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -760,7 +613,6 @@ export default function CreatePostModal({
             onBlur={mention.close}
             rows={3}
             maxLength={3000}
-            disabled={isSubmitting}
             aria-label="Post content"
           />
 
@@ -774,12 +626,11 @@ export default function CreatePostModal({
           {/* Location — full-screen search, portalled above this modal.
               It closes itself on pick and on remove; the toolbar pill above
               keeps its own remove for when the screen isn't open. */}
-          {locationOpen && composing && (
+          {locationOpen && (
             <PostLocationPicker
               value={postLocation}
               onChange={setPostLocation}
               onClose={() => setLocationOpen(false)}
-              disabled={isSubmitting}
               bias={placeBias}
             />
           )}
@@ -790,7 +641,6 @@ export default function CreatePostModal({
               entries={entries}
               onRemove={removeEntry}
               onCropEntry={handleCropEntry}
-              disabled={isSubmitting}
             />
           )}
 
@@ -804,59 +654,42 @@ export default function CreatePostModal({
 
         </div>
 
-        {/* ── Full-screen upload / publishing / posted overlay ── */}
-        {phase !== "idle" && (
-          <UploadOverlay
-            entries={entries.map(e => ({
-              preview: e.preview, isVideo: e.isVideo, progress: e.progress,
-              status: e.status, size: e.file.size, optimizing: e.optimizing,
-            }))}
-            phase={phase}
-            optimizingLabel={OPTIMIZING_LABEL}
-            retryLabel={retryLabel}
-            onCancel={() => setConfirmCancel(true)}
-            onDone={handleDoneRedirect}
-          />
-        )}
-
         {/* ── Footer toolbar ── */}
-        {composing && (
-          <div className={styles.footer}>
-            <div className={styles.footerTools}>
+        <div className={styles.footer}>
+          <div className={styles.footerTools}>
 
-              {/* Add images */}
-              <button type="button" className={styles.toolBtn}
-                onClick={() => { if (!hasVideo) fileInputRef.current?.click() }}
-                disabled={hasVideo} aria-label="Add images"
-                title={`Add images (max ${MAX_IMAGES}, ${MAX_IMAGE_MB}MB each)`}>
-                <Icon icon="mdi:image-plus-outline" width={22} height={22} />
-                {hasImages && <span className={styles.toolCount}>{entries.length}</span>}
-              </button>
+            {/* Add images */}
+            <button type="button" className={styles.toolBtn}
+              onClick={() => { if (!hasVideo) fileInputRef.current?.click() }}
+              disabled={hasVideo} aria-label="Add images"
+              title={`Add images (max ${MAX_IMAGES}, ${MAX_IMAGE_MB}MB each)`}>
+              <Icon icon="mdi:image-plus-outline" width={22} height={22} />
+              {hasImages && <span className={styles.toolCount}>{entries.length}</span>}
+            </button>
 
-              {/* Add video */}
-              <button type="button" className={styles.toolBtn}
-                onClick={() => { if (!hasImages && !hasVideo) fileInputRef.current?.click() }}
-                disabled={hasImages || hasVideo} aria-label="Add video"
-                title={`Add video (max ${MAX_VIDEO_MB}MB, 5 min)`}>
-                <Icon icon="mdi:video-plus-outline" width={22} height={22} />
-              </button>
+            {/* Add video */}
+            <button type="button" className={styles.toolBtn}
+              onClick={() => { if (!hasImages && !hasVideo) fileInputRef.current?.click() }}
+              disabled={hasImages || hasVideo} aria-label="Add video"
+              title={`Add video (max ${MAX_VIDEO_MB}MB, 5 min)`}>
+              <Icon icon="mdi:video-plus-outline" width={22} height={22} />
+            </button>
 
-              {/* Media hints */}
-              {entries.length > 0 && (
-                <span className={styles.mediaHint}>
-                  {hasVideo ? "1 video" : `${entries.length}/${MAX_IMAGES} photos`}
-                </span>
-              )}
-            </div>
-
-            <div className={styles.footerRight}>
-              {/* Post button */}
-              <button type="button" className={styles.postBtn} onClick={() => handleSubmit()} disabled={!canSubmit}>
-                Post
-              </button>
-            </div>
+            {/* Media hints */}
+            {entries.length > 0 && (
+              <span className={styles.mediaHint}>
+                {hasVideo ? "1 video" : `${entries.length}/${MAX_IMAGES} photos`}
+              </span>
+            )}
           </div>
-        )}
+
+          <div className={styles.footerRight}>
+            {/* Post button */}
+            <button type="button" className={styles.postBtn} onClick={() => handleSubmit()} disabled={!canSubmit}>
+              Post
+            </button>
+          </div>
+        </div>
 
         {/* Hidden file input */}
         <input
@@ -864,76 +697,14 @@ export default function CreatePostModal({
           type="file"
           hidden
           multiple={!hasVideo && !entries.some(e => e.isVideo)}
-          // Videos are named explicitly, not `video/*`: validateMediaFiles
-          // rejects anything outside MP4/MOV/WebM, so the picker shouldn't
-          // offer files it is about to refuse.
-          accept={`image/*,${VIDEO_ACCEPT}`}
+          // `video/*` only when the server converts what the phone cannot;
+          // otherwise MP4/MOV/WebM by name — validateMediaFiles refuses the
+          // rest, so the picker should not offer them.
+          accept={`image/*,${videoAcceptFor(serverProcessing)}`}
           onChange={handleFileChange}
         />
 
       </div>
-
-      {/* The sound cannot be kept on this browser: post mute, or not at all */}
-      {confirmSilent && (
-        <div className={styles.confirmOverlay} onClick={() => setConfirmSilent(false)}>
-          <div
-            className={styles.confirmDialog}
-            onClick={e => e.stopPropagation()}
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Post without sound"
-          >
-            <span className={`${styles.confirmIcon} ${styles.confirmIconWarn}`}>
-              <Icon icon="mdi:volume-off" width={26} height={26} />
-            </span>
-            <h3 className={styles.confirmTitle}>Post without sound?</h3>
-            <p className={styles.confirmText}>
-              This browser can&rsquo;t keep the sound on this video. Try posting it from a computer, or update your phone&rsquo;s software.
-            </p>
-            <div className={styles.confirmActions}>
-              <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmSilent(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={styles.confirmPrimaryBtn}
-                onClick={() => { setConfirmSilent(false); void handleSubmit({ allowSilentAudio: true }) }}
-              >
-                Post without sound
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancel the upload in flight — the draft stays */}
-      {confirmCancel && phase === "uploading" && (
-        <div className={styles.confirmOverlay} onClick={() => setConfirmCancel(false)}>
-          <div
-            className={styles.confirmDialog}
-            onClick={e => e.stopPropagation()}
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Cancel upload"
-          >
-            <span className={styles.confirmIcon}>
-              <Icon icon="mdi:upload-off-outline" width={26} height={26} />
-            </span>
-            <h3 className={styles.confirmTitle}>Cancel upload?</h3>
-            <p className={styles.confirmText}>
-              Your post won&rsquo;t be shared.
-            </p>
-            <div className={styles.confirmActions}>
-              <button type="button" className={styles.confirmCancelBtn} onClick={() => setConfirmCancel(false)}>
-                Keep uploading
-              </button>
-              <button type="button" className={styles.confirmDiscardBtn} onClick={cancelUpload}>
-                Cancel upload
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Discard-changes confirmation */}
       {confirmDiscard && (

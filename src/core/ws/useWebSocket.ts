@@ -86,6 +86,20 @@ export function useWebSocket({
     const attemptsRef = useRef(0)
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const intentionalCloseRef = useRef(false)
+    /**
+     * The LIVE connection's listener cleanup. A reconnect replaces it and the
+     * effect cleanup calls whichever is current — not only the first one's,
+     * which left a reconnected socket emitting after an account switch.
+     */
+    const detachRef = useRef<(() => void) | null>(null)
+    /**
+     * Bumped on every mount / url change and on cleanup. A socket's close and
+     * a pending reconnect act only while their generation is still current,
+     * so the old url's socket can never schedule a reconnect.
+     */
+    const generationRef = useRef(0)
+    /** The url this hook holds a wsManager reference to — released once only. */
+    const heldUrlRef = useRef<string | null>(null)
 
     // Stable refs for callbacks — avoids stale closure issues
     const onMessageRef = useRef(onMessage)
@@ -117,7 +131,9 @@ export function useWebSocket({
         const liveToken = useAuthStore.getState().accessToken
         const protocols = liveToken ? ["access_token", liveToken] : undefined
         const socket = wsManager.get(url, protocols)
+        heldUrlRef.current = url
         socketRef.current = socket
+        const generation = generationRef.current
         setStatus(WS_READY_STATE_MAP[socket.readyState] ?? "connecting")
 
         const handleOpen = () => {
@@ -133,8 +149,13 @@ export function useWebSocket({
         }
 
         const handleClose = (event: CloseEvent) => {
+            // A socket from a previous url (or an unmounted hook): not ours.
+            if (generation !== generationRef.current) return
             setStatus("closed")
-            wsManager.release(url)
+            if (heldUrlRef.current === url) {
+                wsManager.release(url)
+                heldUrlRef.current = null
+            }
             onCloseRef.current?.(event)
 
             if (
@@ -153,10 +174,14 @@ export function useWebSocket({
                 // effect below), which is also what a reconnect wants — a
                 // reconnect fired after `url` changed should use the NEW
                 // connect, not the closure that scheduled it.
-                reconnectTimerRef.current = setTimeout(
-                    () => connectRef.current?.(),
-                    delay,
-                )
+                reconnectTimerRef.current = setTimeout(() => {
+                    reconnectTimerRef.current = null
+                    if (generation !== generationRef.current || intentionalCloseRef.current) return
+                    // The dead socket's listeners go; the new connection's
+                    // cleanup is the one the effect will call.
+                    detachRef.current?.()
+                    detachRef.current = connectRef.current?.() ?? null
+                }, delay)
             }
         }
 
@@ -181,6 +206,23 @@ export function useWebSocket({
             socket.removeEventListener("error", handleError)
         }
     }, [url, reconnect, reconnectDelay, maxReconnectDelay, maxAttempts])
+
+    /**
+     * End this hook's connection, whatever closes its socket next: no
+     * reconnect from it, nothing more from it reaches the caller, and its
+     * wsManager reference released exactly once.
+     */
+    const endConnection = useCallback(() => {
+        generationRef.current++
+        intentionalCloseRef.current = true
+        clearReconnectTimer()
+        detachRef.current?.()
+        detachRef.current = null
+        if (heldUrlRef.current) {
+            wsManager.release(heldUrlRef.current)
+            heldUrlRef.current = null
+        }
+    }, [clearReconnectTimer])
 
     // Kept before the mount effect so the ref is populated by the time the
     // first connection can possibly close and ask to reconnect.
@@ -208,15 +250,12 @@ export function useWebSocket({
     */
     useEffect(() => {
         if (!url) return
+        generationRef.current++
         intentionalCloseRef.current = false
         attemptsRef.current = 0
         // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
-        const cleanup = connect()
-        return () => {
-            clearReconnectTimer()
-            cleanup?.()
-            if (url) wsManager.release(url)
-        }
+        detachRef.current = connect() ?? null
+        return endConnection
     }, [url]) // eslint-disable-line
 
     const send = useCallback((data: Record<string, unknown>) => {
@@ -232,6 +271,7 @@ export function useWebSocket({
         intentionalCloseRef.current = true
         clearReconnectTimer()
         if (url) wsManager.forceClose(url)
+        heldUrlRef.current = null
         setStatus("closed")
     }, [url, clearReconnectTimer])
 
