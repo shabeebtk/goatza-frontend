@@ -2,6 +2,7 @@
 
 import NotificationsSocket from "@/core/ws/NotificationsSocket"
 import UploadQueueBar from "@/shared/components/ui/UploadQueueBar/UploadQueueBar"
+import UploadScreen from "@/shared/components/ui/UploadScreen/UploadScreen"
 import { useFcmNotifications } from "@/shared/hooks/useFcmNotifications"
 import { usePrefetchMediaCapabilities } from "@/shared/services/mediaCapabilities"
 import OrgNav from "../OrgNav/OrgNav"
@@ -24,6 +25,7 @@ export default function OrgShell({ children, orgId }: OrgShellProps) {
       <NotificationsSocket />
       <OrgNav orgId={orgId} />
       <UploadQueueBar />
+      <UploadScreen />
       <main className={styles.content}>{children}</main>
     </div>
   )

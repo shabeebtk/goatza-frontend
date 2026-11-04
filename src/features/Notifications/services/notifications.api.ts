@@ -72,7 +72,7 @@ export type NotificationType =
    * converted could not be published. Platform-voiced — NO actor. The text
    * is already "Your post couldn't be published" / "Your highlight couldn't
    * be added" (by `data.target`); `data.error_message` says why. A success
-   * sends nothing: it only updates the upload bar (publication_updated).
+   * sends nothing: it only moves the upload along (publication_updated).
    */
   | "publication_failed"
 

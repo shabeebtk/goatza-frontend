@@ -3,6 +3,7 @@
 import NotificationsSocket from "@/core/ws/NotificationsSocket"
 import AppNav from "@/shared/components/layout/AppNav/AppNav"
 import UploadQueueBar from "@/shared/components/ui/UploadQueueBar/UploadQueueBar"
+import UploadScreen from "@/shared/components/ui/UploadScreen/UploadScreen"
 import { useFcmNotifications } from "@/shared/hooks/useFcmNotifications"
 import { usePrefetchMediaCapabilities } from "@/shared/services/mediaCapabilities"
 import styles from "./AppShell.module.css"
@@ -25,6 +26,7 @@ export default function AppShell({ children }: AppShellProps) {
       <NotificationsSocket />
       <AppNav />
       <UploadQueueBar />
+      <UploadScreen />
       <main className={styles.content}>{children}</main>
     </div>
   )

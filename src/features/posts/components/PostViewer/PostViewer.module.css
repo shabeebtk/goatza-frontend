@@ -266,6 +266,20 @@
   justify-content: center;
 }
 
+/* The slide on screen lays out as if this box were not there. */
+.stageSlot {
+  display: contents;
+}
+
+/* What comes next: loading, and invisible. Not display: none, so the same
+   element is already laid out when it takes the stage. */
+.stageSlotWarm {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .slideNav {
   position: absolute;
   top: 50%;

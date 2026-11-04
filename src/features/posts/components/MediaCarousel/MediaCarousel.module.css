@@ -59,7 +59,8 @@
   justify-content: center;
 }
 
-.videoItem { background: #000; }
+/* The surface, not black: the skeleton, then the thumbnail, then the frame. */
+.videoItem { background: var(--color-surface-raised); }
 
 /* Skeleton shimmer while loading */
 .mediaSkeleton {
@@ -91,31 +92,30 @@
 
 /* ── Video overlays ──────────────────────────────────────────── */
 
-.videoPlayOverlay {
+/* Over the thumbnail, and invisible until a frame is really on it. */
+.videoEl {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease-out);
 }
 
-.videoPlayBtn {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  border: 1.5px solid rgba(255,255,255,0.25);
-}
+.videoEl[data-frame-shown] { opacity: 1; }
 
-.videoDuration {
+/* Duration until it first plays; the video glyph if autoplay was refused. */
+.videoChip {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(0,0,0,0.6);
   color: #ffffff;
   font-family: var(--font-ui);
@@ -124,6 +124,11 @@
   padding: 2px 8px;
   border-radius: var(--radius-full);
   letter-spacing: var(--tracking-wide);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .videoEl { transition: none; }
 }
 
 /* Mute toggle. The padding is the tap target (>=32px); the pill inside stays

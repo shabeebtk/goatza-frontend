@@ -317,6 +317,32 @@ function popOrphanEntries() {
   pop(orphaned)
 }
 
+/**
+ * Run `fn` once history has stopped moving: after the orphan check of anything
+ * that has just unmounted (deferred a tick, so this is too) and after any pop
+ * of ours has landed. Returns a cancel.
+ *
+ * For an overlay that opens in the same tick another one closes. Pushing
+ * before the old entry is gone would sit on top of it, the orphan check would
+ * then find nothing to pop, and one back press would land on a dead entry.
+ */
+export function whenHistorySettled(fn: () => void): () => void {
+  let cancelled = false
+  const check = () => {
+    if (cancelled) return
+    if (popsInFlight > 0 || navigating) {
+      afterNextPop(check)
+      return
+    }
+    fn()
+  }
+  const timer = window.setTimeout(check, 0)
+  return () => {
+    cancelled = true
+    window.clearTimeout(timer)
+  }
+}
+
 export interface UseBackToCloseOptions {
   /** False → no history entry; requestClose() simply calls onClose. */
   enabled?: boolean

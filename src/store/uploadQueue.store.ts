@@ -6,8 +6,9 @@ import type { PendingPublication } from "@/shared/services/publications"
 
 /**
  * Posts and highlights going up in the background — the state behind
- * UploadQueueBar. The behaviour (one at a time, cancel, retry, the server's
- * half) lives in shared/upload/uploadQueue.ts; this is only what it shows.
+ * UploadScreen (expanded) and UploadQueueBar (minimized). The behaviour (one
+ * at a time, cancel, retry, the server's half) lives in
+ * shared/upload/uploadQueue.ts; this is only what they show.
  *
  * NO `persist`, deliberately: a task holds the author's files in memory, and
  * a reload loses those however it is stored. What survives a reload is the
@@ -38,6 +39,16 @@ export type QueueTaskError = {
 }
 
 export type QueueTaskResult = { postId?: string; highlightId?: string }
+
+/**
+ * Where "View" and the open-when-done flow go. Worked out by the composer at
+ * enqueue time, while the posting account is still the active one. Absent on
+ * a task restored after a reload.
+ */
+export type QueueTaskDestination = { href: string; kind: "posts" | "profile" }
+
+/** Full screen over the app, or the small pill while the author browses. */
+export type UploadView = "expanded" | "minimized"
 
 /** What a task's `run` is handed. */
 export type QueueRunContext = {
@@ -90,24 +101,59 @@ export type QueueTask = {
      */
     onEdit?: () => void
     allowSilentAudio?: boolean
+    destination?: QueueTaskDestination
     createdAt: number
 }
 
 type UploadQueueState = {
     tasks: QueueTask[]
+    view: UploadView
+    /** The task UploadScreen shows. Stays set while minimized. */
+    focusedTaskId: string | null
+    /**
+     * Set once the open-when-done flow has started its navigation. In the
+     * store because the destination may be across a shell (/home is AppShell
+     * in (autheticated), /profile/x/posts is a different AppShell in (public)):
+     * the screen that started it unmounts mid-flight, and the one that mounts
+     * must carry on from here rather than start the flow or a history entry
+     * of its own.
+     */
+    opening: { taskId: string; href: string } | null
     add: (task: QueueTask) => void
     patch: (id: string, patch: Partial<QueueTask>) => void
     remove: (id: string) => void
     clear: () => void
+    /** Open the full-screen view on `taskId` (default: the focused, or the newest). */
+    expand: (taskId?: string) => void
+    minimize: () => void
+    setOpening: (opening: UploadQueueState["opening"]) => void
 }
 
 export const useUploadQueueStore = create<UploadQueueState>((set) => ({
     tasks: [],
+    view: "minimized",
+    focusedTaskId: null,
+    opening: null,
     add: (task) => set((state) => ({ tasks: [...state.tasks, task] })),
     patch: (id, patch) =>
         set((state) => ({
             tasks: state.tasks.map((task) => (task.id === id ? { ...task, ...patch } : task)),
         })),
-    remove: (id) => set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) })),
-    clear: () => set({ tasks: [] }),
+    remove: (id) =>
+        set((state) => {
+            const tasks = state.tasks.filter((task) => task.id !== id)
+            // The task the screen is showing has gone: the screen goes with it.
+            return state.focusedTaskId === id
+                ? { tasks, view: "minimized", focusedTaskId: null, opening: null }
+                : { tasks }
+        }),
+    clear: () => set({ tasks: [], view: "minimized", focusedTaskId: null, opening: null }),
+    expand: (taskId) =>
+        set((state) => {
+            const focusedTaskId =
+                taskId ?? state.focusedTaskId ?? state.tasks[state.tasks.length - 1]?.id ?? null
+            return { focusedTaskId, view: focusedTaskId ? "expanded" : "minimized" }
+        }),
+    minimize: () => set({ view: "minimized" }),
+    setOpening: (opening) => set({ opening }),
 }))

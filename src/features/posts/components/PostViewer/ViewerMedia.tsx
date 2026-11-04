@@ -2,8 +2,9 @@
 
 /**
  * ViewerMedia — one slide of the viewer: an image (with zoom on the active
- * slide) or a video (only ever mounted for the active slide, so exactly one
- * plays).
+ * slide) or a video. A video slide near the active one holds a real, paused
+ * <video> (`warm`), and becoming active plays that SAME element: no remount, so
+ * what it loaded is what plays. Further away it is a still.
  *
  * The tap comes from useDoubleTap: a single tap is held back ~250ms so a
  * double-tap can be a like without the first tap also pausing the video.
@@ -18,6 +19,7 @@ import type { useZoomPan } from "@/features/posts/hooks/useZoomPan"
 import { posterSrc, thumbSrc } from "@/shared/services/mediaDelivery"
 import LikeBurst from "./LikeBurst"
 import { useDoubleTap } from "./useDoubleTap"
+import type { WarmPreload } from "./viewerList"
 import ViewerVideo, { type ViewerVideoApi } from "./ViewerVideo"
 import styles from "./ViewerMedia.module.css"
 
@@ -25,8 +27,10 @@ export type ZoomPan = ReturnType<typeof useZoomPan>
 
 interface ViewerMediaProps {
   item: PostMedia
-  /** The slide on screen: mounts the video, takes the gestures. */
+  /** The slide on screen: plays the video, takes the gestures. */
   active: boolean
+  /** A video slide about to be wanted: hold a real element, this warm. */
+  warm?: WarmPreload
   layout: "phone" | "desktop"
   zoom: ZoomPan
   videoApiRef: RefObject<ViewerVideoApi | null>
@@ -41,6 +45,9 @@ function useProgressiveSrc(item: PostMedia): string {
   const [src, setSrc] = useState(() => thumbSrc(item))
 
   useEffect(() => {
+    // Never for a video: file_url is the mp4, and fetching it as an image is a
+    // wasted download that cannot succeed.
+    if (item.media_type !== "image") return
     const full = item.file_url
     if (!full || full === thumbSrc(item)) return
     let cancelled = false
@@ -56,6 +63,7 @@ function useProgressiveSrc(item: PostMedia): string {
 export default function ViewerMedia({
   item,
   active,
+  warm,
   layout,
   zoom,
   videoApiRef,
@@ -74,9 +82,9 @@ export default function ViewerMedia({
     },
   })
 
-  // Off-screen slides (phone scroller) are inert: a still, no listeners, no
-  // video element — which is what keeps exactly one video playing.
-  if (!active) {
+  // Off-screen slides (phone scroller) are inert: a still, no listeners. Except
+  // a video about to be wanted, which the branch below keeps warm.
+  if (!active && !(isVideo && warm)) {
     return (
       <div className={styles.media}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -90,22 +98,29 @@ export default function ViewerMedia({
     )
   }
 
+  // The same element tree warm and active — the same <div>, the same keyed
+  // ViewerVideo — which is what makes activating it reuse the <video>. Only
+  // the gestures come and go.
   return (
     <div
-      {...containerProps}
-      className={`${styles.media} ${styles.mediaActive} ${isZoomed ? styles.mediaZoomed : ""}`}
-      style={{ cursor: isVideo ? "pointer" : cursor }}
-      onClick={onClick}
-      data-viewer-active=""
+      {...(active ? containerProps : {})}
+      className={
+        active
+          ? `${styles.media} ${styles.mediaActive} ${isZoomed ? styles.mediaZoomed : ""}`
+          : styles.media
+      }
+      style={active ? { cursor: isVideo ? "pointer" : cursor } : undefined}
+      onClick={active ? onClick : undefined}
+      data-viewer-active={active ? "" : undefined}
     >
       {isVideo ? (
-        /* key: a slide change gets a fresh element, and unmounting the old
-           one is what stops its audio. */
         <ViewerVideo
           key={item.id}
           item={item}
           apiRef={videoApiRef}
           controls={layout === "phone" ? "minimal" : "bar"}
+          active={active}
+          warm={warm}
         />
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
@@ -119,7 +134,7 @@ export default function ViewerMedia({
         />
       )}
 
-      {burstKey > 0 && <LikeBurst key={burstKey} />}
+      {active && burstKey > 0 && <LikeBurst key={burstKey} />}
     </div>
   )
 }

@@ -40,6 +40,7 @@ import { useBackToClose } from "@/shared/hooks/useBackToClose"
 import { returnFocus } from "@/shared/services/focusReturn"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import { useSuspendPlayback } from "@/shared/media/playback"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { useZoomPan } from "@/shared/hooks/useZoomPan"
 import { useProgressiveSrc } from "@/shared/hooks/useProgressiveSrc"
@@ -339,6 +340,7 @@ export default function MediaLightbox({
     // The lock is counted: this can open from inside a modal that locked the
     // page first, and the page stays covered until both are gone.
     useBodyScrollLock()
+    useSuspendPlayback()
     // Covers the mobile bars: the toasts stop offsetting themselves by them.
     useHtmlFlag("chrome-covered")
     // ONE history entry on the SAME URL, so the phone's back gesture closes

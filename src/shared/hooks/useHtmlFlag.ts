@@ -12,9 +12,10 @@
  *                                    is actually there — a public page has
  *                                    neither.
  *   data-chrome-covered              a full-screen overlay (the post viewer,
- *                                    the highlight viewer, the lightboxes)
- *                                    that sits over the bars. The toasts
- *                                    treat the bars as hidden while it is up.
+ *                                    the highlight viewer, the lightboxes, the
+ *                                    upload screen on a phone) that sits over
+ *                                    the bars. The toasts treat the bars as
+ *                                    hidden while it is up.
  *
  * Counted per name, so two viewers stacked (a lightbox over the viewer) set
  * the flag once and clear it when the last one is gone.

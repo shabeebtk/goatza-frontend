@@ -15,6 +15,7 @@ import {
     PostComment, CommentsListResponse, updatePostApi, deleteCommentApi,
     savePostApi
 } from "../services/posts.api"
+import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 
@@ -259,6 +260,7 @@ export const useToggleSave = () => {
     // options sheet already uses for "Link copied" and "Post deleted", so all
     // three read as one system.
     const toast = useToast()
+    const router = useRouter()
 
     return useMutation({
         mutationFn: savePostApi,
@@ -321,15 +323,35 @@ export const useToggleSave = () => {
             // user gets. Driven by the server's answer, not the optimistic
             // guess, so it can never claim the opposite of what was stored.
             // Default position (top-right on desktop, a full-width strip under
-            // the top bar on mobile — see Toast.module.css).
-            toast.show({
-                title: data.is_saved ? "Saved" : "Removed from saved",
-                message: data.is_saved
-                    ? "Find it in Saved posts. Only you can see this."
-                    : undefined,
-                icon: data.is_saved ? "mdi:bookmark" : "mdi:bookmark-remove-outline",
-                duration: 2500,
-            })
+            // the top bar on mobile — see Toast.module.css), above the viewer.
+            //
+            // HERE, not in mutate()'s options: the ⋯ sheet unmounts right after
+            // the tap, and callbacks passed to mutate() would then never run.
+            if (data.is_saved) {
+                toast.show({
+                    title: "Saved",
+                    icon: "mdi:bookmark",
+                    duration: 2500,
+                    action: {
+                        label: "View",
+                        // The actor at the tap, whoever saved it.
+                        onClick: () => {
+                            const { actorType, actorId } = useAuthStore.getState()
+                            router.push(
+                                actorType === "organization" && actorId
+                                    ? `/organization/admin/${actorId}/saved`
+                                    : "/settings/saved"
+                            )
+                        },
+                    },
+                })
+            } else {
+                toast.show({
+                    title: "Removed from saved",
+                    icon: "mdi:bookmark-remove-outline",
+                    duration: 2000,
+                })
+            }
 
             // The saved list's membership and ordering are the server's to
             // decide (newest-saved first), so it is refetched rather than

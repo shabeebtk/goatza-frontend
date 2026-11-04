@@ -67,6 +67,7 @@ import { todayForInput } from "../../utils/achievementDates"
 import AchievementImageField from "./AchievementImageField"
 import styles from "./AchievementModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -432,6 +433,7 @@ function AchievementForm({
                 )
             }
             reset()
+            void settleViewport()
             onClose()
         } catch {
             // The mutation hooks already surface the server's message via

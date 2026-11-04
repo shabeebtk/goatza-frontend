@@ -7,8 +7,8 @@
  * Pick → local preview (the picked file plays straight from an object URL, so
  * the player sees exactly what they are about to publish) → title + visibility →
  * Add → the clip goes to the background upload queue and the modal closes.
- * UploadQueueBar shows its progress, its failure and its Retry from there;
- * "Highlight added" + View is the success.
+ * UploadScreen opens in its place, with the progress, a failure and its Retry;
+ * "Highlight added" opens the profile, or says so on the pill if minimized.
  *
  * The checks a player can act on run here, before Add: the format, the size,
  * the 90s cap (on the picked file's metadata) and a full rail.
@@ -32,6 +32,9 @@ import { HIGHLIGHT_VISIBILITIES, type HighlightVisibility } from "../../types"
 import { VISIBILITY_META, formatClipDuration } from "../../visibilityMeta"
 import styles from "./AddHighlightModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { revealChrome } from "@/shared/hooks/useScrollChrome"
+import { useSuspendPlayback } from "@/shared/media/playback"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 const MAX_TITLE = 80
 
@@ -116,6 +119,9 @@ export default function AddHighlightModal({
     // Lock the page behind the modal; Escape closes it — nothing here is in
     // flight any more, the queue owns the upload.
     useBodyScrollLock()
+    useSuspendPlayback()
+    // However it closes: the bars may have been scrolled away when it opened.
+    useEffect(() => revealChrome, [])
 
     useEffect(
         () => () => {
@@ -193,6 +199,9 @@ export default function AddHighlightModal({
             setSubmitError(refused)
             return
         }
+        // The title's keyboard may still be up. The upload screen covers the
+        // page while it goes away.
+        void settleViewport()
         onClose()
     }, [durationSec, file, onClose, title, upload, visibility])
 

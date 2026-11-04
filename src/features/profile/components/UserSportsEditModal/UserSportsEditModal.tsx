@@ -26,6 +26,7 @@ import styles from "./SportEditModal.module.css"
 import useIsMounted from "@/shared/hooks/useIsMounted"
 import { Input } from "@/shared/components/ui"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Experience level options ──────────────────────────────────
 
@@ -196,6 +197,7 @@ export default function SportEditModal({
       } else {
         await addSport.mutateAsync(payload)
       }
+      void settleViewport()
       onClose()
     } catch (err: unknown) {
       const msg =

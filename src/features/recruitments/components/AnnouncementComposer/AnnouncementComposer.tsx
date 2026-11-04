@@ -19,6 +19,7 @@ import { Icon } from "@iconify/react"
 
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 import {
     useCreateAnnouncement,
@@ -146,6 +147,7 @@ export default function AnnouncementComposer({
                         variant: "success",
                     })
                     onSent?.()
+                    void settleViewport()
                     onClose()
                 },
                 onError: (error) => {

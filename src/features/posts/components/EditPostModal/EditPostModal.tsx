@@ -18,6 +18,8 @@ import Select from "@/shared/components/ui/Select/Select"
 import shared from "../CreatePostModal/CreatePostModal.module.css"
 import styles from "./EditPostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useSuspendPlayback } from "@/shared/media/playback"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Read-only media preview — clamped ratio, no editing ───────
 
@@ -190,6 +192,7 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
 
   // Lock body scroll while open
   useBodyScrollLock()
+  useSuspendPlayback()
 
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto"
@@ -245,6 +248,7 @@ export default function EditPostModal({ post, onClose }: EditPostModalProps) {
     setSaving(true)
     try {
       await updatePost.mutateAsync(payload)
+      void settleViewport()
       onClose()
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Failed to save. Try again.")

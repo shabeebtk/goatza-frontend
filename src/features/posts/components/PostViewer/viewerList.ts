@@ -9,7 +9,7 @@
  * the reader on a different post by accident.
  */
 
-import type { Post } from "@/features/posts/services/posts.api"
+import type { Post, PostMedia } from "@/features/posts/services/posts.api"
 import { dedupePosts } from "@/features/posts/utils/dedupePosts"
 import { isViewablePost } from "./textPost"
 
@@ -112,4 +112,54 @@ export function tailSlide({
   if (exhausted) return "load-more"
   // hasNextPage and idle: the auto-fetch is about to fire.
   return "loading"
+}
+
+// ── Warm neighbours ───────────────────────────────────────────
+
+export type WarmPreload = "auto" | "metadata"
+
+/** Media id → how much that slide's <video> should fetch while it waits. */
+export type WarmPlan = Record<string, WarmPreload>
+
+/** The most video elements the viewer keeps a source on, the active one included. */
+export const MAX_VIEWER_VIDEOS = 4
+
+export function sortedMedia(post: Post | undefined): PostMedia[] {
+  return post ? [...post.media].sort((a, b) => a.order - b.order) : []
+}
+
+/**
+ * Which video slides around the reader hold a real, loading element instead of
+ * a still, soonest first so the limit cuts the least likely. The next slide
+ * and the next post's first (preload auto), then on a phone the post after that
+ * and the one before (metadata). Only a post's FIRST slide counts: that is the
+ * one a swipe lands on. Empty under data saver.
+ */
+export function viewerWarmPlan(
+  items: Post[],
+  index: number,
+  slide: number,
+  { layout, saveData }: { layout: "phone" | "desktop"; saveData: boolean }
+): WarmPlan {
+  const plan: WarmPlan = {}
+  if (saveData || index < 0) return plan
+
+  const current = sortedMedia(items[index])
+  const firstOf = (i: number) => sortedMedia(items[i])[0] as PostMedia | undefined
+
+  const candidates: Array<[PostMedia | undefined, WarmPreload]> = [
+    [current[slide + 1], "auto"],
+    [firstOf(index + 1), "auto"],
+  ]
+  if (layout === "phone") {
+    candidates.push([firstOf(index + 2), "metadata"], [firstOf(index - 1), "metadata"])
+  }
+
+  let holders = current[slide]?.media_type === "video" ? 1 : 0
+  for (const [media, preload] of candidates) {
+    if (media?.media_type !== "video" || holders >= MAX_VIEWER_VIDEOS) continue
+    plan[media.id] = preload
+    holders++
+  }
+  return plan
 }

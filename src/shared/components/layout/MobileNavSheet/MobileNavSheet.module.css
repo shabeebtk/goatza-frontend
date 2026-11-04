@@ -63,25 +63,41 @@
         max-height: min(78vh, 78dvh);
         /* Down by exactly its own height: behind the bar, below the fold. */
         transform: translateY(100%);
-        transition: transform 320ms var(--ease-spring);
+        /* And at rest, not painted at all. Parked there it is one displacement
+           away from being seen: iOS leaving the dock offset after a keyboard
+           (see settleViewport), or the toolbar collapsing, shows the whole
+           sheet hanging under the tab bar. Its shadow would also reach about
+           50px up past the bar's top edge, over the page, in every state.
+           offsetHeight is unaffected, so the drag can still measure it. The
+           delay lets a close by tap or back gesture finish on screen. */
+        visibility: hidden;
+        transition:
+            transform 320ms var(--ease-spring),
+            visibility 0s linear 320ms;
         will-change: transform;
         pointer-events: none;
     }
 
     .body[data-state="open"] {
         transform: translateY(0);
+        visibility: visible;
+        transition:
+            transform 320ms var(--ease-spring),
+            visibility 0s;
         pointer-events: auto;
     }
 
     /* Mid-drag the transform is written inline, frame by frame, and a
        transition would lag the finger. */
     .body[data-state="dragging"] {
+        visibility: visible;
         transition: none;
         pointer-events: auto;
     }
 
     /* The finger is already up; the settle must not be interruptible. */
     .body[data-state="settling"] {
+        visibility: visible;
         pointer-events: none;
     }
 
@@ -332,6 +348,8 @@
     /* The nudge: the body peeks above the bar and settles, twice, so the
        reader sees that there is something under there. */
     .body[data-hint] {
+        visibility: visible;
+        transition-delay: 0s;
         animation: navHintPeek 900ms var(--ease-spring) both;
     }
 }

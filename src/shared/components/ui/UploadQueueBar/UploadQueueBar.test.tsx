@@ -1,22 +1,20 @@
 // @vitest-environment jsdom
 /**
- * UploadQueueBar: one row per task of the ACTIVE actor, each saying where it
- * is and offering what can be done about it. The queue itself is mocked —
- * this is only what the bar draws and which action each button calls.
+ * UploadQueueBar: the minimized upload, one pill. What it says, when it is
+ * hidden, whose tasks it shows, and where a tap goes. The queue itself is mocked;
+ * a task's actions are UploadScreen's now.
  */
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { useAuthStore } from "@/store/auth.store"
 import { useUploadQueueStore, type QueueTask } from "@/store/uploadQueue.store"
 
-const queue = vi.hoisted(() => ({
-    cancelUpload: vi.fn(),
-    dismissUpload: vi.fn(),
-    editUpload: vi.fn(),
-    retryUpload: vi.fn(),
-    retryUploadWithoutSound: vi.fn(),
-}))
+const queue = vi.hoisted(() => ({ dismissUpload: vi.fn() }))
 const router = vi.hoisted(() => ({ push: vi.fn() }))
 const path = vi.hoisted(() => ({ current: "/home" }))
 
@@ -29,11 +27,8 @@ vi.mock("next/navigation", () => ({
     usePathname: () => path.current,
     useRouter: () => router,
 }))
-vi.mock("@/shared/services/navigation.service", () => ({
-    useNavigation: () => ({
-        toPost: (id: string) => `/posts/${id}`,
-        toProfile: (username: string) => `/profile/${username}`,
-    }),
+vi.mock("@iconify/react", () => ({
+    Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />,
 }))
 
 import UploadQueueBar from "./UploadQueueBar"
@@ -58,185 +53,215 @@ const show = (...rows: QueueTask[]) => {
     return render(<UploadQueueBar />)
 }
 
-const button = (name: string) => screen.getByRole("button", { name })
-
-/** The status lines as drawn (the live region repeats some of them). */
-const visibleLines = () =>
-    Array.from(document.querySelectorAll('p[aria-hidden="true"]')).map((p) => p.textContent)
+const pill = () => screen.queryByRole("button")
+const store = () => useUploadQueueStore.getState()
 
 beforeEach(() => {
-    for (const mock of Object.values(queue)) mock.mockReset()
+    queue.dismissUpload.mockReset()
     router.push.mockReset()
     path.current = "/home"
+    useAuthStore.setState({
+        user: { id: "user-1", username: "player1" } as never,
+        actorType: "user",
+        actorId: null,
+        currentOrganization: null,
+    })
 })
 
 afterEach(() => {
     cleanup()
-    useUploadQueueStore.setState({ tasks: [] })
+    useUploadQueueStore.setState({ tasks: [], view: "minimized", focusedTaskId: null, opening: null })
 })
 
-describe("status lines", () => {
+describe("the label", () => {
     it.each([
-        [task({ status: "preparing" }), "Preparing…"],
-        [task({ status: "uploading", progress: 0.45 }), "Posting… 45%"],
-        [task({ kind: "highlight", status: "uploading", progress: 0.3 }), "Adding highlight… 30%"],
+        ["preparing", { status: "preparing", progress: 0 }, "Posting 0%"],
+        ["uploading", { status: "uploading", progress: 0.45 }, "Posting 45%"],
+        ["a highlight", { kind: "highlight", status: "uploading", progress: 0.3 }, "Adding 30%"],
+        ["processing", { status: "processing" }, "Processing…"],
+        ["publishing", { status: "publishing" }, "Almost done…"],
+        ["done", { status: "done", destination: { href: "/x", kind: "posts" } }, "Posted · View"],
         [
-            task({ status: "processing", preview: { mediaType: "video" } }),
-            "Processing video… you can leave the app",
+            "a highlight, done",
+            { kind: "highlight", status: "done", destination: { href: "/x", kind: "profile" } },
+            "Highlight added · View",
         ],
-        [task({ status: "processing" }), "Processing… you can leave the app"],
-        [task({ status: "publishing" }), "Almost done…"],
-        [task({ status: "done", result: { postId: "p-1" } }), "Posted"],
-        [task({ kind: "highlight", status: "done", result: { highlightId: "h-1" } }), "Highlight added"],
-        [
-            task({ status: "failed", error: { message: "Upload failed (UPLOAD_NETWORK)", canRetry: true } }),
-            "Upload failed (UPLOAD_NETWORK)",
-        ],
-    ])("%#: %s", (row, line) => {
-        show(row)
-        expect(visibleLines()).toEqual([line])
+        ["failed", { status: "failed", error: { message: "No.", canRetry: true } }, "Upload failed · Tap to fix"],
+    ] as Array<[string, Partial<QueueTask>, string]>)("%s", (_name, over, label) => {
+        show(task(over))
+        expect(pill()!.textContent).toContain(label)
     })
 
-    it("shows the caption under a row in progress, and the retry state instead while a PUT starts over", () => {
-        show(task({ id: "a", createdAt: 1 }), task({ id: "b", createdAt: 2, retryLabel: "Retrying… (2/4)" }))
-        expect(screen.getByText("Match day")).toBeTruthy()
-        expect(screen.getByText("Retrying… (2/4)")).toBeTruthy()
+    it("a retry says so instead", () => {
+        show(task({ retryLabel: "Retrying… (2/4)" }))
+        expect(pill()!.textContent).toContain("Retrying… (2/4)")
+    })
+
+    it("a restored task with nowhere of its own works one out from the active account", () => {
+        show(task({ status: "done" }))
+        expect(pill()!.textContent).toContain("Posted · View")
+
+        fireEvent.click(pill()!)
+        expect(router.push).toHaveBeenCalledWith("/profile/player1/posts")
+    })
+
+    it("+N when others are waiting, and it speaks for one", () => {
+        show(task({ id: "a" }), task({ id: "b", status: "preparing" }), task({ id: "c", status: "preparing" }))
+
+        expect(screen.getByText("+2")).toBeTruthy()
+        expect(screen.getAllByRole("button")).toHaveLength(1)
+    })
+
+    it("a finished task is not counted as waiting; one still moving behind it is", () => {
+        const done = (id: string) => task({ id, status: "done", destination: { href: "/x", kind: "posts" } })
+        const first = show(done("a"), done("b"))
+        expect(screen.queryByText("+1")).toBeNull()
+        first.unmount()
+
+        show(done("c"), task({ id: "d" }))
+        expect(screen.getByText("+1")).toBeTruthy()
+    })
+
+    it("speaks for the failure over the one still moving, and 'Posted' over both", () => {
+        const failure = task({ status: "failed", error: { message: "No.", canRetry: true } })
+        const moving = task({ status: "uploading" })
+        const { unmount } = show(moving, failure)
+        expect(pill()!.textContent).toContain("Upload failed")
+        unmount()
+
+        show(moving, failure, task({ status: "done", destination: { href: "/x", kind: "posts" } }))
+        expect(pill()!.textContent).toContain("Posted · View")
+    })
+
+    it("draws the thumbnail, or an icon when there is none", () => {
+        const { unmount } = show(task({ preview: { mediaType: "video", localThumbUrl: "blob:thumb" } }))
+        expect(document.querySelector('img[src="blob:thumb"]')).toBeTruthy()
+        unmount()
+
+        show(task({ preview: { mediaType: "video" } }))
+        expect(document.querySelector('[data-icon="mdi:filmstrip"]')).toBeTruthy()
     })
 })
 
-describe("actions", () => {
-    it("cancels a running upload only after asking", async () => {
-        const row = task({ id: "run-1", status: "uploading" })
-        show(row)
+describe("where a tap goes", () => {
+    it("opens the screen on that task", () => {
+        show(task({ id: "up-1" }))
 
-        fireEvent.click(button("Cancel post"))
-        const dialog = screen.getByRole("alertdialog")
-        expect(queue.cancelUpload).not.toHaveBeenCalled()
-        fireEvent.click(within(dialog).getByRole("button", { name: "Cancel post" }))
+        fireEvent.click(pill()!)
 
-        // The dialog answers through history (back-to-close): async.
-        await waitFor(() => expect(queue.cancelUpload).toHaveBeenCalledWith("run-1"))
+        expect(store().view).toBe("expanded")
+        expect(store().focusedTaskId).toBe("up-1")
+        expect(router.push).not.toHaveBeenCalled()
     })
 
-    it("offers no cancel while publishing — the create is already in flight", () => {
-        show(task({ status: "publishing" }))
-        expect(screen.queryByRole("button", { name: "Cancel post" })).toBeNull()
-    })
-
-    it("a failure offers Retry and Discard", () => {
+    it("a failure opens it too: that is where Retry is", () => {
         show(task({ id: "f-1", status: "failed", error: { message: "No.", canRetry: true } }))
 
-        fireEvent.click(button("Retry"))
-        fireEvent.click(button("Discard"))
+        fireEvent.click(pill()!)
 
-        expect(queue.retryUpload).toHaveBeenCalledWith("f-1")
-        expect(queue.dismissUpload).toHaveBeenCalledWith("f-1")
-        expect(screen.queryByRole("button", { name: "Post without sound" })).toBeNull()
+        expect(store().focusedTaskId).toBe("f-1")
     })
 
-    it("a lost sound offers to post (or add) without it", () => {
-        show(
-            task({
-                id: "s-1",
-                status: "failed",
-                error: { message: "No sound.", canRetry: true, canRetryWithoutSound: true },
-            }),
-            task({
-                id: "s-2",
-                kind: "highlight",
-                status: "failed",
-                error: { message: "No sound either.", canRetry: true, canRetryWithoutSound: true },
-            })
-        )
+    it("View goes to the destination, and the task goes", () => {
+        show(task({ id: "d-1", status: "done", destination: { href: "/profile/x/posts", kind: "posts" } }))
 
-        fireEvent.click(button("Post without sound"))
-        fireEvent.click(button("Add without sound"))
+        fireEvent.click(pill()!)
 
-        expect(queue.retryUploadWithoutSound).toHaveBeenCalledWith("s-1")
-        expect(queue.retryUploadWithoutSound).toHaveBeenCalledWith("s-2")
-    })
-
-    it("a failure restored after a reload can only be discarded", () => {
-        show(task({ status: "failed", run: undefined, error: { message: "Gone.", canRetry: false } }))
-
-        expect(screen.queryByRole("button", { name: "Retry" })).toBeNull()
-        expect(button("Discard")).toBeTruthy()
-    })
-
-    it("View opens the post, and the row goes", () => {
-        show(task({ id: "d-1", status: "done", result: { postId: "p-9" } }))
-
-        fireEvent.click(button("View"))
-
-        expect(router.push).toHaveBeenCalledWith("/posts/p-9")
+        expect(router.push).toHaveBeenCalledWith("/profile/x/posts")
         expect(queue.dismissUpload).toHaveBeenCalledWith("d-1")
+        expect(store().view).toBe("minimized")
+    })
+
+    it("View on the page it is already on goes nowhere", () => {
+        path.current = "/profile/x/posts"
+        show(task({ id: "d-1", status: "done", destination: { href: "/profile/x/posts", kind: "posts" } }))
+
+        fireEvent.click(pill()!)
+
+        expect(router.push).not.toHaveBeenCalled()
+        expect(queue.dismissUpload).toHaveBeenCalledWith("d-1")
+    })
+
+    it("no row actions on the pill any more", () => {
+        show(task({ status: "failed", error: { message: "No.", canRetry: true } }))
+        for (const name of ["Retry", "Discard", "Edit", "Cancel post"]) {
+            expect(screen.queryByRole("button", { name })).toBeNull()
+        }
     })
 })
 
-describe("what is shown", () => {
-    it("only the active actor's tasks, newest first, at most three", () => {
-        show(
-            task({ label: "one", createdAt: 1 }),
-            task({ label: "two", createdAt: 2 }),
-            task({ label: "three", createdAt: 3 }),
-            task({ label: "four", createdAt: 4 }),
-            task({ label: "the club's", actorKey: "org-1", createdAt: 5 })
-        )
+describe("when it is hidden", () => {
+    it("on a chat thread, user app and org admin", () => {
+        path.current = "/messages/chat/c-1"
+        const first = show(task())
+        expect(first.container.innerHTML).toBe("")
+        first.unmount()
 
-        const labels = screen.getAllByText(/^(one|two|three|four|the club's)$/).map((n) => n.textContent)
-        expect(labels).toEqual(["four", "three", "two"])
+        path.current = "/organization/admin/o-1/messages/c-1"
+        const second = show(task())
+        expect(second.container.innerHTML).toBe("")
     })
 
-    it("nothing on a chat thread", () => {
-        path.current = "/messages/chat/c-1"
-        const { container } = show(task())
+    it("while the screen is showing a task", () => {
+        const row = task({ id: "x" })
+        show(row)
+        expect(pill()).toBeTruthy()
+
+        act(() => useUploadQueueStore.setState({ view: "expanded", focusedTaskId: "x" }))
+        expect(pill()).toBeNull()
+
+        act(() => useUploadQueueStore.setState({ view: "minimized" }))
+        expect(pill()).toBeTruthy()
+    })
+
+    it("under data-chrome-covered, in its CSS", () => {
+        const css = readFileSync(join(__dirname, "UploadQueueBar.module.css"), "utf8")
+        expect(css).toMatch(/html\[data-chrome-covered\]\)\s*\.bar\s*\{\s*display:\s*none/)
+    })
+
+    it("below a page's own sticky header, in its CSS", () => {
+        const css = readFileSync(join(__dirname, "UploadQueueBar.module.css"), "utf8")
+        expect(css).toMatch(/html:has\(\[data-page-sticky-header\]\)\)\s*\.bar\s*\{\s*--pill-below/)
+    })
+
+    it("with nothing to show", () => {
+        const { container } = show()
         expect(container.innerHTML).toBe("")
     })
 })
 
-describe("for a screen reader (F7)", () => {
-    it("announces the status, not every 5%; the count is on the progressbar", () => {
+describe("whose tasks", () => {
+    it("only the active actor's", () => {
+        const { container } = show(task({ actorKey: "org-1" }))
+        expect(container.innerHTML).toBe("")
+    })
+
+    it("another actor's is not counted as waiting either", () => {
+        show(task(), task({ actorKey: "org-1", status: "preparing" }))
+        expect(screen.queryByText("+1")).toBeNull()
+    })
+})
+
+describe("for a screen reader", () => {
+    it("announces the status, not every 5%", () => {
         const row = task({ id: "p-1", status: "uploading", progress: 0.45 })
         show(row)
-
         expect(screen.getByRole("status").textContent).toBe("Posting…")
-        expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("45")
 
-        act(() => useUploadQueueStore.getState().patch("p-1", { progress: 0.5 }))
+        act(() => store().patch("p-1", { progress: 0.5 }))
         expect(screen.getByRole("status").textContent).toBe("Posting…")
-        expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("50")
 
-        act(() => useUploadQueueStore.getState().patch("p-1", { status: "processing", preview: { mediaType: "video" } }))
-        expect(screen.getByRole("status").textContent).toBe("Processing video… you can leave the app")
-        // The server is working: indeterminate, not a number.
-        expect(screen.getByRole("progressbar").hasAttribute("aria-valuenow")).toBe(false)
+        act(() => store().patch("p-1", { status: "processing" }))
+        expect(screen.getByRole("status").textContent).toBe("Processing…")
+    })
+
+    it("a failure announces its message", () => {
+        show(task({ status: "failed", error: { message: "Too long.", canRetry: false } }))
+        expect(screen.getByRole("status").textContent).toBe("Too long.")
     })
 
     it("the bar itself is not a live region", () => {
         show(task())
         expect(document.querySelector('[aria-live]:not([role="status"])')).toBeNull()
-    })
-})
-
-describe("Edit (F5)", () => {
-    it("a post that cannot be retried offers Edit instead of Retry", () => {
-        show(
-            task({
-                id: "e-1",
-                status: "failed",
-                error: { message: "Video must be under 5 minutes", canRetry: false },
-                onEdit: vi.fn(),
-            })
-        )
-
-        expect(screen.queryByRole("button", { name: "Retry" })).toBeNull()
-        fireEvent.click(button("Edit"))
-        expect(queue.editUpload).toHaveBeenCalledWith("e-1")
-    })
-
-    it("no Edit while a retry can still help", () => {
-        show(task({ status: "failed", error: { message: "Offline.", canRetry: true }, onEdit: vi.fn() }))
-        expect(screen.queryByRole("button", { name: "Edit" })).toBeNull()
-        expect(button("Retry")).toBeTruthy()
     })
 })

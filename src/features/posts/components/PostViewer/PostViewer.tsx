@@ -43,6 +43,7 @@ import { returnFocus } from "@/shared/services/focusReturn"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
+import { useSuspendPlayback } from "@/shared/media/playback"
 import { posterSrc } from "@/shared/services/mediaDelivery"
 import { usePostViewerStore } from "@/store/postViewer.store"
 import DesktopSplitLayout from "./DesktopSplitLayout"
@@ -306,7 +307,12 @@ export default function PostViewer({
   // Covers the mobile bars: the toasts stop offsetting themselves by them.
   useHtmlFlag("chrome-covered")
 
-  // Tell the inline carousels a viewer is up, so their videos pause.
+  // The feed underneath stops, and picks up when this closes. Also the moment a
+  // link tap hides this frame: the viewer is suspended, not closed, but the
+  // page under it is what the reader sees until the route has changed.
+  useSuspendPlayback(!leaving)
+
+  // Tell the lists a viewer is up: it pages the query itself meanwhile.
   const setViewerOpen = usePostViewerStore((s) => s.setOpen)
   useEffect(() => {
     setViewerOpen(true)
@@ -363,9 +369,9 @@ export default function PostViewer({
    * there is nothing to land on yet, because the reader has not finished
    * with the viewer.
    *
-   * In order: hide this frame (the tap must be answered at once), let the
-   * inline carousels under the page play again, make sure the entry knows
-   * which post the reader is on, and only then navigate.
+   * In order: hide this frame (the tap must be answered at once, and lifts the
+   * suspension above), make sure the entry knows which post the reader is on,
+   * and only then navigate.
    */
   const leave = useCallback(
     (href: string) => {

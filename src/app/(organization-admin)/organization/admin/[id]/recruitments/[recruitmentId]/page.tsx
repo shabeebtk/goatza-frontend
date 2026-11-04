@@ -8,6 +8,7 @@
 
 import { use, Suspense } from "react"
 import { useAuthStore } from "@/store/auth.store"
+import { BackHeader } from "@/shared/components/ui"
 import RecruitmentAdminView from "@/features/recruitments/components/RecruitmentAdminView/RecruitmentAdminView"
 
 interface OrgRecruitmentDetailPageProps {
@@ -35,6 +36,7 @@ export default function OrgRecruitmentDetailPage({ params }: OrgRecruitmentDetai
     // the right-hand column, which crushed the details list to one character
     // per line. Narrow screens are unaffected — the page is fluid below it.
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "var(--space-4)" }}>
+      <BackHeader title="Recruitment" fallback={`/organization/admin/${id}/recruitments`} />
       {/* RecruitmentAdminView reads ?tab from the URL, so it needs a Suspense
           boundary (useSearchParams). */}
       <Suspense fallback={null}>

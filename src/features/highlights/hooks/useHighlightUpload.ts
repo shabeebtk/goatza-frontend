@@ -3,9 +3,10 @@
  *
  *   pick → validate (mime/size/90s, in the add modal) → Add → QueueTask →
  *   the modal closes; encode/upload/create run in the background
- *   (runHighlightUpload) while UploadQueueBar shows "Adding highlight… 45%".
+ *   (runHighlightUpload) while UploadScreen, or the pill once it is minimized,
+ *   shows the progress.
  *
- * Failures, Retry and "Add without sound" live in that bar, not in a toast:
+ * Failures, Retry and "Add without sound" live on that screen, not in a toast:
  * the modal that used to own them is long gone by the time they happen. The
  * clip stays in the task, in memory, so a retry never asks for it again.
  *
@@ -16,7 +17,9 @@
 
 import { useCallback } from "react"
 
+import { useNavigation } from "@/shared/services/navigation.service"
 import { currentActorKey, enqueueUpload } from "@/shared/upload/uploadQueue"
+import { useAuthStore } from "@/store/auth.store"
 import { useUploadQueueStore, type QueueTask } from "@/store/uploadQueue.store"
 import {
     runHighlightUpload,
@@ -37,6 +40,11 @@ const IN_FLIGHT = new Set<QueueTask["status"]>([
 ])
 
 export function useHighlightUpload({ existingCount }: { existingCount: number }) {
+    // Where the queue goes when the clip is up — the rail is at the top of the
+    // profile. Read at Add, while the posting account is still the active one.
+    const { toProfile } = useNavigation()
+    const username = useAuthStore((s) => s.user?.username)
+
     /**
      * Queue the clip — or, when the rail has no room for it, say why and
      * queue nothing. Returns that sentence, or null once it is queued.
@@ -59,11 +67,14 @@ export function useHighlightUpload({ existingCount }: { existingCount: number })
                 label: draft.title ?? "",
                 preview: { mediaType: "video" },
                 previewFile: draft.file,
+                destination: username
+                    ? { href: toProfile(username), kind: "profile" }
+                    : undefined,
                 run: (ctx) => runHighlightUpload(draft, ctx),
             })
             return null
         },
-        [existingCount]
+        [existingCount, toProfile, username]
     )
 
     return { start }

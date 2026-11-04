@@ -22,7 +22,9 @@
  *     failed) are listed and shown again, to finish or to dismiss.
  *
  * UploadQueueBar mounts `useUploadQueueRuntime` once per shell; screens call
- * {@link enqueueUpload}.
+ * {@link enqueueUpload}. A new task opens UploadScreen (full screen); Minimize
+ * leaves the pill. What the two look like is theirs: nothing here changes
+ * with the view except when a finished task is taken away.
  */
 
 import { useEffect } from "react"
@@ -33,7 +35,7 @@ import { REALTIME_OPEN, realtimeBus } from "@/core/ws/realtimeBus"
 import { highlightKeys } from "@/features/highlights/hooks/useHighlights"
 import { getHighlightErrorMessage } from "@/features/highlights/services/highlights.api"
 import { captureVideoThumbnail } from "@/features/messages/services/chatUpload.service"
-import { invalidatePostLists } from "@/features/posts/hooks/usePostMutations"
+import { invalidatePostLists, POST_CACHE_KEYS } from "@/features/posts/hooks/usePostMutations"
 import { profileKeys } from "@/features/profile/hooks/useProfileQueries"
 import { retryLabelFor } from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import { holdScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
@@ -61,8 +63,8 @@ import {
 /** Progress moves in 5% steps — enough for a bar, few enough renders. */
 const PROGRESS_STEPS = 20
 
-/** "Posted" stays this long, then the row goes. */
-const DONE_VISIBLE_MS = 4000
+/** "Posted · View" stays on the pill this long, then it goes. */
+const DONE_VISIBLE_MS = 5000
 
 /** How often a held post is checked over HTTP while the socket is quiet. */
 const PUBLICATION_POLL_MS = 10_000
@@ -142,6 +144,10 @@ export type EnqueueUploadInput = {
     previewFile?: File
     run: NonNullable<QueueTask["run"]>
     onEdit?: QueueTask["onEdit"]
+    /** Where "View" and the open-when-done flow go. */
+    destination?: QueueTask["destination"]
+    /** Open the full-screen view on this task. Default true. */
+    expand?: boolean
 }
 
 /** Hand a post or highlight to the queue. Returns the task id. */
@@ -163,8 +169,12 @@ export function enqueueUpload(input: EnqueueUploadInput): string {
         progress: 0,
         run: input.run,
         onEdit: input.onEdit,
+        destination: input.destination,
         createdAt: Date.now(),
     })
+    // Only here: a task restored after a reload never comes through this
+    // function, so it only ever appears on the pill.
+    if (input.expand !== false) store().expand(id)
 
     const preview =
         input.previewFile && !input.preview.localThumbUrl
@@ -191,9 +201,9 @@ export function enqueueUpload(input: EnqueueUploadInput): string {
 }
 
 /**
- * A 40 px thumbnail from the picked file: the photo itself, or a frame of the
- * video (never blocking — `captureVideoThumbnail` settles within 6 s, with ""
- * when it cannot, and the row shows a film icon).
+ * A preview from the picked file: the photo itself, or a frame of the video
+ * (never blocking — `captureVideoThumbnail` settles within 6 s, with "" when
+ * it cannot, and a film icon stands in).
  */
 async function attachPreview(id: string, file: File, mediaType: QueueTask["preview"]["mediaType"]) {
     let url = ""
@@ -331,10 +341,60 @@ function finishDone(id: string, result: QueueTaskResult) {
         if (username) void queryClient.invalidateQueries({ queryKey: profileKeys.user(username) })
     }
 
+    armDoneTimer(id)
+}
+
+/**
+ * A finished task leaves the pill after DONE_VISIBLE_MS. Not while the screen
+ * is showing it: the open-when-done flow removes it itself, and if the author
+ * minimizes instead, minimizeUploadView starts the clock again.
+ */
+function armDoneTimer(id: string) {
+    const previous = doneTimers.get(id)
+    if (previous !== undefined) clearTimeout(previous)
+
     const timer = setTimeout(() => {
+        doneTimers.delete(id)
+        const { view, focusedTaskId } = store()
+        if (view === "expanded" && focusedTaskId === id) return
         if (getTask(id)?.status === "done") removeTask(id)
     }, DONE_VISIBLE_MS)
     doneTimers.set(id, timer)
+}
+
+/** Back to the pill. A task already done gets its full time on it. */
+export function minimizeUploadView() {
+    const { view, focusedTaskId } = store()
+    if (view !== "expanded") return
+    store().minimize()
+    if (focusedTaskId && getTask(focusedTaskId)?.status === "done") armDoneTimer(focusedTaskId)
+}
+
+/**
+ * Resolves once the list refetches {@link finishDone} started have landed, or
+ * after `maxMs`. A list nobody has on screen is not refetching at all, so this
+ * is usually already true; its page fetches when it mounts.
+ */
+export function waitForListRefresh(kind: QueueTaskKind, maxMs: number): Promise<void> {
+    const keys = kind === "post" ? POST_CACHE_KEYS : [highlightKeys.all]
+    const busy = () =>
+        keys.some((queryKey) => queryClient.isFetching({ queryKey: [...queryKey] }) > 0)
+
+    return new Promise((resolve) => {
+        if (!busy()) {
+            resolve()
+            return
+        }
+        const finish = () => {
+            clearTimeout(timer)
+            unsubscribe()
+            resolve()
+        }
+        const timer = setTimeout(finish, maxMs)
+        const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+            if (!busy()) finish()
+        })
+    })
 }
 
 // ── The server's half ─────────────────────────────────────────
@@ -561,7 +621,7 @@ export function useUploadQueueRuntime(): void {
 
     const waiting = tasks.some((t) => t.status === "processing" && t.actorKey === actorKey)
     // ONLY while the files are still on this device. Once the server holds
-    // the post, leaving is safe — the bar says so.
+    // the post, leaving is safe — the upload screen says so.
     const onDevice = tasks.some((t) => t.status === "preparing" || t.status === "uploading")
 
     useEffect(() => {

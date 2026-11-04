@@ -13,6 +13,7 @@ import {
   shouldFetchMore,
   tailSlide,
   viewablePosts,
+  viewerWarmPlan,
 } from "./viewerList"
 
 function post(id: string, mediaCount: number, content = ""): Post {
@@ -131,5 +132,62 @@ describe("tailSlide", () => {
     expect(tailSlide({ ...base, isFetchingNextPage: true })).toBe("loading")
     expect(tailSlide({ ...base, exhausted: true })).toBe("load-more")
     expect(tailSlide(base)).toBe("loading")
+  })
+})
+
+describe("viewerWarmPlan", () => {
+  const clips = (id: string, count = 1): Post =>
+    ({
+      ...post(id, count),
+      media: Array.from({ length: count }, (_, i) => ({
+        id: `${id}-m${i}`,
+        media_type: "video",
+        order: i,
+      })),
+    }) as unknown as Post
+
+  const phone = { layout: "phone", saveData: false } as const
+  const desktop = { layout: "desktop", saveData: false } as const
+
+  it("phone: next auto, then after-next and previous metadata", () => {
+    const items = ["a", "b", "c", "d", "e"].map((id) => clips(id))
+    expect(viewerWarmPlan(items, 2, 0, phone)).toEqual({
+      "d-m0": "auto",
+      "e-m0": "metadata",
+      "b-m0": "metadata",
+    })
+  })
+
+  it("the next slide comes first, and the limit of 4 cuts the least likely", () => {
+    const items = [clips("a"), clips("b", 2), clips("c"), clips("d")]
+    const plan = viewerWarmPlan(items, 1, 0, phone)
+
+    expect(plan).toEqual({ "b-m1": "auto", "c-m0": "auto", "d-m0": "metadata" })
+    // The active one is the fourth holder.
+    expect(Object.keys(plan)).toHaveLength(3)
+  })
+
+  it("an active photo leaves room for one more", () => {
+    const items = [clips("a"), post("b", 1), clips("c"), clips("d")]
+    expect(Object.keys(viewerWarmPlan(items, 1, 0, phone))).toHaveLength(3)
+  })
+
+  it("only videos, and only a post's first slide", () => {
+    const items = [post("a", 1), post("b", 1), post("c", 1)]
+    expect(viewerWarmPlan(items, 1, 0, phone)).toEqual({})
+  })
+
+  it("desktop: the next slide and the next post's first, nothing further", () => {
+    const items = [clips("a", 2), clips("b"), clips("c")]
+    expect(viewerWarmPlan(items, 0, 0, desktop)).toEqual({ "a-m1": "auto", "b-m0": "auto" })
+  })
+
+  it("data saver: nothing", () => {
+    const items = ["a", "b", "c"].map((id) => clips(id))
+    expect(viewerWarmPlan(items, 1, 0, { layout: "phone", saveData: true })).toEqual({})
+  })
+
+  it("not in the list: nothing", () => {
+    expect(viewerWarmPlan([clips("a")], -1, 0, phone)).toEqual({})
   })
 })

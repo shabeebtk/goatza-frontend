@@ -22,6 +22,7 @@ import { OrganizationDetail, OrgLocation, OrgLocationPayload } from "../../types
 
 import styles from "./EditOrgProfileModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Zod schema ────────────────────────────────────────────────
 
@@ -196,10 +197,11 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
     if (dirtyFields.website) payload.website = values.website ?? ""
     if (dirtyFields.level) payload.level = values.level || null
 
-    if (Object.keys(payload).length === 0) { onClose(); return }
+    if (Object.keys(payload).length === 0) { void settleViewport(); onClose(); return }
 
     try {
       await updateOrgData.mutateAsync(payload)
+      void settleViewport()
       onClose()
     } catch (err: unknown) {
       const msg =

@@ -229,7 +229,7 @@ function NetworkPageInner({ username, profileType }: NetworkPageProps) {
   return (
     <div className={styles.page}>
       {/* ── Header ── */}
-      <header className={styles.header}>
+      <header className={styles.header} data-page-sticky-header="">
         <button
           type="button"
           className={styles.backBtn}

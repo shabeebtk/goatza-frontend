@@ -23,6 +23,9 @@ import { OFFLINE_MESSAGE } from "@/shared/services/mediaUpload"
 import { useMediaCapabilities } from "@/shared/services/mediaCapabilities"
 import { checkVideoDuration } from "@/shared/services/videoPrep"
 import { enqueueUpload } from "@/shared/upload/uploadQueue"
+import { useNavigation } from "@/shared/services/navigation.service"
+import { settleViewport } from "@/shared/utils/settleViewport"
+import { useAuthStore } from "@/store/auth.store"
 import {
   reopenPostComposer,
   type PostComposerDraft,
@@ -34,6 +37,8 @@ import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocom
 import Select from "@/shared/components/ui/Select/Select"
 import styles from "./CreatePostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { revealChrome } from "@/shared/hooks/useScrollChrome"
+import { useSuspendPlayback } from "@/shared/media/playback"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -289,9 +294,10 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry }: {
 // ── Main CreatePostModal ──────────────────────────────────────
 //
 // Post hands the draft to the upload queue (shared/upload/uploadQueue.ts) and
-// the composer closes at once — the author keeps using the app while the
-// UploadQueueBar shows "Posting… 45%". Failures, Retry and "Post without
-// sound" live in that bar, with the files kept in the task.
+// the composer closes at once. UploadScreen opens in its place, full screen,
+// and can be minimized to the pill so the author keeps using the app.
+// Failures, Retry and "Post without sound" live there, with the files kept in
+// the task.
 
 interface CreatePostModalProps {
   username:       string
@@ -311,6 +317,10 @@ export default function CreatePostModal({
   const { sports: actorSports, primarySportId } = usePostSports()
   // Whether the server converts what the phone cannot: wider video formats.
   const { server_processing: serverProcessing } = useMediaCapabilities()
+  // Where the queue goes when this post is up: read at Post, while the
+  // posting account is still the active one.
+  const { toPostsList } = useNavigation()
+  const actorType = useAuthStore((s) => s.actorType)
 
   // Compose state
   const [content,      setContent]      = useState(initialDraft?.content ?? "")
@@ -371,6 +381,14 @@ export default function CreatePostModal({
 
   // ── Manage body scroll lock ───────────────────────────────────
   useBodyScrollLock()
+  // Whatever was playing stops as this opens, from any of its entry points, and
+  // resumes when it closes — unless the upload screen takes over, which holds
+  // the same suspension until it is minimized.
+  useSuspendPlayback()
+  // However it closes: opened from the page (the profile's own Create button)
+  // the bars may have been scrolled away, and nothing could bring them back
+  // while the page was locked.
+  useEffect(() => revealChrome, [])
 
   // ── Auto-resize textarea ──────────────────────────────────────
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
@@ -408,7 +426,7 @@ export default function CreatePostModal({
     if (err) { setSubmitError(err); return }
 
     // A clip over 5 minutes is refused NOW, while the draft is still in
-    // front of the author. After Post it could only fail in the queue bar,
+    // front of the author. After Post it could only fail in the upload queue,
     // with the caption out of reach. A length the browser cannot read is
     // left to the upload (and to the server, when it converts).
     const video = files.find(f => f.type.startsWith("video/"))
@@ -498,11 +516,19 @@ export default function CreatePostModal({
       content, visibility, sportId: sportChoice, location: postLocation, files,
     }
 
+    // The keyboard is still up, and this is about to close over it. The upload
+    // screen covers the page while it goes away.
+    void settleViewport()
+
     enqueueUpload({
       kind: "post",
       label: trimmed,
       preview: { mediaType: first ? (first.isVideo ? "video" : "image") : "none" },
       previewFile: first?.file,
+      destination: {
+        href: toPostsList(username, actorType === "organization" ? "organization" : "user"),
+        kind: "posts",
+      },
       run: (ctx) => runPostUpload(draft, ctx),
       onEdit: () => reopenPostComposer(snapshot),
     })
