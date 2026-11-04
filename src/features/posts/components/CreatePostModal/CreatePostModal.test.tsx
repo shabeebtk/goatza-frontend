@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
  * The post composer no longer uploads in place: Post runs the quick checks,
- * hands the draft to the upload queue and closes — no overlay, no "Keep
- * Goatza open", no redirect. What the queue does with it is
- * uploadQueue.test.ts / postUpload.service.test.ts.
+ * hands the draft to the upload queue and closes. What the queue does with it
+ * is uploadQueue.test.ts / postUpload.service.test.ts, and what opens in its
+ * place is UploadScreen.test.tsx.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -12,8 +12,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const queue = vi.hoisted(() => ({ enqueueUpload: vi.fn() }))
 const runPost = vi.hoisted(() => vi.fn())
+const viewport = vi.hoisted(() => ({ settleViewport: vi.fn() }))
+const chrome = vi.hoisted(() => ({ revealChrome: vi.fn() }))
+const playback = vi.hoisted(() => ({ suspensions: 0 }))
 
 vi.mock("@/shared/upload/uploadQueue", () => queue)
+vi.mock("@/shared/utils/settleViewport", () => viewport)
+vi.mock("@/shared/hooks/useScrollChrome", () => chrome)
+vi.mock("@/shared/media/playback", async () => {
+    const { useEffect } = await import("react")
+    return {
+        useSuspendPlayback: () => {
+            useEffect(() => {
+                playback.suspensions++
+                return () => {
+                    playback.suspensions--
+                }
+            }, [])
+        },
+    }
+})
 vi.mock("@/features/posts/hooks/usePostSports", () => ({
     CLEAR_SPORT: "__clear__",
     sportOptions: () => [],
@@ -28,6 +46,7 @@ vi.mock("@/features/posts/services/postUpload.service", async (importOriginal) =
     runPostUpload: runPost,
 }))
 
+import { useAuthStore } from "@/store/auth.store"
 import CreatePostModal from "./CreatePostModal"
 
 const renderComposer = (onClose = vi.fn()) => {
@@ -47,10 +66,99 @@ const post = () => fireEvent.click(screen.getByRole("button", { name: "Post" }))
 beforeEach(() => {
     queue.enqueueUpload.mockReset()
     runPost.mockReset()
+    viewport.settleViewport.mockReset()
+    chrome.revealChrome.mockReset()
+    useAuthStore.setState({ actorType: "user", actorId: null, isOrgAdminView: false, currentOrganization: null })
     Object.defineProperty(navigator, "onLine", { value: true, configurable: true })
 })
 
 afterEach(cleanup)
+
+describe("CreatePostModal — closing cleanly", () => {
+    it("settles the viewport before it closes", () => {
+        const order: string[] = []
+        viewport.settleViewport.mockImplementation(() => order.push("settle"))
+        const onClose = vi.fn(() => order.push("close"))
+        renderComposer(onClose)
+
+        write("Match day at the stadium")
+        post()
+
+        expect(order).toEqual(["settle", "close"])
+    })
+
+    it("a refused post does not", () => {
+        Object.defineProperty(navigator, "onLine", { value: false, configurable: true })
+        renderComposer()
+
+        write("Match day at the stadium")
+        post()
+
+        expect(viewport.settleViewport).not.toHaveBeenCalled()
+    })
+
+    it("brings the bars back when it closes, however it closes", () => {
+        const { unmount } = render(
+            <QueryClientProvider client={new QueryClient()}>
+                <CreatePostModal username="player1" onClose={vi.fn()} />
+            </QueryClientProvider>
+        )
+        expect(chrome.revealChrome).not.toHaveBeenCalled()
+
+        unmount()
+
+        expect(chrome.revealChrome).toHaveBeenCalledTimes(1)
+    })
+
+    it("pauses playback while it is open, from any entry point", () => {
+        const { unmount } = render(
+            <QueryClientProvider client={new QueryClient()}>
+                <CreatePostModal username="player1" onClose={vi.fn()} />
+            </QueryClientProvider>
+        )
+        expect(playback.suspensions).toBe(1)
+
+        unmount()
+
+        expect(playback.suspensions).toBe(0)
+    })
+})
+
+describe("CreatePostModal — where the queue goes after", () => {
+    it("a person's posts", () => {
+        renderComposer()
+
+        write("Match day at the stadium")
+        post()
+
+        expect(queue.enqueueUpload.mock.calls[0][0].destination).toEqual({
+            href: "/profile/player1/posts",
+            kind: "posts",
+        })
+    })
+
+    it("an organization's posts, inside its admin area", () => {
+        useAuthStore.setState({
+            actorType: "organization",
+            actorId: "org-1",
+            isOrgAdminView: true,
+            currentOrganization: { id: "org-1", username: "club" } as never,
+        })
+        render(
+            <QueryClientProvider client={new QueryClient()}>
+                <CreatePostModal username="club" onClose={vi.fn()} />
+            </QueryClientProvider>
+        )
+
+        write("Trials this Sunday")
+        post()
+
+        expect(queue.enqueueUpload.mock.calls[0][0].destination).toEqual({
+            href: "/organization/admin/org-1/posts",
+            kind: "posts",
+        })
+    })
+})
 
 describe("CreatePostModal", () => {
     it("Post hands the draft to the queue and closes at once", () => {

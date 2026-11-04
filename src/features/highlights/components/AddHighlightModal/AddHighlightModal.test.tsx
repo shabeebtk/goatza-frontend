@@ -14,8 +14,10 @@ const queue = vi.hoisted(() => ({
     currentActorKey: vi.fn(() => "user-1"),
 }))
 const probe = vi.hoisted(() => ({ meta: { durationSec: 24, width: 720, height: 1280 } }))
+const viewport = vi.hoisted(() => ({ settleViewport: vi.fn() }))
 
 vi.mock("@/shared/upload/uploadQueue", () => queue)
+vi.mock("@/shared/utils/settleViewport", () => viewport)
 // The real Icon loads its SVG data on a timer that can fire after jsdom is
 // torn down ("window is not defined"); a plain span draws nothing anyway.
 vi.mock("@iconify/react", () => ({ Icon: () => null }))
@@ -27,6 +29,7 @@ vi.mock("@/features/messages/services/chatUpload.service", () => ({
     getVideoMeta: vi.fn(async () => probe.meta),
 }))
 
+import { useAuthStore } from "@/store/auth.store"
 import { useUploadQueueStore } from "@/store/uploadQueue.store"
 import AddHighlightModal from "./AddHighlightModal"
 
@@ -41,6 +44,8 @@ const pick = async (file: File) => {
 
 beforeEach(() => {
     queue.enqueueUpload.mockReset()
+    viewport.settleViewport.mockReset()
+    useAuthStore.setState({ user: { id: "user-1", username: "player1" } as never })
     probe.meta = { durationSec: 24, width: 720, height: 1280 }
     URL.createObjectURL = vi.fn(() => "blob:preview")
     URL.revokeObjectURL = vi.fn()
@@ -68,6 +73,40 @@ describe("AddHighlightModal", () => {
         expect(onClose).toHaveBeenCalledTimes(1)
         // No blocking bar inside the modal any more.
         expect(screen.queryByText(/Uploading…/)).toBeNull()
+    })
+
+    it("goes to the profile when it is up, the rail being at the top of it", async () => {
+        render(<AddHighlightModal existingCount={3} onClose={vi.fn()} />)
+
+        await pick(clip())
+        await waitFor(() => expect(screen.getByText("goal.mp4")).toBeTruthy())
+        fireEvent.click(screen.getByRole("button", { name: "Add" }))
+
+        expect(queue.enqueueUpload.mock.calls[0][0].destination).toEqual({
+            href: "/profile/player1",
+            kind: "profile",
+        })
+    })
+
+    it("settles the viewport before it closes, and not on a refusal", async () => {
+        const order: string[] = []
+        viewport.settleViewport.mockImplementation(() => order.push("settle"))
+        const { unmount } = render(
+            <AddHighlightModal existingCount={3} onClose={() => order.push("close")} />
+        )
+
+        await pick(clip())
+        await waitFor(() => expect(screen.getByText("goal.mp4")).toBeTruthy())
+        fireEvent.click(screen.getByRole("button", { name: "Add" }))
+        expect(order).toEqual(["settle", "close"])
+        unmount()
+
+        viewport.settleViewport.mockClear()
+        render(<AddHighlightModal existingCount={10} onClose={vi.fn()} />)
+        await pick(clip())
+        await waitFor(() => expect(screen.getByText("goal.mp4")).toBeTruthy())
+        fireEvent.click(screen.getByRole("button", { name: "Add" }))
+        expect(viewport.settleViewport).not.toHaveBeenCalled()
     })
 
     it("a full rail is refused here, before any upload", async () => {

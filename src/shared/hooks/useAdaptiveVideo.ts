@@ -18,6 +18,8 @@
 
 import { useEffect, useRef, type RefObject } from "react"
 
+import { releaseVideoElement } from "@/shared/media/playback"
+
 /**
  * Renditions below this are never selected automatically. 360p and down look
  * genuinely bad on a modern phone, and sport footage at 180p is unwatchable.
@@ -43,6 +45,12 @@ export type AdaptiveVideoOptions = {
      * off-screen posts silent.
      */
     enabled?: boolean
+    /**
+     * False: hold no source at all, which frees the decoder (iOS blanks tabs
+     * that keep too many live videos). True again attaches as if new. Default
+     * true.
+     */
+    attached?: boolean
     /**
      * Seconds of look-ahead hls.js may buffer. Feed videos want this small so a
      * post the user scrolls past doesn't download a minute of video first.
@@ -105,13 +113,19 @@ function applyQualityFloor(hls: import("hls.js").default): void {
 /** hls.js only matters where MediaSource exists; everything else gets mp4. */
 export function useAdaptiveVideo(
     videoRef: RefObject<HTMLVideoElement | null>,
-    { hlsSrc, mp4Src, enabled = true, maxBufferLength }: AdaptiveVideoOptions
+    { hlsSrc, mp4Src, enabled = true, attached = true, maxBufferLength }: AdaptiveVideoOptions
 ): AdaptiveVideoStatus {
     const canFallBackRef = useRef(false)
 
     useEffect(() => {
         const video = videoRef.current
         if (!video) return
+
+        if (!attached) {
+            canFallBackRef.current = false
+            releaseVideoElement(video)
+            return
+        }
 
         // Swapping a source pauses the element, so capture the intent BEFORE
         // touching it — afterwards there is no way to tell whether anyone
@@ -222,7 +236,7 @@ export function useAdaptiveVideo(
             hls = null
             canFallBackRef.current = false
         }
-    }, [videoRef, hlsSrc, mp4Src, enabled, maxBufferLength])
+    }, [videoRef, hlsSrc, mp4Src, enabled, attached, maxBufferLength])
 
     return { canFallBackRef }
 }

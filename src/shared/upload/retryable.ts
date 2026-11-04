@@ -1,5 +1,5 @@
 /**
- * Can trying the same thing again help? The upload bar offers Retry only
+ * Can trying the same thing again help? The upload screen offers Retry only
  * when it can: a dropped connection, a server that was briefly down, a worker
  * that timed out. A file that is too long, unreadable or the wrong kind fails
  * identically every time — those offer Discard (and, for a post, Edit).

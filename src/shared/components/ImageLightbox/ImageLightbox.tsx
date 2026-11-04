@@ -25,6 +25,7 @@ import Portal from "../ui/Portal/Portal"
 import styles from "./ImageLightbox.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import { useSuspendPlayback } from "@/shared/media/playback"
 
 interface ImageLightboxProps {
     /** Full-resolution source. The caller passes the original, not a thumb. */
@@ -45,6 +46,7 @@ export default function ImageLightbox({ src, alt, onClose }: ImageLightboxProps)
     // overlay. The lock is counted: this can open from inside a modal that
     // locked the page first, and the page stays covered until both are gone.
     useBodyScrollLock()
+    useSuspendPlayback()
     // Covers the mobile bars: the toasts stop offsetting themselves by them.
     useHtmlFlag("chrome-covered")
 

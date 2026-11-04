@@ -23,6 +23,7 @@ import Select from "@/shared/components/ui/Select/Select"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useBackToClose } from "@/shared/hooks/useBackToClose"
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { settleViewport } from "@/shared/utils/settleViewport"
 import { birthYearOptions } from "../../filterOptions"
 import {
   APPLICANT_FEE_OPTIONS,
@@ -112,6 +113,7 @@ export default function ApplicantFiltersSheet({
 
   const apply = () => {
     onApply(draft)
+    void settleViewport()
     requestClose()
   }
 

@@ -30,6 +30,8 @@ import {
 } from "@/shared/services/sourceUpload"
 import UploadOverlay, { retryLabelFor } from "@/shared/components/ui/UploadOverlay/UploadOverlay"
 import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
+import { useSuspendPlayback } from "@/shared/media/playback"
+import { settleViewport } from "@/shared/utils/settleViewport"
 import type { PlaceResult } from "@/shared/services/places.service"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
 import { useAuthStore } from "@/store/auth.store"
@@ -2317,6 +2319,7 @@ export default function CreateRecruitmentModal({
 
     // ── Scroll lock ───────────────────────────────────────────────
     useBodyScrollLock()
+    useSuspendPlayback()
     // Text inputs on most steps: the backdrop follows the VISIBLE area so the
     // footer stays above the keyboard (see .backdrop in the stylesheet).
     useVisualViewport()
@@ -3216,6 +3219,8 @@ export default function CreateRecruitmentModal({
                 // through the status endpoint — same call the admin page makes.
                 if (publishingDraft) await changeStatus({ recruitmentId: init.id, status: "active" })
                 setDraftSaved(isDraftRecord && !publishingDraft)
+                // The wizard closes itself in a moment; the keyboard goes now.
+                void settleViewport()
                 setPhase("done")
                 toast.show({
                     title: publishingDraft ? "Recruitment published"
@@ -3230,16 +3235,20 @@ export default function CreateRecruitmentModal({
                 const res = await createRecruitment(payload)
                 const isDraft = submitStatus === "draft"
                 setDraftSaved(isDraft)
+                // The wizard closes itself in a moment; the keyboard goes now.
+                void settleViewport()
                 setPhase("done")
                 toast.show({
                     title: isDraft ? "Draft saved" : "Recruitment published",
                     variant: "success",
                 })
                 setTimeout(() => {
-                    // Land on the org's recruitments list after posting/drafting.
+                    // Land on what was just made, published or draft: the
+                    // owner's detail endpoint serves every status, and the
+                    // org's own list opens a draft on this same page.
                     // navigateAway pops the wizard's history entry BEFORE the
-                    // push, so back from the list does not reopen a ghost.
-                    const href = `/organization/admin/${orgId}/recruitments`
+                    // push, so back from the page does not reopen a ghost.
+                    const href = `/organization/admin/${orgId}/recruitments/${res.recruitment_id}`
                     const back = backRef.current
                     onCreated?.(res.recruitment_id)
                     if (back) {
@@ -3250,7 +3259,7 @@ export default function CreateRecruitmentModal({
                         // an orphan and pop it a second time while
                         // navigateAway was already popping it. Two pops and
                         // one push leaves history an entry too deep, and back
-                        // from the list bounces on a dead entry. closingRef
+                        // from the page bounces on a dead entry. closingRef
                         // is what tells handleBackGesture that the pop it is
                         // about to hear means "leave", not "go back a step".
                         closingRef.current = true

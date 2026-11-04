@@ -98,6 +98,7 @@ import StatInputRow, { type StatInputChange } from "./StatInputRow"
 import { useMatchPhotoUpload } from "./useMatchPhotoUpload"
 import styles from "./MatchEntrySheet.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -756,6 +757,7 @@ function MatchEntryForm({
             }
 
             toast.success(successMessage(sendable, photoFailed))
+            void settleViewport()
             onClose()
         } catch (err) {
             // The sheet stays open with everything the player typed still in

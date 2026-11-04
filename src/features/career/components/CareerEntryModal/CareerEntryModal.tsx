@@ -56,6 +56,7 @@ import OrganizationCombobox, {
 } from "../OrganizationCombobox/OrganizationCombobox"
 import styles from "./CareerEntryModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -500,6 +501,7 @@ function CareerEntryForm({
                 )
             }
             reset()
+            void settleViewport()
             onClose()
         } catch {
             // The mutation hooks already surface the server's message via

@@ -126,7 +126,7 @@ export default function AppNav() {
   const moreBtnRef = useRef<HTMLButtonElement | null>(null)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
-  // A failed post's "Edit" in the upload bar reopens the composer here.
+  // A failed post's "Edit" on the upload screen reopens the composer here.
   const editDraft = usePostComposerStore((s) => s.draft)
   const clearEditDraft = usePostComposerStore((s) => s.clear)
 

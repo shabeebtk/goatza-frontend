@@ -16,6 +16,8 @@
  *
  * Only the active post ±2 render real media; the rest are fixed-height
  * placeholders, so scroll positions stay correct however long the list gets.
+ * Inside that window viewerWarmPlan says which video pages hold a real, loading
+ * <video> rather than a still, so a swipe lands on something already moving.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
@@ -23,7 +25,9 @@ import { Icon } from "@iconify/react"
 import type { Post } from "@/features/posts/services/posts.api"
 import { useSoundStore } from "@/store/sound.store"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
+import { prefersReducedData } from "@/shared/media/playback"
 import { burstKeyFor, type ViewerLayoutProps } from "./PostViewer"
+import { viewerWarmPlan, type WarmPlan } from "./viewerList"
 import TailSlide from "./TailSlide"
 import ViewerActions from "./ViewerActions"
 import ViewerCaption from "./ViewerCaption"
@@ -45,6 +49,7 @@ interface PhonePostPageProps {
   active: boolean
   /** Active page only: the slide state and gestures. */
   slide: number
+  warmPlan: WarmPlan
   goToSlide: (next: number) => void
   zoom: ZoomPan
   videoApiRef: React.RefObject<ViewerVideoApi | null>
@@ -59,6 +64,7 @@ function PhonePostPage({
   post,
   active,
   slide,
+  warmPlan,
   goToSlide,
   zoom,
   videoApiRef,
@@ -117,7 +123,8 @@ function PhonePostPage({
     })
   }, [active, slide, goToSlide])
 
-  // An inactive page shows its first slide only: a still, no track to swipe.
+  // An inactive page shows its first slide only, no track to swipe: a still, or
+  // a warm video. Slide 0 keeps its key either way, so activation is no remount.
   const shownMedia = active ? media : media.slice(0, 1)
 
   return (
@@ -142,6 +149,7 @@ function PhonePostPage({
               <ViewerMedia
                 item={item}
                 active={active && i === slide}
+                warm={warmPlan[item.id]}
                 layout="phone"
                 zoom={zoom}
                 videoApiRef={videoApiRef}
@@ -234,6 +242,10 @@ export default function PhoneReelsLayout({
   // The observer is rebuilt only when the SET of pages changes, not when a
   // like re-renders the same posts.
   const pagesKey = items.map((p) => p.id).join(",")
+  const warmPlan = useMemo(
+    () => viewerWarmPlan(items, index, slide, { layout: "phone", saveData: prefersReducedData() }),
+    [items, index, slide]
+  )
 
   // Put the track on the active post whenever the change did not come from
   // the reader's own scroll: opening (before first paint), a keyboard key,
@@ -292,6 +304,7 @@ export default function PhoneReelsLayout({
                   post={item}
                   active={item.id === post.id}
                   slide={slide}
+                  warmPlan={warmPlan}
                   goToSlide={goToSlide}
                   zoom={zoom}
                   videoApiRef={videoApiRef}

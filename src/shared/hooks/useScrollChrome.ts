@@ -15,6 +15,27 @@ interface UseScrollChromeOptions {
   snapDelay?: number
 }
 
+const REVEAL_EVENT = "goatza:reveal-chrome"
+
+/**
+ * After a reveal, scrolling is not the reader's for this long: the keyboard
+ * going away moves `window.scrollY` by itself, and following that would slide
+ * the bars straight back off.
+ */
+const REVEAL_SETTLE_MS = 500
+
+/**
+ * Bring the bars back, now. For an overlay that has just closed: a composer
+ * opened from the page (the profile's own Create button) can be opened with
+ * the bars already scrolled away, and while the scroll is locked behind it
+ * nothing would ever bring them back. A window event because the hook's state
+ * lives in its effect, and the callers are nowhere near it.
+ */
+export function revealChrome(): void {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new Event(REVEAL_EVENT))
+}
+
 /**
  * Scroll-linked auto-hide for the mobile chrome (top bar + bottom nav).
  *
@@ -57,6 +78,7 @@ export function useScrollChrome({
     let lastY = window.scrollY
     let ticking = false
     let idleTimer: ReturnType<typeof setTimeout> | undefined
+    let ignoreScrollUntil = 0
 
     const write = (p: number) => {
       progress = p < 0 ? 0 : p > 1 ? 1 : p
@@ -72,6 +94,11 @@ export function useScrollChrome({
     const update = () => {
       ticking = false
       const y = window.scrollY
+
+      if (performance.now() < ignoreScrollUntil) {
+        lastY = y
+        return
+      }
 
       // Always fully visible near the top; ease in if we jumped here.
       if (y <= topOffset) {
@@ -101,12 +128,22 @@ export function useScrollChrome({
       requestAnimationFrame(update)
     }
 
+    const onReveal = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      root.setAttribute("data-chrome-snap", "")
+      lastY = window.scrollY
+      ignoreScrollUntil = performance.now() + REVEAL_SETTLE_MS
+      write(0)
+    }
+
     // Initialise from the current position.
     write(window.scrollY <= topOffset ? 0 : progress)
 
     window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener(REVEAL_EVENT, onReveal)
     return () => {
       window.removeEventListener("scroll", onScroll)
+      window.removeEventListener(REVEAL_EVENT, onReveal)
       if (idleTimer) clearTimeout(idleTimer)
       clearVars()
     }

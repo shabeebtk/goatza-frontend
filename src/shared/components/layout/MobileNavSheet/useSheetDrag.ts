@@ -240,6 +240,40 @@ export function useSheetDrag({
     [blockTouch, clearInline, paint]
   )
 
+  /**
+   * Let go of a gesture that will never get its pointerup: the browser took it
+   * back, the element holding the pointer went away, or an overlay mounting
+   * under the finger swallowed the end of it. A claimed drag goes back where
+   * it came from rather than snapping, so the sheet is never left half-open.
+   */
+  const abandonDrag = useCallback(() => {
+    const drag = dragRef.current
+    if (!drag) return
+    document.removeEventListener("touchmove", blockTouch)
+    dragRef.current = null
+    setDragging(false)
+    if (drag.claimed) {
+      settleTo(drag.mode === "open" ? drag.height : 0, drag.height, drag.mode !== "open")
+    }
+  }, [blockTouch, settleTo])
+
+  /**
+   * Is this pointerdown free to start a gesture? A second finger on a live
+   * drag is not. A new FIRST finger while a drag is still recorded means the
+   * old one's end was never heard (a handler stopped its propagation, say), and
+   * without this every later swipe on the bar would be refused for the life of
+   * the page: its pointerId would never come round again to clear it.
+   */
+  const claimPointer = useCallback(
+    (isPrimary: boolean | undefined) => {
+      if (!dragRef.current) return true
+      if (isPrimary === false) return false
+      abandonDrag()
+      return true
+    },
+    [abandonDrag]
+  )
+
   // ── The gesture itself ────────────────────────────────────────────────────
   // One effect owns every listener. `pointermove`/`pointerup` go on the
   // document so a finger that leaves the sheet (or the bar) still drives it.
@@ -335,22 +369,20 @@ export function useSheetDrag({
       settleTo(toOpen ? 0 : height, height, toOpen)
     }
 
-    const onPointerCancel = (event: PointerEvent) => {
+    // pointercancel, and lostpointercapture: after a normal release the
+    // pointerup above has already cleared the drag, so this only ever finds
+    // one when the pointer went away without it.
+    const onPointerLost = (event: PointerEvent) => {
       const drag = dragRef.current
       if (!drag || event.pointerId !== drag.pointerId) return
-      const height = drag.height
-      const wasClaimed = drag.claimed
-      const mode = drag.mode
-      end()
-      // A cancelled drag goes back where it came from rather than snapping.
-      if (wasClaimed) settleTo(mode === "open" ? height : 0, height, mode !== "open")
+      abandonDrag()
     }
 
     // Capture phase: the bar's tabs are links, and a drag that starts on one
     // must still be ours. The click they would fire is swallowed on claim.
     const onDocPointerDown = (event: PointerEvent) => {
+      if (!claimPointer(event.isPrimary)) return
       if (openRef.current || reducedRef.current) return
-      if (dragRef.current) return
       if (event.pointerType === "mouse" && event.button !== 0) return
 
       const target = event.target
@@ -375,17 +407,19 @@ export function useSheetDrag({
     document.addEventListener("pointerdown", onDocPointerDown, true)
     document.addEventListener("pointermove", onPointerMove)
     document.addEventListener("pointerup", onPointerUp)
-    document.addEventListener("pointercancel", onPointerCancel)
+    document.addEventListener("pointercancel", onPointerLost)
+    document.addEventListener("lostpointercapture", onPointerLost)
 
     return () => {
       document.removeEventListener("pointerdown", onDocPointerDown, true)
       document.removeEventListener("pointermove", onPointerMove)
       document.removeEventListener("pointerup", onPointerUp)
-      document.removeEventListener("pointercancel", onPointerCancel)
+      document.removeEventListener("pointercancel", onPointerLost)
+      document.removeEventListener("lostpointercapture", onPointerLost)
       document.removeEventListener("touchmove", blockTouch)
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current)
     }
-  }, [blockTouch, paint, settleTo, swallowNextClick, travel])
+  }, [abandonDrag, blockTouch, claimPointer, paint, settleTo, swallowNextClick, travel])
 
   /**
    * Close drags, from the sheet's handle or its scroll area. React's own
@@ -394,8 +428,8 @@ export function useSheetDrag({
    */
   const onPointerDown = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
+      if (!claimPointer(event.isPrimary)) return
       if (!openRef.current || reducedRef.current) return
-      if (dragRef.current) return
       if (event.pointerType === "mouse" && event.button !== 0) return
 
       const scroller = scrollRef.current
@@ -417,7 +451,7 @@ export function useSheetDrag({
         samples: [{ t: event.timeStamp, y: event.clientY }],
       }
     },
-    [travel]
+    [claimPointer, travel]
   )
 
   // Opened or closed by a tap (or by the back button): whatever a half-drag

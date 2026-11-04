@@ -29,6 +29,7 @@ import { toCalendarDate } from "../../utils/careerDates"
 import { useAddCareerFromApplication } from "../../hooks/useCareerQueries"
 import styles from "./CareerAddPromptSheet.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 const DESCRIPTION_LIMIT = 500
 
@@ -97,6 +98,7 @@ export default function CareerAddPromptSheet({
                     ? "🎉 Added to your career — verified"
                     : "This is already on your career"
             )
+            void settleViewport()
             onClose()
         } catch {
             // useAddCareerFromApplication already surfaces the server's message;

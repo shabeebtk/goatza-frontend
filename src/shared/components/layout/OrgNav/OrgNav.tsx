@@ -288,7 +288,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [postModalOpen, setPostModalOpen] = useState(false)
-  // A failed post's "Edit" in the upload bar reopens the composer here.
+  // A failed post's "Edit" on the upload screen reopens the composer here.
   const editDraft = usePostComposerStore((s) => s.draft)
   const clearEditDraft = usePostComposerStore((s) => s.clear)
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
@@ -748,11 +748,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       )}
 
       {/* Recruitment modal — controlled by the create menu. CreateRecruitmentTrigger
-          keeps its org-actor guard, so it self-renders null for non-org actors. */}
+          keeps its org-actor guard, so it self-renders null for non-org actors.
+          No onCreated push: the modal goes to the new recruitment itself, and
+          a push here would race that navigation and win. */}
       <CreateRecruitmentTrigger
         open={recruitmentOpen}
         onOpenChange={setRecruitmentOpen}
-        onCreated={() => router.push(`${orgBase(orgId)}/recruitments`)}
       />
     </>
   )

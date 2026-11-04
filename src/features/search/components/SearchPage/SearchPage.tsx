@@ -133,7 +133,7 @@ export default function SearchPage() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.head}>
+      <header className={styles.head} data-page-sticky-header="">
         <button
           type="button"
           className={styles.back}

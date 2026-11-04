@@ -14,6 +14,7 @@ import type { UserProfile, LocationPayload } from "@/features/profile/services/p
 import type { PlaceResult } from "@/shared/services/places.service"
 import styles from "./EditProfileModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Zod schema ────────────────────────────────────────────────
 
@@ -251,7 +252,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       }
     }
 
-    if (Object.keys(payload).length === 0) { onClose(); return }
+    if (Object.keys(payload).length === 0) { void settleViewport(); onClose(); return }
 
     try {
       const updated = await updateProfileData.mutateAsync(payload)
@@ -268,6 +269,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
         })
       }
 
+      void settleViewport()
       if (onSaved) onSaved(updated)
       else onClose()
     } catch (err: unknown) {

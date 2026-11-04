@@ -16,7 +16,7 @@
  * what Comment focuses.
  */
 
-import { useCallback, useRef } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -29,12 +29,14 @@ import CommentsThread, {
 import { fmtCount } from "@/features/posts/utils/format"
 import { getTopReactions } from "@/features/posts/utils/reactions"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
+import { prefersReducedData } from "@/shared/media/playback"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { burstKeyFor, type ViewerLayoutProps } from "./PostViewer"
 import TailSlide from "./TailSlide"
 import ViewerActions from "./ViewerActions"
 import ViewerMedia from "./ViewerMedia"
 import ViewerTextPost from "./ViewerTextPost"
+import { sortedMedia, viewerWarmPlan } from "./viewerList"
 import styles from "./PostViewer.module.css"
 
 dayjs.extend(relativeTime)
@@ -82,6 +84,19 @@ export default function DesktopSplitLayout({
   const isLast = index === items.length - 1
   const hasList = items.length > 1 || tail !== null
 
+  // The slide on screen, plus what comes next: the next slide and the next
+  // post's first. Those sit hidden in the stage, keyed by media id, so moving
+  // on flips one of them to active rather than mounting it from nothing.
+  const warmPlan = useMemo(
+    () => viewerWarmPlan(items, index, slide, { layout: "desktop", saveData: prefersReducedData() }),
+    [items, index, slide]
+  )
+  const nextSlide = media[slide + 1]
+  const nextPostFirst = sortedMedia(items[index + 1])[0]
+  const stageItems = [current, nextSlide, nextPostFirst].filter(
+    (item): item is NonNullable<typeof item> => Boolean(item)
+  )
+
   // Wheel over the media = next / previous post. Skipped while zoomed (the
   // wheel is then the image's), for Ctrl/⌘ (zoom took it), and for the
   // ticks that follow the first inside the debounce window.
@@ -111,18 +126,27 @@ export default function DesktopSplitLayout({
       <div className={styles.modal}>
         {/* ── Media stage ── */}
         <div className={styles.stage} onWheel={onWheel}>
-          {current && (
-            <ViewerMedia
-              key={current.id}
-              item={current}
-              active
-              layout="desktop"
-              zoom={zoom}
-              videoApiRef={videoApiRef}
-              onDoubleTap={onDoubleTapLike}
-              burstKey={burstKeyFor(burst, post.id, slide)}
-            />
-          )}
+          {stageItems.map((item) => {
+            const onStage = item.id === current?.id
+            return (
+              <div
+                key={item.id}
+                className={onStage ? styles.stageSlot : styles.stageSlotWarm}
+                aria-hidden={onStage ? undefined : true}
+              >
+                <ViewerMedia
+                  item={item}
+                  active={onStage}
+                  warm={warmPlan[item.id]}
+                  layout="desktop"
+                  zoom={zoom}
+                  videoApiRef={videoApiRef}
+                  onDoubleTap={onDoubleTapLike}
+                  burstKey={onStage ? burstKeyFor(burst, post.id, slide) : 0}
+                />
+              </div>
+            )
+          })}
 
           {isText && (
             /* Keyed: a new post's text box starts scrolled to the top. */

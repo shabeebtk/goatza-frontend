@@ -28,6 +28,7 @@ import type { Highlight } from "../../types"
 import styles from "./HighlightViewer.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import { useSuspendPlayback } from "@/shared/media/playback"
 
 export type HighlightViewerOwner = {
     username: string
@@ -157,6 +158,7 @@ export default function HighlightViewer({
     // ── mount effects: scroll lock, focus trap, keyboard ───────
 
     useBodyScrollLock()
+    useSuspendPlayback()
     // Covers the mobile bars: the toasts stop offsetting themselves by them.
     useHtmlFlag("chrome-covered")
 

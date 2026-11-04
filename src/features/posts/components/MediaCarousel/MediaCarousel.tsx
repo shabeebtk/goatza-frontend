@@ -10,8 +10,11 @@
  * Fullscreen   → not here any more. A tap on a slide or the fullscreen button
  *                calls `onOpenViewer(slideIndex)` and PostCard opens the
  *                PostViewer (uncropped original, zoom/pan, comments, actions).
- * Video        → same clamped container + cover; autoplays only when visible
- *                (IntersectionObserver), muted; the viewer shows it with contain.
+ * Video        → same clamped container + cover; which video plays, what loads
+ *                and what is given back is shared/media/playback.ts, not this
+ *                file. It just plays: no play button, and the thumbnail stays
+ *                until a frame is really on screen. The viewer shows it with
+ *                contain.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -20,6 +23,12 @@ import type { PostMedia } from "@/features/posts/services/posts.api"
 import { getPostAspectRatio } from "@/features/posts/utils/media"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
+import {
+    firstFrameSrc,
+    lookAheadTarget,
+    useAutoplayVideo,
+    whenFirstFrame,
+} from "@/shared/media/playback"
 import {
     hlsSrc,
     posterSrc,
@@ -37,6 +46,11 @@ import styles from "./MediaCarousel.module.css"
  * The fullscreen surfaces (highlights) leave this unset and buffer normally.
  */
 const FEED_MAX_BUFFER_SECONDS = 10
+
+/** A photo starts loading about one and a half screens before it arrives. */
+const IMAGE_LOOK_AHEAD = "0px 0px 150% 0px"
+
+const NETWORK_LOADING = 2
 
 function fmtDuration(secs: number): string {
     const m = Math.floor(secs / 60)
@@ -62,9 +76,9 @@ function LazyImage({
         if (!el) return
         const obs = new IntersectionObserver(
             ([entry]) => { if (entry.isIntersecting) { setInView(true); obs.disconnect() } },
-            { rootMargin: "200px" }
+            { rootMargin: IMAGE_LOOK_AHEAD }
         )
-        obs.observe(el)
+        obs.observe(lookAheadTarget(el))
         return () => obs.disconnect()
     }, [])
 
@@ -77,7 +91,6 @@ function LazyImage({
                     alt={alt}
                     className={`${styles.mediaImg} ${loaded ? styles.mediaImgLoaded : ""}`}
                     onLoad={() => setLoaded(true)}
-                    loading="lazy"
                     decoding="async"
                 />
             )}
@@ -85,54 +98,83 @@ function LazyImage({
     )
 }
 
-// ── Video item (autoplay on visible) ──────────────────────────
+// ── Video item ────────────────────────────────────────────────
 function LazyVideo({
+    id,
     src,
     hlsSrc,
     thumbnail,
     duration,
-    suspended = false,
+    current,
 }: {
+    id: string
     src: string
     hlsSrc?: string
     thumbnail?: string
     duration?: number | null
-    /** The viewer is open over this card: stay paused even while visible. */
-    suspended?: boolean
+    /** This slide is the one showing in its carousel. */
+    current: boolean
 }) {
     const videoRef = useRef<HTMLVideoElement>(null)
+    const { tier, preload, attached, near, blocked } = useAutoplayVideo(videoRef, {
+        id,
+        enabled: current,
+        hasPoster: Boolean(thumbnail),
+    })
+
     const [playing, setPlaying] = useState(false)
-    // What the observer last decided, so lifting `suspended` can resume
-    // without waiting for the next intersection change.
-    const inViewRef = useRef(false)
-    const suspendedRef = useRef(suspended)
-    const [videoReady, setVideoReady] = useState(false)
-    // Flipped once by the observer, the first time this post reaches the
-    // viewport. Until then the hook stays on the plain mp4 src and, with
-    // preload="none", fetches nothing at all — the feed's lazy contract.
-    const [activated, setActivated] = useState(false)
+    const [everPlayed, setEverPlayed] = useState(false)
+    // A frame has been painted while playing. Until then the thumbnail is the
+    // tile. `canplay` used to drive this swap, but on iOS Safari it can fire
+    // before the first frame is composited, which is a flash of black.
+    const [frameShown, setFrameShown] = useState(false)
+    const [thumbLoaded, setThumbLoaded] = useState(false)
+    // Latched: the thumbnail is fetched once, on approach, and then just stays.
+    const [approached, setApproached] = useState(false)
+    if (near && !approached) setApproached(true)
+    // Given back: there is no frame any more, and the thumbnail is the tile again.
+    if (!attached && frameShown) setFrameShown(false)
+    // Latched too: the hook stays on the plain mp4 until this video is first
+    // wanted, so nothing further away attaches the adaptive ladder.
+    const [wanted, setWanted] = useState(false)
+    if (tier !== "cold" && tier !== "released" && !wanted) setWanted(true)
 
     // Sound is GLOBAL (src/store/sound.store.ts) — unmute one video and every
     // video in the app plays with sound until the user mutes again. The hook
     // still pushes the state onto the element as a PROPERTY, which is what the
-    // autoplay policy reads, and still exposes a ref because the observer's
-    // callback below is created once.
-    const {
-        muted,
-        toggleMuted,
-        applyMuted,
-        mutedRef,
-        reportBlocked,
-    } = useVideoSound(videoRef)
+    // autoplay policy reads.
+    const { muted, toggleMuted, applyMuted, mutedRef } = useVideoSound(videoRef)
 
     // Owns video.src (hence no src attribute below) — hls.js attaches through
     // MediaSource, which a React-controlled src would fight every render.
     useAdaptiveVideo(videoRef, {
         hlsSrc,
-        mp4Src: src,
-        enabled: activated,
+        mp4Src: firstFrameSrc(src, Boolean(thumbnail)),
+        enabled: wanted,
+        attached,
         maxBufferLength: FEED_MAX_BUFFER_SECONDS,
     })
+
+    // After useAdaptiveVideo, so the source is on before anything asks for it.
+    // The browser reads `preload` when it starts on a resource, so a warm tile
+    // has to start: the winner does not, because its play() already has.
+    useEffect(() => {
+        const el = videoRef.current
+        if (!el || !attached || tier === "active" || preload === "none") return
+        if (el.readyState === 0 && el.networkState !== NETWORK_LOADING) el.load()
+    }, [attached, preload, tier])
+
+    useEffect(() => {
+        const el = videoRef.current
+        if (!el || !attached || frameShown) return
+        return whenFirstFrame(el, () => setFrameShown(true))
+    }, [attached, frameShown])
+
+    // Already loaded by the time it is here (it was cached): its load event may
+    // have come and gone.
+    const onThumbRef = useCallback((img: HTMLImageElement | null) => {
+        if (img?.complete && img.naturalWidth > 0) setThumbLoaded(true)
+    }, [])
 
     const toggleMute = useCallback((e: React.MouseEvent) => {
         // The tile wrapper opens the viewer on click — this button must not
@@ -145,112 +187,43 @@ function LazyVideo({
         toggleMuted()
     }, [applyMuted, mutedRef, toggleMuted])
 
-    useEffect(() => {
-        const el = videoRef.current
-        if (!el) return
-
-        const obs = new IntersectionObserver(
-            ([entry]) => {
-                inViewRef.current = entry.intersectionRatio >= 0.5
-                if (inViewRef.current) {
-                    // First time on screen: let the hook upgrade this element to
-                    // the adaptive ladder. State updates from here are batched,
-                    // so play() below still runs first and the hook can see that
-                    // playback was wanted across the source swap.
-                    setActivated(true)
-                    // The full-screen viewer is playing its own copy on top —
-                    // one video at a time. Resumed by the effect below.
-                    if (suspendedRef.current) return
-                    // Before ANY play(): the policy check reads the property.
-                    applyMuted(mutedRef.current)
-                    // Trigger load if not already loading (preload="none" means
-                    // nothing is fetched until the video actually scrolls in).
-                    if (el.readyState === 0) {
-                        el.load()
-                    }
-                    el.play().catch(() => {
-                        // Scrolled into view while unmuted and the browser
-                        // refused. Autoplay always beats sound: drop to muted,
-                        // retry once, and move EVERY icon in the app so none
-                        // of them are lying about the state.
-                        if (el.muted) return
-                        applyMuted(true)
-                        reportBlocked()
-                        el.play().catch(() => { })
-                    })
-                    setPlaying(true)
-                } else {
-                    // Scrolled away → PAUSE so an off-screen video never keeps
-                    // playing or buffering in the background. The 50% threshold
-                    // fires while the item is still near the viewport, before
-                    // content-visibility:auto skips its rendering.
-                    el.pause()
-                    setPlaying(false)
-                }
-            },
-            { threshold: 0.5 }
-        )
-        obs.observe(el)
-        return () => obs.disconnect()
-    }, [applyMuted, mutedRef, reportBlocked])
-
-    // Viewer open → pause the copy underneath; viewer closed → pick up again
-    // if the card is still on screen. Muted playback is always allowed, and
-    // the element is already muted-by-property from the first play above.
-    // `playing` follows through the element's own play/pause events.
-    useEffect(() => {
-        suspendedRef.current = suspended
-        const el = videoRef.current
-        if (!el) return
-        if (suspended) el.pause()
-        else if (inViewRef.current) el.play().catch(() => { })
-    }, [suspended])
+    const showDuration = Boolean(duration) && !everPlayed
 
     return (
-        <div className={`${styles.mediaItem} ${styles.videoItem}`}>
-            {/* Thumbnail shown only until video has rendered its first frame */}
-            {!videoReady && thumbnail && (
+        <div className={`${styles.mediaItem} ${styles.videoItem}`} data-video-tier={tier}>
+            {thumbnail && !thumbLoaded && <div className={styles.mediaSkeleton} />}
+            {/* Under the video, and it stays: the frame fades in over it. */}
+            {thumbnail && approached && (
                 <img
+                    ref={onThumbRef}
                     src={thumbnail}
-                    alt="Video thumbnail"
-                    className={styles.mediaImg}
-                    style={{ position: "absolute", inset: 0, zIndex: 1, opacity: 1 }}
+                    alt=""
+                    className={`${styles.mediaImg} ${thumbLoaded ? styles.mediaImgLoaded : ""}`}
+                    onLoad={() => setThumbLoaded(true)}
+                    decoding="async"
                 />
             )}
             <video
                 ref={videoRef}
-                className={styles.mediaImg}
-                style={{ opacity: videoReady ? 1 : 0, transition: "opacity 0.2s" }}
+                className={styles.videoEl}
+                // With no thumbnail there is nothing to fade in over: its own
+                // #t=0.1 frame is the picture.
+                data-frame-shown={frameShown || !thumbnail ? "" : undefined}
                 muted
                 playsInline
                 loop
-                // preload="none": off-screen videos fetch nothing. Dimensions come
-                // from the CSS-sized container and the poster shows the thumbnail,
-                // so no metadata is needed until the observer calls load()/play().
-                preload="none"
-                poster={thumbnail}
-                // `canplay` used to drive this swap, but on iOS Safari it can
-                // fire before the first frame is actually composited — the
-                // thumbnail disappears onto a black box for a frame or two.
-                // `playing` only fires once playback is genuinely running, and
-                // the timeupdate guard covers the browsers that skip it.
-                onPlaying={() => setVideoReady(true)}
+                preload={preload}
                 onPlay={() => setPlaying(true)}
+                onPlaying={() => setEverPlayed(true)}
                 onPause={() => setPlaying(false)}
-                onTimeUpdate={(e) => {
-                    if (!videoReady && e.currentTarget.currentTime > 0)
-                        setVideoReady(true)
-                }}
             />
-            {!playing && (
-                <div className={styles.videoPlayOverlay} style={{ zIndex: 2 }}>
-                    <span className={styles.videoPlayBtn}>
-                        <Icon icon="mdi:play" width={28} height={28} />
-                    </span>
-                    {duration && (
-                        <span className={styles.videoDuration}>{fmtDuration(duration)}</span>
-                    )}
-                </div>
+            {(showDuration || blocked) && (
+                <span className={styles.videoChip}>
+                    {/* Autoplay refused (Low Power Mode, data saver): it still
+                        has to read as a video. A tap opens the viewer as ever. */}
+                    {blocked && <Icon icon="mdi:video" width={12} height={12} aria-label="Video" />}
+                    {showDuration && duration ? fmtDuration(duration) : null}
+                </span>
             )}
             {playing && (
                 <button
@@ -279,15 +252,12 @@ interface MediaCarouselProps {
     postId: string
     /** A slide was tapped (or the fullscreen button): open the viewer there. */
     onOpenViewer: (slideIndex: number) => void
-    /** The viewer is open over this card — its video stays paused meanwhile. */
-    viewerOpen?: boolean
 }
 
 export default function MediaCarousel({
     media,
     postId,
     onOpenViewer,
-    viewerOpen = false,
 }: MediaCarouselProps) {
     const [slideIdx, setSlideIdx] = useState(0)
 
@@ -297,9 +267,6 @@ export default function MediaCarousel({
 
     const isSingle = media.length === 1
     const totalSlides = media.length
-    // Any viewer on screen — the list's or a card's own — pauses the copy
-    // playing inline underneath it.
-    const anyViewerOpen = usePostViewerStore((s) => s.open)
 
     const goTo = useCallback((i: number) => {
         setSlideIdx(Math.max(0, Math.min(i, totalSlides - 1)))
@@ -361,11 +328,12 @@ export default function MediaCarousel({
                         >
                             {item.media_type === "video" ? (
                                 <LazyVideo
+                                    id={item.id}
                                     src={videoSrc(item)}
                                     hlsSrc={hlsSrc()}
                                     thumbnail={posterSrc(item) || undefined}
                                     duration={item.duration}
-                                    suspended={viewerOpen || anyViewerOpen}
+                                    current={i === slideIdx}
                                 />
                             ) : (
                                 <LazyImage

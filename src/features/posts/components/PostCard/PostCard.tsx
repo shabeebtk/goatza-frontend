@@ -300,7 +300,6 @@ function PostCard({ post, queryParams, isPreview = false }: PostCardProps) {
             media={post.media}
             postId={post.id}
             onOpenViewer={openViewer}
-            viewerOpen={viewerSlide !== null}
           />
         </div>
       )}

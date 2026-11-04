@@ -380,6 +380,8 @@
              (Create/Edit post backdrop used to be 500 too; see below)
        550   full-screen post viewer (--z-post-viewer): above the nav, below
              everything it can open — sheets, the editor, the lightboxes
+       560   upload screen (--z-upload-screen): the expanded upload, over the
+             viewer and the nav, below the sheets
        600   sheets — comments, post options, report, block; onboarding gate
        650   post editor (--z-post-editor): Create/Edit post backdrop, so an
              edit started from inside the viewer opens above it;
@@ -395,6 +397,7 @@
 
 :root {
   --z-post-viewer: 550;
+  --z-upload-screen: 560;
   --z-post-editor: 650;
   --z-select-panel: 700;
 }
