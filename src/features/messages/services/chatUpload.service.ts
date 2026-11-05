@@ -15,6 +15,7 @@ import {
     videoProgressSplit,
     type VideoUploadPhase,
 } from "@/shared/services/videoEncode"
+import { frameToJpeg, grabVideoFrame } from "@/shared/services/videoFrame"
 import { prepareImageForUpload, prepareVideoForUpload } from "@/shared/services/videoPrep"
 import { createMediaJob, uploadSource, waitForMediaJob } from "@/shared/services/sourceUpload"
 
@@ -213,81 +214,25 @@ export function getVideoMeta(
     })
 }
 
+/** A preview is a small picture; a phone need not hold a 4K canvas for one. */
+const THUMBNAIL_MAX_SIDE = 1280
+
 /**
- * Capture the first frame of a video File as a JPEG object URL, for the
- * optimistic bubble poster while the video uploads. Caller must revoke the URL.
- * Resolves to "" if the frame can't be grabbed (bubble falls back gracefully).
+ * A frame of a video File as a JPEG object URL, for the optimistic bubble poster
+ * while the video uploads and the upload screen's preview. Caller must revoke the
+ * URL. Resolves to "" if a frame can't be grabbed (a missing poster is purely
+ * cosmetic: the bubble falls back to a neutral box until the server thumbnail
+ * lands). It settles within the same bound as the other probes, because the send
+ * path waits on nothing that can hang.
  */
-export function captureVideoThumbnail(file: File): Promise<string> {
-    return new Promise((resolve) => {
-        const url = URL.createObjectURL(file)
-        const video = document.createElement("video")
-        // `auto` (not `metadata`): a poster needs a decoded FRAME, and with
-        // preload="metadata" mobile browsers may never fire `loadeddata`.
-        video.preload = "auto"
-        video.muted = true
-        video.playsInline = true
-
-        let done = false
-        const finish = (result: string) => {
-            if (done) return
-            done = true
-            window.clearTimeout(timer)
-            URL.revokeObjectURL(url)
-            video.removeAttribute("src")
-            video.load()
-            resolve(result)
-        }
-
-        // Hard cap. This promise MUST settle: the send path waits on nothing
-        // that can hang, and a missing poster is purely cosmetic (the bubble
-        // falls back to a neutral box until the server thumbnail lands).
-        const timer = window.setTimeout(
-            () => finish(""),
-            VIDEO_PROBE_TIMEOUT_MS
-        )
-
-        const grabFrame = () => {
-            try {
-                const canvas = document.createElement("canvas")
-                canvas.width = video.videoWidth || 320
-                canvas.height = video.videoHeight || 320
-                const ctx = canvas.getContext("2d")
-                if (!ctx) {
-                    finish("")
-                    return
-                }
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-                canvas.toBlob(
-                    (blob) => finish(blob ? URL.createObjectURL(blob) : ""),
-                    "image/jpeg",
-                    0.8
-                )
-            } catch {
-                finish("")
-            }
-        }
-
-        video.onloadeddata = () => {
-            // Seek slightly in — frame 0 is often black. If the file is too
-            // short to seek, or the seek is a no-op (currentTime already 0),
-            // `seeked` never fires, so grab what we have instead.
-            const target = Math.min(0.1, (video.duration || 0) / 2)
-            if (!target) {
-                grabFrame()
-                return
-            }
-            try {
-                video.currentTime = target
-            } catch {
-                grabFrame()
-            }
-        }
-        video.onseeked = grabFrame
-        video.onerror = () => finish("")
-        video.src = url
-        video.load()
+export async function captureVideoThumbnail(file: File): Promise<string> {
+    const frame = await grabVideoFrame(file, {
+        maxSide: THUMBNAIL_MAX_SIDE,
+        timeoutMs: VIDEO_PROBE_TIMEOUT_MS,
     })
+    if (!frame) return ""
+    const jpeg = await frameToJpeg(frame.canvas)
+    return jpeg ? URL.createObjectURL(jpeg) : ""
 }
 
 // ── Direct upload with XHR progress ───────────────────────────

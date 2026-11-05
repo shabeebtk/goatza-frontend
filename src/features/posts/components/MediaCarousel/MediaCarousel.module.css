@@ -129,6 +129,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .videoEl { transition: none; }
+  .mediaSkeleton { animation: none; }
 }
 
 /* Mute toggle. The padding is the tap target (>=32px); the pill inside stays

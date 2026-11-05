@@ -34,11 +34,13 @@ import { getPostAspectRatio, POST_RATIO_FALLBACK } from "@/features/posts/utils/
 import PostImageCropper, { type CropState } from "../PostImageCropper/PostImageCropper"
 import MentionAutocomplete from "../MentionAutocomplete/MentionAutocomplete"
 import { useMentionAutocomplete } from "../MentionAutocomplete/useMentionAutocomplete"
+import MediaLoading from "@/shared/components/ui/MediaLoading/MediaLoading"
 import Select from "@/shared/components/ui/Select/Select"
 import styles from "./CreatePostModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { revealChrome } from "@/shared/hooks/useScrollChrome"
-import { useSuspendPlayback } from "@/shared/media/playback"
+import { useVideoPreviewFrame, type VideoPreviewFrame } from "@/shared/hooks/useVideoPreviewFrame"
+import { firstFrameSrc, useSuspendPlayback, whenFirstFrame } from "@/shared/media/playback"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -87,9 +89,21 @@ function measureRatio(entry: FileEntry): Promise<number> {
 
 // ── Preview video — play/pause only, no native player chrome ──
 
-function PreviewVideo({ src }: { src: string }) {
+/** The `#t=` hint on the preview's source, where a paused frame may paint. */
+const PREVIEW_START_SECONDS = 0.1
+
+function PreviewVideo({ src, frame }: { src: string; frame: VideoPreviewFrame }) {
   const ref = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
+  // The grabbed frame stays until the clip has really painted one of its own:
+  // iPhone Safari shows nothing for a paused metadata-only video on a blob.
+  const [frameShown, setFrameShown] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || frameShown) return
+    return whenFirstFrame(el, () => setFrameShown(true), { startsAt: PREVIEW_START_SECONDS })
+  }, [frameShown])
 
   const toggle = () => {
     const v = ref.current
@@ -98,11 +112,13 @@ function PreviewVideo({ src }: { src: string }) {
     else v.pause()
   }
 
+  const grabbing = frame.grabbing && !frameShown
+
   return (
     <div className={styles.previewVideoWrap} onClick={toggle}>
       <video
         ref={ref}
-        src={src}
+        src={firstFrameSrc(src, false)}
         className={styles.previewMedia}
         playsInline
         preload="metadata"
@@ -113,7 +129,14 @@ function PreviewVideo({ src }: { src: string }) {
         onPause={() => setPlaying(false)}
         onContextMenu={(e) => e.preventDefault()}
       />
-      {!playing && (
+      {!frameShown && frame.url && (
+        // A local object URL, which next/image cannot size.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={frame.url} className={styles.previewPoster} alt="" data-preview-poster="" />
+      )}
+      {grabbing && <div className={styles.previewSkeleton} />}
+      <MediaLoading active={grabbing} />
+      {!playing && !grabbing && (
         <div className={styles.previewPlayOverlay}>
           <span className={styles.previewPlayBtn}>
             <Icon icon="mdi:play" width={26} height={26} />
@@ -145,8 +168,9 @@ function VisibilityBtn({ value, onChange }: {
 
 // ── Media carousel preview ────────────────────────────────────
 
-function MediaCarouselPreview({ entries, onRemove, onCropEntry }: {
+function MediaCarouselPreview({ entries, videoFrame, onRemove, onCropEntry }: {
   entries: FileEntry[]
+  videoFrame: VideoPreviewFrame
   onRemove: (id: string) => void
   onCropEntry: (id: string, file: File, crop: CropState, zoom: number) => void
 }) {
@@ -219,7 +243,7 @@ function MediaCarouselPreview({ entries, onRemove, onCropEntry }: {
         onTouchEnd={onTouchEnd}
       >
         {current.isVideo ? (
-          <PreviewVideo key={current.id} src={current.preview} />
+          <PreviewVideo key={current.id} src={current.preview} frame={videoFrame} />
         ) : (
           <img key={current.id} src={current.preview} className={styles.previewMedia} alt={`Preview ${idx + 1}`} />
         )}
@@ -361,6 +385,8 @@ export default function CreatePostModal({
 
   const hasVideo     = entries.some(e => e.isVideo)
   const hasImages    = entries.some(e => !e.isVideo)
+  // A post holds at most one video (validateMediaFiles).
+  const videoFrame   = useVideoPreviewFrame(entries.find(e => e.isVideo)?.file ?? null)
 
   // ── Unsaved-changes guard ─────────────────────────────────────
   const isDirty =
@@ -520,10 +546,20 @@ export default function CreatePostModal({
     // screen covers the page while it goes away.
     void settleViewport()
 
+    // The frame already grabbed, so the task starts now instead of decoding the
+    // same file a second time. A URL of the queue's own: this composer revokes
+    // the one it has as it closes. Not grabbed yet: the queue gets it from the file.
+    const localThumbUrl = first?.isVideo && videoFrame.blob
+      ? URL.createObjectURL(videoFrame.blob)
+      : undefined
+
     enqueueUpload({
       kind: "post",
       label: trimmed,
-      preview: { mediaType: first ? (first.isVideo ? "video" : "image") : "none" },
+      preview: {
+        mediaType: first ? (first.isVideo ? "video" : "image") : "none",
+        ...(localThumbUrl ? { localThumbUrl } : {}),
+      },
       previewFile: first?.file,
       destination: {
         href: toPostsList(username, actorType === "organization" ? "organization" : "user"),
@@ -665,6 +701,7 @@ export default function CreatePostModal({
           {entries.length > 0 && (
             <MediaCarouselPreview
               entries={entries}
+              videoFrame={videoFrame}
               onRemove={removeEntry}
               onCropEntry={handleCropEntry}
             />

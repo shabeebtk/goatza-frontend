@@ -24,10 +24,12 @@
  * never a flat black box. See "Video playback" in CLAUDE.md.
  */
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { Icon } from "@iconify/react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
+import MediaLoading from "@/shared/components/ui/MediaLoading/MediaLoading"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
+import { useVideoLoading } from "@/shared/hooks/useVideoLoading"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { firstFrameSrc, releaseVideoElement, whenFirstFrame } from "@/shared/media/playback"
 import { hlsSrc, posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
@@ -80,6 +82,9 @@ export default function ViewerVideo({
     const videoRef = useRef<HTMLVideoElement>(null)
     const poster = posterSrc(item) || undefined
     const [paused, setPaused] = useState(false)
+    // The browser would not play it at all: refused even muted (Low Power Mode),
+    // or a broken clip. It rests on its poster, and nothing is on its way.
+    const [playRefused, setPlayRefused] = useState(false)
     // A frame has been painted while playing; the poster layer can go.
     const [frameShown, setFrameShown] = useState(false)
     // Inherits the GLOBAL sound state rather than opening unmuted on its own.
@@ -97,10 +102,16 @@ export default function ViewerVideo({
     const hideTimerRef = useRef<number | null>(null)
     const flashTimerRef = useRef<number | null>(null)
     const autoPlayedRef = useRef(false)
+    // The reader paused it. The AbortError that gives a pending play() is their
+    // decision, not an interruption to recover from.
+    const userPausedRef = useRef(false)
 
     // Read from the one-shot play below, which must not run for a warm element
-    // however late its `canplay` arrives.
+    // however late its `canplay` arrives. A layout effect, so it is current
+    // before any media event can run: a passive one leaves a gap after the
+    // commit in which the outgoing element still reads as active.
     const activeRef = useRef(active)
+    useLayoutEffect(() => { activeRef.current = active }, [active])
 
     // Fullscreen buffers normally — no maxBufferLength. The hook owns video.src.
     useAdaptiveVideo(videoRef, {
@@ -131,10 +142,15 @@ export default function ViewerVideo({
     const togglePlay = useCallback(() => {
         const el = videoRef.current
         if (!el) return
+        // The reader has taken over: the one-shot is spent.
+        autoPlayedRef.current = true
         if (el.paused) {
+            userPausedRef.current = false
             el.play().catch(() => { })
             showFlash("play")
         } else {
+            // Before pause(), which rejects a play() still waiting for data.
+            userPausedRef.current = true
             el.pause()
             showFlash("pause")
         }
@@ -154,6 +170,7 @@ export default function ViewerVideo({
     const seekBy = useCallback((seconds: number) => {
         const el = videoRef.current
         if (!el || !Number.isFinite(el.duration)) return
+        autoPlayedRef.current = true
         el.currentTime = Math.max(
             0,
             Math.min(el.duration, el.currentTime + seconds)
@@ -185,8 +202,19 @@ export default function ViewerVideo({
         if (!el || !activeRef.current || autoPlayedRef.current) return
         autoPlayedRef.current = true
         Promise.resolve(el.play()).catch((err: unknown) => {
-            if ((err as { name?: string } | null)?.name === "AbortError") {
-                autoPlayedRef.current = false
+            const name = (err as { name?: string } | null)?.name
+            if (name === "AbortError") {
+                // A new source interrupted it, so `canplay` asks again. The
+                // reader pausing interrupted it, so nothing does.
+                if (!userPausedRef.current) autoPlayedRef.current = false
+                return
+            }
+            // A broken clip (a 404, an unsupported codec), not a refusal: it
+            // stays on its poster and the app's sound is left alone. pause()
+            // because a failed source leaves a pending play's `paused` false.
+            if (name !== "NotAllowedError") {
+                el.pause()
+                setPlayRefused(true)
                 return
             }
             // The opening gesture can expire while the source attaches (dynamic
@@ -194,18 +222,20 @@ export default function ViewerVideo({
             // it, and move EVERY icon in the app so none of them are lying.
             applyMuted(true)
             reportBlocked()
-            Promise.resolve(el.play()).catch(() => { })
+            Promise.resolve(el.play()).catch((retryErr: unknown) => {
+                if ((retryErr as { name?: string } | null)?.name !== "AbortError") setPlayRefused(true)
+            })
         })
     }, [applyMuted, reportBlocked])
 
     // Warm ↔ active, on the same element.
     useEffect(() => {
-        activeRef.current = active
         const el = videoRef.current
         if (!el) return
 
         if (active) {
             autoPlayedRef.current = false
+            userPausedRef.current = false
             // Before play(): the autoplay policy reads the property.
             applyMuted(mutedRef.current)
             startPlaying()
@@ -227,6 +257,13 @@ export default function ViewerVideo({
         if (!el || frameShown) return
         return whenFirstFrame(el, () => setFrameShown(true))
     }, [frameShown])
+
+    // `paused` covers the reader's pause, and also the end of the clip and the
+    // guard handing playback to something else. Neither is a wait.
+    const loading = useVideoLoading(videoRef, {
+        wanted: active && !paused && !playRefused,
+        hasFrame: frameShown,
+    })
 
     const seekMax = duration || 0
     const progress = seekMax > 0 ? Math.min(1, currentTime / seekMax) : 0
@@ -262,7 +299,7 @@ export default function ViewerVideo({
                 muted
                 playsInline
                 onCanPlay={startPlaying}
-                onPlay={() => { pausedRef.current = false; setPaused(false); showControls() }}
+                onPlay={() => { pausedRef.current = false; setPaused(false); setPlayRefused(false); showControls() }}
                 onPause={() => { pausedRef.current = true; setPaused(true); setControlsVisible(true) }}
                 onEnded={() => { pausedRef.current = true; setPaused(true); setControlsVisible(true) }}
                 onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
@@ -356,6 +393,9 @@ export default function ViewerVideo({
                 </div>
             )}
           </div>
+          {/* On the slide rather than the frame: until the metadata arrives, a
+              desktop frame may have no size to be centred in. */}
+          <MediaLoading active={loading} />
         </div>
     )
 }

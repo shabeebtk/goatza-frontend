@@ -176,6 +176,11 @@ export function enqueueUpload(input: EnqueueUploadInput): string {
     // function, so it only ever appears on the pill.
     if (input.expand !== false) store().expand(id)
 
+    // A frame the composer already grabbed: the URL was made for this task, so
+    // it goes with the task. (A remote thumbnail has nothing to revoke.)
+    const handedOver = input.preview.localThumbUrl
+    if (handedOver?.startsWith("blob:")) ownedUrls.set(id, handedOver)
+
     const preview =
         input.previewFile && !input.preview.localThumbUrl
             ? attachPreview(id, input.previewFile, input.preview.mediaType)

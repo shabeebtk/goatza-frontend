@@ -337,3 +337,251 @@ describe("photos", () => {
         expect(img.hasAttribute("loading")).toBe(false)
     })
 })
+
+describe("the spinner", () => {
+    const spinner = (el: Element = document.body) => el.querySelector("[data-media-loading]")
+    const past400 = () => act(() => vi.advanceTimersByTime(400))
+    const loadThumb = (id = "a") => fireEvent.load(document.querySelector(`img[src="https://cdn.test/${id}.jpg"]`)!)
+
+    /** On screen and elected; its thumbnail has arrived. */
+    function winner() {
+        const { videos } = feed(video("a"))
+        const el = videos[0]
+        see(el, 1)
+        settle()
+        loadThumb()
+        return el
+    }
+
+    describe("video", () => {
+        it("the winner with no frame: after 400 ms, and gone on the first frame", () => {
+            const el = winner()
+            expect(spinner()).toBeNull()
+
+            past400()
+            expect(spinner()).toBeTruthy()
+
+            startPlaying(el)
+            act(() => vi.advanceTimersByTime(200))
+            expect(spinner()).toBeNull()
+        })
+
+        it("a clip that starts quickly never shows it", () => {
+            const el = winner()
+            act(() => vi.advanceTimersByTime(200))
+
+            startPlaying(el)
+            act(() => vi.advanceTimersByTime(2000))
+
+            expect(spinner()).toBeNull()
+        })
+
+        it("`waiting` mid-play: the spinner; `playing`: gone", () => {
+            const el = winner()
+            startPlaying(el)
+
+            fireEvent.waiting(el)
+            past400()
+            expect(spinner()).toBeTruthy()
+
+            fireEvent.playing(el)
+            act(() => vi.advanceTimersByTime(200))
+            expect(spinner()).toBeNull()
+        })
+
+        it("a clip that fails rests on its thumbnail, with nothing spinning", () => {
+            const el = winner()
+            past400()
+            expect(spinner()).toBeTruthy()
+
+            fireEvent.error(el)
+            act(() => vi.advanceTimersByTime(600))
+
+            expect(spinner()).toBeNull()
+        })
+
+        it("never on a warm or cold tile", () => {
+            const { videos } = feed(video("a"), video("b"), video("c"), video("d"))
+            const [a, b, c, d] = videos
+            coming(b)
+            coming(c)
+            coming(d)
+            see(a, 1)
+            settle()
+            loadThumb("a")
+            startPlaying(a)
+            for (const id of ["b", "c", "d"]) loadThumb(id)
+            expect([b, c, d].map(tier)).toEqual(["warm-next", "warm-after", "cold"])
+
+            for (const el of [b, c, d]) fireEvent.waiting(el)
+            act(() => vi.advanceTimersByTime(1000))
+
+            expect(spinner()).toBeNull()
+        })
+
+        it("a warm tile with its thumbnail still coming, off screen: nothing", () => {
+            const { videos } = feed(video("a"), video("b"))
+            const [a, b] = videos
+            coming(b)
+            see(a, 1)
+            settle()
+            loadThumb("a")
+            startPlaying(a)
+            expect(tier(b)).toBe("warm-next")
+
+            act(() => vi.advanceTimersByTime(1000))
+
+            expect(spinner(tileOf(b))).toBeNull()
+        })
+
+        it("on screen with its thumbnail still coming: the skeleton and the spinner", () => {
+            const { videos } = feed(video("a"), video("b"))
+            const [a, b] = videos
+            see(a, 1)
+            settle()
+            loadThumb("a")
+            startPlaying(a)
+
+            see(b, 0.5)
+            act(() => vi.advanceTimersByTime(400))
+
+            expect(tileOf(b).querySelector('[class*="mediaSkeleton"]')).toBeTruthy()
+            expect(spinner(tileOf(b))).toBeTruthy()
+
+            loadThumb("b")
+            act(() => vi.advanceTimersByTime(200))
+            expect(spinner(tileOf(b))).toBeNull()
+        })
+
+        it("a thumbnail that fails stops it, and the skeleton", () => {
+            const { videos } = feed(video("a"), video("b"))
+            const [a, b] = videos
+            see(a, 1)
+            settle()
+            loadThumb("a")
+            startPlaying(a)
+            see(b, 0.5)
+            act(() => vi.advanceTimersByTime(400))
+            expect(spinner(tileOf(b))).toBeTruthy()
+
+            fireEvent.error(document.querySelector('img[src="https://cdn.test/b.jpg"]')!)
+            act(() => vi.advanceTimersByTime(200))
+
+            expect(spinner(tileOf(b))).toBeNull()
+            expect(tileOf(b).querySelector('[class*="mediaSkeleton"]')).toBeNull()
+        })
+
+        it("not when blocked: the corner glyph covers that", async () => {
+            const { videos } = feed(video("a"))
+            media.play.mockImplementationOnce(async () => {
+                throw Object.assign(new Error("no"), { name: "NotAllowedError" })
+            })
+            see(videos[0], 1)
+            settle()
+            await act(async () => {})
+
+            act(() => vi.advanceTimersByTime(1000))
+
+            expect(document.querySelector('[data-icon="mdi:video"]')).toBeTruthy()
+            expect(spinner()).toBeNull()
+        })
+
+        it("not while suspended, and back when it lifts", () => {
+            const el = winner()
+            let release = () => {}
+            act(() => {
+                release = suspendPlayback()
+            })
+            act(() => vi.advanceTimersByTime(1000))
+            expect(spinner()).toBeNull()
+
+            act(release)
+            settle()
+            act(() => vi.advanceTimersByTime(400))
+
+            expect(media.isPlaying(el)).toBe(true)
+            expect(spinner()).toBeTruthy()
+        })
+
+        it("not once the reader has paused it", () => {
+            const el = winner()
+
+            act(() => el.pause())
+            act(() => vi.advanceTimersByTime(1000))
+
+            expect(spinner()).toBeNull()
+        })
+
+        it("over the thumbnail, and under the mute button and the chip", () => {
+            winner()
+            past400()
+            const tile = spinner()!.parentElement!
+            const order = [...tile.children]
+            const button = screen.getByRole("button", { name: "Unmute video" })
+            const chip = screen.getByText("1:12")
+
+            expect(order.indexOf(tile.querySelector("video")!)).toBeLessThan(order.indexOf(spinner()!))
+            expect(order.indexOf(spinner()!)).toBeLessThan(order.indexOf(chip))
+            expect(order.indexOf(spinner()!)).toBeLessThan(order.indexOf(button))
+        })
+    })
+
+    describe("photo", () => {
+        const showPhoto = () => {
+            render(<MediaCarousel media={[photo("p")]} postId="p" onOpenViewer={vi.fn()} />)
+            const lookAhead = FakeObserver.instances.find((o) => o.options.rootMargin === "0px 0px 150% 0px")!
+            const visible = FakeObserver.instances.find((o) => o.options.threshold === 0.5)!
+            act(() => lookAhead.fire([{ isIntersecting: true, target: [...lookAhead.targets][0] }]))
+            return {
+                onScreen: (ratio: number) =>
+                    act(() =>
+                        visible.fire([
+                            { isIntersecting: ratio > 0, intersectionRatio: ratio, target: [...visible.targets][0] },
+                        ])
+                    ),
+            }
+        }
+
+        it("on screen and not loaded yet: over the skeleton", () => {
+            const { onScreen } = showPhoto()
+
+            onScreen(0.6)
+            past400()
+
+            expect(spinner()).toBeTruthy()
+            expect(document.querySelector('[class*="mediaSkeleton"]')).toBeTruthy()
+        })
+
+        it("loading, but off screen: nothing extra", () => {
+            const { onScreen } = showPhoto()
+
+            onScreen(0.3)
+            act(() => vi.advanceTimersByTime(1000))
+
+            expect(spinner()).toBeNull()
+        })
+
+        it("gone once it has loaded", () => {
+            const { onScreen } = showPhoto()
+            onScreen(1)
+            past400()
+
+            fireEvent.load(document.querySelector("img")!)
+            act(() => vi.advanceTimersByTime(200))
+
+            expect(spinner()).toBeNull()
+        })
+
+        it("gone if it fails", () => {
+            const { onScreen } = showPhoto()
+            onScreen(1)
+            past400()
+
+            fireEvent.error(document.querySelector("img")!)
+            act(() => vi.advanceTimersByTime(200))
+
+            expect(spinner()).toBeNull()
+            expect(document.querySelector('[class*="mediaSkeleton"]')).toBeNull()
+        })
+    })
+})

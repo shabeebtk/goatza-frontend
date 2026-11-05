@@ -31,6 +31,8 @@ export const PLAYBACK_EXEMPT_ATTR = "data-playback-exempt"
 /** .6 is the winning line: without it the ratio would next be read at .75. */
 const RATIO_THRESHOLDS = [0, 0.25, 0.5, 0.6, 0.75, 1]
 const MIN_WINNER_RATIO = 0.6
+/** Half of it showing: on screen, for anything but winning. */
+const ON_SCREEN_RATIO = 0.5
 /** Ratios this close are a tie; the one nearer the centre takes it. */
 const TIE_EPSILON = 0.01
 /** A new winner must hold this long, so a fast fling starts nothing. */
@@ -69,6 +71,15 @@ export type AutoplayState = {
     near: boolean
     /** The browser refused even muted playback (Low Power Mode, data saver). */
     blocked: boolean
+    /**
+     * This is meant to be playing right now: it won the election, nothing holds
+     * playback (no suspension, the document is visible), the reader has not
+     * paused it and the browser has not refused it. A wait is the reader's wait
+     * only while this is true.
+     */
+    wantsPlay: boolean
+    /** At least half of it is showing, with nothing covering the feed. */
+    onScreen: boolean
 }
 
 type Entry = {
@@ -146,8 +157,15 @@ export function releaseVideoElement(video: HTMLVideoElement): void {
  * Calls back once a frame has really been painted while playing: the moment a
  * poster layer may go. `canplay` fires too early for that on iOS, which is the
  * black flash. Returns a cancel.
+ *
+ * `startsAt`: where the clock is before anything has played, for a source with a
+ * `#t=` hint. Otherwise its first `playing` would read as the clock having moved.
  */
-export function whenFirstFrame(video: HTMLVideoElement, onFrame: () => void): () => void {
+export function whenFirstFrame(
+    video: HTMLVideoElement,
+    onFrame: () => void,
+    { startsAt = 0 }: { startsAt?: number } = {}
+): () => void {
     let done = false
     let frameId: number | null = null
 
@@ -164,7 +182,7 @@ export function whenFirstFrame(video: HTMLVideoElement, onFrame: () => void): ()
         onFrame()
     }
     function onProgress() {
-        if (!video.paused && video.currentTime > 0) finish()
+        if (!video.paused && video.currentTime > startsAt) finish()
     }
     // A preloaded element can present its first frame while still paused; that
     // is not the clip starting, so wait for the next one.
@@ -244,6 +262,7 @@ function onAnyPlay(event: Event) {
             entry.pausedByUs = true
             entry.userPaused = true
             entry.userPausedAt = performance.now()
+            publish(entry)
         }
         other.pause()
     })
@@ -298,7 +317,12 @@ function setBlocked(entry: Entry, blocked: boolean) {
     publish(entry)
 }
 
-const isAbort = (err: unknown) => (err as { name?: string } | null)?.name === "AbortError"
+/**
+ * The browser refusing to autoplay. Every other rejection is an interruption (a
+ * pause, a new source) or a clip that cannot play (a 404, an unsupported codec),
+ * and neither says anything about sound or about autoplay being allowed.
+ */
+const isRefusal = (err: unknown) => (err as { name?: string } | null)?.name === "NotAllowedError"
 
 function startPlaying(entry: Entry) {
     const { el } = entry
@@ -319,8 +343,7 @@ function startPlaying(entry: Entry) {
     Promise.resolve(el.play())
         .then(() => setBlocked(entry, false))
         .catch((err: unknown) => {
-            // Interrupted by a pause or a new source, not refused.
-            if (isAbort(err)) return
+            if (!isRefusal(err)) return
             if (el.muted) {
                 setBlocked(entry, true)
                 return
@@ -334,7 +357,7 @@ function startPlaying(entry: Entry) {
             Promise.resolve(el.play())
                 .then(() => setBlocked(entry, false))
                 .catch((retryErr: unknown) => {
-                    if (!isAbort(retryErr)) setBlocked(entry, true)
+                    if (isRefusal(retryErr)) setBlocked(entry, true)
                 })
         })
 }
@@ -383,13 +406,20 @@ function settle() {
     // Off the screen: stops now. Merely beaten: keeps playing until the new
     // winner has held, so a tile never sits frozen for the debounce.
     if (winner && !isEligible(winner)) {
-        pauseByUs(winner)
+        const left = winner
+        pauseByUs(left)
         winner = null
+        publish(left)
     }
 
     if (next === winner) {
         clearPending()
-        if (winner) resume(winner)
+        if (winner) {
+            resume(winner)
+            // Not after the retier's debounce: a suspension has just lifted, or
+            // the tab has come back, and it wants to play from now.
+            publish(winner)
+        }
         scheduleRetier()
         return
     }
@@ -424,7 +454,12 @@ function settleNow() {
 /** Nothing autoplays until the returned function is called. Counted. */
 export function suspendPlayback(): () => void {
     suspensions++
-    if (suspensions === 1) settleNow()
+    if (suspensions === 1) {
+        settleNow()
+        // Not after the debounce: whatever covers the feed is attaching sources
+        // of its own in this same tick.
+        retierNow()
+    }
 
     let released = false
     return () => {
@@ -480,6 +515,10 @@ function retierNow() {
     const ordered = sortedByDocument()
     const focus = winner
     const saveData = prefersReducedData()
+    // Whatever covers the feed holds sources of its own (the viewer up to 4), and
+    // iOS counts them all. The paused winner keeps its source, so lifting this
+    // resumes it at once; nothing else holds one until then.
+    const suspended = suspensions > 0
 
     // Where "next" starts from: the winner, or with none (between videos, a
     // long text post) the first video still on or below the screen.
@@ -497,7 +536,7 @@ function retierNow() {
     // Spending the budget in order of how soon each will be wanted: the next
     // two are the promise, and the one above only gets what is left over.
     let budget = MAX_LOADED_SOURCES - (focus ? 1 : 0)
-    if (!saveData) {
+    if (!saveData && !suspended) {
         const next = ordered[firstBelow]
         const after = ordered[firstBelow + 1]
         const previous = ordered[firstBelow - (focus ? 2 : 1)]
@@ -521,7 +560,7 @@ function retierNow() {
             // Over budget with data in hand gives it back as well: preload="none"
             // only stops new fetches, it does not free what is already held.
             const overBudget = entry.hasPoster && entry.el.readyState > 0
-            tier = overBudget || isFar(entry) ? "released" : "cold"
+            tier = suspended || overBudget || isFar(entry) ? "released" : "cold"
         }
         entry.tier = tier
         publish(entry)
@@ -536,6 +575,7 @@ function scheduleRetier() {
 
 function stateOf(entry: Entry): AutoplayState {
     const near = entry.ahead || entry.ratio > 0
+    const held = isHeld()
     return {
         tier: entry.tier,
         preload: preloadForTier(entry.tier, {
@@ -546,6 +586,8 @@ function stateOf(entry: Entry): AutoplayState {
         attached: entry.tier !== "released",
         near,
         blocked: entry.blocked,
+        wantsPlay: winner === entry && !held && !entry.userPaused && !entry.blocked,
+        onScreen: !held && entry.ratio >= ON_SCREEN_RATIO,
     }
 }
 
@@ -557,7 +599,9 @@ function publish(entry: Entry) {
         last.tier === next.tier &&
         last.preload === next.preload &&
         last.near === next.near &&
-        last.blocked === next.blocked
+        last.blocked === next.blocked &&
+        last.wantsPlay === next.wantsPlay &&
+        last.onScreen === next.onScreen
     ) {
         return
     }
@@ -666,6 +710,7 @@ function register(
         if (document.hidden || el.ended || !el.isConnected) return
         entry.userPaused = true
         entry.userPausedAt = performance.now()
+        publish(entry)
     }
     // A new source has just gone on (see startPlaying). If this is still the
     // winner, it was already meant to be playing.
@@ -706,6 +751,8 @@ const INITIAL_STATE: AutoplayState = {
     attached: true,
     near: false,
     blocked: false,
+    wantsPlay: false,
+    onScreen: false,
 }
 
 /**

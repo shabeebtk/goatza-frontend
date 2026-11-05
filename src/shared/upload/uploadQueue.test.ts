@@ -423,6 +423,58 @@ describe("a video waits for its preview (F4)", () => {
     })
 })
 
+describe("a frame the composer already grabbed", () => {
+    const file = () => new File([new Uint8Array(4)], "clip.mov", { type: "video/quicktime" })
+
+    it("the task starts straight away, and nothing captures a second time", async () => {
+        const run = vi.fn(async () => ({ kind: "done" as const, result: {} }))
+
+        queue.enqueueUpload({
+            kind: "post",
+            label: "",
+            preview: { mediaType: "video", localThumbUrl: "blob:grabbed" },
+            previewFile: file(),
+            run,
+        })
+
+        await waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+        expect(mocks.captureVideoThumbnail).not.toHaveBeenCalled()
+        expect(only().preview.localThumbUrl).toBe("blob:grabbed")
+    })
+
+    it("the URL is the queue's now: it goes with the task", async () => {
+        const revoke = vi.fn()
+        URL.revokeObjectURL = revoke
+        const id = queue.enqueueUpload({
+            kind: "post",
+            label: "",
+            preview: { mediaType: "video", localThumbUrl: "blob:grabbed" },
+            previewFile: file(),
+            run: () => new Promise(() => {}),
+        })
+        expect(revoke).not.toHaveBeenCalled()
+
+        queue.dismissUpload(id)
+
+        expect(revoke).toHaveBeenCalledWith("blob:grabbed")
+    })
+
+    it("a remote thumbnail has nothing to revoke", () => {
+        const revoke = vi.fn()
+        URL.revokeObjectURL = revoke
+        const id = queue.enqueueUpload({
+            kind: "post",
+            label: "",
+            preview: { mediaType: "image", localThumbUrl: "https://m/t.jpg" },
+            run: () => new Promise(() => {}),
+        })
+
+        queue.dismissUpload(id)
+
+        expect(revoke).not.toHaveBeenCalled()
+    })
+})
+
 describe("Retry only when it can help (F5)", () => {
     const refused = (status: number, message: string) =>
         new AxiosError("refused", "ERR_BAD_REQUEST", undefined, null, {

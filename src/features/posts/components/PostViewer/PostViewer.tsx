@@ -38,7 +38,7 @@ import { useToggleLike } from "@/features/posts/hooks/usePostMutations"
 import { useZoomPan } from "@/features/posts/hooks/useZoomPan"
 import type { FetchPostsParams, Post, PostMedia } from "@/features/posts/services/posts.api"
 import { usePublicProfile } from "@/features/profile/context/PublicProfileContext"
-import { useBackToClose } from "@/shared/hooks/useBackToClose"
+import { isNavigatingAway, useBackToClose } from "@/shared/hooks/useBackToClose"
 import { returnFocus } from "@/shared/services/focusReturn"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
@@ -186,6 +186,18 @@ function isTopmostDialog(el: HTMLElement | null): boolean {
   return dialogs[dialogs.length - 1] === el
 }
 
+/**
+ * What the focus trap cycles through. No `video`: none in the viewer draws native
+ * controls, so focusing one does nothing and the trap sticks on it. Nothing
+ * hidden either: a warm stage slot (aria-hidden), an off-screen reels page (inert).
+ */
+function tabStopsIn(root: HTMLElement): HTMLElement[] {
+  const candidates = root.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
+  )
+  return Array.from(candidates).filter((el) => !el.closest('[aria-hidden="true"], [inert]'))
+}
+
 function isModifiedClick(e: React.MouseEvent): boolean {
   return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0
 }
@@ -289,7 +301,9 @@ export default function PostViewer({
     onCloseRef.current(
       positionRef.current.postId,
       positionRef.current.slide,
-      leavingRef.current ? "navigate" : "close"
+      // A toast's View takes every overlay down on its way to another page:
+      // the same as a link tap here, nothing to land on.
+      leavingRef.current || isNavigatingAway() ? "navigate" : "close"
     )
   }, [])
 
@@ -720,13 +734,13 @@ function PostViewerBody({
         // Focus trap — keep Tab inside the overlay.
         const root = dialogRef.current
         if (!root) return
-        const focusable = root.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input, textarea, select, video, [tabindex]:not([tabindex="-1"])'
-        )
+        const focusable = tabStopsIn(root)
         if (focusable.length === 0) return
         const first = focusable[0]
         const last = focusable[focusable.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
+        // The dialog itself holds focus from the moment it opens, and the
+        // browser would take Shift+Tab from there out to the page behind.
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === root)) {
           e.preventDefault()
           last.focus()
         } else if (!e.shiftKey && document.activeElement === last) {

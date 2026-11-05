@@ -21,6 +21,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import PostViewer, { type PostViewerProps } from "./PostViewer"
 import { PublicProfileProvider } from "@/features/profile/context/PublicProfileContext"
 import { ToastProvider } from "@/shared/components/ui/Toast/Toast"
+import { navigateAwayFromOverlays } from "@/shared/hooks/useBackToClose"
 import { useSoundStore } from "@/store/sound.store"
 import type { Post, PostMedia } from "@/features/posts/services/posts.api"
 
@@ -474,6 +475,114 @@ describe("PostViewer", () => {
             fireEvent.keyDown(document, { key: "ArrowLeft" })
             expect(screen.getByText("1/3")).toBeTruthy()
         })
+    })
+
+    // A warm <video> is hidden in the stage and has no controls, so it cannot
+    // take focus: as the trap's first stop it left Tab stuck on the last control
+    // and let Shift+Tab out of the dialog.
+    describe("focus trap", () => {
+        const tab = (shiftKey = false) =>
+            fireEvent.keyDown(document.activeElement as Element, { key: "Tab", shiftKey })
+
+        const warmVideo = () =>
+            document.querySelector<HTMLVideoElement>('video[data-viewer-video="warm"]')!
+
+        describe("desktop, on an image post whose next slide is a video", () => {
+            const nextSlideIsAVideo = () => makePost({ media: [image(0), { ...CLIP, order: 1 }] })
+
+            beforeEach(() => {
+                asDesktop()
+                renderViewer({ posts: [nextSlideIsAVideo()] })
+                expect(warmVideo().closest('[aria-hidden="true"]')).toBeTruthy()
+            })
+
+            const firstControl = () => screen.getByRole("button", { name: "Next" })
+            const lastControl = () => screen.getByRole("button", { name: "Close" })
+
+            it("Tab from the last control cycles to the first", () => {
+                lastControl().focus()
+
+                tab()
+
+                expect(document.activeElement).toBe(firstControl())
+            })
+
+            it("Shift+Tab from the first control wraps to the last", () => {
+                firstControl().focus()
+
+                tab(true)
+
+                expect(document.activeElement).toBe(lastControl())
+            })
+
+            it("Shift+Tab straight after opening stays inside, from the dialog itself", () => {
+                expect(document.activeElement).toBe(viewerDialog())
+
+                tab(true)
+
+                expect(document.activeElement).toBe(lastControl())
+            })
+        })
+
+        it("skips a video warming for the next post on desktop too", () => {
+            asDesktop()
+            renderViewer({
+                posts: [
+                    makePost({ media: [image(0)] }),
+                    makePost({ id: "post-2", media: [CLIP] }),
+                ],
+            })
+            expect(warmVideo()).toBeTruthy()
+            const last = screen.getByRole("button", { name: "Next post" })
+            last.focus()
+
+            tab()
+
+            const landed = document.activeElement as HTMLElement
+            expect(landed).not.toBe(last)
+            expect(viewerDialog().contains(landed)).toBe(true)
+            expect(landed.closest('[aria-hidden="true"]')).toBeNull()
+        })
+
+        it("phone: never wraps onto a page that is off screen", () => {
+            const posts = ["a", "b", "c"].map((id) => makePost({ id, media: [image(0)] }))
+            renderViewer({ posts, initialPostId: "b" })
+            const page = (id: string) => document.querySelector(`[data-viewer-post="${id}"]`)!
+            expect(page("a").hasAttribute("inert")).toBe(true)
+            expect(page("b").hasAttribute("inert")).toBe(false)
+            expect(page("c").hasAttribute("inert")).toBe(true)
+            screen.getByRole("button", { name: "Close" }).focus()
+
+            tab()
+
+            expect(page("b").contains(document.activeElement)).toBe(true)
+        })
+
+        it("phone: the end slide is no Tab stop until the reader is on the last post", () => {
+            const posts = ["a", "b"].map((id) => makePost({ id, media: [image(0)] }))
+            renderViewer({
+                posts,
+                pagination: { hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn() },
+            })
+            const end = () => screen.getByRole("button", { name: "Back to feed" })
+            expect(end().closest("[inert]")).toBeTruthy()
+
+            fireEvent.keyDown(document, { key: "ArrowDown" })
+
+            expect(end().closest("[inert]")).toBeNull()
+        })
+    })
+
+    // The Saved toast's View, tapped with the viewer open: the page is changing,
+    // so this is a link-tap close and not the reader shutting the viewer.
+    it("reports a close for navigateAwayFromOverlays as a navigation", async () => {
+        const { onClose, post } = renderViewer({ initialSlide: 1 })
+
+        act(() => navigateAwayFromOverlays("/settings/saved", { push }))
+
+        await waitFor(() => expect(push).toHaveBeenCalledWith("/settings/saved"))
+        expect(onClose).toHaveBeenCalledTimes(1)
+        expect(onClose).toHaveBeenCalledWith(post.id, 1, "navigate")
     })
 
     // The viewer asks for the next page once per approach to the end and

@@ -17,6 +17,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import PostViewerProvider, { usePostViewer } from "./PostViewerProvider"
 import { ToastProvider } from "@/shared/components/ui/Toast/Toast"
+import { navigateAwayFromOverlays } from "@/shared/hooks/useBackToClose"
 import { useSoundStore } from "@/store/sound.store"
 import { usePostViewerStore } from "@/store/postViewer.store"
 import type { Post, PostMedia } from "@/features/posts/services/posts.api"
@@ -306,6 +307,19 @@ describe("PostViewerProvider", () => {
 
         await waitFor(() => expect(push).toHaveBeenCalledWith("/profile/meera"))
         expect(landOnPost).not.toHaveBeenCalled()
+    })
+
+    // A toast's View over the viewer: it closes, but the page is changing too.
+    it("lands nothing when the overlays are taken down for a navigation", async () => {
+        renderList()
+        fireEvent.click(screen.getByRole("button", { name: "open p3" }))
+
+        navigateAwayFromOverlays("/settings/saved", { push })
+
+        await waitFor(() => expect(push).toHaveBeenCalledWith("/settings/saved"))
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: /post by/i })).toBeNull())
+        expect(landOnPost).not.toHaveBeenCalled()
+        expect(usePostViewerStore.getState().landings.p3).toBeUndefined()
     })
 
     /**

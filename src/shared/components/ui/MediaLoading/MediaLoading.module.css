@@ -1,0 +1,97 @@
+/* ============================================================
+   MediaLoading — a spinner over media that is on its way.
+
+   Plain white on a translucent black disc rather than theme tokens, in both
+   themes, because what is behind it is a photo, not the app's surface: it has
+   to read on a bright thumbnail and on a dark one alike.
+
+   z-index 1: above the thumbnail and the video, below a tile's duration chip
+   (2), its mute button (3) and the viewer's control bar (2).
+   ============================================================ */
+
+.disc {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: mediaLoadingIn 150ms var(--ease-out) both;
+}
+
+.leaving {
+  animation: mediaLoadingOut 150ms var(--ease-out) both;
+}
+
+.md {
+  width: 48px;
+  height: 48px;
+}
+
+.sm {
+  width: 36px;
+  height: 36px;
+}
+
+/* A quarter of the ring is the arc; the rest is a faint track. */
+.ring {
+  display: block;
+  box-sizing: border-box;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: mediaLoadingSpin 0.8s linear infinite;
+}
+
+.md .ring {
+  width: 32px;
+  height: 32px;
+}
+
+.sm .ring {
+  width: 24px;
+  height: 24px;
+}
+
+@keyframes mediaLoadingIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mediaLoadingOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mediaLoadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mediaLoadingPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    animation: mediaLoadingPulse 1.6s ease-in-out infinite;
+  }
+}

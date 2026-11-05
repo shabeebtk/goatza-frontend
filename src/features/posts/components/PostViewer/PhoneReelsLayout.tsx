@@ -298,7 +298,14 @@ export default function PhoneReelsLayout({
         {items.map((item, i) => {
           const near = Math.abs(i - index) <= RENDER_WINDOW
           return (
-            <div key={item.id} className={styles.page} data-viewer-post={item.id}>
+            <div
+              key={item.id}
+              className={styles.page}
+              data-viewer-post={item.id}
+              // Off screen: a Tab stop here would scroll the track to another
+              // post, and the viewer's focus trap would wrap onto it.
+              inert={item.id !== post.id || undefined}
+            >
               {near && (
                 <PhonePostPage
                   post={item}
@@ -323,6 +330,7 @@ export default function PhoneReelsLayout({
           <TailSlide
             kind={tail}
             variant="page"
+            inert={index !== items.length - 1}
             endLabel={endLabel}
             onRetry={onRetry}
             onLoadMore={onLoadMore}

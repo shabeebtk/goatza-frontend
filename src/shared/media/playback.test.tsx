@@ -50,6 +50,7 @@ function Tile({ id, enabled = true }: { id: string; enabled?: boolean }) {
             data-testid={id}
             data-tier={state.tier}
             data-preload={state.preload}
+            data-attached={state.attached ? "" : undefined}
             data-blocked={state.blocked ? "" : undefined}
             muted
         />
@@ -68,6 +69,15 @@ function tiles(...ids: string[]) {
 }
 
 const tier = (el: HTMLElement) => el.getAttribute("data-tier")
+
+/** Starting one re-tiers the tiles, so it goes through act like any other update. */
+function suspend() {
+    let release = () => {}
+    act(() => {
+        release = suspendPlayback()
+    })
+    return release
+}
 
 beforeEach(() => {
     FakeObserver.instances = []
@@ -312,6 +322,54 @@ describe("the sound policy", () => {
 
         expect(a.hasAttribute("data-blocked")).toBe(false)
     })
+
+    describe("a clip that cannot play", () => {
+        const unsupported = async () => {
+            throw Object.assign(new Error("no"), { name: "NotSupportedError" })
+        }
+
+        it("with sound on: not blocked, no forceMute, no retry", async () => {
+            useSoundStore.setState({ muted: false })
+            const [a] = tiles("a")
+            media.play.mockImplementationOnce(unsupported)
+
+            see(a, 1)
+            settle()
+            await act(async () => {})
+
+            expect(useSoundStore.getState().muted).toBe(false)
+            expect(a.muted).toBe(false)
+            expect(a.hasAttribute("data-blocked")).toBe(false)
+            expect(media.play).toHaveBeenCalledTimes(1)
+        })
+
+        it("muted: does not claim autoplay was refused", async () => {
+            const [a] = tiles("a")
+            media.play.mockImplementationOnce(unsupported)
+
+            see(a, 1)
+            settle()
+            await act(async () => {})
+
+            expect(a.hasAttribute("data-blocked")).toBe(false)
+        })
+
+        it("failing the muted retry: still not a refusal", async () => {
+            useSoundStore.setState({ muted: false })
+            const [a] = tiles("a")
+            media.play.mockImplementationOnce(async () => {
+                throw Object.assign(new Error("no"), { name: "NotAllowedError" })
+            })
+            media.play.mockImplementationOnce(unsupported)
+
+            see(a, 1)
+            settle()
+            await act(async () => {})
+
+            expect(useSoundStore.getState().muted).toBe(true)
+            expect(a.hasAttribute("data-blocked")).toBe(false)
+        })
+    })
 })
 
 describe("suspension", () => {
@@ -335,7 +393,7 @@ describe("suspension", () => {
 
     it("nothing starts while suspended", () => {
         const [a] = tiles("a")
-        const release = suspendPlayback()
+        const release = suspend()
 
         see(a, 1)
         settle()
@@ -351,8 +409,8 @@ describe("suspension", () => {
         see(a, 1)
         settle()
 
-        const first = suspendPlayback()
-        const second = suspendPlayback()
+        const first = suspend()
+        const second = suspend()
         act(first)
         settle()
         expect(media.isPlaying(a)).toBe(false)
@@ -367,8 +425,8 @@ describe("suspension", () => {
         see(a, 1)
         settle()
 
-        const first = suspendPlayback()
-        const second = suspendPlayback()
+        const first = suspend()
+        const second = suspend()
         act(first)
         act(first)
         settle()
@@ -380,7 +438,7 @@ describe("suspension", () => {
         const [a] = tiles("a")
         see(a, 1)
         settle()
-        const composer = suspendPlayback()
+        const composer = suspend()
 
         let screenRelease = () => {}
         act(() => {
@@ -403,7 +461,7 @@ describe("suspension", () => {
         // Not through us: the OS media controls, say.
         act(() => a.pause())
 
-        const release = suspendPlayback()
+        const release = suspend()
         act(release)
         settle()
         expect(media.isPlaying(a)).toBe(false)
@@ -595,6 +653,125 @@ describe("tiers", () => {
 
         expect(a.hasAttribute("src")).toBe(false)
         expect(media.load).toHaveBeenCalled()
+    })
+
+    // The viewer brings up to 4 sources of its own, and iOS counts them all.
+    describe("while something covers the feed", () => {
+        const attached = (els: HTMLVideoElement[]) => els.filter((el) => el.hasAttribute("data-attached"))
+
+        /** The winner and everything warm below it, ready to be covered. */
+        function warmFeed() {
+            const els = tiles("a", "b", "c", "d")
+            const [a, b, c, d] = els
+            coming(b)
+            coming(c)
+            coming(d)
+            elect(a)
+            expect(els.map(tier)).toEqual(["active", "warm-next", "warm-after", "cold"])
+            return els
+        }
+
+        it("only the paused winner stays attached, from the moment it starts", () => {
+            const els = warmFeed()
+            const [a] = els
+
+            suspend()
+
+            expect(els.map(tier)).toEqual(["active", "released", "released", "released"])
+            expect(attached(els)).toEqual([a])
+            expect(media.isPlaying(a)).toBe(false)
+
+            settle()
+            expect(attached(els)).toEqual([a])
+        })
+
+        it("the one above goes as well", () => {
+            const [a, b] = tiles("a", "b")
+            see(a, 0.2)
+            elect(b)
+            expect(tier(a)).toBe("warm-previous")
+
+            suspend()
+
+            expect(tier(a)).toBe("released")
+            expect(tier(b)).toBe("active")
+        })
+
+        it("with no winner, nothing keeps a source", () => {
+            const els = tiles("a", "b")
+            coming(els[0])
+            coming(els[1])
+            settle()
+
+            suspend()
+
+            expect(attached(els)).toEqual([])
+        })
+
+        it("a video that registers meanwhile is released too", () => {
+            const [a] = tiles("a")
+            elect(a)
+            suspend()
+
+            const [late] = tiles("late")
+            see(late, 0)
+            settle()
+
+            expect(tier(late)).toBe("released")
+        })
+
+        it("lifting it resumes the winner and restores the warm tiers", () => {
+            const els = warmFeed()
+            const release = suspend()
+
+            act(release)
+            settle()
+
+            expect(els.map(tier)).toEqual(["active", "warm-next", "warm-after", "cold"])
+            expect(attached(els)).toEqual(els)
+            expect(media.isPlaying(els[0])).toBe(true)
+        })
+
+        it("is counted: the budget holds until the last one lifts", () => {
+            const els = warmFeed()
+            const first = suspend()
+            const second = suspend()
+
+            act(first)
+            settle()
+            expect(attached(els)).toEqual([els[0]])
+
+            act(second)
+            settle()
+            expect(attached(els)).toEqual(els)
+        })
+
+        it("a hidden document pauses but keeps its warm tiers", () => {
+            const setHidden = stubDocumentHidden()
+            const els = warmFeed()
+
+            setHidden(true)
+            settle()
+
+            expect(els.map(tier)).toEqual(["active", "warm-next", "warm-after", "cold"])
+            delete (document as unknown as { hidden?: boolean }).hidden
+        })
+
+        it("data saver warms nothing, before or after", () => {
+            const undo = stubConnection({ saveData: true })
+            const [a, b] = tiles("a", "b")
+            coming(b)
+            elect(a)
+            expect([a, b].map(tier)).toEqual(["active", "cold"])
+
+            const release = suspend()
+            expect(attached([a, b])).toEqual([a])
+
+            act(release)
+            settle()
+            expect([a, b].map(tier)).toEqual(["active", "cold"])
+            undo()
+        })
     })
 })
 

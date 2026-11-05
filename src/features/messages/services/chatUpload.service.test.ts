@@ -18,6 +18,9 @@ const source = vi.hoisted(() => ({
     waitForMediaJob: vi.fn(),
 }))
 
+const frames = vi.hoisted(() => ({ grabVideoFrame: vi.fn(), frameToJpeg: vi.fn() }))
+
+vi.mock("@/shared/services/videoFrame", () => frames)
 vi.mock("@/shared/services/videoPrep", () => prep)
 vi.mock("@/shared/services/sourceUpload", () => source)
 vi.mock("@/shared/services/imageVariants", async (importOriginal) => ({
@@ -26,6 +29,7 @@ vi.mock("@/shared/services/imageVariants", async (importOriginal) => ({
 }))
 
 import {
+    captureVideoThumbnail,
     partitionChatMedia,
     uploadChatImage,
     uploadChatVideo,
@@ -59,6 +63,42 @@ beforeEach(() => {
     })
     source.createMediaJob.mockResolvedValue({ ...readyJob, status: "queued" })
     source.waitForMediaJob.mockResolvedValue(readyJob)
+})
+
+describe("captureVideoThumbnail", () => {
+    const canvas = {} as HTMLCanvasElement
+
+    beforeEach(() => {
+        for (const mock of Object.values(frames)) mock.mockReset()
+    })
+
+    it("goes through grabVideoFrame, with the 6 s bound, and gives a JPEG's URL", async () => {
+        const jpeg = new Blob(["frame"], { type: "image/jpeg" })
+        const makeUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:frame")
+        frames.grabVideoFrame.mockResolvedValue({ canvas, width: 720, height: 1280, time: 0.5 })
+        frames.frameToJpeg.mockResolvedValue(jpeg)
+        const file = pick("clip.mov", "video/quicktime")
+
+        await expect(captureVideoThumbnail(file)).resolves.toBe("blob:frame")
+
+        expect(frames.grabVideoFrame).toHaveBeenCalledWith(file, { maxSide: 1280, timeoutMs: 6000 })
+        expect(frames.frameToJpeg).toHaveBeenCalledWith(canvas)
+        expect(makeUrl).toHaveBeenCalledWith(jpeg)
+        makeUrl.mockRestore()
+    })
+
+    it("no frame: \"\", as ever", async () => {
+        frames.grabVideoFrame.mockResolvedValue(null)
+
+        await expect(captureVideoThumbnail(pick("clip.mov", "video/quicktime"))).resolves.toBe("")
+    })
+
+    it("a canvas that will not encode: \"\"", async () => {
+        frames.grabVideoFrame.mockResolvedValue({ canvas, width: 720, height: 1280, time: 0.5 })
+        frames.frameToJpeg.mockResolvedValue(null)
+
+        await expect(captureVideoThumbnail(pick("clip.mov", "video/quicktime"))).resolves.toBe("")
+    })
 })
 
 describe("partitionChatMedia", () => {

@@ -10,12 +10,15 @@
  * double-tap can be a like without the first tap also pausing the video.
  * Images show the 640px copy immediately and swap to the full object once
  * it has loaded — the card already has the thumbnail cached, so the viewer
- * opens on something.
+ * opens on something. On the active slide, MediaLoading says what is still on
+ * its way: md while nothing has painted, sm over the thumb while the full image
+ * loads.
  */
 
 import { useEffect, useState, type RefObject } from "react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
 import type { useZoomPan } from "@/features/posts/hooks/useZoomPan"
+import MediaLoading from "@/shared/components/ui/MediaLoading/MediaLoading"
 import { posterSrc, thumbSrc } from "@/shared/services/mediaDelivery"
 import LikeBurst from "./LikeBurst"
 import { useDoubleTap } from "./useDoubleTap"
@@ -40,24 +43,30 @@ interface ViewerMediaProps {
   burstKey: number
 }
 
-/** The 640px copy first, the full object once the browser has it. */
-function useProgressiveSrc(item: PostMedia): string {
+/**
+ * The 640px copy first, the full object once the browser has it. `fullPending`:
+ * a bigger copy exists and has neither arrived nor failed.
+ */
+function useProgressiveSrc(item: PostMedia): { src: string; fullPending: boolean } {
   const [src, setSrc] = useState(() => thumbSrc(item))
+  const [fullFailed, setFullFailed] = useState(false)
+
+  // Never for a video: file_url is the mp4, and fetching it as an image is a
+  // wasted download that cannot succeed.
+  const full = item.media_type === "image" ? item.file_url : ""
+  const hasBetterCopy = Boolean(full) && full !== thumbSrc(item)
 
   useEffect(() => {
-    // Never for a video: file_url is the mp4, and fetching it as an image is a
-    // wasted download that cannot succeed.
-    if (item.media_type !== "image") return
-    const full = item.file_url
-    if (!full || full === thumbSrc(item)) return
+    if (!hasBetterCopy) return
     let cancelled = false
     const img = new Image()
     img.onload = () => { if (!cancelled) setSrc(full) }
+    img.onerror = () => { if (!cancelled) setFullFailed(true) }
     img.src = full
     return () => { cancelled = true }
-  }, [item])
+  }, [full, hasBetterCopy])
 
-  return src
+  return { src, fullPending: hasBetterCopy && src !== full && !fullFailed }
 }
 
 export default function ViewerMedia({
@@ -71,8 +80,23 @@ export default function ViewerMedia({
   burstKey,
 }: ViewerMediaProps) {
   const isVideo = item.media_type === "video"
-  const src = useProgressiveSrc(item)
+  const { src, fullPending } = useProgressiveSrc(item)
   const { containerProps, attachMedia, mediaStyle, isZoomed, cursor } = zoom
+
+  // Tracked on the still as well: a slide that loaded its thumb before it became
+  // active is the same <img>, and has no load event left to fire.
+  const [painted, setPainted] = useState(false)
+  const [shownFailed, setShownFailed] = useState(false)
+  const imageEvents = {
+    onLoad: () => {
+      setPainted(true)
+      setShownFailed(false)
+    },
+    onError: () => setShownFailed(true),
+  }
+  // Painted: only the full image is left to wait for. Not painted: the image on
+  // show has not failed yet, or a full one may still replace it.
+  const photoLoading = painted ? fullPending : !shownFailed || fullPending
 
   const onClick = useDoubleTap({
     onDoubleTap,
@@ -93,6 +117,7 @@ export default function ViewerMedia({
           alt=""
           className={styles.still}
           draggable={false}
+          {...imageEvents}
         />
       </div>
     )
@@ -131,8 +156,11 @@ export default function ViewerMedia({
           className={styles.img}
           style={mediaStyle}
           draggable={false}
+          {...imageEvents}
         />
       )}
+
+      {!isVideo && <MediaLoading active={active && photoLoading} size={painted ? "sm" : "md"} />}
 
       {active && burstKey > 0 && <LikeBurst key={burstKey} />}
     </div>

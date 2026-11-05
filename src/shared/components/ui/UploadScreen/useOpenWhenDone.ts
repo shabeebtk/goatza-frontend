@@ -12,7 +12,7 @@
  *   3. the list refetch the queue already started, 2 s at most, so the new
  *      post is there when the page appears;
  *   4. navigate — unless already on that path;
- *   5. close once the pathname matches, or after 3 s.
+ *   5. close one painted frame after the pathname matches, or after 3 s.
  *
  * Minimizing at any point before step 4 unmounts this and cancels the rest.
  * If the active account is not the one the task was posted as, or there is
@@ -45,8 +45,34 @@ const DONE_HOLD_MS = 700
 const DONE_ONLY_HOLD_MS = 1500
 const REFRESH_MAX_MS = 2000
 const ARRIVE_MAX_MS = 3000
+const PAINT_FALLBACK_MS = 200
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Calls back once the browser has had a frame to paint what is committed now,
+ * or shortly after if it never gets one (a hidden tab runs no animation frames).
+ * Returns a cancel.
+ */
+function afterNextPaint(run: () => void): () => void {
+    let outer = 0
+    let inner = 0
+    const finish = () => {
+        cancelAnimationFrame(outer)
+        cancelAnimationFrame(inner)
+        clearTimeout(fallback)
+        run()
+    }
+    const fallback = setTimeout(finish, PAINT_FALLBACK_MS)
+    outer = requestAnimationFrame(() => {
+        inner = requestAnimationFrame(finish)
+    })
+    return () => {
+        cancelAnimationFrame(outer)
+        cancelAnimationFrame(inner)
+        clearTimeout(fallback)
+    }
+}
 
 export type OpenWhenDonePhase = "idle" | "done" | "opening"
 
@@ -130,8 +156,12 @@ export function useOpenWhenDone({
     useEffect(() => {
         if (!leavingTo) return
         if (pathname === leavingTo) {
-            dismissUpload(taskId)
-            return
+            // The pathname moves in the commit that mounts the destination, and
+            // this effect can run before that commit has been painted. Taking the
+            // full-screen cover off in the same frame would show the bare page
+            // background, close to black in the dark theme, until the new layers
+            // are up. So the destination gets one painted frame under the cover.
+            return afterNextPaint(() => dismissUpload(taskId))
         }
         const timer = setTimeout(() => dismissUpload(taskId), ARRIVE_MAX_MS)
         return () => clearTimeout(timer)
