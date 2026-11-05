@@ -425,7 +425,8 @@
   object-fit: cover;
   object-position: center;
   display: block;
-  background: #000;
+  /* The surface, not black: an iPhone paints nothing for a paused video here. */
+  background: var(--color-surface-raised);
 }
 
 /* Video preview — play/pause only, no native player chrome */
@@ -433,6 +434,48 @@
   position: absolute;
   inset: 0;
   cursor: pointer;
+}
+
+/* The grabbed frame, over the video until it has painted one of its own.
+   Cropped like the video, so nothing moves when it goes. */
+.previewPoster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+}
+
+/* While the frame is being grabbed. */
+.previewSkeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 600px 100%;
+  animation: previewShimmer 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes previewShimmer {
+  from {
+    background-position: -600px 0;
+  }
+  to {
+    background-position: 600px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .previewSkeleton {
+    animation: none;
+  }
 }
 
 .previewPlayOverlay {

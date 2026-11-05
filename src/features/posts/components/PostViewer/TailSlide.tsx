@@ -24,6 +24,8 @@ interface TailSlideProps {
   onClose: () => void
   /** Phone: full page. Desktop: panel over the stage. */
   variant: "page" | "panel"
+  /** Phone, not on the last post yet: this page is off screen, so no Tab stops. */
+  inert?: boolean
 }
 
 export default function TailSlide({
@@ -33,12 +35,16 @@ export default function TailSlide({
   onLoadMore,
   onClose,
   variant,
+  inert = false,
 }: TailSlideProps) {
-  const className = `${styles.tail} ${variant === "page" ? styles.page : styles.panel}`
+  const rootProps = {
+    className: `${styles.tail} ${variant === "page" ? styles.page : styles.panel}`,
+    inert: inert || undefined,
+  }
 
   if (kind === "loading") {
     return (
-      <div className={className} role="status" aria-live="polite">
+      <div {...rootProps} role="status" aria-live="polite">
         <span className={styles.spinner} aria-hidden="true" />
         <span className={styles.label}>Loading more…</span>
       </div>
@@ -47,7 +53,7 @@ export default function TailSlide({
 
   if (kind === "error") {
     return (
-      <div className={className} role="alert">
+      <div {...rootProps} role="alert">
         <Icon icon="mdi:cloud-off-outline" width={28} height={28} className={styles.icon} />
         <p className={styles.title}>Couldn&apos;t load more posts</p>
         <button type="button" className={styles.btn} onClick={onRetry}>
@@ -60,7 +66,7 @@ export default function TailSlide({
 
   if (kind === "load-more") {
     return (
-      <div className={className}>
+      <div {...rootProps}>
         <p className={styles.title}>More posts ahead</p>
         <p className={styles.body}>The last few pages had nothing new to show.</p>
         <button type="button" className={styles.btn} onClick={onLoadMore}>
@@ -71,7 +77,7 @@ export default function TailSlide({
   }
 
   return (
-    <div className={className}>
+    <div {...rootProps}>
       <span className={styles.endDots} aria-hidden="true">
         <span className={styles.endDot} />
         <span className={styles.endDot} />

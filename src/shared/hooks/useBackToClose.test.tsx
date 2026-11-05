@@ -16,6 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   clearRestoreState,
+  isNavigatingAway,
+  navigateAwayFromOverlays,
   OVERLAY_STATE_KEY,
   readRestoreState,
   SCROLL_RESTORATION_RESTORE_MS,
@@ -252,6 +254,76 @@ describe("useBackToClose", () => {
       await new Promise((r) => setTimeout(r, 30))
       expect(window.history.state).toEqual({ marker: "page" })
     })
+  })
+})
+
+// The same trip as the hook's navigateAway, for what is not an overlay itself:
+// a toast's action, with the viewer open underneath.
+describe("navigateAwayFromOverlays", () => {
+  it("with nothing open it simply pushes, at once", () => {
+    const go = vi.spyOn(window.history, "go")
+
+    navigateAwayFromOverlays("/settings/saved", { push })
+
+    expect(push).toHaveBeenCalledWith("/settings/saved")
+    expect(go).not.toHaveBeenCalled()
+    go.mockRestore()
+  })
+
+  it("pops every overlay's entry before pushing, and closes them", async () => {
+    const closeBottom = vi.fn()
+    const closeTop = vi.fn()
+    render(<Overlay onClose={closeBottom} apiRef={apiHolder()} />)
+    render(<Overlay onClose={closeTop} apiRef={apiHolder()} />)
+    let depthAtPush = -1
+    push.mockImplementation(() => { depthAtPush = depth() })
+
+    navigateAwayFromOverlays("/settings/saved", { push })
+    expect(push).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+    expect(depthAtPush).toBe(0)
+    expect(closeTop).toHaveBeenCalledTimes(1)
+    expect(closeBottom).toHaveBeenCalledTimes(1)
+  })
+
+  it("an overlay closing can tell the page is changing, and only then", async () => {
+    const seen: boolean[] = []
+    render(<Overlay onClose={() => seen.push(isNavigatingAway())} apiRef={apiHolder()} />)
+
+    navigateAwayFromOverlays("/settings/saved", { push })
+    await waitFor(() => expect(push).toHaveBeenCalled())
+
+    expect(seen).toEqual([true])
+    expect(isNavigatingAway()).toBe(false)
+
+    const api = apiHolder()
+    render(<Overlay onClose={() => seen.push(isNavigatingAway())} apiRef={api} />)
+    act(() => api.current!.requestClose())
+    await waitFor(() => expect(seen).toHaveLength(2))
+
+    expect(seen[1]).toBe(false)
+  })
+
+  it("still says so on the fallback, when the popstate never comes", async () => {
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {})
+    const seen: boolean[] = []
+    render(<Overlay onClose={() => seen.push(isNavigatingAway())} apiRef={apiHolder()} />)
+
+    navigateAwayFromOverlays("/settings/saved", { push })
+    await waitFor(() => expect(push).toHaveBeenCalled())
+
+    expect(seen).toEqual([true])
+    go.mockRestore()
+
+    // go() was a no-op, so the overlay's entry is still in jsdom's one history.
+    // Left behind, it fails the scroll restoration tests below, but only when
+    // the whole file runs.
+    const popped = new Promise((resolve) =>
+      window.addEventListener("popstate", resolve, { once: true })
+    )
+    window.history.back()
+    await popped
   })
 })
 

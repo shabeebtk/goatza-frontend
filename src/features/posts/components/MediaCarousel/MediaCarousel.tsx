@@ -15,13 +15,18 @@
  *                file. It just plays: no play button, and the thumbnail stays
  *                until a frame is really on screen. The viewer shows it with
  *                contain.
+ * Loading      → a still thumbnail looks stuck, so media the reader is really
+ *                waiting for gets MediaLoading on top of it. Only then: never on
+ *                a tile that is warming up off screen.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Icon } from "@iconify/react"
 import type { PostMedia } from "@/features/posts/services/posts.api"
 import { getPostAspectRatio } from "@/features/posts/utils/media"
+import MediaLoading from "@/shared/components/ui/MediaLoading/MediaLoading"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
+import { useVideoLoading } from "@/shared/hooks/useVideoLoading"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import {
     firstFrameSrc,
@@ -50,6 +55,9 @@ const FEED_MAX_BUFFER_SECONDS = 10
 /** A photo starts loading about one and a half screens before it arrives. */
 const IMAGE_LOOK_AHEAD = "0px 0px 150% 0px"
 
+/** Half of it showing: the reader is looking at the wait. */
+const IMAGE_ON_SCREEN_RATIO = 0.5
+
 const NETWORK_LOADING = 2
 
 function fmtDuration(secs: number): string {
@@ -68,8 +76,11 @@ function LazyImage({
     alt: string
 }) {
     const [loaded, setLoaded] = useState(false)
+    const [failed, setFailed] = useState(false)
     const [inView, setInView] = useState(false)
+    const [onScreen, setOnScreen] = useState(false)
     const ref = useRef<HTMLDivElement>(null)
+    const pending = !loaded && !failed
 
     useEffect(() => {
         const el = ref.current
@@ -82,18 +93,34 @@ function LazyImage({
         return () => obs.disconnect()
     }, [])
 
+    // The tile itself, unlike the look-ahead: a card that is on screen has been
+    // rendered, so `content-visibility` hides nothing from this one. Only until
+    // the photo has settled, after which nothing here cares.
+    useEffect(() => {
+        const el = ref.current
+        if (!el || !pending) return
+        const obs = new IntersectionObserver(
+            ([entry]) => setOnScreen(entry.intersectionRatio >= IMAGE_ON_SCREEN_RATIO),
+            { threshold: IMAGE_ON_SCREEN_RATIO }
+        )
+        obs.observe(el)
+        return () => obs.disconnect()
+    }, [pending])
+
     return (
         <div ref={ref} className={styles.mediaItem}>
-            {!loaded && <div className={styles.mediaSkeleton} />}
+            {pending && <div className={styles.mediaSkeleton} />}
             {inView && (
                 <img
                     src={src}
                     alt={alt}
                     className={`${styles.mediaImg} ${loaded ? styles.mediaImgLoaded : ""}`}
                     onLoad={() => setLoaded(true)}
+                    onError={() => setFailed(true)}
                     decoding="async"
                 />
             )}
+            <MediaLoading active={onScreen && pending} />
         </div>
     )
 }
@@ -116,7 +143,7 @@ function LazyVideo({
     current: boolean
 }) {
     const videoRef = useRef<HTMLVideoElement>(null)
-    const { tier, preload, attached, near, blocked } = useAutoplayVideo(videoRef, {
+    const { tier, preload, attached, near, blocked, wantsPlay, onScreen } = useAutoplayVideo(videoRef, {
         id,
         enabled: current,
         hasPoster: Boolean(thumbnail),
@@ -129,6 +156,7 @@ function LazyVideo({
     // before the first frame is composited, which is a flash of black.
     const [frameShown, setFrameShown] = useState(false)
     const [thumbLoaded, setThumbLoaded] = useState(false)
+    const [thumbFailed, setThumbFailed] = useState(false)
     // Latched: the thumbnail is fetched once, on approach, and then just stays.
     const [approached, setApproached] = useState(false)
     if (near && !approached) setApproached(true)
@@ -189,9 +217,12 @@ function LazyVideo({
 
     const showDuration = Boolean(duration) && !everPlayed
 
+    const thumbPending = Boolean(thumbnail) && !thumbLoaded && !thumbFailed
+    const videoLoading = useVideoLoading(videoRef, { wanted: wantsPlay, hasFrame: frameShown })
+
     return (
         <div className={`${styles.mediaItem} ${styles.videoItem}`} data-video-tier={tier}>
-            {thumbnail && !thumbLoaded && <div className={styles.mediaSkeleton} />}
+            {thumbPending && <div className={styles.mediaSkeleton} />}
             {/* Under the video, and it stays: the frame fades in over it. */}
             {thumbnail && approached && (
                 <img
@@ -200,6 +231,7 @@ function LazyVideo({
                     alt=""
                     className={`${styles.mediaImg} ${thumbLoaded ? styles.mediaImgLoaded : ""}`}
                     onLoad={() => setThumbLoaded(true)}
+                    onError={() => setThumbFailed(true)}
                     decoding="async"
                 />
             )}
@@ -217,6 +249,8 @@ function LazyVideo({
                 onPlaying={() => setEverPlayed(true)}
                 onPause={() => setPlaying(false)}
             />
+            {/* Blocked: the corner glyph already explains the still picture. */}
+            <MediaLoading active={!blocked && (videoLoading || (onScreen && thumbPending))} />
             {(showDuration || blocked) && (
                 <span className={styles.videoChip}>
                     {/* Autoplay refused (Low Power Mode, data saver): it still

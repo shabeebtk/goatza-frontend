@@ -343,6 +343,52 @@ export function whenHistorySettled(fn: () => void): () => void {
   }
 }
 
+/**
+ * True while navigateAwayFromOverlays is taking the overlays down. For a close
+ * callback that does something when the reader closes it (the post viewer lands
+ * the list) and must not when the page is changing anyway.
+ */
+export function isNavigatingAway(): boolean {
+  return navigating
+}
+
+/**
+ * Close EVERY open overlay and go to `href` without leaving overlay entries
+ * behind: back past all of them first, wait for that popstate, then push. With
+ * none open it simply pushes.
+ *
+ * useBackToClose's navigateAway, for what is not an overlay itself but can act
+ * over one: a toast's action, with the viewer open underneath.
+ */
+export function navigateAwayFromOverlays(
+  href: string,
+  router: { push: (href: string) => void }
+): void {
+  if (navigating) return
+  const depth = currentDepth()
+  navigating = true
+  const go = () => {
+    // The pop closed everything deeper than the page; this covers an overlay
+    // that never pushed (enabled: false) and the fallback path. `navigating`
+    // stays up until they have closed, for isNavigatingAway.
+    closeDeeperThan(0)
+    navigating = false
+    // Back from the destination has to restore the list's scroll position
+    // the normal way, so the page's entry gets its mode back before the
+    // push — the new entry inherits it.
+    restoreScrollRestoration()
+    router.push(href)
+  }
+  // Nothing of ours in history (disabled, or a stale entry was already
+  // popped) — close whatever is open and go.
+  if (depth <= 0) {
+    go()
+    return
+  }
+  afterNextPop(go)
+  pop(depth)
+}
+
 export interface UseBackToCloseOptions {
   /** False → no history entry; requestClose() simply calls onClose. */
   enabled?: boolean
@@ -512,29 +558,7 @@ export function useBackToClose(
   }, [enabled])
 
   const navigateAway = useCallback((href: string) => {
-    if (navigating) return
-    const depth = currentDepth()
-    if (depth <= 0) {
-      // Nothing of ours in history (disabled, or a stale entry was already
-      // popped) — close whatever is open and go.
-      closeDeeperThan(0)
-      restoreScrollRestoration()
-      router.push(href)
-      return
-    }
-    navigating = true
-    afterNextPop(() => {
-      navigating = false
-      // The pop closed everything deeper than the page; this covers an
-      // overlay that never pushed (enabled: false) and the fallback path.
-      closeDeeperThan(0)
-      // Back from the destination has to restore the list's scroll position
-      // the normal way, so the page's entry gets its mode back before the
-      // push — the new entry inherits it.
-      restoreScrollRestoration()
-      router.push(href)
-    })
-    pop(depth)
+    navigateAwayFromOverlays(href, router)
   }, [router])
 
   /**

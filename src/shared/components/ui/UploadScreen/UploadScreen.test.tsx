@@ -633,6 +633,44 @@ describe("open when done", () => {
         expect(view()).toBe("minimized")
     })
 
+    it("not in the commit the pathname moved: the page gets a painted frame under it first", async () => {
+        const { run, finish } = deferredRun()
+        const { rerender } = await openScreen(run as never)
+        await finish()
+        await waitFor(() => expect(mocks.push).toHaveBeenCalled())
+
+        const frames: FrameRequestCallback[] = []
+        const raf = vi
+            .spyOn(window, "requestAnimationFrame")
+            .mockImplementation((callback) => frames.push(callback))
+        path.current = DESTINATION.href
+        rerender(<Shell />)
+
+        expect(dialog()).toBeTruthy()
+        expect(frames).toHaveLength(1)
+
+        // One frame is the paint being scheduled; the next is after it.
+        act(() => frames.shift()!(0))
+        expect(dialog()).toBeTruthy()
+        act(() => frames.shift()!(0))
+        expect(dialog()).toBeNull()
+        raf.mockRestore()
+    })
+
+    it("a hidden tab runs no frames, and it still closes", async () => {
+        const { run, finish } = deferredRun()
+        const { rerender } = await openScreen(run as never)
+        await finish()
+        await waitFor(() => expect(mocks.push).toHaveBeenCalled())
+
+        const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1)
+        path.current = DESTINATION.href
+        rerender(<Shell />)
+
+        await waitFor(() => expect(dialog()).toBeNull())
+        raf.mockRestore()
+    })
+
     it("closes after 3 s if it never does", async () => {
         const { run, finish } = deferredRun()
         await openScreen(run as never)

@@ -18,6 +18,7 @@ import {
 import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth.store"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { navigateAwayFromOverlays } from "@/shared/hooks/useBackToClose"
 
 // ── Every cache that holds posts ─────────────────────────────
 
@@ -334,13 +335,16 @@ export const useToggleSave = () => {
                     duration: 2500,
                     action: {
                         label: "View",
-                        // The actor at the tap, whoever saved it.
+                        // The actor at the tap, whoever saved it. Through the
+                        // overlays: the viewer may be open underneath, and its
+                        // entry left behind the new page takes Back two presses.
                         onClick: () => {
                             const { actorType, actorId } = useAuthStore.getState()
-                            router.push(
+                            navigateAwayFromOverlays(
                                 actorType === "organization" && actorId
                                     ? `/organization/admin/${actorId}/saved`
-                                    : "/settings/saved"
+                                    : "/settings/saved",
+                                router
                             )
                         },
                     },

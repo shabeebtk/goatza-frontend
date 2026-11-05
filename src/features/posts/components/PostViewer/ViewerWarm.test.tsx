@@ -335,6 +335,105 @@ describe("poster first", () => {
     })
 })
 
+describe("a photo's spinner", () => {
+    const photo = (n: string, over: Partial<PostMedia> = {}): PostMedia => ({
+        id: `i${n}`,
+        media_type: "image",
+        file_url: `https://cdn.test/${n}.full.jpg`,
+        thumbnail_url: `https://cdn.test/${n}.jpg`,
+        duration: null,
+        width: 720,
+        height: 1280,
+        order: 0,
+        ...over,
+    })
+
+    /** Real timers: long enough for the spinner's 400 ms, and its fade out. */
+    const wait = (ms: number) => act(() => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+    const spinnerIn = (n: string) => page(n).querySelector("[data-media-loading]")
+
+    /** Every Image() preloader, so a test can say when the full image lands. */
+    let preloads: HTMLImageElement[]
+
+    beforeEach(() => {
+        preloads = []
+        const RealImage = window.Image
+        vi.stubGlobal(
+            "Image",
+            class extends RealImage {
+                constructor() {
+                    super()
+                    preloads.push(this)
+                }
+            }
+        )
+    })
+
+    const fullImage = () => preloads.find((img) => img.getAttribute("src") === "https://cdn.test/1.full.jpg")!
+    const fullImageLands = () => act(() => fullImage().onload?.(new Event("load")))
+
+    it("nothing painted: the medium one", async () => {
+        open([makePost("1", [photo("1")])], "p1")
+
+        await wait(450)
+
+        expect(spinnerIn("1")!.getAttribute("data-media-loading")).toBe("md")
+    })
+
+    it("the thumb up and the full image loading: the small one, gone when it lands", async () => {
+        open([makePost("1", [photo("1")])], "p1")
+        fireEvent.load(page("1").querySelector("img")!)
+
+        await wait(450)
+        expect(spinnerIn("1")!.getAttribute("data-media-loading")).toBe("sm")
+
+        fullImageLands()
+        await wait(200)
+        expect(spinnerIn("1")).toBeNull()
+        expect(page("1").querySelector("img")!.getAttribute("src")).toBe("https://cdn.test/1.full.jpg")
+    })
+
+    it("the full image failing: gone, and the thumb stays", async () => {
+        open([makePost("1", [photo("1")])], "p1")
+        fireEvent.load(page("1").querySelector("img")!)
+        await wait(450)
+
+        act(() => fullImage().onerror?.(new Event("error")))
+        await wait(200)
+
+        expect(spinnerIn("1")).toBeNull()
+        expect(page("1").querySelector("img")!.getAttribute("src")).toBe("https://cdn.test/1.jpg")
+    })
+
+    it("nothing that can load at all: gone", async () => {
+        open([makePost("1", [photo("1", { thumbnail_url: null } as never)])], "p1")
+        await wait(450)
+        expect(spinnerIn("1")!.getAttribute("data-media-loading")).toBe("md")
+
+        fireEvent.error(page("1").querySelector("img")!)
+        await wait(200)
+
+        expect(spinnerIn("1")).toBeNull()
+    })
+
+    it("a slide that is not the active one: none", async () => {
+        open([makePost("1", [photo("1")]), makePost("2", [photo("2")])], "p1")
+
+        await wait(450)
+
+        expect(spinnerIn("1")).toBeTruthy()
+        expect(spinnerIn("2")).toBeNull()
+    })
+
+    it("a video's warm neighbour: none", async () => {
+        open([makePost("1"), makePost("2")], "p1")
+
+        await wait(450)
+
+        expect(spinnerIn("2")).toBeNull()
+    })
+})
+
 describe("the feed underneath", () => {
     it("the tap flash and the keyboard still reach the active video", () => {
         open([makePost("1")], "p1")

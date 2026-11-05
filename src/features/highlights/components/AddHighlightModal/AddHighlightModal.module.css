@@ -186,7 +186,7 @@
   flex: 0 0 auto;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: #000;
+  background: var(--color-surface-raised);
 }
 
 /* Tap-to-play surface — no native player chrome, same as the post composer. */
@@ -200,10 +200,45 @@
 .previewVideo {
   width: 100%;
   height: 100%;
-  /* The clip keeps its own ratio on black, like the viewer. */
+  /* The clip keeps its own ratio, on the surface rather than on black: an iPhone
+     paints nothing for a paused video here. */
   object-fit: contain;
   display: block;
-  background: #000;
+  background: var(--color-surface-raised);
+}
+
+/* The grabbed frame, over the video until it has painted one of its own. */
+.previewPoster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* While the frame is being grabbed. */
+.previewSkeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-raised) 75%
+  );
+  background-size: 300px 100%;
+  animation: previewShimmer 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes previewShimmer {
+  from {
+    background-position: -300px 0;
+  }
+  to {
+    background-position: 300px 0;
+  }
 }
 
 .previewPlayOverlay {
@@ -399,5 +434,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .backdrop, .modal { animation: none; }
+  .backdrop, .modal, .previewSkeleton { animation: none; }
 }

@@ -48,9 +48,13 @@ export function useHighlightUpload({ existingCount }: { existingCount: number })
     /**
      * Queue the clip — or, when the rail has no room for it, say why and
      * queue nothing. Returns that sentence, or null once it is queued.
+     *
+     * `previewFrame`: the frame the modal already grabbed, so the task starts now
+     * instead of decoding the same file a second time. Its URL is made here, past
+     * the refusal, and it is the queue's: the modal's own goes as it closes.
      */
     const start = useCallback(
-        (draft: HighlightDraft): string | null => {
+        (draft: HighlightDraft, previewFrame?: Blob | null): string | null => {
             const actorKey = currentActorKey()
             const onTheWay = useUploadQueueStore
                 .getState()
@@ -65,7 +69,10 @@ export function useHighlightUpload({ existingCount }: { existingCount: number })
             enqueueUpload({
                 kind: "highlight",
                 label: draft.title ?? "",
-                preview: { mediaType: "video" },
+                preview: {
+                    mediaType: "video",
+                    ...(previewFrame ? { localThumbUrl: URL.createObjectURL(previewFrame) } : {}),
+                },
                 previewFile: draft.file,
                 destination: username
                     ? { href: toProfile(username), kind: "profile" }

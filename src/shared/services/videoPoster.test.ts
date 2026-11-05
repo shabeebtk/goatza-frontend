@@ -23,6 +23,12 @@ const state = vi.hoisted(() => ({
     toBlobNull: false,
     fills: [] as Array<{ color: string; width: number; height: number }>,
     sinkOptions: [] as unknown[],
+    /** Every moment the frame sink was asked for. */
+    sinkTimes: [] as number[],
+    brightnessAt: (() => 120) as (time: number) => number,
+    /** The sink throws once it has been asked this many times. */
+    failSinkAfter: Infinity,
+    lastDrawnBrightness: -1,
     disposed: 0,
 }))
 
@@ -58,9 +64,12 @@ vi.mock("mediabunny", () => {
         async getCanvas(timestamp: number) {
             if (state.frame === "throws") throw new Error("VideoDecoder is not defined")
             if (state.frame === "none") return null
+            if (state.sinkTimes.length >= state.failSinkAfter) throw new Error("decoder lost")
+            state.sinkTimes.push(Number(timestamp.toFixed(3)))
             const canvas = document.createElement("canvas")
             canvas.width = 1280
             canvas.height = 720
+            canvas.dataset.brightness = String(state.brightnessAt(timestamp))
             return { canvas, timestamp, duration: 1 / 30 }
         }
     }
@@ -86,6 +95,10 @@ beforeEach(async () => {
     state.toBlobNull = false
     state.fills = []
     state.sinkOptions = []
+    state.sinkTimes = []
+    state.brightnessAt = () => 120
+    state.failSinkAfter = Infinity
+    state.lastDrawnBrightness = -1
     state.disposed = 0
     sentry.captureException.mockClear()
     sentry.captureMessage.mockClear()
@@ -153,6 +166,88 @@ describe("capturePoster", () => {
         expect(poster.type).toBe("image/webp")
         expect(state.sinkOptions).toHaveLength(0)
         expect(sentry.captureMessage).not.toHaveBeenCalled()
+    })
+
+    it("step 1 goes through grabVideoFrame, at ≤1280 and the 8 s bound", async () => {
+        const grab = vi.fn().mockResolvedValue({
+            canvas: document.createElement("canvas"),
+            width: 1280,
+            height: 720,
+            time: 0.5,
+        })
+        vi.doMock("./videoFrame", async (importOriginal) => ({
+            ...(await importOriginal<typeof import("./videoFrame")>()),
+            grabVideoFrame: grab,
+        }))
+        vi.resetModules()
+        const fresh = await import("./videoEncode")
+
+        await fresh.capturePoster(clip(), { mode: "feed", flow: "post" })
+
+        expect(grab).toHaveBeenCalledTimes(1)
+        expect(grab.mock.calls[0][1]).toEqual({ maxSide: 1280, timeoutMs: 8000 })
+        expect(state.sinkOptions).toHaveLength(0)
+        vi.doUnmock("./videoFrame")
+    })
+
+    it("a grab that finds nothing hands over to the frame sink", async () => {
+        state.elementFails = true
+
+        await mod.capturePoster(clip(), { mode: "feed", flow: "post" })
+
+        expect(state.sinkOptions).toHaveLength(1)
+    })
+
+    describe("the frame sink's black check", () => {
+        /** The sample canvas reads the brightness of the frame last drawn into it. */
+        function readBrightness() {
+            HTMLCanvasElement.prototype.getContext = function () {
+                let level = 0
+                return {
+                    fillStyle: "",
+                    fillRect: () => {},
+                    drawImage: (image: { dataset?: DOMStringMap }) => {
+                        level = Number(image.dataset?.brightness ?? 120)
+                        // The last draw of all is the poster itself.
+                        state.lastDrawnBrightness = level
+                    },
+                    getImageData: () => ({
+                        data: new Uint8ClampedArray(32 * 32 * 4).fill(level),
+                    }),
+                }
+            } as never
+        }
+
+        it("skips the black moments", async () => {
+            readBrightness()
+            state.brightnessAt = (time) => (time < 0.9 ? 2 : 150)
+
+            await mod.capturePoster(clip(), { mode: "feed", flow: "post" })
+
+            expect(state.sinkTimes).toEqual([0.1, 0.5, 1])
+        })
+
+        it("all black: the brightest, and it does not try forever", async () => {
+            readBrightness()
+            state.brightnessAt = (time) => (time === 0.5 ? 9 : 1)
+
+            await mod.capturePoster(clip(), { mode: "feed", flow: "post" })
+
+            expect(state.sinkTimes.length).toBeLessThanOrEqual(4)
+            expect(state.lastDrawnBrightness).toBe(9)
+            expect(sentry.captureMessage).not.toHaveBeenCalled()
+        })
+
+        it("a later moment failing does not lose an earlier dark frame", async () => {
+            readBrightness()
+            state.brightnessAt = () => 4
+            state.failSinkAfter = 1
+
+            const poster = await mod.capturePoster(clip(), { mode: "feed", flow: "post" })
+
+            expect(poster.type).toBe("image/webp")
+            expect(state.fills).toHaveLength(0)
+        })
     })
 
     it("decodes a frame with mediabunny when the element fails", async () => {

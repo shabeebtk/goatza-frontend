@@ -63,6 +63,12 @@ import type {
 
 import { fileExtension } from "@/shared/constants/media"
 import {
+    frameCandidateTimes,
+    grabVideoFrame,
+    isBlackLuma,
+    measureFrameLuma,
+} from "@/shared/services/videoFrame"
+import {
     THUMB_MAX_BYTES,
     canEncodeWebP,
     type LossyImageType,
@@ -1525,10 +1531,11 @@ export type CapturePosterOptions = {
  * a thumbnail for every video, so a poster that cannot be made would block the
  * post. It never does:
  *
- *   1. A `<video>` element on the blob being uploaded, seeked to ~0.1s.
+ *   1. A frame from a `<video>` element on the blob being uploaded, chosen by
+ *      {@link grabVideoFrame} so it is really decoded and not a black one.
  *   2. That failing (or timing out — mobile Safari can leave a blob-sourced
- *      `<video>` in limbo), one frame decoded with mediabunny's CanvasSink at
- *      min(0.1s, duration/2), through the same byte budget.
+ *      `<video>` in limbo), one frame decoded with mediabunny's CanvasSink, from
+ *      the same moments with the same black check, through the same byte budget.
  *   3. Still nothing: a placeholder — the app's dark surface at the video's
  *      aspect ratio (720×1280 when unknown) — reported as a fallback.
  *
@@ -1605,95 +1612,25 @@ const POSTER_TIMEOUT_MS = 8000
 const POSTER_READ_FAILED_MESSAGE = "Couldn't read a frame from that video."
 
 /**
- * Step 1: a `<video>` element. Seeks to ~0s and falls back to whatever frame
- * is decodable: frame 0 of a phone recording is often black or not yet
- * decoded, and on mobile Safari a blob-sourced <video> can refuse to seek.
+ * Step 1: a `<video>` element. On a stall or a refusal it hands over to the next
+ * step rather than hang the upload. Grabbed at ≤1280 so a phone does not hold a
+ * 4K canvas while the byte budget works out the size.
  */
-function captureFromElement(source: Blob, mode: PosterMode): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-        const url = URL.createObjectURL(source)
-        const video = document.createElement("video")
-        video.preload = "auto"
-        video.muted = true
-        video.playsInline = true
-
-        let settled = false
-        // The encode below is async and `seeked` can fire more than once; one
-        // frame is plenty.
-        let drawing = false
-
-        const cleanup = () => {
-            window.clearTimeout(timer)
-            URL.revokeObjectURL(url)
-            video.removeAttribute("src")
-            // Forces the element to drop its buffered data now rather than
-            // whenever it is collected — this runs on every video upload.
-            video.load()
-        }
-
-        const finish = (blob: Blob) => {
-            if (settled) return
-            settled = true
-            cleanup()
-            resolve(blob)
-        }
-
-        const fail = (err: Error) => {
-            if (settled) return
-            settled = true
-            cleanup()
-            reject(err)
-        }
-
-        // Hard bound: a stalled element must hand over to the next step
-        // rather than hang the upload.
-        const timer = window.setTimeout(
-            () => fail(new Error(`${POSTER_READ_FAILED_MESSAGE} (timed out)`)),
-            POSTER_TIMEOUT_MS
-        )
-
-        const draw = () => {
-            if (settled || drawing) return
-            drawing = true
-            const frame: PosterFrame = {
-                image: video,
-                width: video.videoWidth,
-                height: video.videoHeight,
-            }
-            encodePoster(frame, mode).then(finish, (err: unknown) =>
-                fail(err instanceof Error ? err : new Error(POSTER_READ_FAILED_MESSAGE))
-            )
-        }
-
-        video.onloadeddata = () => {
-            // Nudge past frame 0 — it is frequently black on phone recordings.
-            // If the clip is too short to seek, or the seek is a no-op, `seeked`
-            // never fires, so draw what is already decoded instead.
-            const target = Math.min(0.1, (video.duration || 0) / 2)
-            if (!target) {
-                draw()
-                return
-            }
-            try {
-                video.currentTime = target
-            } catch {
-                draw()
-            }
-        }
-        video.onseeked = draw
-        video.onerror = () => fail(new Error(`${POSTER_READ_FAILED_MESSAGE} (the video element refused it)`))
-
-        video.src = url
-        video.load()
+async function captureFromElement(source: Blob, mode: PosterMode): Promise<Blob> {
+    const frame = await grabVideoFrame(source, {
+        maxSide: POSTER_DIMENSION_STEPS[0],
+        timeoutMs: POSTER_TIMEOUT_MS,
     })
+    if (!frame) throw new Error(`${POSTER_READ_FAILED_MESSAGE} (no frame from the video element)`)
+    return encodePoster({ image: frame.canvas, width: frame.width, height: frame.height }, mode)
 }
 
 /**
  * Step 2: one frame decoded straight out of the blob with mediabunny — no
- * `<video>` element involved — at min(0.1s, duration/2). Decoded at ≤1280 on
- * the longest side so a phone does not hold a 4K frame for a poster. Records
- * the track's display size in `known` for the placeholder, even when the
- * decode itself fails.
+ * `<video>` element involved — from the same moments as step 1, with the same
+ * black check. Decoded at ≤1280 on the longest side so a phone does not hold a
+ * 4K frame for a poster. Records the track's display size in `known` for the
+ * placeholder, even when the decode itself fails.
  */
 async function captureFromFrameSink(
     source: Blob,
@@ -1723,15 +1660,41 @@ async function captureFromFrameSink(
 
         const first = (await optional(() => track.getFirstTimestamp())) ?? 0
         const duration = (await optional(() => track.computeDuration())) ?? 0
-        const at = first + Math.min(0.1, Math.max(0, duration - first) / 2)
+        const moments = frameCandidateTimes(Math.max(0, duration - first)).map((time) => first + time)
 
         const { width, height } = fitWithin(display.width, display.height, POSTER_DIMENSION_STEPS[0])
         const sink = new mb.CanvasSink(track, { width, height, fit: "contain" })
-        const wrapped = (await sink.getCanvas(at)) ?? (await sink.getCanvas(first))
-        if (!wrapped) throw new Error("no decodable frame")
 
-        const { canvas } = wrapped
-        return encodePoster({ image: canvas, width: canvas.width, height: canvas.height }, mode)
+        let chosen: PosterFrame | null = null
+        let brightest = -1
+        for (const at of moments) {
+            const wrapped = await sink.getCanvas(at).catch((err: unknown) => {
+                // A later moment failing does not undo an earlier dark frame.
+                if (!chosen) throw err
+                return null
+            })
+            if (!wrapped) continue
+
+            const { canvas } = wrapped
+            const frame: PosterFrame = { image: canvas, width: canvas.width, height: canvas.height }
+            const luma = measureFrameLuma(canvas)
+            if (!luma || !isBlackLuma(luma)) {
+                chosen = frame
+                break
+            }
+            if (luma.average > brightest) {
+                brightest = luma.average
+                chosen = frame
+            }
+        }
+        if (!chosen) {
+            const wrapped = await sink.getCanvas(first)
+            if (!wrapped) throw new Error("no decodable frame")
+            const { canvas } = wrapped
+            chosen = { image: canvas, width: canvas.width, height: canvas.height }
+        }
+
+        return encodePoster(chosen, mode)
     }
 
     try {

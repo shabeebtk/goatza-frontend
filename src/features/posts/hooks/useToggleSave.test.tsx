@@ -6,10 +6,11 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, renderHook, waitFor } from "@testing-library/react"
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { OVERLAY_STATE_KEY, useBackToClose } from "@/shared/hooks/useBackToClose"
 import { useAuthStore } from "@/store/auth.store"
 import { useToggleSave } from "./usePostMutations"
 
@@ -46,6 +47,12 @@ async function save(isSaved: boolean) {
 beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset()
     useAuthStore.setState({ actorType: "user", actorId: null })
+})
+
+afterEach(() => {
+    cleanup()
+    // jsdom keeps ONE history for the file: leave no overlay depth behind.
+    window.history.replaceState(null, "")
 })
 
 describe("useToggleSave", () => {
@@ -92,6 +99,39 @@ describe("useToggleSave", () => {
         toast.action.onClick()
 
         expect(mocks.push).toHaveBeenCalledWith("/organization/admin/org-2/saved")
+    })
+
+    // The viewer's history entry used to stay behind the new page, so Back from
+    // Saved took two presses: the first only landed on the dead entry.
+    it("View with an overlay open pops its entry before pushing", async () => {
+        const depth = () =>
+            (window.history.state?.[OVERLAY_STATE_KEY]?.depth as number | undefined) ?? 0
+        const onClose = vi.fn()
+        renderHook(() => useBackToClose(onClose))
+        expect(depth()).toBe(1)
+        let depthAtPush = -1
+        mocks.push.mockImplementation(() => {
+            depthAtPush = depth()
+        })
+        const { toast } = await save(true)
+
+        toast.action.onClick()
+        expect(mocks.push).not.toHaveBeenCalled()
+
+        await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/settings/saved"))
+        expect(depthAtPush).toBe(0)
+        expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it("View with no overlay open just pushes", async () => {
+        const go = vi.spyOn(window.history, "go")
+        const { toast } = await save(true)
+
+        toast.action.onClick()
+
+        expect(mocks.push).toHaveBeenCalledTimes(1)
+        expect(go).not.toHaveBeenCalled()
+        go.mockRestore()
     })
 
     it("still fires if the component that tapped has already unmounted", async () => {

@@ -26,6 +26,7 @@ import {
     validateHighlightFile,
     type HighlightVideoMeta,
 } from "../../services/highlightUpload.service"
+import MediaLoading from "@/shared/components/ui/MediaLoading/MediaLoading"
 import { videoAcceptFor } from "@/shared/constants/media"
 import { useMediaCapabilities } from "@/shared/services/mediaCapabilities"
 import { HIGHLIGHT_VISIBILITIES, type HighlightVisibility } from "../../types"
@@ -33,10 +34,14 @@ import { VISIBILITY_META, formatClipDuration } from "../../visibilityMeta"
 import styles from "./AddHighlightModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { revealChrome } from "@/shared/hooks/useScrollChrome"
-import { useSuspendPlayback } from "@/shared/media/playback"
+import { useVideoPreviewFrame, type VideoPreviewFrame } from "@/shared/hooks/useVideoPreviewFrame"
+import { firstFrameSrc, useSuspendPlayback, whenFirstFrame } from "@/shared/media/playback"
 import { settleViewport } from "@/shared/utils/settleViewport"
 
 const MAX_TITLE = 80
+
+/** The `#t=` hint on the preview's source, where a paused frame may paint. */
+const PREVIEW_START_SECONDS = 0.1
 
 type AddHighlightModalProps = {
     onClose: () => void
@@ -56,10 +61,20 @@ function formatBytes(bytes: number): string {
  * Tap-to-play preview with no native player chrome — same treatment as the post
  * composer. `controls` would hand the browser a download button, a playback-rate
  * menu and fullscreen, none of which belong in a staging preview.
+ *
+ * The grabbed frame stays over it until the clip has really painted one of its
+ * own: iPhone Safari shows nothing for a paused metadata-only video on a blob.
  */
-function PreviewVideo({ src }: { src: string }) {
+function PreviewVideo({ src, frame }: { src: string; frame: VideoPreviewFrame }) {
     const ref = useRef<HTMLVideoElement>(null)
     const [playing, setPlaying] = useState(false)
+    const [frameShown, setFrameShown] = useState(false)
+
+    useEffect(() => {
+        const video = ref.current
+        if (!video || frameShown) return
+        return whenFirstFrame(video, () => setFrameShown(true), { startsAt: PREVIEW_START_SECONDS })
+    }, [frameShown])
 
     const toggle = () => {
         const video = ref.current
@@ -68,11 +83,13 @@ function PreviewVideo({ src }: { src: string }) {
         else video.pause()
     }
 
+    const grabbing = frame.grabbing && !frameShown
+
     return (
         <div className={styles.previewVideoWrap} onClick={toggle}>
             <video
                 ref={ref}
-                src={src}
+                src={firstFrameSrc(src, false)}
                 className={styles.previewVideo}
                 playsInline
                 preload="metadata"
@@ -82,7 +99,14 @@ function PreviewVideo({ src }: { src: string }) {
                 onPause={() => setPlaying(false)}
                 onContextMenu={(e) => e.preventDefault()}
             />
-            {!playing && (
+            {!frameShown && frame.url && (
+                // A local object URL, which next/image cannot size.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={frame.url} className={styles.previewPoster} alt="" data-preview-poster="" />
+            )}
+            {grabbing && <div className={styles.previewSkeleton} />}
+            <MediaLoading active={grabbing} size="sm" />
+            {!playing && !grabbing && (
                 <div className={styles.previewPlayOverlay}>
                     <span className={styles.previewPlayBtn}>
                         <Icon icon="mdi:play" width={26} height={26} />
@@ -113,6 +137,7 @@ export default function AddHighlightModal({
     const metaRef = useRef<HighlightVideoMeta | null>(null)
 
     const upload = useHighlightUpload({ existingCount })
+    const videoFrame = useVideoPreviewFrame(file)
     // Whether the server converts what the phone cannot: wider formats.
     const { server_processing: serverProcessing } = useMediaCapabilities()
 
@@ -194,7 +219,7 @@ export default function AddHighlightModal({
             meta: durationSec != null ? metaRef.current : null,
             title: title.trim() || undefined,
             visibility,
-        })
+        }, videoFrame.blob)
         if (refused) {
             setSubmitError(refused)
             return
@@ -203,7 +228,7 @@ export default function AddHighlightModal({
         // page while it goes away.
         void settleViewport()
         onClose()
-    }, [durationSec, file, onClose, title, upload, visibility])
+    }, [durationSec, file, onClose, title, upload, videoFrame.blob, visibility])
 
     return createPortal(
         <div
@@ -274,7 +299,7 @@ export default function AddHighlightModal({
                             <div className={styles.previewRow}>
                                 <div className={styles.preview}>
                                     {previewUrl && (
-                                        <PreviewVideo src={previewUrl} />
+                                        <PreviewVideo src={previewUrl} frame={videoFrame} />
                                     )}
                                     {durationSec != null && durationSec > 0 && (
                                         <span className={styles.previewDuration}>
