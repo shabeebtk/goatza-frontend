@@ -14,6 +14,7 @@ import { thumbSrc } from "@/shared/services/mediaDelivery"
 // Space is reserved from intrinsic dimensions so the image never causes layout
 // shift while it loads. Shared with VideoMessage.
 import { displaySize } from "../../utils/mediaBox"
+import MediaUnavailableTile from "../MediaUnavailableTile/MediaUnavailableTile"
 import styles from "./ImageMessage.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -135,6 +136,8 @@ export default function ImageMessage({
 }: ImageMessageProps) {
     const [viewerOpen, setViewerOpen] = useState(false)
     const [confirmCancel, setConfirmCancel] = useState(false)
+    /** Addresses that have already failed to load in this bubble. */
+    const [failedSrcs, setFailedSrcs] = useState<string[]>([])
 
     const isOptimistic = Boolean(msg.localPreviewUrl)
     const isUploading = Boolean(msg.pending) && !msg.failed
@@ -145,13 +148,20 @@ export default function ImageMessage({
     // Optimistic → local object URL (blob:, passed through verbatim). Server →
     // the 640px thumb OBJECT uploaded alongside the full image, falling back to
     // the full image for messages sent before thumbs existed.
-    // Full-res only in the viewer, never in the bubble.
+    // Full-res only in the viewer, never in the bubble — unless the thumb will
+    // not load, when the full image is the bubble's last try before the tile.
     const bubbleSrc = isOptimistic
         ? msg.localPreviewUrl!
-        : thumbSrc(msg)
+        : [thumbSrc(msg), msg.media_url ?? ""].find(
+              (src) => src && !failedSrcs.includes(src)
+          )
     const fullSrc = msg.media_url || msg.localPreviewUrl || ""
 
-    const canOpen = !isOptimistic && !isFailed && Boolean(msg.media_url)
+    const isUnavailable =
+        Boolean(msg.media_unavailable) || (!isOptimistic && !bubbleSrc)
+
+    const canOpen =
+        !isOptimistic && !isFailed && !isUnavailable && Boolean(msg.media_url)
 
     const caption = msg.content?.trim()
 
@@ -176,17 +186,25 @@ export default function ImageMessage({
                     }
                     aria-label={canOpen ? "View photo" : undefined}
                 >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                        src={bubbleSrc}
-                        alt=""
-                        className={`${styles.image} ${
-                            known ? "" : styles.imageContain
-                        } ${isUploading ? styles.imageUploading : ""}`}
-                        loading="lazy"
-                        decoding="async"
-                        draggable={false}
-                    />
+                    {isUnavailable ? (
+                        <MediaUnavailableTile />
+                    ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={bubbleSrc}
+                            alt=""
+                            className={`${styles.image} ${
+                                known ? "" : styles.imageContain
+                            } ${isUploading ? styles.imageUploading : ""}`}
+                            loading="lazy"
+                            decoding="async"
+                            draggable={false}
+                            onError={() => {
+                                if (isOptimistic || !bubbleSrc) return
+                                setFailedSrcs((failed) => [...failed, bubbleSrc])
+                            }}
+                        />
+                    )}
 
                     {/* Uploading overlay — progress ring with a centered ✕ to
                         cancel (opens a confirmation first). */}

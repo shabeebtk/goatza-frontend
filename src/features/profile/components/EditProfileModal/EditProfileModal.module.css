@@ -402,3 +402,29 @@
   align-items: center;
   pointer-events: none;
 }
+
+/* ── Date of birth, once it is locked ── */
+
+.birthdateRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.birthdateValue {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.birthdateLink {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}

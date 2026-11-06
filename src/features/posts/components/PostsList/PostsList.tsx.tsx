@@ -16,6 +16,9 @@
 import { useMemo, useCallback } from "react"
 import { Icon } from "@iconify/react"
 import LoadMoreError from "@/features/posts/components/LoadMoreError/LoadMoreError"
+import UnavailableState, {
+    isUnavailableError,
+} from "@/shared/components/UnavailableState/UnavailableState"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
 import PostViewerProvider from "@/features/posts/components/PostViewer/PostViewerProvider"
 import { usePublicSection } from "@/features/profile/context/PublicProfileContext"
@@ -134,6 +137,7 @@ export default function PostsList({
         data,
         isLoading: isFetching,
         isError: isFetchError,
+        error: fetchError,
         isFetchingNextPage,
         isFetchNextPageError,
         hasNextPage,
@@ -184,6 +188,16 @@ export default function PostsList({
                 ))}
             </div>
         )
+    }
+
+    // ── One post, and it is gone ──────────────────────────────────
+    // A notification or a shared link. Not the feed's "no posts yet" empty state,
+    // which invites whoever reads it to create one.
+    if (
+        postId &&
+        (allPosts.length === 0 || (isError && isUnavailableError(fetchError)))
+    ) {
+        return <UnavailableState icon="mdi:image-off-outline" />
     }
 
     // ── Error ─────────────────────────────────────────────────────

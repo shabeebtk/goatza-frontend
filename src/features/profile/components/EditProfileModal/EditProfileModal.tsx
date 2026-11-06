@@ -8,7 +8,18 @@ import { validateUsernameFormat } from "@/shared/constants/username"
 import { Icon } from "@iconify/react"
 import { Input, DateOfBirthPicker, Select } from "@/shared/components/ui"
 import LocationPicker from "@/shared/components/LocationPicker/LocationPicker"
-import { useUpdateProfileData, useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
+import BirthdateNotice from "@/shared/components/DateOfBirthInput/BirthdateNotice"
+import {
+  BIRTHDATE_CONFIRM_TITLE,
+  BIRTHDATE_SIGNUP_WARNING,
+  birthdateConfirmMessage,
+  birthdateFieldError,
+  formatBirthdate,
+} from "@/shared/components/DateOfBirthInput/birthdateCopy"
+import ProblemReportSheet from "@/features/support/components/ProblemReportSheet/ProblemReportSheet"
+import { startGuardianFlow } from "@/features/guardian/store/guardian.store"
+import { useMyProfile, useUpdateProfileData, useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { useAuthStore } from "@/store/auth.store"
 import type { UserProfile, LocationPayload } from "@/features/profile/services/profile.api"
 import type { PlaceResult } from "@/shared/services/places.service"
@@ -162,9 +173,23 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       ? originalLocationName !== null                  // was set, now cleared
       : selectedCity.name !== originalLocationName     // changed to different city
 
-  // ── Birthdate (managed outside react-hook-form, like location) ──
-  const [birthdate, setBirthdate] = useState<string | null>(profile.birthdate ?? null)
-  const birthdateChanged = birthdate !== (profile.birthdate ?? null)
+  // ── Date of birth ─────────────────────────────────────────────
+  // Set at signup and onboarding, then locked: a date on file is a read-only row
+  // with a way to reach support, which is who corrects it. Only a legacy account
+  // with none on file gets the picker, once. The flag is read off the signed-in
+  // user's own payload, as this modal's `profile` may come from
+  // /user/<username>/details, which does not carry it.
+  const { data: me } = useMyProfile()
+  const dateOnFile = profile.birthdate ?? null
+  const canAddBirthdate =
+    !dateOnFile && (me?.can_edit_birthdate ?? profile.can_edit_birthdate ?? true)
+
+  const [birthdate, setBirthdate] = useState<string | null>(null)
+  const birthdateToAdd = canAddBirthdate ? birthdate : null
+  const [birthdateError, setBirthdateError] = useState<string | undefined>()
+  const [askingToConfirm, setAskingToConfirm] = useState(false)
+  const birthdateConfirmed = useRef(false)
+  const [correctingBirthdate, setCorrectingBirthdate] = useState(false)
 
   // Lock body scroll
   useBodyScrollLock()
@@ -218,6 +243,11 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       return
     }
 
+    if (birthdateToAdd && !birthdateConfirmed.current) {
+      setAskingToConfirm(true)
+      return
+    }
+
     const payload: Record<string, unknown> = {}
 
     if (dirtyFields.name) payload.name = values.name
@@ -227,7 +257,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
     if (dirtyFields.gender) payload.gender = values.gender || null
     if (dirtyFields.height_cm) payload.height_cm = values.height_cm ?? null
     if (dirtyFields.weight_kg) payload.weight_kg = values.weight_kg ?? null
-    if (birthdateChanged) payload.birthdate = birthdate
+    if (birthdateToAdd) payload.birthdate = birthdateToAdd
 
     // ── Location: only include if changed ──────────────────────
     if (locationChanged) {
@@ -270,9 +300,21 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
       }
 
       void settleViewport()
+
+      // The date just added made this a minor's account. GuardianGate sees the
+      // store change and takes them to the parent screen, wherever they are.
+      if (updated.guardian_required) {
+        startGuardianFlow(true)
+        onClose()
+        return
+      }
+
       if (onSaved) onSaved(updated)
       else onClose()
     } catch (err: unknown) {
+      birthdateConfirmed.current = false
+      setBirthdateError(birthdateFieldError(err))
+
       const msg =
         err && typeof err === "object"
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
@@ -291,7 +333,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
   const aboutLen = watch("about")?.length ?? 0
 
   // Dirty = react-hook-form fields changed OR location/birthdate changed
-  const isFormDirty = isDirty || locationChanged || birthdateChanged
+  const isFormDirty = isDirty || locationChanged || Boolean(birthdateToAdd)
 
   return (
     <div
@@ -380,9 +422,33 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
             <div className={styles.section}>
               <SectionHeader icon="mdi:human-male-height" title="Physical" />
 
-              <Field label="Date of Birth" hint="Used to show your age group.">
-                <DateOfBirthPicker value={birthdate} onChange={setBirthdate} disabled={isSubmitting} />
-              </Field>
+              {dateOnFile ? (
+                <div className={styles.birthdateRow}>
+                  <span className={styles.birthdateValue}>
+                    Date of birth · {formatBirthdate(dateOnFile, "short")}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.birthdateLink}
+                    onClick={() => setCorrectingBirthdate(true)}
+                  >
+                    Wrong date? Contact support
+                  </button>
+                </div>
+              ) : canAddBirthdate ? (
+                <Field label="Add your date of birth" error={birthdateError}>
+                  <DateOfBirthPicker
+                    value={birthdate}
+                    onChange={(next) => {
+                      setBirthdate(next)
+                      setBirthdateError(undefined)
+                      birthdateConfirmed.current = false
+                    }}
+                    disabled={isSubmitting}
+                  />
+                  <BirthdateNotice>{BIRTHDATE_SIGNUP_WARNING}</BirthdateNotice>
+                </Field>
+              ) : null}
 
               <Field label="Gender" error={errors.gender?.message}>
                 {/* "" is a real answer here, not a placeholder — it is what
@@ -450,6 +516,30 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
         </form>
 
       </div>
+
+      <ConfirmDialog
+        open={askingToConfirm}
+        title={BIRTHDATE_CONFIRM_TITLE}
+        message={birthdate ? birthdateConfirmMessage(birthdate) : ""}
+        confirmLabel="Yes, it's correct"
+        cancelLabel="Go back"
+        onConfirm={() => {
+          birthdateConfirmed.current = true
+          setAskingToConfirm(false)
+          void handleSubmit(onSubmit)()
+        }}
+        onCancel={() => setAskingToConfirm(false)}
+      />
+
+      {correctingBirthdate && dateOnFile && (
+        <ProblemReportSheet
+          prefill={{
+            category: "account_login",
+            description: `Please correct my date of birth. It's on file as ${formatBirthdate(dateOnFile, "short")}. The correct date is: `,
+          }}
+          onClose={() => setCorrectingBirthdate(false)}
+        />
+      )}
     </div>
   )
 }

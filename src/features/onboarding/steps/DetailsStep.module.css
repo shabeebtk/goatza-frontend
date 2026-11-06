@@ -230,3 +230,10 @@
   animation: onbSpin 0.65s linear infinite;
   flex-shrink: 0;
 }
+
+.readOnlyValue {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}

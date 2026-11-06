@@ -67,6 +67,11 @@ export interface ProblemReportSheetProps {
    * appears and points at the ⋯ menu, which is where the target exists.
    */
   onReportAbuse?: () => void
+  /**
+   * Opens on the details step with this filled in, for a host that already knows
+   * what the report is about. The person can still edit all of it.
+   */
+  prefill?: { category: ProblemCategory; description: string }
   onClose: () => void
 }
 
@@ -91,6 +96,7 @@ type Attachment = {
 
 export default function ProblemReportSheet({
   onReportAbuse,
+  prefill,
   onClose,
 }: ProblemReportSheetProps) {
   const submit = useSubmitProblemReport()
@@ -100,9 +106,11 @@ export default function ProblemReportSheet({
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [step, setStep] = useState<Step>("category")
-  const [category, setCategory] = useState<ProblemCategory | null>(null)
-  const [description, setDescription] = useState("")
+  const [step, setStep] = useState<Step>(prefill ? "details" : "category")
+  const [category, setCategory] = useState<ProblemCategory | null>(
+    prefill?.category ?? null
+  )
+  const [description, setDescription] = useState(prefill?.description ?? "")
   const [error, setError] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [reference, setReference] = useState("")
@@ -123,7 +131,11 @@ export default function ProblemReportSheet({
   }, [onClose])
 
   useEffect(() => {
-    if (step === "details") descriptionRef.current?.focus()
+    if (step !== "details") return
+    const field = descriptionRef.current
+    field?.focus()
+    // At the end of anything prefilled, where the person carries on typing.
+    field?.setSelectionRange(field.value.length, field.value.length)
   }, [step])
 
   // Object URLs are a leak if nobody revokes them. Keyed off a ref rather than

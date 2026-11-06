@@ -76,7 +76,7 @@ export default function SharedPostMessage({
               height={20}
               className={styles.unavailableIcon}
             />
-            <span className={styles.unavailableText}>Post unavailable</span>
+            <span className={styles.unavailableText}>This post isn&apos;t available</span>
           </div>
           {captionNode}
           {timeNode}

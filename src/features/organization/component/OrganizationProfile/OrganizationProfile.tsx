@@ -25,6 +25,7 @@ import styles from "./OrganizationProfile.module.css"
 import { useNavigation } from "@/shared/services/navigation.service"
 import OrgPhotoEditModal from "../OrgPhotoEditModal/OrgPhotoEditModal"
 import EditOrgProfileModal from "../EditOrgProfileModal/EditOrgProfileModal"
+import UnavailableState from "@/shared/components/UnavailableState/UnavailableState"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import RecruitmentsList from "@/features/recruitments/components/RecruitmentsList/RecruitmentsList"
@@ -218,12 +219,7 @@ function OrgProfileSkeleton() {
 // ── Error ──────────────────────────────────────────────────────────
 
 function OrgProfileError() {
-    return (
-        <div className={styles.profileError}>
-            <Icon icon="mdi:office-building-remove-outline" width={48} height={48} />
-            <p>Organization not found.</p>
-        </div>
-    )
+    return <UnavailableState icon="mdi:office-building-remove-outline" />
 }
 
 // ── Inner (rendered once data is available) ────────────────────────

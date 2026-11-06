@@ -159,6 +159,25 @@ describe("OrgInvitePage", () => {
     expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy()
   })
 
+  it("tells the wrong account where the invite went on a decline too", async () => {
+    signedIn()
+    mocks.decline.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 403, data: { data: { code: "email_mismatch" } } },
+    })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Decline" }))
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "This invite was sent to j*****n@gmail.com. Log in with that email to accept."
+    )
+    // Nothing happened: both answers are still there for the right account.
+    expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Decline" })).toBeTruthy()
+    expect(screen.queryByText("Invite declined")).toBeNull()
+  })
+
   it("has one screen and one sentence for a link that doesn't resolve", async () => {
     mocks.fetchInvite.mockResolvedValue(null)
     renderPage()

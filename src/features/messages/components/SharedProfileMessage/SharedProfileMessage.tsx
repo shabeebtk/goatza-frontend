@@ -125,7 +125,9 @@ export default function SharedProfileMessage({
               height={20}
               className={styles.unavailableIcon}
             />
-            <span className={styles.unavailableText}>Profile unavailable</span>
+            <span className={styles.unavailableText}>
+              This profile isn&apos;t available
+            </span>
           </div>
           {captionNode}
           {timeNode}

@@ -225,3 +225,16 @@ describe("consent links", () => {
     expect(document.body.textContent).not.toMatch(/by continuing/i)
   })
 })
+
+describe("the date of birth on the signup form", () => {
+  it("warns that it cannot be changed later", () => {
+    renderCard()
+
+    expect(
+      screen.getByText(
+        "Check this carefully — you won't be able to change your date of birth later."
+      )
+    ).toBeTruthy()
+    expect(screen.getByRole("note")).toBeTruthy()
+  })
+})

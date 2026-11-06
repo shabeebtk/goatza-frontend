@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
+import ChatActorAvatar from "../ChatActorAvatar/ChatActorAvatar"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -120,11 +121,7 @@ function ConversationRow({
     >
       {/* Avatar */}
       <div className={styles.rowAvatar}>
-        <Avatar
-          src={conv.other_participant.avatar}
-          initials={conv.other_participant.name?.slice(0, 2).toUpperCase() || "?"}
-          size="md"
-        />
+        <ChatActorAvatar actor={conv.other_participant} size="md" />
         {/* Online indicator placeholder — wire up when you add presence */}
       </div>
 

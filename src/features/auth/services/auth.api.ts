@@ -93,6 +93,8 @@ export type AuthUser = {
    * True when the birthdate is unknown. Nothing consumes it yet.
    */
   is_minor: boolean
+  /** May they set their own date of birth right now. GET /user/details only. */
+  can_edit_birthdate?: boolean
   /**
    * Present on the user from GET /user/details only — the login, OTP and
    * Google responses serialise a user without it. That call is the one the

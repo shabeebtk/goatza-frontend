@@ -135,6 +135,7 @@ const FAILURE_TEXT: Record<string, string> = {
   content_unavailable: "this content is no longer available",
   recipient_not_found: "account not found",
   cannot_share_with_self: "you can't share with yourself",
+  counterpart_unavailable: "this account is no longer available",
 }
 
 /**
@@ -473,6 +474,19 @@ function ShareSheetInner({
         onSuccess: (result) => {
           const sentCount = result.sent.length
           const failures = result.failed
+
+          // It closed between the button rendering and this tap. The same for
+          // every target, and no retry will help, so the sheet goes too.
+          if (failures.some((f) => f.reason === "not_shareable")) {
+            toast.show({
+              title: "This recruitment can't be shared any more.",
+              variant: "warning",
+              position: "top-center",
+              duration: 4000,
+            })
+            onClose()
+            return
+          }
 
           // Nothing landed — keep the sheet open so it can be retried.
           if (sentCount === 0) {

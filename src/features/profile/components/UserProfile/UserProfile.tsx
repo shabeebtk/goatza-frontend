@@ -12,6 +12,7 @@ import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import CareerSection from "@/features/career/components/CareerSection/CareerSection"
 import AchievementsSection from "@/features/achievements/components/AchievementsSection/AchievementsSection"
 import MatchDiarySection from "@/features/matchDiary/components/MatchDiarySection/MatchDiarySection"
+import UnavailableState from "@/shared/components/UnavailableState/UnavailableState"
 import BlockedProfileBanner from "@/features/moderation/components/BlockedProfileBanner/BlockedProfileBanner"
 import HighlightsRail from "@/features/highlights/components/HighlightsRail/HighlightsRail"
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
@@ -163,13 +164,10 @@ export default function UserProfile({
     return <ProfileSkeleton />
   }
 
+  // Deleted, deactivated, blocked or a typo: the server answers them all the same,
+  // on purpose, so this does too.
   if (isError || !profile) {
-    return (
-      <div className={styles.profileError}>
-        <Icon icon="mdi:account-off-outline" width={48} height={48} />
-        <p>Profile not found.</p>
-      </div>
-    )
+    return <UnavailableState icon="mdi:account-off-outline" />
   }
 
   const rel = profile.relationship
@@ -541,8 +539,11 @@ export default function UserProfile({
                 running record the player keeps themselves. Renders nothing for
                 a visitor whose player has the showcase off — and nothing at
                 all on the logged-out profile — so it carries its own top
-                divider rather than taking one from here. */}
-            <MatchDiarySection username={profile.username} isOwn={isMe} />
+                divider rather than taking one from here. Players only: anyone
+                else has no diary, and the endpoint would only answer 404. */}
+            {profile.role === "player" && (
+              <MatchDiarySection username={profile.username} isOwn={isMe} />
+            )}
             </>
             )}
 

@@ -263,8 +263,9 @@ const SETTINGS: LinkNavItem = {
  *   desktop        → "discover" links inline, Messages/Alerts right,
  *                    "you" links in More
  *
- * `org_user` intentionally mirrors `player` (recruitments) — its behavior is
- * unchanged. `coach`/`scout` swap Recruitments for Coaching/Scouting.
+ * `org_user` intentionally mirrors `player` (recruitments), apart from the match
+ * diary, which is a player's own. `coach`/`scout` swap Recruitments for
+ * Coaching/Scouting.
  */
 export const NAV_CONFIG: Record<UserRole, readonly NavItem[]> = {
   player: [
@@ -287,7 +288,6 @@ export const NAV_CONFIG: Record<UserRole, readonly NavItem[]> = {
     CREATE,
     MESSAGES,
     NOTIFICATIONS,
-    MATCH_DIARY,
     SAVED,
     PROFILE,
     SETTINGS,
@@ -300,7 +300,6 @@ export const NAV_CONFIG: Record<UserRole, readonly NavItem[]> = {
     CREATE,
     MESSAGES,
     NOTIFICATIONS,
-    MATCH_DIARY,
     SAVED,
     PROFILE,
     SETTINGS,
@@ -313,7 +312,6 @@ export const NAV_CONFIG: Record<UserRole, readonly NavItem[]> = {
     CREATE,
     MESSAGES,
     NOTIFICATIONS,
-    MATCH_DIARY,
     SAVED,
     PROFILE,
     SETTINGS,

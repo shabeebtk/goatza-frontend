@@ -68,7 +68,11 @@ import {
 } from "../../recruitmentCopy"
 import { ageGroupGenderWord, formatBirthYears, formatReportingTime } from "../../eligibility"
 import { countdownTickMs, formatCountdown, type Countdown } from "../../countdown"
+import { canShareRecruitment } from "../../canShareRecruitment"
 import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
+import UnavailableState, {
+  isUnavailableError,
+} from "@/shared/components/UnavailableState/UnavailableState"
 import {
   categoryCentresLine,
   centreCities,
@@ -461,7 +465,7 @@ export default function RecruitmentDetail({
   isOrgView = false,
   onEdit,
 }: RecruitmentDetailProps) {
-  const { data, isLoading, isError } = useRecruitmentDetail(recruitmentId)
+  const { data, isLoading, isError, error } = useRecruitmentDetail(recruitmentId)
   const toggleSave = useToggleSaveRecruitment()
   const { toProfile } = useNavigation()
 
@@ -505,6 +509,12 @@ export default function RecruitmentDetail({
 
   if (isLoading) return <DetailSkeleton />
 
+  // A link to one that was deleted or is hidden from this viewer, usually from a
+  // notification or an old chat card. Nothing has gone wrong.
+  if (isUnavailableError(error)) {
+    return <UnavailableState icon="mdi:bullhorn-variant-outline" />
+  }
+
   if (isError || !data) {
     return (
       <div className={styles.errorState}>
@@ -515,6 +525,7 @@ export default function RecruitmentDetail({
   }
 
   const r = data
+  const canShare = canShareRecruitment(r)
 
   // ── State selection ──────────────────────────────────────────
   const isOwner = isOrgView
@@ -1045,18 +1056,20 @@ export default function RecruitmentDetail({
    * upward; it sits on the bottom edge of the viewport.
    *
    * The organiser preview keeps it: previewing what a player sees includes
-   * seeing that they can share it.
+   * seeing that they can share it. Nothing at all once it cannot be shared, in
+   * both bars, so neither is left holding an empty slot.
    */
-  const shareMenu = (placement: "down" | "up") => (
-    <RecruitmentShareMenu
-      recruitmentId={r.id}
-      title={r.title}
-      orgName={r.organization.name}
-      onSendInMessage={() => setShareOpen(true)}
-      triggerClassName={styles.iconBtn}
-      placement={placement}
-    />
-  )
+  const shareMenu = (placement: "down" | "up") =>
+    canShare ? (
+      <RecruitmentShareMenu
+        recruitmentId={r.id}
+        title={r.title}
+        orgName={r.organization.name}
+        onSendInMessage={() => setShareOpen(true)}
+        triggerClassName={styles.iconBtn}
+        placement={placement}
+      />
+    ) : null
 
   const capacityPct =
     r.max_applications && r.max_applications > 0
@@ -1200,14 +1213,16 @@ export default function RecruitmentDetail({
                     single most common share on the product, and until now the
                     only thing this button could do was forward it to somebody
                     already on Goatza. */}
-                <RecruitmentShareMenu
-                  recruitmentId={r.id}
-                  title={r.title}
-                  orgName={r.organization.name}
-                  onSendInMessage={() => setShareOpen(true)}
-                  triggerClassName={styles.metaBtn}
-                  variant="text"
-                />
+                {canShare && (
+                  <RecruitmentShareMenu
+                    recruitmentId={r.id}
+                    title={r.title}
+                    orgName={r.organization.name}
+                    onSendInMessage={() => setShareOpen(true)}
+                    triggerClassName={styles.metaBtn}
+                    variant="text"
+                  />
+                )}
                 {canChangeStatus && (
                   <button
                     className={`${styles.metaBtn} ${styles.metaBtnDanger}`}
@@ -1520,6 +1535,7 @@ export default function RecruitmentDetail({
                         it cannot host <RecruitmentShareMenu>; the two extra
                         rows come off the same useShareRecruitment hook the
                         menu uses, which is why that hook exists. */}
+                    {canShare && (
                     <button
                       className={styles.moreItem}
                       role="menuitem"
@@ -1532,6 +1548,8 @@ export default function RecruitmentDetail({
                       <Icon icon="mdi:send-outline" width={15} height={15} />
                       Send in a message
                     </button>
+                    )}
+                    {canShare && (
                     <button
                       className={styles.moreItem}
                       role="menuitem"
@@ -1544,7 +1562,8 @@ export default function RecruitmentDetail({
                       <Icon icon="mdi:link-variant" width={15} height={15} />
                       Copy link
                     </button>
-                    {share.canNativeShare && (
+                    )}
+                    {canShare && share.canNativeShare && (
                       <button
                         className={styles.moreItem}
                         role="menuitem"
@@ -1664,6 +1683,7 @@ export default function RecruitmentDetail({
         />
       )}
 
+      {canShare && (
       <ShareSheet
         open={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -1681,6 +1701,7 @@ export default function RecruitmentDetail({
           />
         }
       />
+      )}
     </div>
   )
 }

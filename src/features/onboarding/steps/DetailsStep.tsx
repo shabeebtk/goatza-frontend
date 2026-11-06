@@ -4,8 +4,19 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import { Input, DateOfBirthPicker } from "@/shared/components/ui"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
+import BirthdateNotice from "@/shared/components/DateOfBirthInput/BirthdateNotice"
+import {
+  BIRTHDATE_CONFIRM_TITLE,
+  BIRTHDATE_LAST_CHANCE,
+  birthdateConfirmMessage,
+  birthdateFieldError,
+  formatBirthdate,
+} from "@/shared/components/DateOfBirthInput/birthdateCopy"
+import { startGuardianFlow } from "@/features/guardian/store/guardian.store"
 import { useMyProfile, useUpdateProfileData } from "@/features/profile/hooks/useProfileQueries"
 import type { UserProfile, UpdateProfileDataPayload } from "@/features/profile/services/profile.api"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
@@ -101,6 +112,8 @@ function DetailsForm({
   const updateProfileData = useUpdateProfileData(profile.username)
   const updateUser = useAuthStore((s) => s.updateUser)
   const { data: sports } = useSportsList()
+  const finishOnboarding = useOnboardingStore((s) => s.finish)
+  const router = useRouter()
 
   const profHeight = toNum(profile.height_cm)
   const profWeight = toNum(profile.weight_kg)
@@ -181,7 +194,26 @@ function DetailsForm({
 
   const [apiError, setApiError] = useState<string | null>(null)
 
-  const onSubmit = async (values: FormValues) => {
+  // Locked the moment onboarding finishes, so this is only ever false if somebody
+  // comes back through these steps afterwards: the picker would only be refused.
+  const canEditBirthdate = profile.can_edit_birthdate !== false
+
+  // The form's values while the date of birth is being confirmed. A half-picked
+  // date reads as null from the picker, and is not a change: the server refuses
+  // to clear one, and it is not what somebody pressing Continue meant.
+  const [awaitingConfirm, setAwaitingConfirm] = useState<FormValues | null>(null)
+  const birthdateChanged =
+    canEditBirthdate && birthdate !== null && birthdate !== (profile.birthdate ?? null)
+
+  const onSubmit = (values: FormValues) => {
+    if (birthdateChanged) {
+      setAwaitingConfirm(values)
+      return
+    }
+    return save(values)
+  }
+
+  const save = async (values: FormValues) => {
     setApiError(null)
 
     const payload: UpdateProfileDataPayload = {}
@@ -198,7 +230,7 @@ function DetailsForm({
     const weight = values.weight_kg?.trim() ? Number(values.weight_kg) : null
     if (weight !== profWeight) payload.weight_kg = weight
 
-    if (birthdate !== (profile.birthdate ?? null)) payload.birthdate = birthdate
+    if (birthdateChanged) payload.birthdate = birthdate
 
     if (Object.keys(payload).length === 0) {
       onNext()
@@ -220,17 +252,29 @@ function DetailsForm({
         })
       }
 
+      // The date just saved made this account a minor's. Same hand-off as the
+      // Google path's RoleStep: every later step would only be refused, so the
+      // modal closes and the parent screen on /auth takes over.
+      if (updated.guardian_required) {
+        startGuardianFlow(true)
+        finishOnboarding()
+        router.replace("/auth")
+        return
+      }
+
       onNext()
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object"
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
           : undefined
-      setApiError(msg ?? "Couldn't save your details. Please try again.")
+      setApiError(
+        birthdateFieldError(err) ?? msg ?? "Couldn't save your details. Please try again."
+      )
     }
   }
 
-  const busy = isSubmitting
+  const busy = isSubmitting || updateProfileData.isPending
 
   return (
     <StepScaffold
@@ -353,7 +397,16 @@ function DetailsForm({
           <label className={styles.label} htmlFor="onb-dob">
             Date of birth
           </label>
-          <DateOfBirthPicker id="onb-dob" value={birthdate} onChange={setBirthdate} />
+          {canEditBirthdate ? (
+            <>
+              <DateOfBirthPicker id="onb-dob" value={birthdate} onChange={setBirthdate} />
+              <BirthdateNotice strong>{BIRTHDATE_LAST_CHANCE}</BirthdateNotice>
+            </>
+          ) : (
+            <p className={styles.readOnlyValue}>
+              {profile.birthdate ? formatBirthdate(profile.birthdate) : ""}
+            </p>
+          )}
         </div>
 
         {/* ── Height / Weight ── */}
@@ -410,6 +463,20 @@ function DetailsForm({
           </p>
         )}
       </form>
+
+      <ConfirmDialog
+        open={awaitingConfirm !== null}
+        title={BIRTHDATE_CONFIRM_TITLE}
+        message={birthdate ? birthdateConfirmMessage(birthdate) : ""}
+        confirmLabel="Yes, it's correct"
+        cancelLabel="Go back"
+        onConfirm={() => {
+          const values = awaitingConfirm
+          setAwaitingConfirm(null)
+          if (values) void save(values)
+        }}
+        onCancel={() => setAwaitingConfirm(null)}
+      />
     </StepScaffold>
   )
 }
