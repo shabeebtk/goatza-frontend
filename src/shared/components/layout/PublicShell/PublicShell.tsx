@@ -66,8 +66,10 @@ const CONTENT_FIRST_ROUTES = [
  * them a PROFILE SKELETON: a fake cover photo and a fake avatar, on a page a
  * stranger opened from an email about their child. It has to be content-first,
  * and it cannot be listed above because the token is part of the path.
+ *
+ * `/org-invite/<token>` is the same: most people opening it have no session yet.
  */
-const CONTENT_FIRST_PREFIXES = ["/guardian/"]
+const CONTENT_FIRST_PREFIXES = ["/guardian/", "/org-invite/"]
 
 function isContentFirst(pathname: string | null): boolean {
   const path = pathname ?? ""

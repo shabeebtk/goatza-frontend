@@ -22,6 +22,27 @@ const TOKEN = "9f2c1a4e8b7d6350aa11bb22cc33dd44"
 const REAL_TOKEN = "5V1jT6kOhF3L0kSd7ogmllU7VAcNI1LmXm0xvXhr--Q"
 
 describe("redactSecretPaths", () => {
+  it("removes an organization invite token from the page and its API calls", () => {
+    expect(redactSecretPaths(`https://goatza.com/org-invite/${TOKEN}`)).toBe(
+      "https://goatza.com/org-invite/[redacted]",
+    )
+    expect(
+      redactSecretPaths(`https://goatza.com/api/organizations/invites/token/${TOKEN}`),
+    ).toBe("https://goatza.com/api/organizations/invites/token/[redacted]")
+    expect(
+      redactSecretPaths(`/api/organizations/invites/token/${TOKEN}/accept`),
+    ).toBe("/api/organizations/invites/token/[redacted]/accept")
+  })
+
+  it("leaves the invite routes that carry no token alone", () => {
+    expect(redactSecretPaths("/organizations/invites/mine")).toBe(
+      "/organizations/invites/mine",
+    )
+    expect(redactSecretPaths("/organizations/members/invites")).toBe(
+      "/organizations/members/invites",
+    )
+  })
+
   it("removes the token from a consent URL", () => {
     const result = redactSecretPaths(`https://goatza.com/guardian/${TOKEN}`)
 

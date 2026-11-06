@@ -9,7 +9,7 @@
  * two and the server decides by header, not by argument:
  *   - create / update / delete                    → must be acting as the USER
  *   - verification-requests / verify / reject     → must be acting as the ORG,
- *     and as an OWNER or ADMIN member of it
+ *     and as a member of it with verifications.review
  * Calling one while acting as the other is a 403, so the calling component is
  * responsible for being on the right side of the AccountSwitcher.
  *
@@ -170,7 +170,7 @@ export const deleteAchievementApi = async (
 
 /**
  * Achievements waiting on the ACTING organization's decision. Requires an org
- * actor whose membership role is OWNER or ADMIN — a COACH/STAFF member gets a
+ * actor whose member holds verifications.review — a COACH/STAFF member gets a
  * 403.
  */
 export const fetchAchievementVerificationRequestsApi = async (params: {

@@ -1,6 +1,7 @@
 import axios from "axios"
 import { useAuthStore } from "@/store/auth.store"
 import { getFreshAccessToken, SessionExpiredError } from "@/core/auth/refreshManager"
+import { ORG_MEMBERSHIP_CHANGED, realtimeBus } from "@/core/ws/realtimeBus"
 import { requireLegalConsent } from "@/features/legal/store/legalConsent.store"
 import { lockGuardian } from "@/features/guardian/store/guardian.store"
 import type { GuardianConsentStatus } from "@/features/guardian/types"
@@ -10,6 +11,9 @@ const TERMS_REQUIRED_CODE = "TERMS_ACCEPTANCE_REQUIRED"
 
 /** The other gate's marker (guardians/permissions.py). */
 const GUARDIAN_REQUIRED_CODE = "GUARDIAN_CONSENT_REQUIRED"
+
+/** core/actor.py's refusal, when the logged-in user is no longer in the org. */
+const NOT_A_MEMBER_MESSAGE = "You are not part of this organization"
 
 /**
  * The account a request is made AS. Normally the active one, read when the
@@ -128,6 +132,30 @@ api.interceptors.response.use(
       */
       if (body?.code === GUARDIAN_REQUIRED_CODE) {
         lockGuardian(body.guardian_consent_status ?? "pending")
+      }
+
+      /*
+        A MEMBER WHO LOST ACCESS and whose socket missed it. Handed to the same
+        place the server's event goes (useOrgMembershipEvents), which switches to
+        the personal account straight away. That is also why this runs once: only
+        a request made as the org the store is STILL acting as gets here, so the
+        ones in flight behind it find the switch already done.
+
+        The error is still rejected, for the caller's own handling.
+      */
+      const { actorType, actorId } = useAuthStore.getState()
+      const message = (error.response.data as { detail?: string; message?: string } | undefined)
+      if (
+        (message?.detail === NOT_A_MEMBER_MESSAGE || message?.message === NOT_A_MEMBER_MESSAGE) &&
+        actorType === "organization" &&
+        actorId &&
+        originalRequest?.headers?.["X-Actor-Id"] === actorId
+      ) {
+        realtimeBus.emit({
+          notification_type: ORG_MEMBERSHIP_CHANGED,
+          organization_id: actorId,
+          status: "removed",
+        })
       }
     }
 

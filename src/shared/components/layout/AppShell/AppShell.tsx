@@ -1,6 +1,7 @@
 "use client"
 
 import NotificationsSocket from "@/core/ws/NotificationsSocket"
+import { useOrgMembershipEvents } from "@/features/orgMembers/hooks/useOrgMembershipEvents"
 import AppNav from "@/shared/components/layout/AppNav/AppNav"
 import UploadQueueBar from "@/shared/components/ui/UploadQueueBar/UploadQueueBar"
 import UploadScreen from "@/shared/components/ui/UploadScreen/UploadScreen"
@@ -18,6 +19,8 @@ export default function AppShell({ children }: AppShellProps) {
   // Whether the server can convert what this browser cannot — asked once,
   // before anyone picks a file.
   usePrefetchMediaCapabilities()
+  // An org membership changing while the person is elsewhere in the app.
+  useOrgMembershipEvents()
 
   return (
     <div className={styles.shell}>

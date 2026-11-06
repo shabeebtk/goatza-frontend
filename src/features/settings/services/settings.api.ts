@@ -57,7 +57,7 @@ export const updatePublicProfileApi = async (
 /**
  * Same for the organization the caller is currently acting as.
  *
- * Owner/admin only, enforced server-side — the disabled state on the settings
+ * Needs org.privacy, enforced server-side — the disabled state on the settings
  * row is a courtesy, not the gate.
  */
 export const updateOrgPublicProfileApi = async (

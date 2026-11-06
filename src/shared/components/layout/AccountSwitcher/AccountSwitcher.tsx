@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
+import { useMyInvites } from "@/features/orgMembers/hooks/useOrgMembers"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
@@ -61,6 +62,7 @@ export function AccountSwitcherContent({
         : null,
     [currentOrgId, organizations]
   )
+  const invitationCount = useMyInvites().data?.length ?? 0
 
   return (
     <>
@@ -161,6 +163,17 @@ export function AccountSwitcherContent({
           )}
         </button>
       ))}
+
+      {/* Their cards live on the personal notifications page, and going there
+          is what moves the actor back to the person (ActorRouteSync). */}
+      {invitationCount > 0 && (
+        <Link href="/notifications" className={styles.dropdownItem} onClick={onClose}>
+          <span className={styles.dropdownItemIcon}>
+            <Icon icon="mdi:email-plus-outline" width={16} height={16} />
+          </span>
+          Invitations ({invitationCount})
+        </Link>
+      )}
 
       <div className={styles.dropdownDivider} />
 

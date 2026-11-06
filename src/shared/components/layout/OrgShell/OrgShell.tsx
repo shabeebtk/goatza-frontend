@@ -1,6 +1,7 @@
 "use client"
 
 import NotificationsSocket from "@/core/ws/NotificationsSocket"
+import { useOrgMembershipEvents } from "@/features/orgMembers/hooks/useOrgMembershipEvents"
 import UploadQueueBar from "@/shared/components/ui/UploadQueueBar/UploadQueueBar"
 import UploadScreen from "@/shared/components/ui/UploadScreen/UploadScreen"
 import { useFcmNotifications } from "@/shared/hooks/useFcmNotifications"
@@ -19,6 +20,8 @@ export default function OrgShell({ children, orgId }: OrgShellProps) {
   useFcmNotifications()
   // Same as AppShell, for the same reasons.
   usePrefetchMediaCapabilities()
+  // The person being removed from this very org, or their role changing.
+  useOrgMembershipEvents()
 
   return (
     <div className={styles.shell}>

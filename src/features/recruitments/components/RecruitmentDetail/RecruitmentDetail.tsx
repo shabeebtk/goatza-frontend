@@ -52,7 +52,7 @@ import ShareSheet from "@/features/messages/components/ShareSheet/ShareSheet"
 import ApplicationSheet from "./ApplicationSheet"
 import LatestApplicants from "./LatestApplicants"
 import {
-  useIsOrgReviewer,
+  useCanSpeakForOrg,
   useRecruitmentDetail,
   useToggleSaveRecruitment,
 } from "../../hooks/useRecruitments"
@@ -494,9 +494,9 @@ export default function RecruitmentDetail({
   const trialOver = isTrialOver(data)
   const countdown = useCountdown(data?.application_deadline, effectiveStatus, trialOver)
   const isDesktop = useIsDesktop()
-  // Owner/admin may delete — in every status, so this also keeps the status
+  // recruitments.speak may delete — in every status, so this also keeps the status
   // menu reachable on a cancelled recruitment that has no transitions left.
-  const canDelete = useIsOrgReviewer(isOrgView ? data?.organization?.id : undefined)
+  const canDelete = useCanSpeakForOrg(isOrgView ? data?.organization?.id : undefined)
 
   const onReapply = useCallback(() => {
     setAppSheetOpen(false)

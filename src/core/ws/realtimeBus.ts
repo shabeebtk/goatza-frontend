@@ -30,6 +30,13 @@ type Handler = (payload: RealtimePayload) => void
  */
 export const REALTIME_OPEN = "realtime.open"
 
+/**
+ * The person's membership of an organization changed. Sent by the server, and
+ * emitted by core/api/axios when a request acting as the org is refused because
+ * they are no longer in it.
+ */
+export const ORG_MEMBERSHIP_CHANGED = "org_membership_changed"
+
 const handlers = new Map<string, Set<Handler>>()
 
 export const realtimeBus = {

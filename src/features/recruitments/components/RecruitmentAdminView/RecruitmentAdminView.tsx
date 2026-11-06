@@ -90,7 +90,7 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
         </button>
       </div>
 
-      {/* The org's own way in. Owner/admin only is enforced server-side;
+      {/* The org's own way in. recruitments.speak is enforced server-side;
           a coach pressing this gets the API's 403 verbatim. */}
       {tab === "details" && recruitment && (
         <button

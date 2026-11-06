@@ -13,6 +13,9 @@ export type OrganizationMini = {
   logo:        string
   headline:    string
   is_verified: boolean
+  /** The signed-in member, on /organizations/list. A UI hint: the server re-checks. */
+  my_role?:        OrgMemberRole | null
+  my_permissions?: string[]
 }
 
 // ── Full (create / admin) ─────────────────────────────────────────
@@ -27,6 +30,7 @@ export type Organization = {
   level:       OrgLevel | null
   website:     string | null
   slug:        string
+  my_permissions?: string[]
 }
 
 // ── Detail (profile page) ─────────────────────────────────────────
@@ -63,7 +67,7 @@ export type OrgRelationship = {
 }
 
 /** An org member's role, as `my_role` reports it. */
-export type OrgMemberRole = "owner" | "admin" | "coach" | "staff"
+export type OrgMemberRole = "owner" | "coach" | "staff"
 
 export type OrganizationDetail = {
   id:              string
@@ -84,10 +88,11 @@ export type OrganizationDetail = {
   is_public_profile?: boolean
   /**
    * The REQUESTING user's role in this org, or null if they aren't a member.
-   * Present only on the `type=all` detail response. A UI hint — every
-   * role-gated action is re-checked server-side.
+   * A label, never a gate: check my_permissions (hasOrgPermission).
    */
   my_role?:        OrgMemberRole | null
+  /** What the requesting member may do. A UI hint: the server re-checks. */
+  my_permissions?: string[]
   locations:       OrgLocation[]
   sports:          OrgSport[]
   created_at:      string
