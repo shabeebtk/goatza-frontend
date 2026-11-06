@@ -288,6 +288,8 @@ export const useUpdateOrganization = (orgId: string) => {
         logo: updatedOrganization.logo,
         headline: updatedOrganization.headline,
         is_verified: updatedOrganization.is_verified,
+        my_role: updatedOrganization.my_role,
+        my_permissions: updatedOrganization.my_permissions,
       })
 
       qc.invalidateQueries({ queryKey: orgKeys.detail(orgId) })

@@ -117,6 +117,20 @@ describe("safeNextPath", () => {
   })
 })
 
+describe("An organization invite link", () => {
+  const token = "AbC-123_xYz".repeat(4)
+
+  it("is somewhere a person may land after signing in", () => {
+    expect(safeNextPath(`/org-invite/${token}`)).toBe(`/org-invite/${token}`)
+  })
+
+  it("survives the trip through /auth", () => {
+    const url = authUrlWithNext(`/org-invite/${token}`)
+
+    expect(new URLSearchParams(url.split("?")[1]).get("next")).toBe(`/org-invite/${token}`)
+  })
+})
+
 describe("authUrlWithNext", () => {
   it("is a plain /auth when there is no value", () => {
     expect(authUrlWithNext(null)).toBe("/auth")

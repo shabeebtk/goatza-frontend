@@ -157,7 +157,7 @@ export default function AnnouncementList({
      * every caller does hold the recruitment and passes it.
      */
     timeZone?: string
-    /** Owner / admin: shows the delivery summary and the remove control. */
+    /** With recruitments.speak: shows the delivery summary and the remove control. */
     canManage?: boolean
     /** Hands the parent the "watch the outbox drain" callback after a send. */
     onWatchRef?: (watch: () => void) => void

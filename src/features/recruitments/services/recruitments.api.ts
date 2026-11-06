@@ -1027,7 +1027,7 @@ export const changeRecruitmentStatusApi = async (
   return res.data.data
 }
 
-// ── Delete (owner / admin) ────────────────────────────────────
+// ── Delete (recruitments.speak) ───────────────────────────────
 
 /**
  * What the delete dialog needs before it draws. `needs_note` and
@@ -1305,7 +1305,7 @@ export const fetchRecruitmentApplicantsApi = async (
   return res.data.data
 }
 
-// ── Applicants download (owner / admin) ──────────────────────
+// ── Applicants download (recruitments.speak) ─────────────────
 
 /** "This view" (tab, search, filters) or every non-withdrawn applicant. */
 export type ApplicantsExportScope = "filtered" | "all"

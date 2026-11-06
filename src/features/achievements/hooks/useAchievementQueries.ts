@@ -377,7 +377,7 @@ const useAchievementDecision = <V extends AchievementDecisionVariables>(
     })
 }
 
-/** Confirm a claim. Owner/admin only — the server enforces it. */
+/** Confirm a claim. Needs verifications.review — the server enforces it. */
 export const useVerifyAchievement = () =>
     useAchievementDecision<AchievementDecisionVariables>(({ achievementId }) =>
         verifyAchievementApi(achievementId)

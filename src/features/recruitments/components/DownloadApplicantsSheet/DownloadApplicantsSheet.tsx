@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * DownloadApplicantsSheet — the applicants as an Excel file, owner/admin only.
+ * DownloadApplicantsSheet — the applicants as an Excel file, recruitments.speak only.
  *
  *   1. WHAT — "This view" (the tab, search and filters on screen) or "All
  *      applicants" (every stage, withdrawn left out).

@@ -134,6 +134,44 @@ const TOAST_PRESENTATION: Record<NotificationType, ToastPresentation> = {
     duration: 8000,
     actionLabel: "View",
   },
+  // The push asks something of the person, so it stays up. data.url is the
+  // notifications page, where the card has Accept and Decline.
+  org_invite: {
+    icon: "mdi:account-plus-outline",
+    variant: "info",
+    duration: 8000,
+    actionLabel: "View invite",
+  },
+  org_invite_accepted: {
+    icon: "mdi:account-check-outline",
+    variant: "success",
+    duration: 5000,
+    actionLabel: "View members",
+  },
+  org_invite_declined: {
+    icon: "mdi:account-remove-outline",
+    variant: "default",
+    duration: 5000,
+    actionLabel: "View members",
+  },
+  org_member_removed: {
+    icon: "mdi:account-minus-outline",
+    variant: "default",
+    duration: 5000,
+    actionLabel: "View",
+  },
+  org_role_changed: {
+    icon: "mdi:account-convert-outline",
+    variant: "info",
+    duration: 5000,
+    actionLabel: "View members",
+  },
+  org_owner_changed: {
+    icon: "mdi:shield-account-outline",
+    variant: "warning",
+    duration: 7000,
+    actionLabel: "View members",
+  },
 }
 
 // A type this build doesn't know about still gets an action — the URL is

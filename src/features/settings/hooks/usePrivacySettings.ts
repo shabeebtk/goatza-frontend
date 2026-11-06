@@ -91,7 +91,7 @@ export const useToggleOrgPublicProfile = (orgId: string) => {
       toast.show({
         title:
           status === 403
-            ? "Only the owner or an admin can change this"
+            ? "Only an owner can change this"
             : "Couldn't update the privacy setting",
         variant: "error",
         position: "top-center",

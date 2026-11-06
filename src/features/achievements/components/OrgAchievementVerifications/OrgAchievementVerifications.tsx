@@ -14,10 +14,10 @@
  * reviewer reads dates and positions; an achievement reviewer reads the proof
  * image and the reference link, which is why those get the space here.
  *
- * PERMISSIONS: the API allows OWNER and ADMIN members only. The member's role is
+ * PERMISSIONS: the API needs verifications.review. The member's role is
  * not exposed to the client anywhere today, so the actions cannot be hidden
  * ahead of time — the queue request itself 403s and that is rendered as an
- * explicit "needs owner or admin" state rather than a generic failure.
+ * explicit "needs an owner" state rather than a generic failure.
  */
 
 import { useState } from "react"
@@ -478,11 +478,11 @@ export default function OrgAchievementVerifications() {
                     height={36}
                 />
                 <p className={styles.stateTitle}>
-                    {forbidden ? "Owner or admin access needed" : "Couldn't load"}
+                    {forbidden ? "Owner access needed" : "Couldn't load"}
                 </p>
                 <p className={styles.stateText}>
                     {forbidden
-                        ? "Only owners and admins can review achievement claims. Ask someone with those permissions to take a look."
+                        ? "Only owners can review achievement claims. Ask an owner to take a look."
                         : "We couldn't load the achievement queue. Try again in a moment."}
                 </p>
             </div>

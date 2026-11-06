@@ -1,0 +1,122 @@
+/* The same bottom-sheet-on-mobile, centred-card-on-desktop split as ReportSheet. */
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.backdrop {
+  position: fixed;
+  /* The visible area, not the layout viewport: with the keyboard up `inset: 0`
+     would leave the footer under the keys. useVisualViewport writes these. */
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: backdropIn 0.18s var(--ease-out) both;
+}
+
+.sheet {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  display: flex;
+  flex-direction: column;
+  max-height: min(88dvh, 100%);
+  animation: sheetUp 0.26s var(--ease-spring) both;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  margin: var(--space-2) auto 0;
+  border-radius: 2px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.close {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: var(--space-1);
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-5) calc(var(--space-4) + var(--safe-bottom));
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 768px) {
+  .backdrop {
+    align-items: center;
+    padding: var(--space-6);
+  }
+
+  .sheet {
+    max-width: 460px;
+    max-height: 80vh;
+    border-radius: var(--radius-xl);
+    animation: popIn 0.22s var(--ease-spring) both;
+  }
+
+  .handle {
+    display: none;
+  }
+
+  .footer {
+    padding-bottom: var(--space-4);
+  }
+}

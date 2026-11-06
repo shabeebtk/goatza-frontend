@@ -75,6 +75,18 @@ export type NotificationType =
    * sends nothing: it only moves the upload along (publication_updated).
    */
   | "publication_failed"
+  /** Invitee-side: an org wants them. The card answers in place, with Accept / Decline. */
+  | "org_invite"
+  /** Manager-side: someone joined. */
+  | "org_invite_accepted"
+  /** Inviter-side: someone said no. In-app only. */
+  | "org_invite_declined"
+  /** Member-side: they were removed. In-app only, and opens /home. */
+  | "org_member_removed"
+  /** Member-side: their role changed. */
+  | "org_role_changed"
+  /** Owner-side: another owner was removed or demoted. The safeguard. */
+  | "org_owner_changed"
 
 export type NotificationRecruitment = {
   id: string
@@ -119,6 +131,10 @@ export type NotificationData = {
   target?: "post" | "highlight"
   error_code?: string
   error_message?: string
+  /** org_invite: what Accept and Decline answer. */
+  invite_id?: string
+  /** The organization* types: the org they are about. */
+  organization?: { id: string; name: string; username: string; logo: string }
   [key: string]: unknown
 }
 

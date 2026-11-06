@@ -79,7 +79,7 @@ vi.mock("../../hooks/useRecruitments", () => ({
     useToggleSaveRecruitment: () => ({ mutate: toggleSave }),
     useWithdrawApplication: () => ({ mutate: vi.fn(), isPending: false }),
     // A coach's view: no Delete, so the status chip follows transitions only.
-    useIsOrgReviewer: () => false,
+    useCanSpeakForOrg: () => false,
 }))
 
 /**

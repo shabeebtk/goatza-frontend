@@ -27,7 +27,7 @@ export const RESERVED_USERNAMES = new Set([
   // route segments
   "auth", "card", "chat", "coaching", "cv", "explore", "highlights",
   "home", "join", "matches", "messages", "notifications", "organization",
-  "posts", "recruitments", "scouting", "search",
+  "posts", "recruitments", "scouting", "search", "org-invite",
 
   // pre-existing
   "admin", "root", "support", "help", "api", "system",

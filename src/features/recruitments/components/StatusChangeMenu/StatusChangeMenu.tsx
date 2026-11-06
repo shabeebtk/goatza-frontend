@@ -8,7 +8,7 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
-import { useChangeRecruitmentStatus, useIsOrgReviewer } from "../../hooks/useRecruitments"
+import { useChangeRecruitmentStatus, useCanSpeakForOrg } from "../../hooks/useRecruitments"
 import { STATUS_TRANSITIONS, type RecruitmentStatusAction } from "../../statusTransitions"
 import type { RecruitmentStatus } from "../../services/recruitments.api"
 import styles from "./StatusChangeMenu.module.css"
@@ -22,7 +22,7 @@ import styles from "./StatusChangeMenu.module.css"
  * DELETE sits at the bottom, after a divider, in EVERY status — cancelled
  * included. It is not a transition (it is not in STATUS_TRANSITIONS); it hands
  * off to the parent's DeleteRecruitmentDialog, because this menu unmounts as
- * it closes. Owners and admins only — the server refuses anyone else.
+ * it closes. Needs recruitments.speak — the server refuses anyone else.
  */
 
 interface StatusChangeMenuProps {
@@ -30,7 +30,7 @@ interface StatusChangeMenuProps {
   onClose: () => void
   recruitmentId: string
   currentStatus: RecruitmentStatus
-  /** The owning org — whose `my_role` decides whether Delete is offered. */
+  /** The owning org — whose `my_permissions` decide whether Delete is offered. */
   orgId?: string
   /** Opens the delete dialog. Without it there is no Delete row. */
   onDelete?: () => void
@@ -45,7 +45,7 @@ export default function StatusChangeMenu({
   onDelete,
 }: StatusChangeMenuProps) {
   const actions = STATUS_TRANSITIONS[currentStatus] ?? []
-  const canDelete = useIsOrgReviewer(orgId) && !!onDelete
+  const canDelete = useCanSpeakForOrg(orgId) && !!onDelete
   const [confirming, setConfirming] = useState<RecruitmentStatusAction | null>(null)
   const [error, setError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)

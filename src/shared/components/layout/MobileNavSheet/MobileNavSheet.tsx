@@ -138,7 +138,7 @@ export interface MobileNavSheetProps {
     name: string
     avatarUrl?: string | null
     initials: string
-    /** "Player · Switch account", "Admin · Switch account". */
+    /** "Player · Switch account", "Coach · Switch account". */
     roleLabel: string
     isOrganization?: boolean
   }

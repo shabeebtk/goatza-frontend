@@ -7,6 +7,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import CareerAddPromptSheet from "@/features/career/components/CareerAddPromptSheet/CareerAddPromptSheet"
+import OrgInviteActions from "@/features/orgMembers/components/OrgInviteActions/OrgInviteActions"
 import NotificationBell from "../NotificationBell/NotificationBell"
 import {
   useNotifications,
@@ -44,6 +45,12 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   achievement_verified: "mdi:check-decagram",
   achievement_rejected: "mdi:shield-off-outline",
   publication_failed: "mdi:alert-circle-outline",
+  org_invite: "mdi:account-plus-outline",
+  org_invite_accepted: "mdi:account-check-outline",
+  org_invite_declined: "mdi:account-remove-outline",
+  org_member_removed: "mdi:account-minus-outline",
+  org_role_changed: "mdi:account-convert-outline",
+  org_owner_changed: "mdi:shield-account-outline",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -68,6 +75,13 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   achievement_rejected: "var(--color-text-muted)",
   // Red: their post did not go up, and they need to know to try again.
   publication_failed: "var(--color-error)",
+  org_invite: "var(--color-brand)",
+  org_invite_accepted: "var(--color-brand)",
+  org_invite_declined: "var(--color-text-muted)",
+  org_member_removed: "var(--color-text-muted)",
+  org_role_changed: "#7c3aed",
+  // Amber: it is a safeguard, and something an owner may want to look into.
+  org_owner_changed: "#f59e0b",
 }
 
 // ── Single notification item ──────────────────────────────────
@@ -105,6 +119,11 @@ function NotificationItem({
   const isCareerPrompt = notif.type === "career_add_prompt"
 
   const isRecruitment = isApply || isStatus || isCareerPrompt
+
+  // An action, not a destination: the card answers in place, so it is neither a
+  // link nor a button, because it holds two buttons of its own.
+  const isOrgInvite = notif.type === "org_invite"
+  const orgInviteId = isOrgInvite ? notif.data?.invite_id : undefined
 
   // Platform-voiced: nobody did this, so there is no actor to show — the row
   // is from Goatza. The text names what failed; the server's sentence for
@@ -222,6 +241,14 @@ function NotificationItem({
           </>
         )}
 
+        {orgInviteId && (
+          <OrgInviteActions
+            inviteId={orgInviteId}
+            organizationName={notif.data?.organization?.name ?? "this organization"}
+            onAnswered={handleClick}
+          />
+        )}
+
         <time className={styles.time} dateTime={notif.created_at}>
           {dayjs(notif.created_at).fromNow()}
         </time>
@@ -261,6 +288,14 @@ function NotificationItem({
   // The add-to-career prompt is the one type that is an ACTION rather than a
   // destination — it opens the confirm sheet in place, so it renders as a
   // button instead of a link.
+  if (isOrgInvite) {
+    return (
+      <div className={`${styles.item} ${!notif.is_read ? styles.itemUnread : ""}`}>
+        {body}
+      </div>
+    )
+  }
+
   if (isCareerPrompt) {
     return (
       <button

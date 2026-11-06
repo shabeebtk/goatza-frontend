@@ -19,6 +19,9 @@
  * and the call are just as identifiable as any other route; the only thing
  * lost is the part that grants access.
  *
+ * An organization invite link is the same kind of credential: `/org-invite/<token>`
+ * and its API calls under `/organizations/invites/token/<token>`.
+ *
  * WHY A SHARED MODULE. It runs in all three Sentry runtimes — browser, node and
  * edge. A server-side render of that route, or the request error Next reports
  * through `captureRequestError`, carries the same URL as a browser crash does.
@@ -47,7 +50,7 @@
  * `(?:consent|other)`. Inside the character class `/` stays unescaped, or
  * eslint's no-useless-escape complains.
  */
-const SECRET_PATH_PATTERN = /\/(guardian)((?:\/(?:consent))?)\/[^/?#\s"']+/gi
+const SECRET_PATH_PATTERN = /\/(guardian|org-invite|organizations\/invites\/token)((?:\/(?:consent))?)\/[^/?#\s"']+/gi
 
 // `[?&]` and not a bare `token=`: `access_token=` is somebody else's secret
 // with its own rules, and a word that merely ends in "token" is not a match.

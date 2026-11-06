@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * DeleteRecruitmentDialog — the owner/admin's "Delete" from the status menu.
+ * DeleteRecruitmentDialog — the owner's "Delete" from the status menu.
  *
  * WHAT IT ASKS DEPENDS ON WHO IS WAITING, and the server decides that
  * (`/delete-check`, the same function the delete itself runs):
@@ -135,7 +135,7 @@ export default function DeleteRecruitmentDialog({
   } else if (!canDelete) {
     content = (
       <>
-        <p className={styles.text}>Only owners and admins can delete a recruitment.</p>
+        <p className={styles.text}>Only owners can delete a recruitment.</p>
         <div className={styles.actions}>
           <button className={styles.cancelBtn} type="button" onClick={close}>
             Close

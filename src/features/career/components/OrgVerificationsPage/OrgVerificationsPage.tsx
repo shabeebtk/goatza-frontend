@@ -16,11 +16,11 @@
  * their profile marked rejected (never deletes it) and sends them the optional
  * note.
  *
- * PERMISSIONS: the API allows OWNER and ADMIN members only. The member's role
+ * PERMISSIONS: the API needs verifications.review. The member's role
  * is not exposed to the client anywhere today — `OrganizationMini` carries no
  * role and there is no membership endpoint — so the actions cannot be hidden
  * ahead of time. Instead the queue request itself 403s for a COACH/STAFF member
- * and that is rendered as an explicit "needs owner or admin" state rather than
+ * and that is rendered as an explicit "needs an owner" state rather than
  * a generic failure.
  */
 
@@ -456,11 +456,11 @@ export default function OrgVerificationsPage() {
                         height={36}
                     />
                     <p className={styles.stateTitle}>
-                        {forbidden ? "Owner or admin access needed" : "Couldn't load"}
+                        {forbidden ? "Owner access needed" : "Couldn't load"}
                     </p>
                     <p className={styles.stateText}>
                         {forbidden
-                            ? "Only owners and admins can review career claims. Ask someone with those permissions to take a look."
+                            ? "Only owners can review career claims. Ask an owner to take a look."
                             : "We couldn't load the verification queue. Try again in a moment."}
                     </p>
                 </div>

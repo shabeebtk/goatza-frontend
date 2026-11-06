@@ -50,6 +50,7 @@ import {
 } from "../services/saved.api"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { useOrgDetail } from "@/features/organization/hooks/useOrganizations"
+import { ORG_PERMISSIONS, hasOrgPermission } from "@/shared/permissions/orgPermissions"
 
 
 // ── Query keys ────────────────────────────────────────────────
@@ -364,22 +365,19 @@ export const useChangeRecruitmentStatus = () => {
   })
 }
 
-// ── Owner / admin gate ────────────────────────────────────────
+// ── Who may speak for the org ─────────────────────────────────
 
 /**
- * Org roles that speak FOR the club — delete a recruitment, download its
- * applicants. The server's REVIEWER_ROLES; it refuses everyone else anyway,
- * so this only decides what the UI offers.
+ * Whether the signed-in member of `orgId` may speak FOR the club on a
+ * recruitment: delete it, download its applicants. The server refuses everyone
+ * else anyway, so this only decides what the UI offers.
  */
-export const REVIEWER_ROLES: readonly string[] = ["owner", "admin"]
-
-/** Whether the signed-in member of `orgId` is an owner or admin. */
-export const useIsOrgReviewer = (orgId: string | undefined) => {
+export const useCanSpeakForOrg = (orgId: string | undefined) => {
   const { data: org } = useOrgDetail(orgId ?? "", "id", !!orgId)
-  return REVIEWER_ROLES.includes(org?.my_role ?? "")
+  return hasOrgPermission(org, ORG_PERMISSIONS.RECRUITMENTS_SPEAK)
 }
 
-// ── Delete (owner / admin) ────────────────────────────────────
+// ── Delete (recruitments.speak) ───────────────────────────────
 
 export const deleteCheckKey = (recruitmentId: string) =>
   ["recruitments", "delete-check", recruitmentId] as const

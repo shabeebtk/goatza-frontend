@@ -25,7 +25,7 @@ import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { getApiErrorMessage } from "@/core/api/getApiErrorMessage"
 import {
-  useIsOrgReviewer,
+  useCanSpeakForOrg,
   useRecruitmentApplicants,
   useBulkUpdateApplicationStatus,
   useBulkUpdateApplicationFee,
@@ -487,7 +487,7 @@ export default function ApplicantsList({
   recruitmentId: string
   /** The recruitment's sport — whose positions the Position filter offers. */
   sportId?: string
-  /** The owning org — whose `my_role` decides whether Download is offered. */
+  /** The owning org — whose `my_permissions` decide whether Download is offered. */
   orgId?: string
   /** The recruitment's own age groups — empty when it is open to all ages. */
   ageCategories?: RecruitmentAgeCategory[]
@@ -574,8 +574,8 @@ export default function ApplicantsList({
   // Which download batches this page has fetched — the sheet's ✓ marks.
   // Here, not in the sheet, so they survive it closing.
   const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set())
-  // Owner/admin only, like the server's own gate.
-  const canDownload = useIsOrgReviewer(orgId)
+  // recruitments.speak, like the server's own gate.
+  const canDownload = useCanSpeakForOrg(orgId)
   const positionsQuery = useSportPositions(sportId ?? "")
   const positions = positionsQuery.data ?? NO_POSITIONS
 
@@ -940,7 +940,7 @@ export default function ApplicantsList({
   return (
     <div className={styles.wrapper}>
       {/* Search, then the two things that act on the WHOLE list: the filter
-          modal (with how many are on) and, for owners/admins, the download. */}
+          modal (with how many are on) and, with recruitments.speak, the download. */}
       <div className={styles.toolbar}>
         <div className={styles.searchWrap}>
           <Icon icon="mdi:magnify" width={18} height={18} className={styles.searchIcon} />

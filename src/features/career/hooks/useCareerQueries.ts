@@ -415,7 +415,7 @@ const useReviewDecision = <V extends ReviewDecisionVariables>(
     })
 }
 
-/** Confirm a claim. Owner/admin only — the server enforces it. */
+/** Confirm a claim. Needs verifications.review — the server enforces it. */
 export const useVerifyCareerEntry = () =>
     useReviewDecision<ReviewDecisionVariables>(({ entryId }) =>
         verifyCareerEntryApi(entryId)

@@ -19,6 +19,7 @@ import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQu
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import { orgRoleLabel } from "@/shared/permissions/orgPermissions"
 import MobileNavSheet, {
   type NavDockTab,
   type NavSheetGroup,
@@ -122,6 +123,13 @@ function buildSheetSections(
           icon: "mdi:shield-check-outline",
           iconActive: "mdi:shield-check",
         },
+        {
+          id: "members",
+          label: "Members",
+          href: `${base}/members`,
+          icon: "mdi:account-group-outline",
+          iconActive: "mdi:account-group",
+        },
       ],
     },
     {
@@ -146,11 +154,11 @@ function buildSheetSections(
         {
           // The org's followers/following list — its network page. It needs
           // the handle, so it waits (dimmed) until the session has it.
-          id: "members",
-          label: "Members",
+          id: "network",
+          label: "Network",
           href: orgUsername ? `${base}/profile/org/${orgUsername}/network` : undefined,
-          icon: "mdi:account-group-outline",
-          iconActive: "mdi:account-group",
+          icon: "mdi:account-network-outline",
+          iconActive: "mdi:account-network",
           disabled: !orgUsername,
         },
         {
@@ -234,10 +242,12 @@ function OrgLogoMark({
   orgId,
   logoUrl,
   orgName,
+  roleName,
 }: {
   orgId: string
   logoUrl?: string | null
   orgName?: string
+  roleName: string
 }) {
   return (
     <Link
@@ -254,7 +264,7 @@ function OrgLogoMark({
       </div>
       <div className={styles.logoText}>
         <span className={styles.logoWordmark}>{orgName ?? "Organization"}</span>
-        <span className={styles.logoBadge}>Admin</span>
+        <span className={styles.logoBadge}>{roleName}</span>
       </div>
     </Link>
   )
@@ -440,23 +450,32 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   // personal and Log out are in the avatar dropdown beside it rather than in
   // both places. Explore is here rather than in the primary four — it is
   // where an admin goes looking outward, not where the daily work is.
-  // Members lives UNDER /profile, so the longest match wins — otherwise both
-  // rows light up at once on the members page.
-  const membersHref = currentOrg?.username
+  // Network lives UNDER /profile, so the longest match wins — otherwise both
+  // rows light up at once on the network page.
+  const networkHref = currentOrg?.username
     ? `${orgBase(orgId)}/profile/org/${currentOrg.username}/network`
     : null
-  const membersActive = !!membersHref && pathname.startsWith(membersHref)
+  const networkActive = !!networkHref && pathname.startsWith(networkHref)
+  const membersHref = `${orgBase(orgId)}/members`
 
   const moreRows: MoreMenuRow[] = [
     {
       kind: "link",
       id: "members",
       label: "Members",
-      // Needs the org's handle; dimmed until the session has it.
-      href: membersHref ?? `${orgBase(orgId)}/profile`,
+      href: membersHref,
       icon: "mdi:account-group-outline",
-      active: membersActive,
-      disabled: !membersHref,
+      active: pathname === membersHref || pathname.startsWith(`${membersHref}/`),
+    },
+    {
+      kind: "link",
+      id: "network",
+      label: "Network",
+      // Needs the org's handle; dimmed until the session has it.
+      href: networkHref ?? `${orgBase(orgId)}/profile`,
+      icon: "mdi:account-network-outline",
+      active: networkActive,
+      disabled: !networkHref,
     },
     {
       kind: "link",
@@ -464,7 +483,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       label: "Org profile",
       href: `${orgBase(orgId)}/profile`,
       icon: "mdi:office-building-outline",
-      active: pathname.startsWith(`${orgBase(orgId)}/profile`) && !membersActive,
+      active: pathname.startsWith(`${orgBase(orgId)}/profile`) && !networkActive,
     },
     {
       kind: "link",
@@ -493,6 +512,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     },
   ]
 
+  // Says what this person is here, and never decides anything.
+  const roleName = orgRoleLabel(currentOrg?.my_role)
+
   const handleSwitchToOrganization = (organizationId: string) => {
     switchToOrganization(organizationId)
     setDropdownOpen(false)
@@ -505,7 +527,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     <>
       <header className={styles.topNav} role="banner">
         <div className={styles.topNavInner}>
-          <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
+          <OrgLogoMark
+            orgId={orgId}
+            logoUrl={currentOrg?.logo}
+            orgName={currentOrg?.name}
+            roleName={roleName}
+          />
 
           <nav className={styles.topNavLinks} aria-label="Organization navigation">
             {DESKTOP_PRIMARY.map((item) => {
@@ -651,7 +678,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
       />
 
       <header className={styles.mobileTopBar} role="banner" aria-label="Organization mobile header">
-        <OrgLogoMark orgId={orgId} logoUrl={currentOrg?.logo} orgName={currentOrg?.name} />
+        <OrgLogoMark
+            orgId={orgId}
+            logoUrl={currentOrg?.logo}
+            orgName={currentOrg?.name}
+            roleName={roleName}
+          />
         <div className={styles.mobileTopActions}>
           <Link href={`${orgBase(orgId)}/explore`} className={styles.mobileIconBtn} aria-label="Explore">
             <Icon
@@ -707,7 +739,7 @@ export default function OrgNav({ orgId }: { orgId: string }) {
           name: currentOrg?.name ?? "Organization",
           avatarUrl: currentOrg?.logo,
           initials: currentOrg?.name?.slice(0, 2).toUpperCase() ?? "OR",
-          roleLabel: "Admin · Switch account",
+          roleLabel: `${roleName} · Switch account`,
           isOrganization: true,
         }}
         mode="organization"

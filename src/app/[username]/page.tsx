@@ -79,6 +79,7 @@ const RESERVED = new Set([
   "home",
   "messages",
   "notifications",
+  "org-invite",
   "organization",
   "posts",
   "profile",
