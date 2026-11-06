@@ -46,6 +46,9 @@ export type SharedRecruitmentPreview =
       type: RecruitmentTypeValue
       /** RecruitmentStatus, e.g. "active" | "closed" | "cancelled". */
       status: string
+      /** The card says "Trial ended" and "Closed" from these. Optional: older payloads. */
+      is_trial_over?: boolean
+      is_accepting_applications?: boolean
       /** ISO 8601 or null. */
       deadline: string | null
       cover_url: string
@@ -117,6 +120,7 @@ export type GetOrCreateConversationResult = {
 
 export type ConversationParticipant = {
     id: string
+    /** Blank for a deleted account, whose name is the "Deleted account" placeholder. */
     username: string
     name: string
     avatar: string
@@ -157,6 +161,13 @@ export type Conversation = {
      * regardless, so a stale `false` here cannot deliver anything.
      */
     is_blocked?: boolean
+    /**
+     * The other side was deleted, deactivated or suspended. Like `is_blocked`,
+     * history stays readable and only the composer goes: a send is refused with a
+     * 400. The reason is a sentence, "" when this is false.
+     */
+    counterpart_unavailable?: boolean
+    counterpart_unavailable_reason?: string
 }
 
 export type ConversationDetail = Conversation & {
@@ -196,6 +207,8 @@ export type Message = {
     shared_org_profile_preview?: SharedOrgProfilePreview | null
 
     // Media metadata (photo/video messages — schema only for now).
+    /** The file is gone, and the URLs below are blank. Show the tile. */
+    media_unavailable?: boolean
     media_url?: string
     media_thumbnail_url?: string
     media_width?: number | null
@@ -289,6 +302,8 @@ export type ShareFailureReason =
     | "content_unavailable"
     | "recipient_not_found"
     | "cannot_share_with_self"
+    | "not_shareable"
+    | "counterpart_unavailable"
     | (string & {})
 
 export type ShareFailure = {

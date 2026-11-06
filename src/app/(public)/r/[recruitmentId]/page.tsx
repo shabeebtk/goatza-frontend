@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { recruitmentId } = await params
   const result = await getPublicRecruitmentResult(recruitmentId)
 
-  // A draft, a closed trial, a followers-only posting and a typo'd uuid all
+  // A draft, a cancelled trial, a followers-only posting and a typo'd uuid all
   // land here, and the metadata must not name the club or the posting for any
   // of them — the backend answers one 404 for all four precisely so a stranger
   // cannot tell them apart, and a rich preview would undo that in one scrape.

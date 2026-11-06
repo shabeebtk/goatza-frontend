@@ -9,6 +9,8 @@ import RoleSelect from "@/features/auth/components/RoleSelect/RoleSelect"
 import DateOfBirthInput, {
   dateOfBirthSchema,
 } from "@/shared/components/DateOfBirthInput"
+import BirthdateNotice from "@/shared/components/DateOfBirthInput/BirthdateNotice"
+import { BIRTHDATE_SIGNUP_WARNING } from "@/shared/components/DateOfBirthInput/birthdateCopy"
 import CountrySelect, {
   defaultCountryCode,
 } from "@/shared/components/CountrySelect"
@@ -202,6 +204,7 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
 
       {needsAge && (
         <div className={styles.ageFields}>
+          <div>
           <DateOfBirthInput
             value={birthdate}
             onChange={(next) => {
@@ -217,6 +220,8 @@ export default function RoleStep({ onNext }: { onNext: () => void }) {
               blank, because it looks like an answer.
             */
           />
+          <BirthdateNotice>{BIRTHDATE_SIGNUP_WARNING}</BirthdateNotice>
+          </div>
 
           <CountrySelect
             value={countryCode}

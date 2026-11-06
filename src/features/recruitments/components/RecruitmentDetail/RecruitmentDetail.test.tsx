@@ -515,3 +515,91 @@ describe("RecruitmentDetail", () => {
         })
     })
 })
+
+describe("RecruitmentDetail — share controls", () => {
+    const shareButtons = () => screen.queryAllByRole("button", { name: /share/i })
+
+    it("offers them while it is live", () => {
+        renderDetail({ can_share: true })
+
+        expect(shareButtons().length).toBeGreaterThan(0)
+    })
+
+    it.each([
+        ["closed", { can_share: false, is_accepting_applications: false }],
+        ["trial over", { can_share: false, is_trial_over: true }],
+        ["not accepting", { can_share: false, is_accepting_applications: false }],
+    ])("hides them in the player's view when %s", (_name, fields) => {
+        renderDetail(fields as Partial<TRecruitmentDetail>)
+
+        expect(shareButtons()).toHaveLength(0)
+    })
+
+    it("hides them on the desktop card too", () => {
+        asDesktop()
+        renderDetail({ can_share: false })
+
+        expect(shareButtons()).toHaveLength(0)
+    })
+
+    it("hides them in the organiser's view of a draft", () => {
+        renderDetail({ can_share: false, status: "draft" } as Partial<TRecruitmentDetail>, {
+            isOrgView: true,
+        })
+
+        expect(shareButtons()).toHaveLength(0)
+    })
+
+    it("hides them in the organiser's preview as a player", () => {
+        renderDetail({ can_share: false, status: "closed" } as Partial<TRecruitmentDetail>, {
+            isOrgView: true,
+        })
+
+        fireEvent.click(screen.getAllByRole("button", { name: /Preview as player/ })[0])
+
+        expect(shareButtons()).toHaveLength(0)
+    })
+
+    it("keeps them for the organiser while it is live", () => {
+        renderDetail({ can_share: true, status: "active" } as Partial<TRecruitmentDetail>, {
+            isOrgView: true,
+        })
+
+        expect(shareButtons().length).toBeGreaterThan(0)
+    })
+})
+
+describe("RecruitmentDetail — a link to one that is gone", () => {
+    it.each([403, 404])("a %i is the friendly state, not an error", (status) => {
+        detailQuery.mockReturnValue({
+            data: undefined,
+            isLoading: false,
+            isError: true,
+            error: { response: { status } },
+        })
+        render(
+            <ToastProvider>
+                <RecruitmentDetail recruitmentId="rec-1" />
+            </ToastProvider>
+        )
+
+        expect(screen.getByText("This isn't available any more")).toBeTruthy()
+        expect(screen.queryByText("Failed to load recruitment details.")).toBeNull()
+    })
+
+    it("a 500 stays an error, because that one is worth retrying", () => {
+        detailQuery.mockReturnValue({
+            data: undefined,
+            isLoading: false,
+            isError: true,
+            error: { response: { status: 500 } },
+        })
+        render(
+            <ToastProvider>
+                <RecruitmentDetail recruitmentId="rec-1" />
+            </ToastProvider>
+        )
+
+        expect(screen.getByText("Failed to load recruitment details.")).toBeTruthy()
+    })
+})

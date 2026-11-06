@@ -107,9 +107,15 @@ export default function SharedRecruitmentMessage({
     )
   }
 
-  const isClosed = preview.status !== "active"
+  // An ended card still opens its page, which carries the banner saying so. The
+  // server's flags, because a card can sit in a thread long after it was sent.
+  const notAccepting = preview.is_accepting_applications === false
+  const isClosed =
+    preview.status !== "active" || Boolean(preview.is_trial_over) || notAccepting
   const typeLabel = TYPE_LABEL[preview.type] ?? preview.type
-  const closedTag = CLOSED_TAG[preview.status]
+  const closedTag = preview.is_trial_over
+    ? "Trial ended"
+    : (CLOSED_TAG[preview.status] ?? (notAccepting ? "Closed" : undefined))
   const deadline = deadlineLine(preview.deadline, isClosed)
 
   return (

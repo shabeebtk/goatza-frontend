@@ -21,6 +21,7 @@ import {
   formatSessionDate,
   upcomingSessions,
 } from "../../sessionDisplay"
+import { canShareRecruitment } from "../../canShareRecruitment"
 import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
 import { Recruitment } from "../../services/recruitments.api"
 
@@ -205,6 +206,7 @@ export default function RecruitmentCard({
   // The trial day has passed. The player lists no longer carry these, but a
   // shortlist keeps what was saved and the org keeps everything.
   const trialOver = isTrialOver(recruitment)
+  const canShare = canShareRecruitment(recruitment)
 
   // Both read through `accepting.ts`, which is the ONE definition of the
   // application window — the Recommended page lists by exactly this rule, and
@@ -550,6 +552,8 @@ export default function RecruitmentCard({
                   lifted to the poster's top-right corner — on their own dark
                   backing, because a translucent control vanishes on a bright
                   poster. */}
+              {/* Not rendered empty: it sits in a flex row, and would leave a gap. */}
+              {(!isOwner || canShare) && (
               <div className={styles.quickActions}>
                 {/* Bookmark — viewer only; saving your own posting is
                     meaningless. Outside the card's stretched link, or it would
@@ -570,6 +574,7 @@ export default function RecruitmentCard({
                   </button>
                 )}
 
+                {canShare && (
                 <button
                   type="button"
                   className={styles.iconBtn}
@@ -582,7 +587,9 @@ export default function RecruitmentCard({
                     className={styles.iconBtnGlyph}
                   />
                 </button>
+                )}
               </div>
+              )}
 
               <Link href={toRecruitment(recruitment.id)} className={styles.actionBtn}>
                 {actionLabel}
@@ -593,6 +600,7 @@ export default function RecruitmentCard({
         </div>
       </article>
 
+      {canShare && (
       <ShareSheet
         open={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -607,6 +615,7 @@ export default function RecruitmentCard({
           />
         }
       />
+      )}
     </div>
   )
 }

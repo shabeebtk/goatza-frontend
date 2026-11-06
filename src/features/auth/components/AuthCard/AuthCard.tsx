@@ -21,6 +21,8 @@ import {
 import DateOfBirthInput, {
     dateOfBirthSchema,
 } from "@/shared/components/DateOfBirthInput"
+import BirthdateNotice from "@/shared/components/DateOfBirthInput/BirthdateNotice"
+import { BIRTHDATE_SIGNUP_WARNING } from "@/shared/components/DateOfBirthInput/birthdateCopy"
 import CountrySelect, {
     defaultCountryCode,
 } from "@/shared/components/CountrySelect"
@@ -746,6 +748,7 @@ function AuthCard() {
                                 control={signUpForm.control}
                                 name="birthdate"
                                 render={({ field, fieldState }) => (
+                                    <div>
                                     <DateOfBirthInput
                                         value={field.value ?? ""}
                                         onChange={field.onChange}
@@ -765,6 +768,8 @@ function AuthCard() {
                                           looks like an answer.
                                         */
                                     />
+                                    <BirthdateNotice>{BIRTHDATE_SIGNUP_WARNING}</BirthdateNotice>
+                                    </div>
                                 )}
                             />
 

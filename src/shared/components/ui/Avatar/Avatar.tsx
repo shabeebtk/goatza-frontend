@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import clsx from "clsx";
 import styles from "./Avatar.module.css";
 
 interface AvatarProps {
   src?: string;
   alt?: string;
-  initials?: string;
+  /** Two letters as a rule, or a glyph for an identity that has no name to use. */
+  initials?: ReactNode;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   online?: boolean;
   className?: string;

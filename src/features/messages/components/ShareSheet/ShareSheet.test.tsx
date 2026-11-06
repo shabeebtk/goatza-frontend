@@ -12,7 +12,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import { ToastProvider } from "@/shared/components/ui/Toast/Toast"
 import type { Conversation } from "../../services/conversations.api"
@@ -150,5 +150,48 @@ describe("ShareSheet — taps while the keyboard is up", () => {
 
     unmount()
     expect(root.style.getPropertyValue("--vv-height")).toBe("")
+  })
+})
+
+describe("ShareSheet — a recruitment that closed while the sheet was open", () => {
+  const sendToArjun = (onClose: () => void) => {
+    render(
+      <ToastProvider>
+        <ShareSheet open onClose={onClose} target={{ type: "recruitment", id: "r1" }} />
+      </ToastProvider>
+    )
+    fireEvent.click(screen.getByRole("button", { name: /Arjun/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Send \(1\)/ }))
+  }
+
+  it("says so, and closes: no retry will help", async () => {
+    const onClose = vi.fn()
+
+    sendToArjun(onClose)
+    act(() => {
+      share.mock.calls[0][1].onSuccess({
+        sent: [],
+        failed: [{ id: "conv-u2", reason: "not_shareable" }],
+      })
+    })
+
+    expect(await screen.findByText("This recruitment can't be shared any more.")).toBeTruthy()
+    expect(screen.queryByText("Couldn't share")).toBeNull()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("any other failure keeps the sheet open to retry", async () => {
+    const onClose = vi.fn()
+
+    sendToArjun(onClose)
+    act(() => {
+      share.mock.calls[0][1].onSuccess({
+        sent: [],
+        failed: [{ id: "conv-u2", reason: "recipient_not_found" }],
+      })
+    })
+
+    expect(await screen.findByText("Couldn't share")).toBeTruthy()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

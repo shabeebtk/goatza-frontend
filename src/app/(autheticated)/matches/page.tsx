@@ -3,7 +3,12 @@
 // ─────────────────────────────────────────────────────────────
 
 import MatchDiaryPage from "@/features/matchDiary/components/MatchDiaryPage/MatchDiaryPage"
+import PlayersOnly from "@/features/matchDiary/components/PlayersOnly/PlayersOnly"
 
 export default function MatchDiaryRoute() {
-    return <MatchDiaryPage />
+    return (
+        <PlayersOnly>
+            <MatchDiaryPage />
+        </PlayersOnly>
+    )
 }

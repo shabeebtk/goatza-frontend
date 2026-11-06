@@ -17,6 +17,7 @@ import MediaLightbox from "@/shared/components/ImageLightbox/MediaLightbox"
 // Space is reserved from intrinsic dimensions so the poster never causes layout
 // shift while it loads. Shared with ImageMessage.
 import { displaySize } from "../../utils/mediaBox"
+import MediaUnavailableTile from "../MediaUnavailableTile/MediaUnavailableTile"
 import styles from "./VideoMessage.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 
@@ -138,7 +139,10 @@ export default function VideoMessage({
 }: VideoMessageProps) {
     const [playerOpen, setPlayerOpen] = useState(false)
     const [confirmCancel, setConfirmCancel] = useState(false)
+    const [posterFailed, setPosterFailed] = useState(false)
+    const [videoFailed, setVideoFailed] = useState(false)
 
+    const isUnavailable = Boolean(msg.media_unavailable) || videoFailed
     const isOptimistic = !msg.media_url
     const isUploading = Boolean(msg.pending) && !msg.failed
     const isFailed = Boolean(msg.failed)
@@ -156,7 +160,8 @@ export default function VideoMessage({
         ? msg.media_duration_ms / 1000
         : 0
 
-    const canPlay = !isOptimistic && !isFailed && Boolean(msg.media_url)
+    const canPlay =
+        !isOptimistic && !isFailed && !isUnavailable && Boolean(msg.media_url)
     const caption = msg.content?.trim()
 
     return (
@@ -180,7 +185,9 @@ export default function VideoMessage({
                     }
                     aria-label={canPlay ? "Play video" : undefined}
                 >
-                    {poster ? (
+                    {isUnavailable ? (
+                        <MediaUnavailableTile />
+                    ) : poster && !posterFailed ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                             src={poster}
@@ -191,9 +198,26 @@ export default function VideoMessage({
                             loading="lazy"
                             decoding="async"
                             draggable={false}
+                            onError={() => setPosterFailed(true)}
                         />
                     ) : (
-                        <div className={styles.posterFallback} />
+                        <>
+                            <div className={styles.posterFallback} />
+                            {/* No poster to show, so the clip itself is the only
+                                way to find out if there is anything to play: its
+                                first frame if so, the tile if not. */}
+                            {!isOptimistic && (
+                                <video
+                                    src={videoSrc(msg)}
+                                    className={styles.posterVideo}
+                                    preload="metadata"
+                                    muted
+                                    playsInline
+                                    aria-hidden="true"
+                                    onError={() => setVideoFailed(true)}
+                                />
+                            )}
+                        </>
                     )}
 
                     {/* Play button — only when the video is playable */}
@@ -204,7 +228,7 @@ export default function VideoMessage({
                     )}
 
                     {/* Duration badge */}
-                    {durationSec > 0 && !isUploading && !isFailed && (
+                    {durationSec > 0 && !isUploading && !isFailed && !isUnavailable && (
                         <span className={styles.durationBadge}>
                             {formatDuration(durationSec)}
                         </span>

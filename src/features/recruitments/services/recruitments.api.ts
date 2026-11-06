@@ -305,6 +305,8 @@ export type Recruitment = RecruitmentTrialWindow & {
    * saved", which is what an empty bookmark already means.
    */
   is_saved?: boolean
+  /** May this viewer share it: see `canShareRecruitment`. Optional: older payloads. */
+  can_share?: boolean
   /**
    * The FIRST photo, as the card's media slot renders it. Shipped by the list
    * serializer since the card was built and never read until now — which is why
@@ -554,6 +556,8 @@ export type RecruitmentDetail = RecruitmentTrialWindow & {
   created_at: string
   /** The bookmark, same flag the card carries. Optional: older cached detail. */
   is_saved?: boolean
+  /** May this viewer share it: see `canShareRecruitment`. Optional: older payloads. */
+  can_share?: boolean
   /** The trial day is over — same flag the card carries; see `isTrialOver`. */
   is_trial_over?: boolean
   /**
@@ -937,6 +941,8 @@ export type MyApplicationRecruitment = {
    * wrong calendar day at the ground. Never the viewer's zone.
    */
   timezone: string
+  /** May this be shared: see `canShareRecruitment`. Optional: older payloads. */
+  can_share?: boolean
   /** The trial day is over — see `isTrialOver`. Optional: older payloads. */
   is_trial_over?: boolean
   /** The LAST date. `isTrialOver` reads this before event_date. */

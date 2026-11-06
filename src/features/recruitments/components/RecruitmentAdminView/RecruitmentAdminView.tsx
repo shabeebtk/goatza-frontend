@@ -13,6 +13,9 @@ import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Icon } from "@iconify/react"
 import RecruitmentDetail from "../RecruitmentDetail/RecruitmentDetail"
+import UnavailableState, {
+  isUnavailableError,
+} from "@/shared/components/UnavailableState/UnavailableState"
 import CreateRecruitmentTrigger from "../CreateRecruitmentModal/CreateRecruitmentTrigger"
 import ApplicantsList from "../ApplicantsList/ApplicantsList"
 import { useRecruitmentDetail } from "../../hooks/useRecruitments"
@@ -32,7 +35,7 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
 
   const tab: Tab = searchParams.get("tab") === "applicants" ? "applicants" : "details"
 
-  const { data: recruitment } = useRecruitmentDetail(recruitmentId)
+  const { data: recruitment, error: recruitmentError } = useRecruitmentDetail(recruitmentId)
   const [editOpen, setEditOpen] = useState(false)
 
   // The composer, opened either by the button or by an edit that moved a
@@ -62,6 +65,12 @@ export default function RecruitmentAdminView({ recruitmentId }: { recruitmentId:
     else params.delete("tab")
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+
+  // Deleted while a notification about it was still in somebody's list. No tabs:
+  // there are no details or applicants left to switch between.
+  if (isUnavailableError(recruitmentError)) {
+    return <UnavailableState icon="mdi:bullhorn-variant-outline" />
   }
 
   return (

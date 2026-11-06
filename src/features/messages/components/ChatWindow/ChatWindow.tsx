@@ -3,10 +3,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useCallback, useState } from "react"
 import { Icon } from "@iconify/react"
 import Link from "next/link"
+import ChatActorAvatar from "../ChatActorAvatar/ChatActorAvatar"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import isToday from "dayjs/plugin/isToday"
-import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { useAuthStore } from "@/store/auth.store"
 import { useNavigation } from "@/shared/services/navigation.service"
@@ -459,6 +459,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           shared_post_preview: m.shared_post_preview,
           shared_user_profile_preview: m.shared_user_profile_preview,
           shared_org_profile_preview: m.shared_org_profile_preview,
+          media_unavailable: m.media_unavailable,
           media_url: m.media_url,
           media_thumbnail_url: m.media_thumbnail_url,
           media_width: m.media_width,
@@ -1053,6 +1054,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // rather than can_message, which reports the REQUEST state (has_accepted)
   // and is true for the blocker.
   const isBlocked    = detail?.is_blocked ?? false
+  // Deleted, deactivated or suspended. Same treatment as a block: the thread stays
+  // readable and the composer goes. No profile to open and nobody left to block.
+  // A blank username is a deleted account, whatever else the payload says.
+  const counterpartGone =
+    (detail?.counterpart_unavailable ?? false) || (Boolean(otherUser) && !otherUser?.username)
   const basePath     = isOrgAdminView && actorId ? `/organization/admin/${actorId}/messages` : "/messages"
 
   if (!isMounted) return null
@@ -1073,13 +1079,16 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               <div className={styles.headerSkeletonAvatar} />
               <div className={styles.headerSkeletonText} />
             </div>
+          ) : otherUser && counterpartGone ? (
+            <div className={styles.headerUser}>
+              <ChatActorAvatar actor={otherUser} size="sm" />
+              <div className={styles.headerInfo}>
+                <span className={styles.headerName}>{otherUser.name}</span>
+              </div>
+            </div>
           ) : otherUser ? (
             <Link href={toProfile(otherUser.username, otherUser.type)} className={styles.headerUser}>
-              <Avatar
-                src={otherUser.avatar}
-                initials={otherUser.name?.slice(0, 2).toUpperCase()}
-                size="sm"
-              />
+              <ChatActorAvatar actor={otherUser} size="sm" />
               <div className={styles.headerInfo}>
                 <span className={styles.headerName}>{otherUser.name}</span>
                 {otherUser.headline && (
@@ -1091,7 +1100,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
           <div className={styles.headerActions}>
             <ConnectionPill status={status} />
-            {otherUser && (
+            {otherUser && !counterpartGone && (
               <BlockMenuButton
                 targetType={otherUser.type}
                 targetId={otherUser.id}
@@ -1221,7 +1230,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
         {/* ── Fixed input area ── */}
         <div className={styles.inputArea}>
-          {isBlocked ? (
+          {isBlocked || counterpartGone ? (
             /* No send button, no input — the row is a statement, not a
                disabled control someone will keep tapping. The list above stays
                scrollable and every message stays readable. */
@@ -1348,7 +1357,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           // other party, so the block shortcut is the thread's counterpart.
           // Hidden once already blocked — the header owns that state.
           blockTarget={
-            otherUser && !isBlocked
+            otherUser && !isBlocked && !counterpartGone
               ? {
                   type: otherUser.type,
                   id: otherUser.id,

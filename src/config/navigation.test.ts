@@ -57,6 +57,23 @@ describe("getNavItems", () => {
   })
 })
 
+describe("the match diary", () => {
+  it("belongs to a player", () => {
+    expect(ids(itemsFor("player"))).toContain("match_diary")
+  })
+
+  it.each(["coach", "scout", "org_user"] as const)("is not on %s's nav anywhere", (role) => {
+    const items = itemsFor(role)
+
+    expect(ids(items)).not.toContain("match_diary")
+    expect(ids(getBottomNav(items))).not.toContain("match_diary")
+    expect(ids(getDesktopMore(items))).not.toContain("match_diary")
+    for (const section of getSheetSections(items)) {
+      expect(ids(section.items)).not.toContain("match_diary")
+    }
+  })
+})
+
 describe("hrefs that moved", () => {
   it("points the match diary at the matches page, not a settings screen", () => {
     const diary = itemsFor("player").find((item) => item.id === "match_diary")
@@ -186,7 +203,7 @@ describe("the three desktop clusters", () => {
 
   it.each(ROLES)("sends %s's remaining destinations to More, Tournaments last", (role) => {
     expect(ids(getDesktopMore(itemsFor(role)))).toEqual([
-      "match_diary",
+      ...(role === "player" ? ["match_diary"] : []),
       "saved",
       "settings",
       "tournaments",

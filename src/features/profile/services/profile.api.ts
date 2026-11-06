@@ -95,6 +95,12 @@ export type UserProfile = {
   /** ISO date "YYYY-MM-DD" or null. Absent on the public payload. */
   birthdate?: string | null
   /**
+   * May this person set their own date of birth right now: until onboarding is
+   * done, then once more only if none is on file. From GET /user/details and the
+   * profile update, never /user/<username>/details.
+   */
+  can_edit_birthdate?: boolean
+  /**
    * Server-derived age band ("U17" / "Senior"). Present on the public payload
    * INSTEAD of `birthdate`; the authenticated payload sends the date and the
    * client derives the same badge with ageGroupBadge().
@@ -138,9 +144,18 @@ export type UpdateProfileDataPayload = {
   height_cm?: number | null
   weight_kg?: number | null
   gender?: string | null
-  /** ISO date "YYYY-MM-DD" or null to clear */
+  /** ISO date "YYYY-MM-DD". Refused once locked, and it can never be cleared. */
   birthdate?: string | null
   location?: LocationPayload | null
+}
+
+/**
+ * `guardian_required` sits beside the user rather than inside it, the same key
+ * and shape as /user/verify/otp and /user/role: true when the date just saved
+ * made this a minor's account, and the parent screen has to take over.
+ */
+export type UpdateProfileDataResponse = UserProfile & {
+  guardian_required?: boolean
 }
 
 export type UpdateProfileLegacyPayload = {
@@ -170,7 +185,7 @@ export const updateProfileApi = async (
 
 export const updateProfileDataApi = async (
   data: UpdateProfileDataPayload
-): Promise<UserProfile> => {
+): Promise<UpdateProfileDataResponse> => {
   const res = await api.patch("/user/update/profile/data", data)
   return res.data.data
 }

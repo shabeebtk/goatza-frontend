@@ -23,8 +23,9 @@
  *
  * `recruitment` may be NULL, and that case is why this page does not call
  * notFound(): the anonymous payload must not decide whether the route exists.
- * A draft, a closed trial and a followers-only posting all come back as "not
- * public" — and a signed-in follower is entitled to the last of those — so the
+ * A draft and a followers-only posting both come back as "not public" (a closed
+ * one does not: it renders below, with no Apply) — and a signed-in follower is
+ * entitled to the followers-only one — so the
  * server renders the route either way and the branch happens here, where the
  * session is known. Same reasoning as PublicProfileView; see its header.
  *
@@ -52,6 +53,7 @@ import { recruitmentDetailPath } from "@/shared/services/recruitmentUrl"
 import { useAuthStore } from "@/store/auth.store"
 import { ageGroupGenderWord, formatBirthYears, formatReportingTime } from "../../eligibility"
 import { formatCountdown } from "../../countdown"
+import { canShareRecruitment } from "../../canShareRecruitment"
 import { FALLBACK_TRIAL_TIME_ZONE, isTrialOver } from "../../trialEnded"
 import {
   categoryCentresLine,
@@ -575,13 +577,15 @@ export default function PublicRecruitmentView({
         {/* Share needs no account and does its real work — that is the whole
             reason this page exists. "Send in a message" is left out: there is
             no session to send one from. */}
-        <RecruitmentShareMenu
-          recruitmentId={r.id}
-          title={r.title}
-          orgName={r.organization.name}
-          triggerClassName={styles.iconBtn}
-          placement="up"
-        />
+        {canShareRecruitment(r) && (
+          <RecruitmentShareMenu
+            recruitmentId={r.id}
+            title={r.title}
+            orgName={r.organization.name}
+            triggerClassName={styles.iconBtn}
+            placement="up"
+          />
+        )}
       </div>
 
       <p className={styles.footNote}>

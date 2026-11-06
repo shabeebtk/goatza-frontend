@@ -38,6 +38,7 @@ export type ChatMessage = {
     shared_org_profile_preview?: SharedOrgProfilePreview | null
 
     // Photo / video messages
+    media_unavailable?: boolean
     media_url?: string
     media_thumbnail_url?: string
     media_width?: number | null
