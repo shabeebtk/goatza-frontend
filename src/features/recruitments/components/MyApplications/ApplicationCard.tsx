@@ -288,14 +288,6 @@ export default function ApplicationCard({ application }: ApplicationCardProps) {
               className={styles.orgAvatar}
             />
             <span className={styles.orgName}>{r.organization.name}</span>
-            {r.organization.is_verified && (
-              <Icon
-                icon="mdi:check-decagram"
-                width={12}
-                height={12}
-                className={styles.verified}
-              />
-            )}
           </Link>
 
           {(dateLine || venue) && (

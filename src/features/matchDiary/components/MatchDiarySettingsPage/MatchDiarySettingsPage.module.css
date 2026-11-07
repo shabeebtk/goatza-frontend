@@ -53,3 +53,28 @@
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
 }
+
+.retryBtn {
+    min-height: 44px;
+    padding: var(--space-2) var(--space-5);
+    border: 0;
+    border-radius: var(--radius-full);
+
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semi);
+
+    background: var(--color-brand);
+    color: var(--color-on-brand);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.retryBtn:hover {
+    background: var(--color-brand-hover);
+}
+
+.retryBtn:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+}

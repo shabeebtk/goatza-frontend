@@ -19,7 +19,7 @@
 
 import { useState } from "react"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { BackHeader } from "@/shared/components/ui"
 import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
@@ -56,6 +56,7 @@ export default function AchievementsListPage({
   username,
   isOwn,
 }: AchievementsListPageProps) {
+  const toast = useToast()
   const { data: profile, isLoading: profileLoading, isError: profileError } =
     useUserProfile(username)
 
@@ -84,7 +85,7 @@ export default function AchievementsListPage({
     try {
       await deleteAchievement.mutateAsync(achievement.id)
     } catch {
-      // The hook already surfaced the server's message via sonner.
+      // The hook already surfaced the server's message as a toast.
     }
   }
 
@@ -93,9 +94,10 @@ export default function AchievementsListPage({
     const nextPinned = !achievement.is_pinned
 
     if (nextPinned && pinnedCount >= MAX_PINNED_ACHIEVEMENTS) {
-      toast.error(
-        `You can pin up to ${MAX_PINNED_ACHIEVEMENTS} achievements. Unpin one to pin this.`
-      )
+      toast.show({
+        title: `You can pin up to ${MAX_PINNED_ACHIEVEMENTS} achievements. Unpin one to pin this.`,
+        variant: "error",
+      })
       return
     }
 
@@ -105,7 +107,7 @@ export default function AchievementsListPage({
         achievementId: achievement.id,
         payload: { is_pinned: nextPinned },
       })
-      toast.success(nextPinned ? "Pinned to your profile" : "Unpinned")
+      toast.show({ title: nextPinned ? "Pinned to your profile" : "Unpinned", variant: "success" })
     } catch {
       // Same: the hook has already said what went wrong.
     } finally {

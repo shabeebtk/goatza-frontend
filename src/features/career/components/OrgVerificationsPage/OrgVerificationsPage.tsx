@@ -28,7 +28,7 @@ import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Icon } from "@iconify/react"
 import { isAxiosError } from "axios"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import OrgAchievementVerifications from "@/features/achievements/components/OrgAchievementVerifications/OrgAchievementVerifications"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -262,6 +262,7 @@ function RequestRow({
 type ReviewDomain = "career" | "achievements"
 
 export default function OrgVerificationsPage() {
+    const toast = useToast()
     const organizationId = useActingOrganizationId()
     const searchParams = useSearchParams()
 
@@ -302,9 +303,10 @@ export default function OrgVerificationsPage() {
                 userId: request.user.id,
                 tab,
             })
-            toast.success(
-                `Verified — ${request.user.name || request.user.username}'s entry now shows your check mark`
-            )
+            toast.show({
+                title: `Verified — ${request.user.name || request.user.username}'s entry now shows your check mark`,
+                variant: "success",
+            })
         } catch {
             // The hook restores the row and toasts the server's message.
         } finally {
@@ -324,11 +326,13 @@ export default function OrgVerificationsPage() {
                 reason: reason || undefined,
                 tab,
             })
-            toast.success(
-                request.verification_status === "verified"
-                    ? "Verification withdrawn — they've been told"
-                    : "Rejected — they've been told"
-            )
+            toast.show({
+                title:
+                    request.verification_status === "verified"
+                        ? "Verification withdrawn — they've been told"
+                        : "Rejected — they've been told",
+                variant: "success",
+            })
             setRejectingId(null)
         } catch {
             // Same: the hook restores the row and surfaces the message.

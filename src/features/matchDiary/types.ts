@@ -75,8 +75,12 @@ export const MATCH_PAGE_SIZE = 20
 /** Server rule: `MatchService.MAX_STAT_VALUE` (DecimalField(8, 2)). */
 export const MAX_STAT_VALUE = 999999.99
 
-/** How many fixtures the "Up next" strip asks for. */
-export const UPCOMING_LIMIT = 5
+/**
+ * How many fixtures the diary asks for. Server rule: `MAX_UPCOMING_LIMIT`, which
+ * is as close to "every upcoming fixture" as that route goes. The page and the
+ * profile share one cache key, so they share one number too.
+ */
+export const UPCOMING_LIMIT = 50
 
 /** Server rule: `summary_selectors.FORM_LENGTH` — how long `form` can be. */
 export const FORM_LENGTH = 10

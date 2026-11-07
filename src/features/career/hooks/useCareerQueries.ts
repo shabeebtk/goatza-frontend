@@ -13,7 +13,7 @@
  * the owner mutations resolve their own cache key from the auth store instead
  * of making every caller pass an id around.
  *
- * Error toasts use the shared sonner + getApiErrorMessage pattern; success
+ * Error toasts use the shared useToast + getApiErrorMessage pattern; success
  * toasts are left to the calling component, which knows the context the message
  * should read in.
  */
@@ -25,7 +25,7 @@ import {
     useQueryClient,
 } from "@tanstack/react-query"
 import type { QueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { useAuthStore } from "@/store/auth.store"
 import {
@@ -111,6 +111,7 @@ export const useUserCareer = (userId?: string | null) =>
  * then the list is invalidated to pick up the server's ordering.
  */
 export const useCreateCareerEntry = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnCareerKey()
 
@@ -131,7 +132,7 @@ export const useCreateCareerEntry = () => {
         },
 
         onError: (err) => {
-            toast.error(getCareerErrorMessage(err))
+            toast.show({ title: getCareerErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -153,6 +154,7 @@ export const useCreateCareerEntry = () => {
  * is written into the cache on success instead.
  */
 export const useUpdateCareerEntry = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnCareerKey()
 
@@ -179,7 +181,7 @@ export const useUpdateCareerEntry = () => {
         },
 
         onError: (err) => {
-            toast.error(getCareerErrorMessage(err))
+            toast.show({ title: getCareerErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -193,6 +195,7 @@ export const useUpdateCareerEntry = () => {
 
 /** Hard delete, so the optimistic removal is the final state on success. */
 export const useDeleteCareerEntry = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnCareerKey()
 
@@ -218,7 +221,7 @@ export const useDeleteCareerEntry = () => {
 
         onError: (err, _entryId, ctx) => {
             if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-            toast.error(getCareerErrorMessage(err))
+            toast.show({ title: getCareerErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -239,6 +242,7 @@ export const useDeleteCareerEntry = () => {
  * handed back, which is a toast-copy decision rather than a retry decision.
  */
 export const useAddCareerFromApplication = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnCareerKey()
 
@@ -266,7 +270,7 @@ export const useAddCareerFromApplication = () => {
         },
 
         onError: (err) => {
-            toast.error(getCareerErrorMessage(err))
+            toast.show({ title: getCareerErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -355,6 +359,7 @@ type QueueSnapshot = { prev?: ReviewPages }
 const useReviewDecision = <V extends ReviewDecisionVariables>(
     mutationFn: (variables: V) => Promise<CareerEntry>
 ) => {
+    const toast = useToast()
     const qc = useQueryClient()
     const organizationId = useActingOrganizationId()
     const orgKey = careerKeys.verificationRequests(organizationId ?? "")
@@ -398,7 +403,7 @@ const useReviewDecision = <V extends ReviewDecisionVariables>(
                     ctx.prev
                 )
             }
-            toast.error(getCareerErrorMessage(err))
+            toast.show({ title: getCareerErrorMessage(err), variant: "error" })
         },
 
         onSettled: (_data, _err, variables) => {

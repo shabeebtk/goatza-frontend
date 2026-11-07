@@ -15,8 +15,12 @@
  * guessing at something.
  *
  * A sparkline is nothing to a screen reader, so the whole thing carries an
- * aria-label that says in words what the shape says visually, and the SVG
- * itself is hidden from the tree.
+ * aria-label that says in words what the shape says visually.
+ *
+ * It fills the card's width, so the SVG stretches sideways
+ * (`preserveAspectRatio="none"`). A stretched circle is an ellipse, so the dots
+ * are HTML placed at the same coordinates, and the strokes opt out of the scaling
+ * with `non-scaling-stroke`. x is a percentage of the width, y is real pixels.
  */
 
 import { FORM_LENGTH, SELF_RATING_MAX, SELF_RATING_MIN } from "../../types"
@@ -25,21 +29,19 @@ import styles from "./FormTrend.module.css"
 /** Below this a line is two dots and an opinion. */
 const MIN_RATED_MATCHES = 3
 
-// Geometry in user units; the SVG scales as a block but is drawn at this size
-// so the dots stay round rather than being stretched by a non-uniform fit.
-const STEP = 14
-const PAD_X = 4
-const PAD_Y = 4
-const PLOT_HEIGHT = 26
+const CHART_HEIGHT = 44
+const PAD_X_PERCENT = 3
+const PAD_Y = 7
+
+/** The ratings the faint guide lines sit on. */
+const GUIDE_RATINGS = [SELF_RATING_MIN, 3, SELF_RATING_MAX]
 
 /** A rating (1-5) to a y coordinate — 5 at the top, 1 at the bottom. */
 const yFor = (rating: number): number => {
     const span = SELF_RATING_MAX - SELF_RATING_MIN
     const fraction = (rating - SELF_RATING_MIN) / span
-    return PAD_Y + (1 - fraction) * PLOT_HEIGHT
+    return PAD_Y + (1 - fraction) * (CHART_HEIGHT - PAD_Y * 2)
 }
-
-const xFor = (index: number): number => PAD_X + index * STEP
 
 const mean = (values: number[]): number =>
     values.reduce((sum, value) => sum + value, 0) / values.length
@@ -96,17 +98,19 @@ export default function FormTrend({
     ratings: (number | null)[]
     className?: string
 }) {
-    // Defensive slice: the API already caps this at FORM_LENGTH, but the chart's
-    // width is computed from the array and a longer one would push the card
-    // sideways rather than fail loudly.
+    // Defensive slice: the API already caps this at FORM_LENGTH, and an evenly
+    // spaced chart of more than that would only squeeze the dots together.
     const recent = ratings.slice(-FORM_LENGTH)
     const rated = recent.filter((rating): rating is number => rating !== null)
 
     if (rated.length < MIN_RATED_MATCHES) return null
 
     const runs = ratedRuns(recent)
-    const width = PAD_X * 2 + Math.max(0, recent.length - 1) * STEP
-    const height = PAD_Y * 2 + PLOT_HEIGHT
+    const lastRatedIndex = runs[runs.length - 1].at(-1)?.index
+
+    const xFor = (index: number): number =>
+        PAD_X_PERCENT +
+        (index / Math.max(1, recent.length - 1)) * (100 - PAD_X_PERCENT * 2)
 
     const average = oneDecimal(mean(rated))
     const label =
@@ -126,42 +130,62 @@ export default function FormTrend({
                 </span>
             </span>
 
-            {/* One figure, one label. The SVG is decoration once the sentence
-                above it says the same thing. */}
-            <div className={styles.chart} role="img" aria-label={label}>
+            {/* One figure, one label. What is inside is decoration once the
+                sentence says the same thing. */}
+            <div
+                className={styles.chart}
+                style={{ height: CHART_HEIGHT }}
+                role="img"
+                aria-label={label}
+            >
                 <svg
                     className={styles.svg}
-                    width={width}
-                    height={height}
-                    viewBox={`0 0 ${width} ${height}`}
+                    viewBox={`0 0 100 ${CHART_HEIGHT}`}
+                    preserveAspectRatio="none"
                     aria-hidden="true"
                     focusable="false"
                 >
-                    {runs.map((run) => (
-                        <g key={run[0].index}>
-                            {run.length > 1 && (
-                                <polyline
-                                    className={styles.line}
-                                    points={run
-                                        .map(
-                                            (point) =>
-                                                `${xFor(point.index)},${yFor(point.rating)}`
-                                        )
-                                        .join(" ")}
-                                />
-                            )}
-                            {run.map((point) => (
-                                <circle
-                                    key={point.index}
-                                    className={styles.dot}
-                                    cx={xFor(point.index)}
-                                    cy={yFor(point.rating)}
-                                    r={2.2}
-                                />
-                            ))}
-                        </g>
+                    {GUIDE_RATINGS.map((rating) => (
+                        <line
+                            key={rating}
+                            className={styles.guide}
+                            x1={0}
+                            x2={100}
+                            y1={yFor(rating)}
+                            y2={yFor(rating)}
+                            vectorEffect="non-scaling-stroke"
+                        />
                     ))}
+
+                    {runs
+                        .filter((run) => run.length > 1)
+                        .map((run) => (
+                            <polyline
+                                key={run[0].index}
+                                className={styles.line}
+                                points={run
+                                    .map(
+                                        (point) =>
+                                            `${xFor(point.index)},${yFor(point.rating)}`
+                                    )
+                                    .join(" ")}
+                                vectorEffect="non-scaling-stroke"
+                            />
+                        ))}
                 </svg>
+
+                {runs.flat().map((point) => (
+                    <span
+                        key={point.index}
+                        className={`${styles.dot} ${point.index === lastRatedIndex ? styles.dotLast : ""}`}
+                        data-dot=""
+                        style={{
+                            left: `${xFor(point.index)}%`,
+                            top: yFor(point.rating),
+                        }}
+                        aria-hidden="true"
+                    />
+                ))}
             </div>
         </div>
     )

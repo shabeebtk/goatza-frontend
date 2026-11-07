@@ -516,6 +516,16 @@ describe("RecruitmentDetail", () => {
     })
 })
 
+describe("RecruitmentDetail — the organization's tick", () => {
+    it("is not drawn here, even though the payload says verified", () => {
+        renderDetail()
+
+        // The fixture's organization has is_verified: true. The tick belongs to
+        // the organization's profile page and nowhere else.
+        expect(document.querySelector('[data-icon="mdi:check-decagram"]')).toBeNull()
+    })
+})
+
 describe("RecruitmentDetail — share controls", () => {
     const shareButtons = () => screen.queryAllByRole("button", { name: /share/i })
 

@@ -181,11 +181,6 @@ export default function SharedProfileMessage({
         )
       })()
 
-  const isVerified =
-    isOrg &&
-    (preview as Extract<SharedOrgProfilePreview, { unavailable: false }>)
-      .is_verified
-
   return (
     <div className={rowClass}>
       <div className={styles.column}>
@@ -207,15 +202,6 @@ export default function SharedProfileMessage({
           <div className={styles.body}>
             <span className={styles.name}>
               {preview.name || preview.username}
-              {isVerified && (
-                <Icon
-                  icon="mdi:check-decagram"
-                  width={13}
-                  height={13}
-                  className={styles.verified}
-                  aria-label="Verified"
-                />
-              )}
             </span>
 
             <span className={styles.handle}>@{preview.username}</span>

@@ -352,6 +352,10 @@ export const getMatchDiaryErrorMessage = (
 export const isMatchDiaryForbidden = (err: unknown): boolean =>
     isAxiosError(err) && err.response?.status === 403
 
+/** True for the 404 the summary answers with when there is nothing to show. */
+export const isMatchDiaryNotFound = (err: unknown): boolean =>
+    isAxiosError(err) && err.response?.status === 404
+
 /**
  * Retry policy for the diary's reads.
  *

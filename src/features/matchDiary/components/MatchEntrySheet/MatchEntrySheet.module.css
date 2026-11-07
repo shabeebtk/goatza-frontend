@@ -1,14 +1,16 @@
 /* ============================================================
    GOATZA — MatchEntrySheet
-   Mobile:  full-screen sheet. Sticky header, sticky footer, the
-            form scrolls between them.
-   640px+:  centred card, max 600px, same header and footer.
+   Below 768px: full-screen sheet over the bars. Sticky header,
+                sticky footer, the form scrolls between them.
+   768px+:      centred card, max 600px, same header and footer.
+   The switch is AppShell's, because it decides whether the bars
+   are covered.
 
-   dvh, not vh, throughout. On a phone, `100vh` is the viewport
-   WITHOUT the browser chrome and without the keyboard — so a
-   footer pinned to 100vh sits under the on-screen keyboard for
-   the entire time somebody is typing, which is the entire time
-   this screen is used.
+   The backdrop is sized from the VISIBLE area (useVisualViewport
+   writes --vv-top and --vv-height). dvh does not help here: iOS
+   does not shrink it for the keyboard, so a footer pinned to
+   100dvh sits under the keys for the whole time somebody is
+   typing. The fallback is only for the first paint.
    ============================================================ */
 
 @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
@@ -20,14 +22,17 @@
 
 .backdrop {
   position: fixed;
-  inset: 0;
-  z-index: 500;
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
+  z-index: var(--z-match-sheet);
 
   display: flex;
   align-items: flex-end;
   justify-content: center;
 
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-scrim);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   animation: backdropIn 0.18s var(--ease-out) both;
@@ -39,8 +44,10 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  /* 100% of the backdrop is the visible area, so the keyboard shortens the
+     sheet rather than pushing its footer off. */
+  height: 100%;
+  max-height: 100%;
 
   background: var(--color-surface);
   overflow: hidden;
@@ -52,7 +59,7 @@
    the page behind it. It is a container, not a control — no ring. */
 .sheet:focus { outline: none; }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .backdrop {
     align-items: center;
     padding: var(--space-6);
@@ -60,7 +67,7 @@
 
   .sheet {
     height: auto;
-    max-height: 88dvh;
+    max-height: min(88dvh, 100%);
     max-width: 600px;
     border: 1.5px solid var(--color-border);
     border-radius: var(--radius-xl);
@@ -100,8 +107,8 @@
   display: grid;
   place-items: center;
 
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: var(--radius-md);
 
@@ -114,7 +121,7 @@
 
 .closeBtn:hover:not(:disabled) {
   background: var(--color-brand-subtle);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .closeBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
@@ -171,6 +178,7 @@
 
 .segment {
   flex: 1 1 0;
+  min-height: 44px;
 
   padding: var(--space-2) var(--space-3);
   border: 0;
@@ -237,6 +245,7 @@
 
 .undoBtn {
   align-self: flex-start;
+  min-height: 44px;
 
   padding: 0;
   border: 0;
@@ -292,7 +301,7 @@
   align-items: center;
   gap: var(--space-1);
   font-size: var(--text-xs);
-  color: var(--color-error);
+  color: var(--color-error-strong);
 }
 
 .fieldInvalid .input { border-color: var(--color-error); }
@@ -326,6 +335,18 @@
 
 .input:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Native date and time fields draw their own box on iOS and centre the value,
+   so they would not match the text fields around them. */
+.dateInput {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 46px;
+}
+
+.dateInput::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 .textarea {
   resize: vertical;
   min-height: 76px;
@@ -336,6 +357,12 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
+}
+
+.row2Single { grid-template-columns: 1fr; }
+
+@media (max-width: 379px) {
+  .row2 { grid-template-columns: 1fr; }
 }
 
 .dateRow { display: flex; gap: var(--space-2); }
@@ -349,7 +376,11 @@
   margin-top: var(--space-2);
 }
 
+/* 36px to look at, 44px to hit. Rows wrap with an 8px gap, so two rows' hit
+   areas meet without overlapping. */
 .chip {
+  position: relative;
+  min-height: 36px;
   padding: 6px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
@@ -365,10 +396,16 @@
     color var(--duration-fast);
 }
 
+.chip::after {
+  content: "";
+  position: absolute;
+  inset: -5px 0;
+}
+
 .chip:hover:not(:disabled) {
   background: var(--color-brand-subtle);
   border-color: var(--color-brand-muted);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
@@ -377,7 +414,7 @@
 .chipActive {
   background: var(--color-brand-subtle);
   border-color: var(--color-brand);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
   font-weight: var(--weight-semi);
 }
 
@@ -418,7 +455,7 @@
 .resultBtnActive[data-tone="win"] {
   background: var(--color-brand-muted);
   border-color: var(--color-brand);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .resultBtnActive[data-tone="draw"] {
@@ -430,7 +467,7 @@
 .resultBtnActive[data-tone="loss"] {
   background: var(--color-surface-raised);
   border-color: var(--color-error);
-  color: var(--color-error);
+  color: var(--color-error-strong);
 }
 
 /* ── Stats ───────────────────────────────────────────────────── */
@@ -496,7 +533,7 @@
 
 .statRow {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
 }
@@ -509,13 +546,18 @@
   cursor: pointer;
 }
 
+/* Two lines, then a clamp. "Shots on target" is a name a player has to be able
+   to read, and at 320px one line would leave it as "Shots o…". */
 .statName {
-  font-size: var(--text-sm);
-  color: var(--color-text-primary);
-
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .statShort {
@@ -537,6 +579,7 @@
 }
 
 .stepBtn {
+  position: relative;
   display: grid;
   place-items: center;
 
@@ -553,9 +596,17 @@
     color var(--duration-fast);
 }
 
+/* The hit area stays 44px when the button shrinks below 400px. It reaches into
+   the stepper's 4px gaps and no further, so it never lands on the input. */
+.stepBtn::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
 .stepBtn:hover:not(:disabled) {
   border-color: var(--color-brand-muted);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .stepBtn:active:not(:disabled) { background: var(--color-brand-subtle); }
@@ -612,13 +663,25 @@
   text-align: left;
 }
 
+@media (max-width: 399px) {
+  .stepBtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .statInput { width: 56px; }
+
+  /* The name needs the room more than its abbreviation does. */
+  .statShort { display: none; }
+}
+
 .statError,
 .statNote {
   grid-column: 1 / -1;
   font-size: var(--text-xs);
 }
 
-.statError { color: var(--color-error); }
+.statError { color: var(--color-error-strong); }
 .statNote { color: var(--color-text-muted); }
 
 .moreStatsBtn {
@@ -628,6 +691,7 @@
   gap: var(--space-1);
 
   margin-top: var(--space-1);
+  min-height: 44px;
   padding: 6px 12px;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-full);
@@ -645,7 +709,7 @@
 
 .moreStatsBtn:hover:not(:disabled) {
   border-color: var(--color-brand);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .moreStatsBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
@@ -682,6 +746,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 44px;
 
   padding: var(--space-2) var(--space-4);
   border: 1px dashed var(--color-border);
@@ -699,7 +764,7 @@
 
 .disclosureBtn:hover:not(:disabled) {
   border-color: var(--color-brand);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .disclosureBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
@@ -786,13 +851,14 @@
 }
 
 .linkBtn {
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
 
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -838,7 +904,7 @@
 .stintBtnActive {
   background: var(--color-brand-subtle);
   border-color: var(--color-brand);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
   font-weight: var(--weight-semi);
 }
 
@@ -855,7 +921,7 @@
 
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
-  color: var(--color-error);
+  color: var(--color-error-strong);
 }
 
 .submitError svg { flex-shrink: 0; margin-top: 2px; }
@@ -869,7 +935,9 @@
   flex-shrink: 0;
 
   padding: var(--space-3) var(--space-5);
-  padding-bottom: calc(var(--space-3) + var(--safe-bottom));
+  /* Home-indicator clearance only while there is one to clear: with the
+     keyboard up it sits under the keys. */
+  padding-bottom: calc(var(--space-3) + max(0px, var(--safe-bottom) - var(--keyboard-inset, 0px)));
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -902,85 +970,25 @@
 .saveBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
 .saveBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ── Discard guard ───────────────────────────────────────────── */
+/* ── Touch ───────────────────────────────────────────────────── */
+/* No double-tap zoom and no 300ms wait on anything tapped here. A stepper is
+   tapped twice in a row on purpose. */
 
-.confirmLayer {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-
-  display: grid;
-  place-items: center;
-  padding: var(--space-5);
-
-  background: rgba(0, 0, 0, 0.55);
-  animation: backdropIn 0.14s var(--ease-out) both;
+.closeBtn,
+.segment,
+.promoteBtn,
+.undoBtn,
+.chip,
+.resultBtn,
+.stepBtn,
+.moreStatsBtn,
+.disclosureBtn,
+.ratingBtn,
+.linkBtn,
+.stintBtn,
+.saveBtn {
+  touch-action: manipulation;
 }
-
-.confirmCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  width: 100%;
-  max-width: 320px;
-
-  padding: var(--space-5);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-}
-
-.confirmTitle {
-  font-family: var(--font-ui);
-  font-size: var(--text-base);
-  font-weight: var(--weight-bold);
-  color: var(--color-text-primary);
-}
-
-.confirmText {
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  color: var(--color-text-secondary);
-}
-
-.confirmActions {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-.confirmKeep,
-.confirmDiscard {
-  flex: 1;
-  padding: 11px var(--space-4);
-  border-radius: var(--radius-full);
-
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.confirmKeep {
-  border: 1.5px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
-.confirmKeep:hover { background: var(--color-surface-raised); color: var(--color-text-primary); }
-
-.confirmDiscard {
-  border: none;
-  background: var(--color-error);
-  color: #ffffff;
-}
-
-.confirmDiscard:hover { opacity: 0.9; }
-
-.confirmKeep:focus-visible,
-.confirmDiscard:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 
 /* ── Spinner ─────────────────────────────────────────────────── */
 

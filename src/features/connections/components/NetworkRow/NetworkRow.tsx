@@ -20,7 +20,6 @@ export default function NetworkRow({ row, activeKey }: NetworkRowProps) {
   const { toProfile } = useNavigation()
   const toggle = useNetworkFollow(activeKey)
 
-  const isOrg = row.type === "organization"
   const href = toProfile(row.username, row.type)
   const initials = (row.name || row.username || "?").slice(0, 2).toUpperCase()
 
@@ -41,15 +40,6 @@ export default function NetworkRow({ row, activeKey }: NetworkRowProps) {
         <span className={styles.text}>
           <span className={styles.nameLine}>
             <span className={styles.name}>{row.name || row.username}</span>
-            {isOrg && row.is_verified && (
-              <Icon
-                icon="mdi:check-decagram"
-                width={15}
-                height={15}
-                className={styles.verified}
-                aria-label="Verified organization"
-              />
-            )}
           </span>
 
           {row.headline && (

@@ -12,7 +12,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { QueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { profileKeys } from "@/features/profile/hooks/useProfileQueries"
 import { useAuthStore } from "@/store/auth.store"
@@ -100,6 +100,7 @@ const useOwnRailKey = () => {
  * refetch, then the list is invalidated to pick up server truth.
  */
 export const useCreateHighlight = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { username, key } = useOwnRailKey()
 
@@ -117,7 +118,7 @@ export const useCreateHighlight = () => {
             )
         },
         onError: (err) => {
-            toast.error(getHighlightErrorMessage(err))
+            toast.show({ title: getHighlightErrorMessage(err), variant: "error" })
         },
         onSettled: () => {
             qc.invalidateQueries({ queryKey: key })
@@ -129,6 +130,7 @@ export const useCreateHighlight = () => {
 // ── Update (title / visibility) ───────────────────────────────
 
 export const useUpdateHighlight = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnRailKey()
 
@@ -174,7 +176,7 @@ export const useUpdateHighlight = () => {
 
         onError: (err, _vars, ctx) => {
             if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-            toast.error(getHighlightErrorMessage(err))
+            toast.show({ title: getHighlightErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -190,6 +192,7 @@ export const useUpdateHighlight = () => {
  * outright, so a dropped tile can never half-apply.
  */
 export const useReorderHighlights = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnRailKey()
 
@@ -230,7 +233,7 @@ export const useReorderHighlights = () => {
 
         onError: (err, _vars, ctx) => {
             if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-            toast.error(getHighlightErrorMessage(err))
+            toast.show({ title: getHighlightErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -242,6 +245,7 @@ export const useReorderHighlights = () => {
 // ── Delete (soft) ─────────────────────────────────────────────
 
 export const useDeleteHighlight = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { username, key } = useOwnRailKey()
 
@@ -267,7 +271,7 @@ export const useDeleteHighlight = () => {
 
         onError: (err, _vars, ctx) => {
             if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-            toast.error(getHighlightErrorMessage(err))
+            toast.show({ title: getHighlightErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {

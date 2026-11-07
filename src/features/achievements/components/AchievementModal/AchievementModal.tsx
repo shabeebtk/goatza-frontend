@@ -22,7 +22,7 @@ import { useMemo, useState } from "react"
 import { Controller, useForm, type Resolver, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import OrganizationCombobox, {
     type SelectedOrganization,
@@ -255,6 +255,7 @@ function AchievementForm({
     pinnedCount,
     onClose,
 }: AchievementFormProps) {
+    const toast = useToast()
     const isEdit = Boolean(achievement)
 
     const ownUserId = useAuthStore((s) => s.user?.id)
@@ -360,7 +361,7 @@ function AchievementForm({
         if (linked && linked.sport.id !== nextSportId) {
             setValue("career_entry", "", { shouldValidate: true })
             setValue("career_entry_sport", "", { shouldValidate: true })
-            toast.info("Cleared the linked career entry — it's for a different sport")
+            toast.show({ title: "Cleared the linked career entry — it's for a different sport", variant: "info" })
         }
     }
 
@@ -417,27 +418,31 @@ function AchievementForm({
                     achievementId: achievement.id,
                     payload: toUpdateAchievementPayload(formValues),
                 })
-                toast.success(
-                    willResetVerification && creditedOrg
-                        ? `Updated — ${formValues.awarded_by_name} will be asked to verify it again`
-                        : "Achievement updated"
-                )
+                toast.show({
+                    title:
+                        willResetVerification && creditedOrg
+                            ? `Updated — ${formValues.awarded_by_name} will be asked to verify it again`
+                            : "Achievement updated",
+                    variant: "success",
+                })
             } else {
                 await createAchievement.mutateAsync(
                     toCreateAchievementPayload(formValues)
                 )
-                toast.success(
-                    creditedOrg
-                        ? `Added — verification requested from ${formValues.awarded_by_name}`
-                        : "Achievement added"
-                )
+                toast.show({
+                    title:
+                        creditedOrg
+                            ? `Added — verification requested from ${formValues.awarded_by_name}`
+                            : "Achievement added",
+                    variant: "success",
+                })
             }
             reset()
             void settleViewport()
             onClose()
         } catch {
-            // The mutation hooks already surface the server's message via
-            // sonner; the modal stays open so the entered values aren't lost.
+            // The mutation hooks already surface the server's message as a
+            // toast; the modal stays open so the entered values aren't lost.
         }
     }
 

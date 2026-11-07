@@ -139,15 +139,6 @@ export default function CareerEntryCard({
                         <h3 className={styles.title}>{entry.title}</h3>
                         <p className={styles.orgName}>
                             {entry.organization_name}
-                            {entry.organization?.is_verified && (
-                                <Icon
-                                    icon="mdi:check-decagram"
-                                    width={13}
-                                    height={13}
-                                    className={styles.orgVerifiedTick}
-                                    aria-label="Verified organization"
-                                />
-                            )}
                         </p>
                         <p className={styles.dateRange}>
                             {range}

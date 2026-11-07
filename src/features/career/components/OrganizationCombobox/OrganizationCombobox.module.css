@@ -166,8 +166,6 @@
   white-space: nowrap;
 }
 
-.optionTick { color: var(--color-brand); flex-shrink: 0; }
-
 .optionUsername {
   font-family: var(--font-body);
   font-size: var(--text-xs);

@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import {
     ACHIEVEMENTS_EMPTY_ICON,
@@ -114,6 +114,7 @@ export default function AchievementsSection({
     username,
     isOwn,
 }: AchievementsSectionProps) {
+    const toast = useToast()
     // On a public profile the awards arrived with the server-rendered bundle;
     // passing null disables the query, which is IsAuthenticated. Same pattern
     // CareerSection uses.
@@ -185,9 +186,10 @@ export default function AchievementsSection({
         const nextPinned = !achievement.is_pinned
 
         if (nextPinned && pinnedCount >= MAX_PINNED_ACHIEVEMENTS) {
-            toast.error(
-                `You can pin up to ${MAX_PINNED_ACHIEVEMENTS} achievements. Unpin one to pin this.`
-            )
+            toast.show({
+                title: `You can pin up to ${MAX_PINNED_ACHIEVEMENTS} achievements. Unpin one to pin this.`,
+                variant: "error",
+            })
             return
         }
 
@@ -197,9 +199,9 @@ export default function AchievementsSection({
                 achievementId: achievement.id,
                 payload: { is_pinned: nextPinned },
             })
-            toast.success(nextPinned ? "Pinned to your profile" : "Unpinned")
+            toast.show({ title: nextPinned ? "Pinned to your profile" : "Unpinned", variant: "success" })
         } catch {
-            // The hook already surfaced the server's message via sonner.
+            // The hook already surfaced the server's message as a toast.
         } finally {
             setPinningId(null)
         }

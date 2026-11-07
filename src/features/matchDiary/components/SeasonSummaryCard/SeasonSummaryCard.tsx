@@ -28,10 +28,10 @@
  * stats matter for this sport, and that is the question being asked.
  */
 
-import { Fragment } from "react"
+import { Fragment, useState } from "react"
 import { Icon } from "@iconify/react"
 
-import { formatStatValue } from "../../matchDiaryMeta"
+import { formatStatValue, singularStatName } from "../../matchDiaryMeta"
 import type { MatchSummary } from "../../types"
 import FormTrend from "../FormTrend/FormTrend"
 import Select from "@/shared/components/ui/Select/Select"
@@ -53,23 +53,6 @@ const HEADLINE_EXTRAS = 2
 const groupThousands = (value: number): string =>
     String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
 
-/**
- * A best-effort singular for a total of exactly one.
- *
- * Best-effort is the honest description. Stat names are authored by whoever
- * seeds a sport's catalog and the catalog stores no singular form, so this
- * handles English's two common plural endings and nothing else. It is right for
- * every label the seed ships — Goals, Assists, Wickets, Catches, Sixes, Saves,
- * Maidens — and reads slightly off for a multi-word one whose plural is not the
- * last word ("1 shots on target"). A wrong headline noun at a total of one is a
- * blemish; guessing at grammar for arbitrary user data is a bug generator.
- */
-const singular = (label: string): string => {
-    if (/(s|x|z|ch|sh)es$/i.test(label)) return label.slice(0, -2)
-    if (/s$/i.test(label) && !/ss$/i.test(label)) return label.slice(0, -1)
-    return label
-}
-
 /** "14 goals", "10.5km" — the headline form of one stat total. */
 const statPhrase = (
     label: string,
@@ -88,7 +71,7 @@ const statPhrase = (
     // takes an "s". A name is a word and does.
     if (unit) return `${value}${unit}`
 
-    return `${value} ${(total === 1 ? singular(label) : label).toLowerCase()}`
+    return `${value} ${(total === 1 ? singularStatName(label) : label).toLowerCase()}`
 }
 
 export type SeasonSummaryCardProps = {
@@ -116,6 +99,10 @@ export type SeasonSummaryCardProps = {
      * to render the one field where that is not quite true.
      */
     isOwn?: boolean
+    /** The stat grid stays behind a "See all stats" toggle. The diary on a phone. */
+    compact?: boolean
+    /** One column at every width. The diary's narrow right rail. */
+    stacked?: boolean
 }
 
 export default function SeasonSummaryCard({
@@ -125,7 +112,11 @@ export default function SeasonSummaryCard({
     year = null,
     onYearChange,
     isOwn = false,
+    compact = false,
+    stacked = false,
 }: SeasonSummaryCardProps) {
+    const [statsOpen, setStatsOpen] = useState(false)
+
     const {
         total_matches: totalMatches,
         wins,
@@ -134,6 +125,8 @@ export default function SeasonSummaryCard({
         minutes_total: minutesTotal,
         stats,
     } = summary
+
+    const showStats = stats.length > 0 && (!compact || statsOpen)
 
     // ── Headline ──────────────────────────────────────────────
 
@@ -177,7 +170,7 @@ export default function SeasonSummaryCard({
 
     return (
         <div
-            className={`${styles.card} ${stats.length > 0 ? styles.cardSplit : ""}`}
+            className={`${styles.card} ${stats.length > 0 && !compact && !stacked ? styles.cardSplit : ""}`}
         >
             {/* ── Left: the season at a glance ── */}
             <div className={styles.primary}>
@@ -299,8 +292,25 @@ export default function SeasonSummaryCard({
                 )}
             </div>
 
+            {compact && stats.length > 0 && (
+                <button
+                    type="button"
+                    className={styles.statsToggle}
+                    aria-expanded={statsOpen}
+                    onClick={() => setStatsOpen((open) => !open)}
+                >
+                    {statsOpen ? "Hide stats" : "See all stats"}
+                    <Icon
+                        icon={statsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                    />
+                </button>
+            )}
+
             {/* ── Right: everything they logged ── */}
-            {stats.length > 0 && (
+            {showStats && (
                 <div className={styles.statGrid}>
                     {stats.map((stat) => (
                         <div key={stat.stat_field_id} className={styles.statTile}>

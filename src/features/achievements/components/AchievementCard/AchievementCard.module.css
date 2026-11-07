@@ -255,11 +255,6 @@
   overflow-wrap: anywhere;
 }
 
-.orgVerifiedTick {
-  flex-shrink: 0;
-  color: var(--color-brand);
-}
-
 /* Subtle by design — the cross-reference is context, not a headline. */
 .duringLine {
   font-family: var(--font-body);

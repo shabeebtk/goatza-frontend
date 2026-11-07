@@ -55,8 +55,11 @@ import styles from "./MatchDiarySettingsPage.module.css"
 export default function MatchDiarySettingsPage() {
     // Enabled: this GET get-or-creates the settings row server-side, which is
     // exactly right for a screen the owner opened on purpose.
-    const { data: settings, isPending, error } = useMatchDiarySettings()
+    const { data: settings, isPending, error, refetch } = useMatchDiarySettings()
     const update = useUpdateMatchDiarySettings()
+    // Until the first answer lands the switch only knows a guess, and a tap on a
+    // guess could publish a season. While a write runs, the next tap would race it.
+    const toggleBusy = isPending || update.isPending
 
     if (error) {
         return (
@@ -72,6 +75,15 @@ export default function MatchDiarySettingsPage() {
                             )
                             : "Couldn't load your match diary settings."}
                     </p>
+                    {!isMatchDiaryForbidden(error) && (
+                        <button
+                            type="button"
+                            className={styles.retryBtn}
+                            onClick={() => void refetch()}
+                        >
+                            Retry
+                        </button>
+                    )}
                 </div>
             </div>
         )
@@ -98,7 +110,8 @@ export default function MatchDiarySettingsPage() {
                     // never does.
                     description="Your totals, record and streak become visible to anyone who can see your profile. Individual matches, notes and photos stay private either way."
                     checked={showcase}
-                    busy={update.isPending}
+                    disabled={toggleBusy}
+                    busy={toggleBusy}
                     onChange={(next) =>
                         update.mutate({ showcase_summary: next })
                     }

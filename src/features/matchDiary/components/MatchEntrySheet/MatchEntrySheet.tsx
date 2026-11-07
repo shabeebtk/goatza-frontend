@@ -35,7 +35,7 @@
  * career stint are what sits below.
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import {
     Controller,
     useForm,
@@ -47,7 +47,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query"
 import { Icon } from "@iconify/react"
 import dayjs from "dayjs"
-import { toast } from "sonner"
 
 import { useUserCareer } from "@/features/career/hooks/useCareerQueries"
 import type { CareerEntry } from "@/features/career/types"
@@ -56,8 +55,22 @@ import {
     useSportsList,
 } from "@/features/profile/hooks/useSportsQueries"
 import type { Sport, UserSport } from "@/features/profile/services/sports.api"
+import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import Portal from "@/shared/components/ui/Portal/Portal"
 import Select from "@/shared/components/ui/Select/Select"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import { useFocusedFieldVisible } from "@/shared/hooks/useFocusedFieldVisible"
+import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import { blurActiveInput, keepFocusProps } from "@/shared/hooks/keepFocus"
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
+import { revealChrome } from "@/shared/hooks/useScrollChrome"
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
+import { returnFocus } from "@/shared/services/focusReturn"
+import {
+    reanchorFixedElements,
+    settleViewport,
+} from "@/shared/utils/settleViewport"
 import { useAuthStore } from "@/store/auth.store"
 
 import {
@@ -66,7 +79,8 @@ import {
     useMatchStatFields,
     useUpdateMatch,
 } from "../../hooks/useMatchDiary"
-import { MATCH_TYPE_LABELS, opponentLabel } from "../../matchDiaryMeta"
+import { useGuardedBack } from "../../hooks/useGuardedBack"
+import { MATCH_TYPE_LABELS } from "../../matchDiaryMeta"
 import {
     getMatchDiaryErrorMessage,
     toCreateMatchPayload,
@@ -97,8 +111,6 @@ import {
 import StatInputRow, { type StatInputChange } from "./StatInputRow"
 import { useMatchPhotoUpload } from "./useMatchPhotoUpload"
 import styles from "./MatchEntrySheet.module.css"
-import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
-import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -267,7 +279,25 @@ export type MatchEntrySheetProps = {
      * for a match the player already scheduled.
      */
     fixture?: UpcomingMatch | null
+    /**
+     * Open an existing fixture already in Played mode, prefilled from it. For
+     * "Log result" on an overdue fixture and the detail's "Add result": the
+     * player has said what they came to do, so "Log the result" would be a tap
+     * that only repeats it. Ignored when there is no fixture to promote.
+     */
+    startPlayed?: boolean
     onClose: () => void
+}
+
+/** The heading, for the loading shell and the form alike. */
+const sheetTitle = (
+    isEdit: boolean,
+    openedAsFixture: boolean,
+    startPlayed: boolean
+): string => {
+    if (!isEdit) return "Log a match"
+    if (!openedAsFixture) return "Edit match"
+    return startPlayed ? "Log result" : "Your fixture"
 }
 
 /**
@@ -281,6 +311,7 @@ export type MatchEntrySheetProps = {
 export default function MatchEntrySheet({
     entry,
     fixture,
+    startPlayed = false,
     onClose,
 }: MatchEntrySheetProps) {
     const { data: sports, isLoading: sportsLoading } = useSportsList()
@@ -292,44 +323,129 @@ export default function MatchEntrySheet({
     // no suggestions.
     const [hints] = useState(() => readDiaryHints(qc))
 
+    // Taken during the first render: a child's effect moves focus into the
+    // sheet, and children's effects run before this component's would.
+    const [opener] = useState(() =>
+        typeof document === "undefined"
+            ? null
+            : (document.activeElement as HTMLElement | null)
+    )
+
     useBodyScrollLock()
+    // The backdrop follows the visible area, so the footer stays above the keys.
+    useVisualViewport()
+    // Full-screen below 768px, over the bars: the toasts stop offsetting for them.
+    const isPhone = useMediaQuery("(max-width: 767px)")
+    useHtmlFlag("chrome-covered", isPhone)
+
+    // Declared after the scroll lock, so it runs after the release: however the
+    // sheet goes away, the page has its bars back and iOS has re-anchored the
+    // fixed elements, and focus returns to whatever opened it.
+    useEffect(
+        () => () => {
+            revealChrome()
+            reanchorFixedElements()
+            returnFocus(opener)
+        },
+        [opener]
+    )
+
+    /** The form's say over a back press. It only exists once the form does. */
+    const interceptBackRef = useRef<(() => boolean) | null>(null)
+
+    // settleViewport lives here because every way out comes through this: Save,
+    // Discard, the X, Esc, the backdrop and the back gesture.
+    const { guard, close } = useGuardedBack(
+        () => {
+            void settleViewport()
+            onClose()
+        },
+        () => interceptBackRef.current?.() ?? false
+    )
 
     const ready = !sportsLoading && !mySportsLoading
 
-    if (!ready) {
-        return (
-            <Portal>
-                {/* Dismissible even while loading: if the catalog request hangs
-                    there has to be a way out that isn't reloading the app. */}
-                <div
-                    className={styles.backdrop}
-                    onClick={(event) => {
-                        if (event.target === event.currentTarget) onClose()
-                    }}
-                >
-                    <div className={styles.sheet}>
-                        <div className={styles.loadingBody}>
-                            <span
-                                className={styles.miniSpinner}
-                                aria-hidden="true"
-                            />
-                            Loading…
-                        </div>
-                    </div>
-                </div>
-            </Portal>
-        )
-    }
+    const loadingRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        if (ready) return
+        loadingRef.current?.focus({ preventScroll: true })
+    }, [ready])
+
+    useEffect(() => {
+        if (ready) return
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") close()
+        }
+        window.addEventListener("keydown", onKeyDown)
+        return () => window.removeEventListener("keydown", onKeyDown)
+    })
+
+    const existing = entry ?? fixture
+    const openedAsFixture = entry
+        ? entry.status === "scheduled"
+        : Boolean(fixture)
+    const title = sheetTitle(Boolean(existing), openedAsFixture, startPlayed)
 
     return (
-        <MatchEntryForm
-            entry={entry ?? null}
-            fixture={fixture ?? null}
-            sports={sports ?? []}
-            mySports={mySports ?? []}
-            hints={hints}
-            onClose={onClose}
-        />
+        <>
+            {guard}
+
+            {ready ? (
+                <MatchEntryForm
+                    entry={entry ?? null}
+                    fixture={fixture ?? null}
+                    startPlayed={startPlayed}
+                    title={title}
+                    sports={sports ?? []}
+                    mySports={mySports ?? []}
+                    hints={hints}
+                    closeSheet={close}
+                    interceptBackRef={interceptBackRef}
+                />
+            ) : (
+                <Portal>
+                    {/* Dismissible even while loading: if the catalog request
+                        hangs there has to be a way out that isn't reloading the
+                        app. */}
+                    <div
+                        className={styles.backdrop}
+                        onClick={(event) => {
+                            if (event.target === event.currentTarget) close()
+                        }}
+                    >
+                        <div
+                            ref={loadingRef}
+                            tabIndex={-1}
+                            className={styles.sheet}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label={title}
+                        >
+                            <div className={styles.header}>
+                                <h2 className={styles.headerTitle}>{title}</h2>
+                                <button
+                                    type="button"
+                                    className={styles.closeBtn}
+                                    onClick={close}
+                                    aria-label="Close"
+                                >
+                                    <Icon icon="mdi:close" width={20} height={20} />
+                                </button>
+                            </div>
+
+                            <div className={styles.loadingBody}>
+                                <span
+                                    className={styles.miniSpinner}
+                                    aria-hidden="true"
+                                />
+                                Loading…
+                            </div>
+                        </div>
+                    </div>
+                </Portal>
+            )}
+        </>
     )
 }
 
@@ -338,18 +454,26 @@ export default function MatchEntrySheet({
 function MatchEntryForm({
     entry,
     fixture,
+    startPlayed,
+    title,
     sports,
     mySports,
     hints,
-    onClose,
+    closeSheet,
+    interceptBackRef,
 }: {
     entry: MatchEntry | null
     fixture: UpcomingMatch | null
+    startPlayed: boolean
+    title: string
     sports: Sport[]
     mySports: UserSport[]
     hints: DiaryHints
-    onClose: () => void
+    /** Close through the sheet's history entry. Never unmount it directly. */
+    closeSheet: () => void
+    interceptBackRef: RefObject<(() => boolean) | null>
 }) {
+    const toast = useToast()
     const existingId = entry?.id ?? fixture?.id ?? null
     const isEdit = existingId !== null
     /** True when the sheet was OPENED on a fixture — not when it now shows one. */
@@ -395,7 +519,7 @@ function MatchEntryForm({
         )
     }
 
-    const initialValues: MatchEntryFormValues = entry
+    const savedValues: MatchEntryFormValues = entry
         ? matchEntryToForm(entry)
         : fixture
             ? upcomingMatchToForm(fixture)
@@ -405,6 +529,12 @@ function MatchEntryForm({
                 match_type: hints.recentMatchType ?? DEFAULT_MATCH_TYPE,
                 position: primaryPositionIdFor(primarySportId),
             })
+
+    // A default, not an edit: closing without touching anything asks nothing.
+    const initialValues: MatchEntryFormValues =
+        startPlayed && openedAsFixture
+            ? { ...savedValues, status: "played" }
+            : savedValues
 
     // ── Form ──────────────────────────────────────────────────
 
@@ -433,7 +563,6 @@ function MatchEntryForm({
     const watchedDate = watch("date")
     const result = watch("result")
     const opponentName = watch("opponent_name")
-    const position = watch("position")
     const selfRating = watch("self_rating")
     const notes = watch("notes")
     const careerEntryId = watch("career_entry")
@@ -482,6 +611,10 @@ function MatchEntryForm({
     const bodyRef = useRef<HTMLDivElement | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+    // The keyboard shrinks the sheet but not the body's scroll offset, so the
+    // field just tapped can end up under the footer: keep it in view.
+    useFocusedFieldVisible(bodyRef)
+
     /**
      * Move focus into the sheet, but onto the DIALOG and not into a field.
      *
@@ -510,12 +643,28 @@ function MatchEntryForm({
             return
         }
 
-        onClose()
+        closeSheet()
     }
+
+    // A back press gets the same answer as the X. Mid-save there is nothing to
+    // go back to, so it is refused and the sheet stays.
+    useEffect(() => {
+        interceptBackRef.current = () => {
+            if (saving) return true
+            if (!isDirty && !photo.staged) return false
+            setConfirmingClose(true)
+            return true
+        }
+        return () => {
+            interceptBackRef.current = null
+        }
+    })
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key !== "Escape") return
+            // The confirm answers its own Esc: the sheet underneath stays.
+            if (confirmingClose) return
             event.stopPropagation()
             requestClose()
         }
@@ -544,11 +693,7 @@ function MatchEntryForm({
         setStatNotes({})
     }
 
-    const handleSportChange = (nextSportId: string) => {
-        setValue("sport", nextSportId, {
-            shouldValidate: true,
-            shouldDirty: true,
-        })
+    const resetForSport = (nextSportId: string) => {
         // Both belong to the OLD sport and the API rejects either mix — a
         // foreign position outright, a foreign stat field by name. Neither can
         // quietly ride along.
@@ -667,23 +812,13 @@ function MatchEntryForm({
         }
     }
 
-    const successMessage = (
-        values: MatchEntryFormValues,
-        photoFailed: boolean
-    ): string => {
-        const who = opponentLabel(values.opponent_name)
-
-        const base = !existingId
-            ? values.status === "scheduled"
-                ? `Fixture added — ${who} on ${dayjs(values.date).format("D MMM")}`
-                : `Logged ${who}`
-            : openedAsFixture && values.status === "played"
-                ? `Result logged — ${who}`
-                : "Match updated"
-
-        return photoFailed
-            ? `${base}. The photo didn't upload — you can add it any time.`
-            : base
+    const successMessage = (values: MatchEntryFormValues): string => {
+        if (!existingId) {
+            return values.status === "scheduled" ? "Fixture added" : "Match logged"
+        }
+        return openedAsFixture && values.status === "played"
+            ? "Match logged"
+            : "Match updated"
     }
 
     const onSubmit: SubmitHandler<MatchEntryFormValues> = async (values) => {
@@ -756,9 +891,15 @@ function MatchEntryForm({
                 })
             }
 
-            toast.success(successMessage(sendable, photoFailed))
-            void settleViewport()
-            onClose()
+            toast.show(
+                photoFailed
+                    ? {
+                        title: "Match saved — the photo didn't upload. You can add it from Edit.",
+                        variant: "warning",
+                    }
+                    : { title: successMessage(sendable), variant: "success" }
+            )
+            closeSheet()
         } catch (err) {
             // The sheet stays open with everything the player typed still in
             // it. The mutation hook has already toasted; this puts the same
@@ -768,12 +909,6 @@ function MatchEntryForm({
     }
 
     // ── Derived copy ──────────────────────────────────────────
-
-    const title = !isEdit
-        ? "Log a match"
-        : openedAsFixture
-            ? "Your fixture"
-            : "Edit match"
 
     const submitLabel = !existingId
         ? isFixtureMode
@@ -907,8 +1042,10 @@ function MatchEntryForm({
                                     <input
                                         id="match-date"
                                         type="date"
-                                        className={styles.input}
+                                        className={`${styles.input} ${styles.dateInput}`}
                                         disabled={saving}
+                                        // A played match cannot be in the future.
+                                        max={isFixtureMode ? undefined : todayIso()}
                                         {...register("date")}
                                     />
                                 </div>
@@ -961,7 +1098,7 @@ function MatchEntryForm({
                                     <input
                                         id="match-kickoff"
                                         type="time"
-                                        className={styles.input}
+                                        className={`${styles.input} ${styles.dateInput}`}
                                         disabled={saving}
                                         {...register("kickoff_time")}
                                     />
@@ -979,18 +1116,28 @@ function MatchEntryForm({
                                     htmlFor="match-sport"
                                     error={errors.sport?.message}
                                 >
-                                    <Select
-                                        id="match-sport"
-                                        value={watchedSport}
-                                        disabled={saving}
-                                        onChange={handleSportChange}
-                                        aria-label="Sport"
-                                        sheetTitle="Sport"
-                                        placeholder="Pick a sport"
-                                        options={sportOptions.map((sport) => ({
-                                            value: sport.id,
-                                            label: sport.name,
-                                        }))}
+                                    <Controller
+                                        name="sport"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Select
+                                                id="match-sport"
+                                                value={field.value}
+                                                disabled={saving}
+                                                onChange={(next) => {
+                                                    field.onChange(next)
+                                                    resetForSport(next)
+                                                }}
+                                                onBlur={field.onBlur}
+                                                aria-label="Sport"
+                                                sheetTitle="Sport"
+                                                placeholder="Pick a sport"
+                                                options={sportOptions.map((sport) => ({
+                                                    value: sport.id,
+                                                    label: sport.name,
+                                                }))}
+                                            />
+                                        )}
                                     />
                                 </Field>
                             )}
@@ -1062,7 +1209,8 @@ function MatchEntryForm({
                                                 type="button"
                                                 className={styles.chip}
                                                 disabled={saving}
-                                                onClick={() =>
+                                                {...keepFocusProps}
+                                                onClick={() => {
                                                     setValue(
                                                         "opponent_name",
                                                         name,
@@ -1071,7 +1219,9 @@ function MatchEntryForm({
                                                             shouldDirty: true,
                                                         }
                                                     )
-                                                }
+                                                    // Picked: the keyboard's job is done.
+                                                    blurActiveInput()
+                                                }}
                                             >
                                                 {name}
                                             </button>
@@ -1081,7 +1231,10 @@ function MatchEntryForm({
                             </Field>
 
                             {/* ── 5 + 6. Match type and position ── */}
-                            <div className={styles.row2}>
+                            <div
+                                className={`${styles.row2} ${positionOptions.length === 0 ? styles.row2Single : ""
+                                    }`}
+                            >
                                 <Field
                                     label="Type"
                                     name="match_type"
@@ -1117,24 +1270,27 @@ function MatchEntryForm({
                                         htmlFor="match-position"
                                         error={errors.position?.message}
                                     >
-                                        <Select
-                                            id="match-position"
-                                            value={position}
-                                            disabled={saving}
-                                            onChange={(next) =>
-                                                setValue("position", next, {
-                                                    shouldDirty: true,
-                                                })
-                                            }
-                                            aria-label="Position"
-                                            sheetTitle="Position"
-                                            options={[
-                                                { value: "", label: "Not set" },
-                                                ...positionOptions.map((option) => ({
-                                                    value: option.id,
-                                                    label: option.name,
-                                                })),
-                                            ]}
+                                        <Controller
+                                            name="position"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Select
+                                                    id="match-position"
+                                                    value={field.value ?? ""}
+                                                    disabled={saving}
+                                                    onChange={field.onChange}
+                                                    onBlur={field.onBlur}
+                                                    aria-label="Position"
+                                                    sheetTitle="Position"
+                                                    options={[
+                                                        { value: "", label: "Not set" },
+                                                        ...positionOptions.map((option) => ({
+                                                            value: option.id,
+                                                            label: option.name,
+                                                        })),
+                                                    ]}
+                                                />
+                                            )}
                                         />
                                     </Field>
                                 )}
@@ -1432,6 +1588,7 @@ function MatchEntryForm({
                                                             className={
                                                                 styles.photoStatus
                                                             }
+                                                            aria-live="polite"
                                                         >
                                                             {photo.status ===
                                                                 "uploading" && (
@@ -1541,22 +1698,6 @@ function MatchEntryForm({
                                                     {photo.error}
                                                 </p>
                                             )}
-
-                                            <input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept="image/*"
-                                                className={styles.fileInput}
-                                                onChange={(event) => {
-                                                    const picked =
-                                                        event.target.files?.[0]
-                                                    // Cleared first so picking
-                                                    // the same file twice still
-                                                    // fires a change.
-                                                    event.target.value = ""
-                                                    if (picked) photo.pick(picked)
-                                                }}
-                                            />
                                         </div>
                                     ) : (
                                         <button
@@ -1667,6 +1808,24 @@ function MatchEntryForm({
                                 </>
                             )}
 
+                            {/* Always mounted, whatever is showing above. "Add a
+                                photo" reveals the block and opens the picker in
+                                one tap, and the tap has to land on a real input. */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className={styles.fileInput}
+                                aria-label="Choose a photo"
+                                onChange={(event) => {
+                                    const picked = event.target.files?.[0]
+                                    // Cleared first so picking the same file
+                                    // twice still fires a change.
+                                    event.target.value = ""
+                                    if (picked) photo.pick(picked)
+                                }}
+                            />
+
                             {submitError && (
                                 <p className={styles.submitError} role="alert">
                                     <Icon
@@ -1702,40 +1861,25 @@ function MatchEntryForm({
                             </button>
                         </div>
                     </form>
-
-                    {/* ── Discard guard ──
-                        A form filled in on a bus is not something to throw away
-                        on a mis-tapped backdrop. */}
-                    {confirmingClose && (
-                        <div className={styles.confirmLayer}>
-                            <div className={styles.confirmCard} role="alertdialog">
-                                <p className={styles.confirmTitle}>
-                                    Discard this match?
-                                </p>
-                                <p className={styles.confirmText}>
-                                    You&apos;ll lose what you&apos;ve filled in.
-                                </p>
-                                <div className={styles.confirmActions}>
-                                    <button
-                                        type="button"
-                                        className={styles.confirmKeep}
-                                        onClick={() => setConfirmingClose(false)}
-                                    >
-                                        Keep editing
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={styles.confirmDiscard}
-                                        onClick={onClose}
-                                    >
-                                        Discard
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
+
+            {/* ── Discard guard ──
+                A form filled in on a bus is not something to throw away on a
+                mis-tapped backdrop. */}
+            <ConfirmDialog
+                open={confirmingClose}
+                title="Discard this match?"
+                message="You'll lose what you've filled in."
+                confirmLabel="Discard"
+                cancelLabel="Keep editing"
+                tone="danger"
+                onConfirm={() => {
+                    setConfirmingClose(false)
+                    closeSheet()
+                }}
+                onCancel={() => setConfirmingClose(false)}
+            />
         </Portal>
     )
 }

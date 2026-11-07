@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { BackHeader, Button, Input } from "@/shared/components/ui"
 import { useMyPhone, useUpdatePhone } from "./hooks/usePhoneChange"
@@ -46,6 +46,7 @@ const schema = z.object({
 type PhoneFields = z.infer<typeof schema>
 
 export default function ChangePhonePage() {
+  const toast = useToast()
   const router = useRouter()
   const { data: current, isPending: loading } = useMyPhone()
   const updatePhone = useUpdatePhone()
@@ -80,9 +81,10 @@ export default function ChangePhonePage() {
       // every other account that cleared its number.
       const saved = await updatePhone.mutateAsync(next === "" ? null : next)
 
-      toast.success(
-        saved.phone ? "Phone number updated" : "Phone number removed"
-      )
+      toast.show({
+        title: saved.phone ? "Phone number updated" : "Phone number removed",
+        variant: "success",
+      })
       router.push("/settings")
     } catch (err) {
       const failed = readPhoneChangeError(err)

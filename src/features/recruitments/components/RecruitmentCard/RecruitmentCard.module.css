@@ -554,11 +554,6 @@
   text-overflow: ellipsis;
 }
 
-.verifiedBadge {
-  color: var(--color-poster-accent);
-  flex-shrink: 0;
-}
-
 /* ── Facts: date + venue, one row ───────────────────────────────
    The date is the commitment, so it is the white one; the venue is
    context and is muted. Both icons are dropped on the poster — at 13px
@@ -1159,10 +1154,6 @@
 
   .orgLink:hover {
     color: var(--color-brand-hover);
-  }
-
-  .verifiedBadge {
-    color: var(--color-brand);
   }
 
   .orgLink .orgAvatar {

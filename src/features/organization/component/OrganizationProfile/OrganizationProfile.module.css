@@ -288,8 +288,10 @@
   color: var(--color-text-muted);
 }
 
-/* Verified badge */
+/* Verified badge. The pill stays small; the invisible ::before grows the tap
+   target to 44px without pushing the name row apart. */
 .verifiedBadge {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -302,8 +304,69 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
   flex-shrink: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.verifiedBadge::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.verifiedBadge:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Above the page and its share menu, below the nav bars. It closes on scroll,
+   so it can never ride up under them. */
+.verifiedPopover {
+  position: fixed;
+  z-index: 190;
+  width: min(248px, calc(100vw - 32px));
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  animation: verifiedPopoverIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes verifiedPopoverIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Bridges the gap to the badge, so moving the mouse across does not close it. */
+.verifiedPopover::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 8px;
+}
+
+.verifiedPopoverTitle {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.verifiedPopoverText {
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
 }
 
 /* Badges row — sport, location */

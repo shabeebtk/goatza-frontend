@@ -3,14 +3,13 @@
 /**
  * MatchEntryCard — what the card shows, and what it refuses to show.
  *
- * The card exists because the row it replaced threw data away, so most of what
- * is worth pinning here is the OTHER failure: a card that invents something.
- * An absent stat rendered as "0", a chip on a match with no result, an empty
- * note strip, five hollow stars on an unrated match — each of those is a number
- * or a claim the player never entered, and each is cheap to reintroduce.
+ * Most of what is worth pinning here is the failure a compact card invites: one
+ * that invents something. An absent stat rendered as "0", a letter on a match
+ * with no result, an empty note line — each of those is a number or a claim the
+ * player never entered, and each is cheap to reintroduce.
  *
  * Layout is not tested. jsdom has no layout, so an assertion about a truncated
- * label or a tile row filling its width would only be testing the class name.
+ * line or a card's height would only be testing the class name.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -47,7 +46,7 @@ const makeEntry = (overrides: Partial<MatchEntry> = {}): MatchEntry => ({
     date: "2026-08-15",
     kickoff_time: null,
     opponent_name: "Kannur FC",
-    match_type: "school_college",
+    match_type: "league",
     result: "win",
     minutes_played: 60,
     position: { id: "pos-lw", name: "Left wing" },
@@ -61,25 +60,55 @@ const makeEntry = (overrides: Partial<MatchEntry> = {}): MatchEntry => ({
     ...overrides,
 })
 
-describe("what the card renders", () => {
-    it("shows a tile per logged stat, plus minutes — and nothing for the rest", () => {
+describe("the compact layout", () => {
+    it("is a result badge, the opponent and one meta line", () => {
+        render(<MatchEntryCard entry={makeEntry()} onOpen={vi.fn()} />)
+
+        expect(screen.getByRole("img", { name: "Won" }).textContent).toBe("W")
+        expect(screen.getByText("Kannur FC")).toBeTruthy()
+        expect(screen.getByText("15 Aug · League · 60′")).toBeTruthy()
+    })
+
+    it.each([
+        ["win", "W", "Won"],
+        ["draw", "D", "Drawn"],
+        ["loss", "L", "Lost"],
+    ] as const)("reads a %s without relying on colour", (result, letter, name) => {
+        render(<MatchEntryCard entry={makeEntry({ result })} onOpen={vi.fn()} />)
+
+        expect(screen.getByRole("img", { name }).textContent).toBe(letter)
+    })
+
+    it("titles a match with no opponent 'Match'", () => {
+        render(
+            <MatchEntryCard
+                entry={makeEntry({ opponent_name: " " })}
+                onOpen={vi.fn()}
+            />
+        )
+
+        expect(screen.getByText("Match")).toBeTruthy()
+    })
+
+    it("shows the logged stats on one line, in the singular at one", () => {
         render(
             <MatchEntryCard
                 entry={makeEntry({
-                    stats: [stat("Goals", 2), stat("Assists", 1)],
+                    stats: [
+                        stat("Goals", 2),
+                        stat("Assists", 1),
+                        stat("Shots on target", 1),
+                    ],
                 })}
                 onOpen={vi.fn()}
             />
         )
 
-        expect(screen.getByText("Goals")).toBeTruthy()
-        expect(screen.getByText("Assists")).toBeTruthy()
-        expect(screen.getByText("Played")).toBeTruthy()
-
-        // A stat the player did not log is ABSENT, not zero — the season
-        // summary counts "logged as 0" and "never logged" differently.
-        expect(screen.queryByText("Shots on target")).toBeNull()
-        expect(screen.queryByText("0")).toBeNull()
+        expect(
+            screen.getByText("2 Goals · 1 Assist · 1 Shot on target")
+        ).toBeTruthy()
+        // A stat the player did not log is ABSENT, not zero.
+        expect(screen.queryByText(/\b0\b/)).toBeNull()
     })
 
     it("trims a decimal column back to the number that was entered", () => {
@@ -101,15 +130,15 @@ describe("what the card renders", () => {
             />
         )
 
-        expect(container.textContent).toContain("2Goals")
+        expect(container.textContent).toContain("2 Goals")
         expect(container.textContent).not.toContain("2.00")
         expect(container.textContent).toContain("10.5km")
     })
 
-    it("caps at four stats, primaries first, and counts the rest into +N", () => {
+    it("caps the line at three, primaries first, and counts the rest into +N", () => {
         const stats = [
             ...Array.from({ length: 10 }, (_, index) =>
-                stat(`Filler ${index}`, index + 1)
+                stat(`Filler ${index}`, index + 2)
             ),
             stat("Goals", 3, { is_primary: true }),
             stat("Assists", 2, { is_primary: true }),
@@ -117,31 +146,34 @@ describe("what the card renders", () => {
 
         render(<MatchEntryCard entry={makeEntry({ stats })} onOpen={vi.fn()} />)
 
-        // Primaries win a slot however far down the API returned them.
-        expect(screen.getByText("Goals")).toBeTruthy()
-        expect(screen.getByText("Assists")).toBeTruthy()
-        // Then the API's own order fills what is left — two of it, not ten.
-        expect(screen.getByText("Filler 0")).toBeTruthy()
-        expect(screen.getByText("Filler 1")).toBeTruthy()
-        expect(screen.queryByText("Filler 2")).toBeNull()
-
-        expect(screen.getByText("+8")).toBeTruthy()
+        // Primaries win a slot however far down the API returned them, then the
+        // API's own order fills what is left.
+        expect(
+            screen.getByText("3 Goals · 2 Assists · 2 Filler 0")
+        ).toBeTruthy()
+        expect(screen.getByText("+9")).toBeTruthy()
     })
 
-    it("puts the whole match in one sentence for a screen reader", () => {
+    it("draws no +N when everything fits", () => {
+        render(
+            <MatchEntryCard
+                entry={makeEntry({ stats: [stat("Goals", 2)] })}
+                onOpen={vi.fn()}
+            />
+        )
+
+        expect(screen.queryByText(/^\+\d/)).toBeNull()
+    })
+
+    it("names the button with one sentence and opens the match", () => {
         const onOpen = vi.fn()
         const entry = makeEntry()
 
         render(<MatchEntryCard entry={entry} onOpen={onOpen} />)
 
-        expect(
-            screen.getByText("Won — Kannur FC, 15 August 2026")
-        ).toBeTruthy()
-        expect(
-            screen.getByLabelText("Your rating: 4 out of 5")
-        ).toBeTruthy()
-
-        fireEvent.click(screen.getByRole("button"))
+        fireEvent.click(
+            screen.getByRole("button", { name: "Won — Kannur FC, 15 August 2026" })
+        )
         expect(onOpen).toHaveBeenCalledWith(entry)
     })
 
@@ -186,7 +218,7 @@ describe("what the card renders", () => {
 })
 
 describe("what the card refuses to render", () => {
-    it("gives an `na` match no result chip at all", () => {
+    it("claims no result for an `na` match", () => {
         render(
             <MatchEntryCard
                 entry={makeEntry({ result: "na" })}
@@ -194,16 +226,16 @@ describe("what the card refuses to render", () => {
             />
         )
 
-        // "Not applicable" is a database value. A friendly nobody kept score
-        // in has no result, and the right rendering of that is no chip.
+        // "Not applicable" is a database value. A friendly nobody kept score in
+        // has no result, and the badge says so without a letter.
         expect(screen.queryByText(/not applicable/i)).toBeNull()
-        expect(screen.queryByText("Won")).toBeNull()
-        expect(screen.queryByText("Lost")).toBeNull()
-        expect(screen.queryByText("Drawn")).toBeNull()
-        expect(screen.getByText(/^Logged — Kannur FC/)).toBeTruthy()
+        expect(screen.getByRole("img", { name: "No result" }).textContent).toBe("–")
+        expect(
+            screen.getByRole("button", { name: /^Logged — Kannur FC/ })
+        ).toBeTruthy()
     })
 
-    it("renders no empty sections for a match with nothing but an opponent", () => {
+    it("renders no empty lines for a match with nothing but an opponent", () => {
         const { container } = render(
             <MatchEntryCard
                 entry={makeEntry({
@@ -220,14 +252,14 @@ describe("what the card refuses to render", () => {
         )
 
         expect(container.querySelector("img")).toBeNull()
-        expect(screen.queryByText("Played")).toBeNull()
-        expect(screen.queryByLabelText(/Your rating/)).toBeNull()
-        // No hollow stars stood in for the rating that is not there.
+        expect(screen.getByText("15 Aug · League")).toBeTruthy()
+        // No stars at all: the rating lives in the detail modal.
+        expect(container.querySelector('[data-icon="mdi:star"]')).toBeNull()
         expect(container.querySelector('[data-icon="mdi:star-outline"]')).toBeNull()
     })
 
-    it("renders a scheduled fixture with no tiles and no result", () => {
-        const { container } = render(
+    it("marks a scheduled fixture and claims no result", () => {
+        render(
             <MatchEntryCard
                 entry={makeEntry({
                     status: "scheduled",
@@ -241,12 +273,10 @@ describe("what the card refuses to render", () => {
         )
 
         expect(screen.getByText("Scheduled")).toBeTruthy()
-        expect(screen.queryByText("Played")).toBeNull()
-        expect(screen.queryByText("Won")).toBeNull()
-        expect(container.querySelector('[data-icon="mdi:star"]')).toBeNull()
+        expect(screen.queryByRole("img", { name: "Won" })).toBeNull()
     })
 
-    it("shows the note strip only when there is a note or a photo", () => {
+    it("shows the note and the photo only when there is one", () => {
         const { container, unmount } = render(
             <MatchEntryCard
                 entry={makeEntry({ notes: "   " })}
@@ -254,10 +284,8 @@ describe("what the card refuses to render", () => {
             />
         )
 
-        // Whitespace is not a note, and there is no photo either — so the
-        // strip and its divider are absent rather than empty.
+        // Whitespace is not a note, and there is no photo either.
         expect(container.querySelector("img")).toBeNull()
-        expect(container.textContent).not.toContain("Cut inside")
 
         unmount()
 

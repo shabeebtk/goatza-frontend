@@ -10,8 +10,9 @@
 
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
 
+import { useToast } from "@/shared/components/ui/Toast/Toast"
+import { navigateAwayFromOverlays } from "@/shared/hooks/useBackToClose"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useCreateHighlight } from "./useHighlights"
 
@@ -19,6 +20,7 @@ export function usePromoteToHighlights() {
     const create = useCreateHighlight()
     const router = useRouter()
     const { toHighlightsManage } = useNavigation()
+    const { show: showToast } = useToast()
 
     const promote = useCallback(
         (sourceMediaId: string, options?: { onDone?: () => void }) => {
@@ -26,10 +28,15 @@ export function usePromoteToHighlights() {
                 { source_media_id: sourceMediaId },
                 {
                     onSuccess: () => {
-                        toast.success("Added to your highlights", {
+                        showToast({
+                            title: "Added to your highlights",
+                            variant: "success",
+                            // The viewer may still be open underneath; a plain
+                            // push would leave its history entry behind.
                             action: {
                                 label: "Manage",
-                                onClick: () => router.push(toHighlightsManage()),
+                                onClick: () =>
+                                    navigateAwayFromOverlays(toHighlightsManage(), router),
                             },
                         })
                         options?.onDone?.()
@@ -38,7 +45,7 @@ export function usePromoteToHighlights() {
                 }
             )
         },
-        [create, router, toHighlightsManage]
+        [create, router, toHighlightsManage, showToast]
     )
 
     return { promote, isPromoting: create.isPending }

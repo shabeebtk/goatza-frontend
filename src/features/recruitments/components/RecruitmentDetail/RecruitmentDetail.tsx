@@ -415,14 +415,6 @@ function HeroScrim({
             <span className={styles.orgText}>
               <span className={styles.orgName}>
                 {r.organization.name}
-                {r.organization.is_verified && (
-                  <Icon
-                    icon="mdi:check-decagram"
-                    width={13}
-                    height={13}
-                    className={styles.verified}
-                  />
-                )}
               </span>
               <span className={styles.orgTagline}>{orgTagline}</span>
             </span>

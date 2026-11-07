@@ -1,0 +1,43 @@
+/* What the guard shows while the session settles. Same gutters and column as the
+   diary, so the real page lands in the same place. */
+
+.waiting {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+
+    width: 100%;
+    max-width: 680px;
+    margin-inline: auto;
+    padding: var(--space-3) var(--space-4) var(--space-8);
+}
+
+.skeleton {
+    display: block;
+    height: 72px;
+    border-radius: var(--radius-md);
+    background: var(--color-surface-raised);
+    animation: pulse 1.4s var(--ease-in-out) infinite;
+}
+
+.skeleton[data-tall] {
+    height: 148px;
+    border-radius: var(--radius-lg);
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton {
+        animation: none;
+    }
+}

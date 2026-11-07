@@ -82,14 +82,13 @@
     overflow-wrap: normal;
 }
 
-/* --color-brand-hover, not --color-brand, and for the reason every other piece
-   of green TEXT in the app uses it: brand is a fill colour and clears 3:1
-   against a white surface only just, while brand-hover is the darker step that
-   actually reads. Fills below (the bar, the streak pill) keep --color-brand. */
+/* --color-brand-strong, not --color-brand: brand is a fill colour and clears 3:1
+   against a white surface only just, while this is the step chosen to carry text
+   in both schemes. Fills below (the bar) keep --color-brand. */
 .headlineLead {
     font-size: var(--text-3xl);
     font-weight: var(--weight-black);
-    color: var(--color-brand-hover);
+    color: var(--color-brand-strong);
     line-height: 1;
 }
 
@@ -185,11 +184,39 @@
     border-radius: var(--radius-full);
 
     background: var(--color-brand-subtle);
-    color: var(--color-brand-hover);
+    color: var(--color-brand-strong);
 
     font-family: var(--font-ui);
     font-size: var(--text-xs);
     font-weight: var(--weight-semi);
+}
+
+/* ── See all stats ───────────────────────────────────────────── */
+
+.statsToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    min-height: 44px;
+    margin-block: calc(var(--space-3) * -1);
+    padding: 0;
+    border: 0;
+
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semi);
+
+    background: transparent;
+    color: var(--color-brand-strong);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.statsToggle:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
 }
 
 /* ── Stat grid ───────────────────────────────────────────────── */
@@ -236,7 +263,7 @@
     font-family: var(--font-ui);
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
 }
 
 /* ── 640px+: two columns, but only with stats to fill the second ── */

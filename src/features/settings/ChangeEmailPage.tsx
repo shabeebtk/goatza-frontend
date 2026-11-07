@@ -25,7 +25,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { BackHeader, Button, Input } from "@/shared/components/ui"
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
@@ -158,6 +158,7 @@ function ApiErrorBanner({ failure }: { failure: EmailChangeFailure }) {
 type Step = "request" | "verify"
 
 export default function ChangeEmailPage() {
+  const toast = useToast()
   const router = useRouter()
   const { data: profile } = useMyProfile()
 
@@ -266,7 +267,7 @@ export default function ChangeEmailPage() {
       // The previous code is dead the moment a new one is issued, so clearing
       // the field is the honest state rather than a courtesy.
       codeForm.reset({ otp: "" })
-      toast.success("We sent a new code")
+      toast.show({ title: "We sent a new code", variant: "success" })
       return
     }
 
@@ -285,7 +286,7 @@ export default function ChangeEmailPage() {
     try {
       await confirm.mutateAsync(values.otp)
 
-      toast.success("Email address updated")
+      toast.show({ title: "Email address updated", variant: "success" })
       router.push("/settings")
     } catch (err) {
       const next = readEmailChangeError(err)

@@ -95,11 +95,6 @@
   text-overflow: ellipsis;
 }
 
-.verified {
-  color: var(--color-brand);
-  flex-shrink: 0;
-}
-
 .handle,
 .subtitle,
 .followers {
