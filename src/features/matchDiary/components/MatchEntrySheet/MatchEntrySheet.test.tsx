@@ -25,7 +25,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import type { MatchStatField, UpcomingMatch } from "../../types"
+import type { MatchEntry, MatchStatField, UpcomingMatch } from "../../types"
 import MatchEntrySheet from "./MatchEntrySheet"
 
 vi.mock("@iconify/react", () => ({
@@ -142,6 +142,13 @@ vi.mock("@/features/profile/hooks/useSportsQueries", () => ({
 
 vi.mock("@/features/career/hooks/useCareerQueries", () => ({
     useUserCareer: () => ({ data: undefined }),
+}))
+
+const uploadPhoto = vi.fn()
+
+vi.mock("../../services/matchPhoto.service", () => ({
+    validateMatchPhoto: () => null,
+    uploadMatchPhoto: (...args: unknown[]) => uploadPhoto(...args),
 }))
 
 vi.mock("@/store/auth.store", () => ({
@@ -404,6 +411,104 @@ describe("the form", () => {
 
         expect(date.max).toBe("")
     })
+
+    it("stays 'Log a match' when a new entry flips to Upcoming", () => {
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+
+        fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }))
+
+        expect(screen.getByRole("dialog", { name: "Log a match" })).toBeTruthy()
+    })
+})
+
+describe("the photo's status", () => {
+    URL.createObjectURL = vi.fn(() => "blob:photo")
+    URL.revokeObjectURL = vi.fn()
+
+    const liveRegion = () =>
+        screen
+            .getByRole("dialog")
+            .querySelector('[aria-live="polite"]') as HTMLElement
+
+    const pickPhoto = () => {
+        const click = vi
+            .spyOn(HTMLInputElement.prototype, "click")
+            .mockImplementation(() => {})
+        fireEvent.click(screen.getByRole("button", { name: "Add a photo" }))
+        click.mockRestore()
+
+        fireEvent.change(screen.getByLabelText("Choose a photo"), {
+            target: {
+                files: [new File(["x"], "match.jpg", { type: "image/jpeg" })],
+            },
+        })
+    }
+
+    it("reads out 'Uploading…', from a region that was already there and empty", async () => {
+        let finish: (photo: object) => void = () => {}
+        uploadPhoto.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve
+            })
+        )
+
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+
+        // A live region that arrives holding its text announces nothing.
+        const region = liveRegion()
+        expect(region.textContent).toBe("")
+
+        pickPhoto()
+
+        expect(liveRegion()).toBe(region)
+        expect(region.textContent).toBe("Uploading…")
+
+        act(() =>
+            finish({
+                photo_url: "https://example.test/photo.jpg",
+                photo_public_id: "photo",
+            })
+        )
+
+        await vi.waitFor(() => expect(region.textContent).toBe("Ready"))
+    })
+
+    it("says when the photo did not upload", async () => {
+        uploadPhoto.mockRejectedValueOnce(new Error("Nope"))
+
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+        pickPhoto()
+
+        await vi.waitFor(() =>
+            expect(liveRegion().textContent).toBe("Didn't upload")
+        )
+    })
+
+    it("says nothing about a photo the match already had", () => {
+        const entry: MatchEntry = {
+            id: "match-7",
+            sport: { id: "sport-1", name: "Football", icon_name: "", icon_url: "" },
+            status: "played",
+            date: "2020-05-09",
+            kickoff_time: null,
+            opponent_name: "Riverside FC",
+            match_type: "league",
+            result: "win",
+            minutes_played: 90,
+            position: null,
+            self_rating: null,
+            notes: "",
+            career_entry: null,
+            photo_url: "https://example.test/photo.jpg",
+            stats: [],
+            created_at: "2020-05-09T18:00:00Z",
+            updated_at: "2020-05-09T18:00:00Z",
+        }
+
+        render(<MatchEntrySheet entry={entry} onClose={vi.fn()} />)
+
+        expect(liveRegion().textContent).toBe("")
+    })
 })
 
 describe("promoting a fixture", () => {
@@ -498,5 +603,85 @@ describe("promoting a fixture", () => {
 
         await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
         expect(screen.queryByRole("alertdialog")).toBeNull()
+    })
+
+    describe("after 'Not played yet'", () => {
+        const undo = () =>
+            fireEvent.click(screen.getByRole("button", { name: /Not played yet/ }))
+
+        it("titles itself from the status it is on now", () => {
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={vi.fn()} />
+            )
+            expect(screen.getByRole("dialog", { name: "Log result" })).toBeTruthy()
+
+            undo()
+            expect(screen.getByRole("dialog", { name: "Edit fixture" })).toBeTruthy()
+            expect(screen.getByRole("heading", { name: "Edit fixture" })).toBeTruthy()
+
+            fireEvent.click(screen.getByRole("button", { name: /Log the result/i }))
+            expect(screen.getByRole("dialog", { name: "Log result" })).toBeTruthy()
+        })
+
+        it("does not count the switch back as a change", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            undo()
+            fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+            await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+            expect(screen.queryByRole("alertdialog")).toBeNull()
+        })
+
+        it("does not ask on a back press either", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            undo()
+            act(() => window.history.back())
+
+            await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+            expect(screen.queryByRole("alertdialog")).toBeNull()
+        })
+
+        it("does not count what the switch cleared, either", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            fireEvent.click(screen.getByRole("radio", { name: "Won" }))
+            bumpStat("Goals", 2)
+            fireEvent.change(screen.getByLabelText(/^Minutes played/), {
+                target: { value: "90" },
+            })
+
+            undo()
+            fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+            await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+            expect(screen.queryByRole("alertdialog")).toBeNull()
+        })
+
+        it("still asks when a real edit survives the switch back", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            fireEvent.change(screen.getByLabelText(/^Opponent/), {
+                target: { value: "Northgate United" },
+            })
+            undo()
+            fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+            expect(await screen.findByRole("alertdialog")).toBeTruthy()
+            expect(onClose).not.toHaveBeenCalled()
+        })
     })
 })

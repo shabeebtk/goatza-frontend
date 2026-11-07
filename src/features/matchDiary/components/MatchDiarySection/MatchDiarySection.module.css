@@ -49,7 +49,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    min-height: 40px;
+    min-height: 44px;
 
     padding: 7px 14px;
     border: 1.5px solid var(--color-brand-muted);

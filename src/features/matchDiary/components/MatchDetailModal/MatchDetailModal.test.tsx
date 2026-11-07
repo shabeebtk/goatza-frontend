@@ -416,6 +416,15 @@ describe("deleting", () => {
                 .disabled
         ).toBe(true)
 
+        // The trash button only says it is unavailable, and ignores a press.
+        const trash = screen.getByRole("button", {
+            name: "Delete match",
+        }) as HTMLButtonElement
+        expect(trash.disabled).toBe(false)
+        expect(trash.getAttribute("aria-disabled")).toBe("true")
+        fireEvent.click(trash)
+        expect(screen.queryByRole("alertdialog")).toBeNull()
+
         // Nor can Esc, the backdrop or a back press close it from under the request.
         fireEvent.keyDown(window, { key: "Escape" })
         fireEvent.click(screen.getByRole("dialog").parentElement as HTMLElement)
@@ -453,6 +462,31 @@ describe("deleting", () => {
         // Back to normal, and the hook is what toasts, so this does not again.
         expect(screen.getByRole("button", { name: "Edit match" })).toBeTruthy()
         expect(showToast).not.toHaveBeenCalled()
+    })
+
+    it("gets focus back from the confirm, and keeps it after a failure", async () => {
+        deleteMutate.mockRejectedValueOnce(new Error("Nope"))
+
+        render(
+            <MatchDetailModal
+                entry={makeEntry()}
+                onEdit={vi.fn()}
+                onClose={vi.fn()}
+            />
+        )
+
+        const trash = screen.getByRole("button", { name: "Delete match" })
+        trash.focus()
+
+        await confirmDelete()
+        await screen.findByRole("alert")
+
+        // Not <body>, which is where it lands if this button was disabled when
+        // the confirm handed focus back.
+        expect(document.activeElement).toBe(trash)
+        expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(
+            true
+        )
     })
 
     it("backs out of the confirm without deleting", async () => {

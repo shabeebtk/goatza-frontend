@@ -19,8 +19,12 @@
  *      authenticated, and the CV is the surface that faces the public web.
  *   4. The owner gets the diary: card, fixture, recent PLAYED matches, both ways
  *      in. A recent row is a read, and a real failure is not an empty diary.
+ *   5. An open sheet or detail modal outlives whatever the section behind it is
+ *      showing. Every match write refetches the summary, so a flaky refetch or a
+ *      first match would otherwise take the typed form with it.
  */
 
+import { useEffect } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { AxiosError, type AxiosResponse } from "axios"
@@ -46,17 +50,31 @@ vi.mock("next/link", () => ({
     }) => <a href={href}>{children}</a>,
 }))
 
-// Mounting the sheet would drag in react-hook-form, the sports catalog and the
-// stat catalog for a component that never opens it in these tests.
-vi.mock("../MatchEntrySheet/MatchEntrySheet", () => ({
-    default: () => <div data-testid="sheet" />,
-}))
+/** Counts real mounts: a remount is what loses what was typed in the sheet. */
+const sheetMounted = vi.fn()
+const detailMounted = vi.fn()
 
-vi.mock("../MatchDetailModal/MatchDetailModal", () => ({
-    default: ({ entry }: { entry: MatchEntry }) => (
-        <div data-testid="detail">Reading {entry.id}</div>
-    ),
-}))
+// Mounting the sheet would drag in react-hook-form, the sports catalog and the
+// stat catalog for a component whose own behaviour is tested elsewhere.
+vi.mock("../MatchEntrySheet/MatchEntrySheet", () => {
+    function SheetStub() {
+        useEffect(() => {
+            sheetMounted()
+        }, [])
+        return <div data-testid="sheet" />
+    }
+    return { default: SheetStub }
+})
+
+vi.mock("../MatchDetailModal/MatchDetailModal", () => {
+    function DetailStub({ entry }: { entry: MatchEntry }) {
+        useEffect(() => {
+            detailMounted()
+        }, [])
+        return <div data-testid="detail">Reading {entry.id}</div>
+    }
+    return { default: DetailStub }
+})
 
 vi.mock("@/shared/services/navigation.service", () => ({
     useNavigation: () => ({ toMatchDiary: () => "/matches" }),
@@ -184,6 +202,8 @@ afterEach(() => {
     playerSummary.mockReset()
     upcoming.mockReset()
     matches.mockReset()
+    sheetMounted.mockClear()
+    detailMounted.mockClear()
 })
 
 // ── Visitor ───────────────────────────────────────────────────
@@ -401,5 +421,88 @@ describe("the owner", () => {
         )
 
         expect(container.innerHTML).toBe("")
+    })
+})
+
+// ── Open overlays ─────────────────────────────────────────────
+
+describe("an open overlay", () => {
+    // A new element every time: React skips a rerender handed the same one, and
+    // the section would never read the query state a test has just changed.
+    const section = () => <MatchDiarySection username="riya" isOwn />
+
+    /** What the hook returns once a refetch has failed: cached data stays. */
+    const refetchFails = (data?: PlayerMatchSummary) => {
+        const failure = new AxiosError("Server error")
+        failure.response = { status: 500 } as AxiosResponse
+        playerSummary.mockReturnValue({
+            data,
+            isPending: false,
+            isError: true,
+            error: failure,
+            refetch: vi.fn(),
+        })
+    }
+
+    it("keeps the section and the sheet when a background refetch fails", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /Log a match/ }))
+
+        refetchFails(SUMMARY)
+        rerender(section())
+
+        expect(screen.queryByRole("alert")).toBeNull()
+        expect(screen.getByText(/4 weeks running/)).toBeTruthy()
+        expect(screen.getByTestId("sheet")).toBeTruthy()
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps the detail modal when a background refetch fails", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /Riverside FC/ }))
+
+        refetchFails(SUMMARY)
+        rerender(section())
+
+        expect(screen.queryByRole("alert")).toBeNull()
+        expect(screen.getByText("Reading m1")).toBeTruthy()
+        expect(detailMounted).toHaveBeenCalledTimes(1)
+    })
+
+    it("survives the section going to the error state and the skeleton", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /Log a match/ }))
+
+        // Nothing cached, so this one really is the error state.
+        refetchFails(undefined)
+        rerender(section())
+        expect(screen.getByRole("alert")).toBeTruthy()
+
+        playerSummary.mockReturnValue({ data: undefined, isPending: true })
+        rerender(section())
+        expect(screen.queryByRole("alert")).toBeNull()
+
+        expect(screen.getByTestId("sheet")).toBeTruthy()
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
+    })
+
+    it("does not remount the sheet when a first match replaces the invitation", () => {
+        setup({ summary: { ...SUMMARY, total_matches: 0, stats: [], form: [] } })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /build a season record/i }))
+
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
+
+        // The save has landed and the summary refetched, with the sheet still up.
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        rerender(section())
+
+        expect(screen.queryByText(/build a season record/i)).toBeNull()
+        expect(screen.getByText("Match diary")).toBeTruthy()
+        expect(screen.getAllByTestId("sheet")).toHaveLength(1)
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
     })
 })

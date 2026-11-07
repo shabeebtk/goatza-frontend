@@ -375,11 +375,17 @@ export default function MatchDetailModal({
                                         ? "Add result"
                                         : "Edit match"}
                             </button>
+                            {/* aria-disabled, not disabled: ConfirmDialog hands
+                                focus back here as it closes, and a disabled button
+                                cannot take it. Focus would fall to <body>, and a
+                                failed delete would leave it there. */}
                             <button
                                 type="button"
                                 className={styles.trashBtn}
-                                onClick={() => setConfirmingDelete(true)}
-                                disabled={deleting}
+                                onClick={() => {
+                                    if (!deleting) setConfirmingDelete(true)
+                                }}
+                                aria-disabled={deleting || undefined}
                                 aria-label="Delete match"
                             >
                                 {deleting ? (

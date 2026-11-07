@@ -57,9 +57,6 @@ export default function MatchDiarySettingsPage() {
     // exactly right for a screen the owner opened on purpose.
     const { data: settings, isPending, error, refetch } = useMatchDiarySettings()
     const update = useUpdateMatchDiarySettings()
-    // Until the first answer lands the switch only knows a guess, and a tap on a
-    // guess could publish a season. While a write runs, the next tap would race it.
-    const toggleBusy = isPending || update.isPending
 
     if (error) {
         return (
@@ -110,11 +107,17 @@ export default function MatchDiarySettingsPage() {
                     // never does.
                     description="Your totals, record and streak become visible to anyone who can see your profile. Individual matches, notes and photos stay private either way."
                     checked={showcase}
-                    disabled={toggleBusy}
-                    busy={toggleBusy}
-                    onChange={(next) =>
+                    // Until the first answer lands the switch only knows a guess,
+                    // and a tap on a guess could publish a season.
+                    disabled={isPending}
+                    // A save only marks it. Disabling it would drop the focus of
+                    // whoever just pressed it, so the next press is ignored
+                    // instead, and a double flip cannot send two requests.
+                    busy={update.isPending}
+                    onChange={(next) => {
+                        if (update.isPending) return
                         update.mutate({ showcase_summary: next })
-                    }
+                    }}
                 />
             </SettingsSection>
 

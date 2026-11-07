@@ -20,6 +20,7 @@
  *     match with an opponent and nothing else is two lines, and that is correct.
  */
 
+import { useId } from "react"
 import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 
@@ -66,6 +67,8 @@ export function MatchEntryCard({
 
     const stats = cardStats(entry.stats)
     const hiddenStats = entry.stats.length - stats.length
+    const career = entry.career_entry
+    const noteId = useId()
 
     const meta = [
         date.format("D MMM"),
@@ -75,12 +78,31 @@ export function MatchEntryCard({
         .filter(Boolean)
         .join(" · ")
 
-    // Everything visible here is a fragment. This is the same match as one
-    // sentence, so a screen reader gets the result, the opponent and the full
-    // date without having to reassemble them from the parts.
-    const label = `${resultLabel || (isFixture ? "Scheduled" : "Logged")} — ${opponentLabel(
-        entry.opponent_name
-    )}, ${date.format("D MMMM YYYY")}`
+    // An aria-label replaces everything inside the button, and what is visible
+    // is fragments ("60′", "+2") besides. So this is the card again as sentences,
+    // written to be heard: the result, the opponent and the full date first, then
+    // every other line it shows, the club's tick included.
+    const label = [
+        `${resultLabel || (isFixture ? "Scheduled" : "Logged")} — ${opponentLabel(
+            entry.opponent_name
+        )}, ${date.format("D MMMM YYYY")}`,
+        [
+            MATCH_TYPE_LABELS[entry.match_type],
+            entry.minutes_played !== null &&
+                `${entry.minutes_played} ${entry.minutes_played === 1 ? "minute" : "minutes"}`,
+        ]
+            .filter(Boolean)
+            .join(", "),
+        stats.length > 0 &&
+            stats.map(statPhrase).join(", ") +
+                (hiddenStats > 0 ? ` and ${hiddenStats} more` : ""),
+        career &&
+            `Playing for ${career.organization_name}${
+                career.verification_status === "verified" ? ", verified" : ""
+            }`,
+    ]
+        .filter(Boolean)
+        .join(". ")
 
     // `photo_url` is a BLANK STRING when there is no photo, never null — so
     // this is a truthiness check and not a null check.
@@ -93,6 +115,9 @@ export function MatchEntryCard({
                 className={styles.cardBtn}
                 data-scheduled={isFixture ? "true" : undefined}
                 aria-label={label}
+                // A description rather than more sentence: a note can run long,
+                // and it should not have to be heard out on every row of a list.
+                aria-describedby={note ? noteId : undefined}
                 onClick={() => onOpen(entry)}
             >
                 <MatchResultBadge result={entry.result} />
@@ -123,15 +148,15 @@ export function MatchEntryCard({
                     )}
 
                     {/* Only when the player attached one. */}
-                    {entry.career_entry && (
+                    {career && (
                         <span className={styles.cardCareer}>
                             <span className={styles.cardCareerName}>
-                                {entry.career_entry.organization_name}
+                                {career.organization_name}
                             </span>
                             {/* Only `verified` earns the tick. The other three
                                 states — self_reported, pending, rejected — are
                                 a claim, and a tick on a claim is a lie. */}
-                            {entry.career_entry.verification_status ===
+                            {career.verification_status ===
                                 "verified" && (
                                     <span className={styles.cardVerified}>
                                         <Icon
@@ -145,7 +170,11 @@ export function MatchEntryCard({
                         </span>
                     )}
 
-                    {note && <span className={styles.cardNote}>{note}</span>}
+                    {note && (
+                        <span id={noteId} className={styles.cardNote}>
+                            {note}
+                        </span>
+                    )}
                 </span>
 
                 {entry.photo_url && (

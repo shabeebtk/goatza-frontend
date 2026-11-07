@@ -172,9 +172,90 @@ describe("the compact layout", () => {
         render(<MatchEntryCard entry={entry} onOpen={onOpen} />)
 
         fireEvent.click(
-            screen.getByRole("button", { name: "Won — Kannur FC, 15 August 2026" })
+            screen.getByRole("button", {
+                name: "Won — Kannur FC, 15 August 2026. League, 60 minutes",
+            })
         )
         expect(onOpen).toHaveBeenCalledWith(entry)
+    })
+
+    it("says everything the card shows, because the name replaces its contents", () => {
+        const stats = [
+            ...Array.from({ length: 4 }, (_, index) =>
+                stat(`Filler ${index}`, index + 2)
+            ),
+            stat("Goals", 3, { is_primary: true }),
+            stat("Assists", 1, { is_primary: true }),
+        ]
+
+        render(
+            <MatchEntryCard
+                entry={makeEntry({
+                    minutes_played: 1,
+                    stats,
+                    career_entry: {
+                        id: "career-1",
+                        title: "Striker",
+                        organization_name: "Riverside FC",
+                        verification_status: "verified",
+                    },
+                })}
+                onOpen={vi.fn()}
+            />
+        )
+
+        // "1 minute", "and 3 more", ", verified": the visible "1′", "+3" and tick
+        // would not read aloud as anything.
+        expect(
+            screen.getByRole("button", {
+                name:
+                    "Won — Kannur FC, 15 August 2026. League, 1 minute. " +
+                    "3 Goals, 1 Assist, 2 Filler 0 and 3 more. " +
+                    "Playing for Riverside FC, verified",
+            })
+        ).toBeTruthy()
+    })
+
+    it("does not say verified for a stint that is only claimed", () => {
+        render(
+            <MatchEntryCard
+                entry={makeEntry({
+                    career_entry: {
+                        id: "career-1",
+                        title: "Striker",
+                        organization_name: "Riverside FC",
+                        verification_status: "pending",
+                    },
+                })}
+                onOpen={vi.fn()}
+            />
+        )
+
+        expect(
+            screen.getByRole("button", {
+                name: "Won — Kannur FC, 15 August 2026. League, 60 minutes. Playing for Riverside FC",
+            })
+        ).toBeTruthy()
+    })
+
+    it("leaves the note to a description, read from the line on the card", () => {
+        const note = "Cut inside on the right back all game."
+
+        const { unmount } = render(
+            <MatchEntryCard entry={makeEntry({ notes: note })} onOpen={vi.fn()} />
+        )
+
+        expect(screen.getByRole("button", { description: note })).toBeTruthy()
+        expect(screen.getByRole("button").getAttribute("aria-label")).not.toContain(
+            note
+        )
+        unmount()
+
+        render(<MatchEntryCard entry={makeEntry()} onOpen={vi.fn()} />)
+
+        expect(screen.getByRole("button").hasAttribute("aria-describedby")).toBe(
+            false
+        )
     })
 
     it("ticks a verified career stint and nothing else", () => {

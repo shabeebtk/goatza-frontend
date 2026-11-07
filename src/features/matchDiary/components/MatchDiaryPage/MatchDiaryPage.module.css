@@ -83,11 +83,15 @@
     }
 }
 
-/* Under the 60px desktop bar. */
+/* Under the 60px desktop bar. Sticky never reaches what is below the fold, so a
+   card taller than the screen (a 1366×768 laptop) scrolls inside the rail. */
 .rail {
     position: sticky;
     top: calc(60px + var(--space-4));
     min-width: 0;
+    max-height: calc(100dvh - 60px - 2 * var(--space-4));
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 /* ── Add button ──────────────────────────────────────────────── */

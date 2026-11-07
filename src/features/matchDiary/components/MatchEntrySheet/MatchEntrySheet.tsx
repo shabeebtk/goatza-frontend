@@ -109,7 +109,7 @@ import {
     type UpcomingMatch,
 } from "../../types"
 import StatInputRow, { type StatInputChange } from "./StatInputRow"
-import { useMatchPhotoUpload } from "./useMatchPhotoUpload"
+import { useMatchPhotoUpload, type MatchPhotoStatus } from "./useMatchPhotoUpload"
 import styles from "./MatchEntrySheet.module.css"
 
 // ── Constants ─────────────────────────────────────────────────
@@ -289,15 +289,32 @@ export type MatchEntrySheetProps = {
     onClose: () => void
 }
 
-/** The heading, for the loading shell and the form alike. */
+/** The heading, for the loading shell and the form alike. Follows the status. */
 const sheetTitle = (
     isEdit: boolean,
     openedAsFixture: boolean,
-    startPlayed: boolean
+    status: MatchStatus
 ): string => {
     if (!isEdit) return "Log a match"
     if (!openedAsFixture) return "Edit match"
-    return startPlayed ? "Log result" : "Your fixture"
+    return status === "played" ? "Log result" : "Edit fixture"
+}
+
+/** Field by field, because `stats` is an array of objects. */
+const sameFormValues = (
+    a: MatchEntryFormValues,
+    b: MatchEntryFormValues
+): boolean =>
+    (Object.keys(b) as (keyof MatchEntryFormValues)[]).every(
+        (key) => JSON.stringify(a[key]) === JSON.stringify(b[key])
+    )
+
+/** What the photo's status line says. `empty` says nothing. */
+const PHOTO_STATUS_TEXT: Record<MatchPhotoStatus, string> = {
+    empty: "",
+    uploading: "Uploading…",
+    ready: "Ready",
+    failed: "Didn't upload",
 }
 
 /**
@@ -385,7 +402,12 @@ export default function MatchEntrySheet({
     const openedAsFixture = entry
         ? entry.status === "scheduled"
         : Boolean(fixture)
-    const title = sheetTitle(Boolean(existing), openedAsFixture, startPlayed)
+    // The form works out its own once it can read the status.
+    const loadingTitle = sheetTitle(
+        Boolean(existing),
+        openedAsFixture,
+        startPlayed ? "played" : "scheduled"
+    )
 
     return (
         <>
@@ -396,7 +418,6 @@ export default function MatchEntrySheet({
                     entry={entry ?? null}
                     fixture={fixture ?? null}
                     startPlayed={startPlayed}
-                    title={title}
                     sports={sports ?? []}
                     mySports={mySports ?? []}
                     hints={hints}
@@ -420,10 +441,10 @@ export default function MatchEntrySheet({
                             className={styles.sheet}
                             role="dialog"
                             aria-modal="true"
-                            aria-label={title}
+                            aria-label={loadingTitle}
                         >
                             <div className={styles.header}>
-                                <h2 className={styles.headerTitle}>{title}</h2>
+                                <h2 className={styles.headerTitle}>{loadingTitle}</h2>
                                 <button
                                     type="button"
                                     className={styles.closeBtn}
@@ -455,7 +476,6 @@ function MatchEntryForm({
     entry,
     fixture,
     startPlayed,
-    title,
     sports,
     mySports,
     hints,
@@ -465,7 +485,6 @@ function MatchEntryForm({
     entry: MatchEntry | null
     fixture: UpcomingMatch | null
     startPlayed: boolean
-    title: string
     sports: Sport[]
     mySports: UserSport[]
     hints: DiaryHints
@@ -543,6 +562,7 @@ function MatchEntryForm({
         control,
         handleSubmit,
         watch,
+        getValues,
         setValue,
         formState: { errors, isDirty, isSubmitting, dirtyFields },
     } = useForm<MatchEntryFormValues>({
@@ -569,6 +589,7 @@ function MatchEntryForm({
     const stats = watch("stats")
 
     const isFixtureMode = status === "scheduled"
+    const title = sheetTitle(isEdit, openedAsFixture, status)
 
     // ── Data the form renders from ────────────────────────────
 
@@ -632,13 +653,26 @@ function MatchEntryForm({
 
     // ── Closing ───────────────────────────────────────────────
 
+    /**
+     * Whether closing would throw anything away.
+     *
+     * `photo.staged` is here because a picked photo touches no form value until
+     * submit, so `isDirty` alone would let somebody whose only change was adding
+     * a photo close over it without being asked.
+     *
+     * The comparison is for "Not played yet — keep it scheduled". `isDirty` stays
+     * true after it, because a sheet opened with `startPlayed` has Played as its
+     * default, and because `setMode` clears the played-only fields after the
+     * status has been measured. A form that is back on the fixture's own values
+     * has nothing to lose, whichever way it got there.
+     */
+    const hasUnsavedChanges = () =>
+        photo.staged || (isDirty && !sameFormValues(getValues(), savedValues))
+
     const requestClose = () => {
         if (saving) return
 
-        // `photo.staged` is here because a picked photo touches no form value
-        // until submit, so `isDirty` alone would let somebody whose only change
-        // was adding a photo close over it without being asked.
-        if (isDirty || photo.staged) {
+        if (hasUnsavedChanges()) {
             setConfirmingClose(true)
             return
         }
@@ -651,7 +685,7 @@ function MatchEntryForm({
     useEffect(() => {
         interceptBackRef.current = () => {
             if (saving) return true
-            if (!isDirty && !photo.staged) return false
+            if (!hasUnsavedChanges()) return false
             setConfirmingClose(true)
             return true
         }
@@ -960,6 +994,16 @@ function MatchEntryForm({
                             <Icon icon="mdi:close" width={20} height={20} />
                         </button>
                     </div>
+
+                    {/* The photo's status, for a screen reader. Here rather than in
+                        the photo card because a live region only announces a change:
+                        one that arrives holding "Uploading…" says nothing, and the
+                        card appears with the upload. So this is empty from the
+                        moment the sheet opens, and a photo the match already had
+                        stays unspoken. */}
+                    <span className="sr-only" aria-live="polite">
+                        {photo.staged ? PHOTO_STATUS_TEXT[photo.status] : ""}
+                    </span>
 
                     <form
                         className={styles.form}
@@ -1588,26 +1632,21 @@ function MatchEntryForm({
                                                             className={
                                                                 styles.photoStatus
                                                             }
-                                                            aria-live="polite"
+                                                            aria-hidden="true"
                                                         >
                                                             {photo.status ===
                                                                 "uploading" && (
-                                                                    <>
-                                                                        <span
-                                                                            className={
-                                                                                styles.miniSpinner
-                                                                            }
-                                                                            aria-hidden="true"
-                                                                        />
-                                                                        Uploading…
-                                                                    </>
+                                                                    <span
+                                                                        className={
+                                                                            styles.miniSpinner
+                                                                        }
+                                                                    />
                                                                 )}
-                                                            {photo.status ===
-                                                                "ready" &&
-                                                                "Ready"}
-                                                            {photo.status ===
-                                                                "failed" &&
-                                                                "Didn't upload"}
+                                                            {
+                                                                PHOTO_STATUS_TEXT[
+                                                                photo.status
+                                                                ]
+                                                            }
                                                         </span>
 
                                                         <div
