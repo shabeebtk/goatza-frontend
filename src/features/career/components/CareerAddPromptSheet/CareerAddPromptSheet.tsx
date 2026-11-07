@@ -19,7 +19,7 @@
 
 import { useState } from "react"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { useRecruitmentDetail } from "@/features/recruitments/hooks/useRecruitments"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -49,6 +49,7 @@ export default function CareerAddPromptSheet({
     organizationLogo,
     onClose,
 }: CareerAddPromptSheetProps) {
+    const toast = useToast()
     const { data: recruitment, isLoading } = useRecruitmentDetail(
         recruitmentId ?? ""
     )
@@ -93,11 +94,13 @@ export default function CareerAddPromptSheet({
                 },
             })
 
-            toast.success(
-                created
-                    ? "🎉 Added to your career — verified"
-                    : "This is already on your career"
-            )
+            toast.show({
+                title:
+                    created
+                        ? "🎉 Added to your career — verified"
+                        : "This is already on your career",
+                variant: "success",
+            })
             void settleViewport()
             onClose()
         } catch {

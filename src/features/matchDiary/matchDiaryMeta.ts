@@ -14,7 +14,6 @@ import type {
     MatchEntry,
     MatchEntryStat,
     MatchResult,
-    MatchStatus,
     MatchType,
     StatValueType,
 } from "./types"
@@ -40,11 +39,6 @@ export const MATCH_RESULT_LABELS: Record<MatchResult, string> = {
     loss: "Lost",
     draw: "Drawn",
     na: "",
-}
-
-export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
-    scheduled: "Scheduled",
-    played: "Played",
 }
 
 /** The tones a result chip can take. The CSS module maps each to a token. */
@@ -79,6 +73,40 @@ export const formatStatValue = (
 }
 
 /**
+ * A best-effort singular for a stat name, at a total of exactly one.
+ *
+ * Best-effort is the honest description. Names are authored by whoever seeds a
+ * sport's catalog and the catalog stores no singular form, so this handles
+ * English's two common plural endings and nothing else, on whichever word is
+ * plural: "Clean sheets" and "Goals" on the last, "Shots on target" and "Balls
+ * bowled" on the first.
+ */
+export const singularStatName = (name: string): string => {
+    const singularWord = (word: string): string => {
+        if (/(s|x|z|ch|sh)es$/i.test(word)) return word.slice(0, -2)
+        if (/s$/i.test(word) && !/ss$/i.test(word)) return word.slice(0, -1)
+        return word
+    }
+
+    const words = name.split(" ")
+    const pluralIndex = /s$/i.test(words[words.length - 1]) ? words.length - 1 : 0
+
+    return words
+        .map((word, index) => (index === pluralIndex ? singularWord(word) : word))
+        .join(" ")
+}
+
+/**
+ * One logged stat as a phrase: "2 Goals", "1 Shot on target", "10.5km". A unit
+ * is a symbol, so it butts up against the number and stands in for the name.
+ */
+export const statPhrase = (stat: MatchEntryStat): string => {
+    const value = formatStatValue(stat.value, stat.value_type)
+    if (stat.unit) return `${value}${stat.unit}`
+    return `${value} ${stat.value === 1 ? singularStatName(stat.name) : stat.name}`
+}
+
+/**
  * The ONE stat a collapsed diary row shows.
  *
  * A row that printed all twelve would be unreadable on a phone and would bury
@@ -88,18 +116,15 @@ export const formatStatValue = (
  * logged stat means a row is never blank just because someone logged only
  * tackles.
  *
- * Returns the rendered string ("2G", "10.5km") or null when nothing was logged.
+ * Returns the rendered string ("2 Goals", "10.5km") or null when nothing was
+ * logged.
  */
 export const headlineStat = (entry: MatchEntry): string | null => {
     if (entry.stats.length === 0) return null
 
-    const chosen: MatchEntryStat =
+    return statPhrase(
         entry.stats.find((stat) => stat.is_primary) ?? entry.stats[0]
-
-    const value = formatStatValue(chosen.value, chosen.value_type)
-    const label = chosen.unit || chosen.short_label || chosen.name
-
-    return `${value}${label}`
+    )
 }
 
 /**
@@ -135,11 +160,11 @@ const BALLS_BOWLED_STAT = "balls bowled"
 /**
  * A stat as the DETAIL modal shows it — value, its unit, and the label above.
  *
- * Separate from what a diary card renders, and deliberately so. A card tile is
- * 64px of width under a truncated label, so it prints the number the column
- * holds ("27" under "Balls bowled") and stays honest. The modal has room to
- * name the notation a cricketer actually reads, so 27 balls becomes "4.3" under
- * "Overs" — see `formatOvers` for why the two are not the same number.
+ * Separate from what a diary card renders, and deliberately so. A card's stat
+ * line prints the number the column holds ("27 Balls bowled") and stays honest.
+ * The modal has room to name the notation a cricketer actually reads, so 27
+ * balls becomes "4.3" under "Overs" — see `formatOvers` for why the two are not
+ * the same number.
  */
 export const statDetail = (
     stat: MatchEntryStat
@@ -158,3 +183,7 @@ export const statDetail = (
  */
 export const opponentLabel = (opponentName: string): string =>
     opponentName.trim() || "a match"
+
+/** The same for a heading or a card title, where "a match" would read as a typo. */
+export const opponentHeading = (opponentName: string): string =>
+    opponentName.trim() || "Match"

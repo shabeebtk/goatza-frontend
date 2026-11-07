@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import clsx from "clsx"
-import { Icon } from "@iconify/react"
 import { useNavigation } from "@/shared/services/navigation.service"
 import styles from "./OrgCard.module.css"
 
@@ -12,7 +11,6 @@ export interface OrgCardData {
   name: string
   headline?: string
   logo?: string
-  is_verified?: boolean
 }
 
 interface OrgCardProps {
@@ -43,15 +41,6 @@ export default function OrgCard({ org, action, meta, className }: OrgCardProps) 
 
         <span className={styles.nameRow}>
           <span className={styles.name}>{org.name}</span>
-          {org.is_verified && (
-            <Icon
-              icon="mdi:check-decagram"
-              width={15}
-              height={15}
-              className={styles.verified}
-              aria-label="Verified"
-            />
-          )}
         </span>
 
         {org.headline && <p className={styles.headline}>{org.headline}</p>}

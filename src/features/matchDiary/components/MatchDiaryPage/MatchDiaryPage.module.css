@@ -1,27 +1,33 @@
 /* ============================================================
    GOATZA — MatchDiaryPage
-   Mobile-first. 640px is the one breakpoint: below it the diary is
-   full-bleed with a compact icon-only add button, above it a
-   constrained column with the full "Log a match" button.
 
-   Deliberately ONE column at every width. A diary is a chronological
-   list; splitting it into two would mean reading August on the left
-   and July on the right, which is not how anybody reads a diary. The
-   column is 680px, and a match CARD at that width is already dense —
-   two of them side by side would be cramped at every size that fits.
+   Anything tied to the app chrome (the dock's clearance, the sticky
+   month offset, the icon-only add button) switches at 768px, like
+   AppShell. From 1024px the season overview moves to a sticky right
+   rail beside the ~680px content column.
+
+   The results stay ONE column at every width. A diary is a
+   chronological list; splitting it into two would mean reading
+   August on the left and July on the right.
 
    THERE IS NO FLOATING ACTION BUTTON. There used to be, and it landed
    directly above the bottom nav's own "+" — two plus buttons stacked
    in the same corner doing different things (the nav's opens the post
-   composer). The header button now shows at every width instead.
+   composer). The header button shows at every width instead.
    ============================================================ */
 
 .page {
     display: flex;
     flex-direction: column;
     width: 100%;
-    /* Clear of the bottom nav + the home indicator. */
+    /* Clear of the bottom dock + the home indicator. */
     padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--space-8));
+}
+
+@media (min-width: 768px) {
+    .page {
+        padding-bottom: var(--space-12);
+    }
 }
 
 .headerRow {
@@ -33,33 +39,63 @@
     width: 100%;
     max-width: 680px;
     margin-inline: auto;
-    padding-right: var(--space-3);
+    padding: var(--space-3) var(--space-4) 0;
+}
+
+/* BackHeader carries a bottom margin for pages that use it alone. Here it would
+   push the arrow and the title above the add button's centre line. */
+.headerRow > header {
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+.layout {
+    width: 100%;
+    max-width: 680px;
+    margin-inline: auto;
+    padding: var(--space-4) var(--space-4) 0;
 }
 
 .content {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-
-    width: 100%;
-    max-width: 680px;
-    margin-inline: auto;
-    padding: var(--space-2) var(--space-3) 0;
+    min-width: 0;
 }
 
-@media (min-width: 640px) {
-    .page {
-        padding-bottom: var(--space-12);
-    }
-
+@media (min-width: 768px) {
     .content {
         gap: var(--space-6);
-        padding: var(--space-3) var(--space-4) 0;
     }
+}
+
+@media (min-width: 1024px) {
+    .pageWithRail .headerRow,
+    .pageWithRail .layout {
+        max-width: calc(680px + var(--space-6) + 320px);
+    }
+
+    .pageWithRail .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: var(--space-6);
+        align-items: start;
+    }
+}
+
+/* Under the 60px desktop bar. Sticky never reaches what is below the fold, so a
+   card taller than the screen (a 1366×768 laptop) scrolls inside the rail. */
+.rail {
+    position: sticky;
+    top: calc(60px + var(--space-4));
+    min-width: 0;
+    max-height: calc(100dvh - 60px - 2 * var(--space-4));
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 /* ── Add button ──────────────────────────────────────────────── */
-/* One button, every width. Below 640px it is the icon alone at a 44px
+/* One button, every width. Below 768px it is the icon alone at a 44px
    target; the label appears when there is room for it. */
 
 .headerAddBtn {
@@ -82,6 +118,7 @@
     background: var(--color-brand);
     color: var(--color-on-brand);
     cursor: pointer;
+    touch-action: manipulation;
 
     transition: background var(--duration-fast) var(--ease-out);
 }
@@ -99,12 +136,11 @@
     outline-offset: 2px;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
     .headerAddBtn {
         width: auto;
-        height: auto;
-        padding: var(--space-2) var(--space-4);
-        min-height: 44px;
+        height: 44px;
+        padding: 0 var(--space-4);
     }
 
     .headerAddLabel {
@@ -113,9 +149,7 @@
 }
 
 /* ── Overdue strip ───────────────────────────────────────────── */
-/* The loudest thing on the page, on purpose: an unlogged fixture is
-   the only thing in v1 that brings a player back. Brand-tinted rather
-   than error-red — this is a nudge, not a failure. */
+/* Brand-tinted rather than error-red — this is a nudge, not a failure. */
 
 .overdue {
     display: flex;
@@ -139,16 +173,18 @@
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    color: var(--color-brand-hover);
+    color: var(--color-brand-strong);
 }
 
 .overdueText {
     flex: 1 1 auto;
+    min-width: 0;
     margin: 0;
 
     font-size: var(--text-sm);
     line-height: var(--leading-snug);
     color: var(--color-text-primary);
+    overflow-wrap: anywhere;
 }
 
 .overdueText strong {
@@ -157,6 +193,7 @@
 
 .overdueBtn {
     flex: 0 0 auto;
+    min-height: 44px;
 
     padding: var(--space-2) var(--space-3);
     border: 0;
@@ -170,6 +207,7 @@
     background: var(--color-brand);
     color: var(--color-on-brand);
     cursor: pointer;
+    touch-action: manipulation;
 
     transition: background var(--duration-fast) var(--ease-out);
 }
@@ -183,7 +221,7 @@
     outline-offset: 2px;
 }
 
-/* ── Upcoming ────────────────────────────────────────────────── */
+/* ── Section titles ──────────────────────────────────────────── */
 
 .sectionTitle {
     margin: 0 0 var(--space-2);
@@ -193,8 +231,10 @@
     font-weight: var(--weight-semi);
     letter-spacing: var(--tracking-wider);
     text-transform: uppercase;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
 }
+
+/* ── Up next ─────────────────────────────────────────────────── */
 
 .upcomingList {
     list-style: none;
@@ -215,17 +255,20 @@
 }
 
 .upcomingRow {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-3);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--space-3);
     width: 100%;
+    min-height: 52px;
 
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-4);
     border: 0;
 
     background: var(--color-surface);
     text-align: left;
     cursor: pointer;
+    touch-action: manipulation;
 
     transition: background var(--duration-fast) var(--ease-out);
 }
@@ -240,7 +283,6 @@
 }
 
 .upcomingDate {
-    flex: 0 0 auto;
     display: flex;
     align-items: baseline;
     gap: var(--space-2);
@@ -249,16 +291,16 @@
     font-size: var(--text-sm);
     font-weight: var(--weight-semi);
     color: var(--color-text-primary);
+    white-space: nowrap;
 }
 
 .upcomingTime {
     font-weight: var(--weight-regular);
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
 }
 
 .upcomingOpponent {
-    flex: 1 1 auto;
     min-width: 0;
 
     font-size: var(--text-sm);
@@ -270,108 +312,95 @@
 }
 
 .upcomingType {
-    flex: 0 0 auto;
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
 }
 
-/* ── Filters ─────────────────────────────────────────────────── */
-/* ONE band at every width, mobile included. The year picker used to
-   drop onto a line of its own below 640px, which read as a stray
-   "All years" pill floating above the diary rather than as a filter —
-   it is the same kind of control as the segments beside it and it
-   belongs on the same line. The segmented control absorbs the squeeze
-   by scrolling, which it already did. */
-
-.filters {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-/* Takes the leftover width and scrolls inside it, so adding a sport
-   picker never pushes the statuses onto a second line. */
-.segmented {
-    flex: 1 1 auto;
-    min-width: 0;
-
-    display: flex;
-    gap: var(--space-1);
-    padding: var(--space-1);
-    border-radius: var(--radius-full);
-
-    background: var(--color-surface-raised);
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-@media (min-width: 640px) {
-    .filters {
-        justify-content: space-between;
-        gap: var(--space-3);
+/* Narrow phones: the date on top, the opponent under it, the type beside both. */
+@media (max-width: 479px) {
+    .upcomingRow {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 2px;
     }
 
-    .segmented {
-        flex: 0 1 auto;
-    }
+    .upcomingDate { grid-column: 1; grid-row: 1; }
+    .upcomingOpponent { grid-column: 1; grid-row: 2; }
+    .upcomingType { grid-column: 2; grid-row: 1 / span 2; }
 }
 
-.segmented::-webkit-scrollbar {
-    display: none;
+@media (max-width: 399px) {
+    .upcomingRow { grid-template-columns: minmax(0, 1fr); }
+    .upcomingType { display: none; }
 }
 
-.segment {
-    flex: 0 0 auto;
-
-    padding: var(--space-2) var(--space-4);
+.showAllBtn {
+    width: 100%;
+    min-height: 44px;
+    margin-top: var(--space-1);
+    padding: var(--space-2);
     border: 0;
-    border-radius: var(--radius-full);
 
     font-family: var(--font-ui);
     font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    white-space: nowrap;
+    font-weight: var(--weight-semi);
 
     background: transparent;
-    color: var(--color-text-secondary);
+    color: var(--color-brand-strong);
     cursor: pointer;
-
-    transition: background var(--duration-fast) var(--ease-out),
-        color var(--duration-fast) var(--ease-out);
+    touch-action: manipulation;
 }
 
-.segment:hover {
-    color: var(--color-text-primary);
+.showAllBtn:hover {
+    text-decoration: underline;
 }
 
-.segment:focus-visible {
+.showAllBtn:focus-visible {
     outline: 2px solid var(--color-brand);
-    outline-offset: 2px;
+    outline-offset: -2px;
 }
 
-.segmentActive {
-    background: var(--color-surface);
-    color: var(--color-text-primary);
-    font-weight: var(--weight-semi);
-    box-shadow: var(--shadow-xs);
-}
+/* ── Results + filters ───────────────────────────────────────── */
 
-.selects {
-    flex: 0 0 auto;
+.results {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.results > .sectionTitle {
+    margin-bottom: 0;
+}
+
+/* Layout only — these are ui/Select fields and draw their own trigger. */
+.filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
-    overflow-x: auto;
-    scrollbar-width: none;
 }
 
-.selects::-webkit-scrollbar {
-    display: none;
+.filtersSingle {
+    grid-template-columns: 1fr;
 }
 
-/* Layout only — these are ui/Select fields now and draw their own trigger. */
-.selectWrap {
-    flex: 0 0 auto;
-    width: 150px;
+.filters > * {
+    min-width: 0;
+}
+
+@media (min-width: 768px) {
+    .filters {
+        grid-template-columns: repeat(2, minmax(0, 180px));
+    }
+
+    .filtersSingle {
+        grid-template-columns: minmax(0, 180px);
+    }
+}
+
+.monthsStale {
+    opacity: 0.6;
+    transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 /* ── Month groups ────────────────────────────────────────────── */
@@ -381,11 +410,16 @@
     flex-direction: column;
 }
 
-/* Sticky under the fixed top nav, so the month you are reading stays
-   named while you scroll through it. */
+.month + .month {
+    margin-top: var(--space-3);
+}
+
+/* Sticky under the top bar, and it FOLLOWS the bar on a phone: the bar slides
+   away with the scroll (--chrome-progress, 0 shown → 1 hidden), and a header
+   parked at the bar's old offset would float over the gap it left. */
 .monthHeader {
     position: sticky;
-    top: calc(var(--top-nav-h) + var(--safe-top));
+    top: calc(var(--safe-top) + var(--top-nav-h) * (1 - var(--chrome-progress, 0)));
     z-index: 2;
 
     margin: 0;
@@ -396,9 +430,15 @@
     font-weight: var(--weight-semi);
     letter-spacing: var(--tracking-wider);
     text-transform: uppercase;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
 
     background: var(--color-bg);
+}
+
+@media (min-width: 768px) {
+    .monthHeader {
+        top: 60px;
+    }
 }
 
 /* ── Cards ───────────────────────────────────────────────────── */
@@ -407,7 +447,7 @@
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
 }
 
 .card {
@@ -416,19 +456,18 @@
 
 .cardBtn {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
     width: 100%;
 
-    padding: 0;
+    padding: var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    /* The header band is tinted edge to edge, so it has to be clipped
-       by the card's own radius. */
-    overflow: hidden;
 
     background: var(--color-surface);
     text-align: left;
     cursor: pointer;
+    touch-action: manipulation;
 
     transition: border-color var(--duration-fast) var(--ease-out),
         box-shadow var(--duration-fast) var(--ease-out);
@@ -444,45 +483,35 @@
     outline-offset: 2px;
 }
 
-/* A fixture is a plan, not a record. The dashed edge says so before
-   the chip is read. */
+/* A fixture is a plan, not a record. The dashed edge says so before the chip is
+   read. */
 .cardBtn[data-scheduled="true"] {
     border-style: dashed;
 }
 
-.cardHead {
+.cardMain {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cardTitleRow {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-
-    padding: var(--space-3);
-    border-bottom: 1px solid var(--color-border-subtle);
-}
-
-/* Four tones, one rule, same `resultTone` the chips use — so a win is
-   the same green on the band and on the chip inside it, in both
-   themes. The loss tint is mixed from the error token rather than
-   frozen as a hex: there is no error-subtle token, and a literal would
-   stop following the theme into dark mode. */
-.cardHead[data-tone="win"] {
-    background: var(--color-brand-subtle);
-}
-
-.cardHead[data-tone="loss"] {
-    background: color-mix(in srgb, var(--color-error) 8%, transparent);
-}
-
-.cardHead[data-tone="draw"],
-.cardHead[data-tone="neutral"] {
-    background: var(--color-surface-raised);
+    min-width: 0;
 }
 
 .cardOpponent {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
 
     font-size: var(--text-base);
     font-weight: var(--weight-semi);
+    line-height: var(--leading-snug);
     color: var(--color-text-primary);
 
     overflow: hidden;
@@ -490,121 +519,61 @@
     white-space: nowrap;
 }
 
-.cardDate {
+/* The surface colour, with an edge, so it does not vanish into what it sits on. */
+.chipScheduled {
     flex: 0 0 auto;
 
-    font-family: var(--font-ui);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-}
-
-.cardBody {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-
-    padding: var(--space-3);
-}
-
-/* ── Stat tiles ──────────────────────────────────────────────── */
-/* auto-fit, not auto-fill: a match with two stats gets two tiles that
-   share the width, rather than two tiles and three empty columns. */
-
-.tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
-    gap: var(--space-2);
-}
-
-.tile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-
-    padding: var(--space-2) var(--space-1);
-    border-radius: var(--radius-sm);
-
-    background: var(--color-surface-raised);
-}
-
-.tileValue {
-    display: flex;
-    align-items: baseline;
-
-    font-family: var(--font-display);
-    font-size: var(--text-lg);
-    font-weight: var(--weight-bold);
-    line-height: var(--leading-tight);
-    color: var(--color-text-primary);
-}
-
-.tileUnit {
-    font-family: var(--font-ui);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-regular);
-    color: var(--color-text-muted);
-}
-
-.tileLabel {
-    max-width: 100%;
+    padding: 1px var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
 
     font-family: var(--font-ui);
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
+    font-weight: var(--weight-semi);
+    line-height: 1.5;
 
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
 }
-
-.tileMore .tileValue {
-    color: var(--color-text-muted);
-}
-
-/* ── Meta ────────────────────────────────────────────────────── */
 
 .cardMeta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-secondary);
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.cardMetaText {
-    flex: 1 1 auto;
-    min-width: 0;
-
+.cardStats {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    align-items: baseline;
     gap: var(--space-2);
+    min-width: 0;
+    margin-top: 2px;
 
     font-family: var(--font-ui);
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+    color: var(--color-text-primary);
 }
 
-.cardMetaItem {
-    display: inline-flex;
-    align-items: center;
+.cardStatsText {
+    flex: 0 1 auto;
+    min-width: 0;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* Separator dots, so the meta line reads as one string rather than
-   two orphaned words. */
-.cardMetaItem + .cardMetaItem::before {
-    content: "·";
-    margin-right: var(--space-2);
-    color: var(--color-border);
-}
-
-.cardRating {
+/* Never ellipsized away: it is the only sign there is more to see. */
+.cardStatsMore {
     flex: 0 0 auto;
-    display: inline-flex;
-    gap: 1px;
-    color: var(--color-brand);
+    color: var(--color-text-secondary);
 }
 
 .cardCareer {
@@ -613,8 +582,15 @@
     gap: var(--space-1);
     min-width: 0;
 
+    font-family: var(--font-ui);
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
+    line-height: var(--leading-snug);
+    color: var(--color-text-secondary);
+}
+
+.cardCareerName {
+    flex: 0 1 auto;
+    min-width: 0;
 
     overflow: hidden;
     text-overflow: ellipsis;
@@ -627,134 +603,73 @@
     color: var(--color-brand);
 }
 
-/* ── Note + photo strip ──────────────────────────────────────── */
-/* Rendered only when there is something in it. An empty strip would
-   add a divider to every match nobody wrote about. */
-
-.cardStrip {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-width: 0;
-
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--color-border-subtle);
-}
-
-.cardThumb {
-    flex: 0 0 auto;
-
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    object-fit: cover;
-    background: var(--color-surface-raised);
-}
-
 .cardNote {
-    flex: 1 1 auto;
-    min-width: 0;
-
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-muted);
 
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.chip {
+.cardThumb {
     flex: 0 0 auto;
+    align-self: center;
 
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-full);
-
-    font-family: var(--font-ui);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semi);
-    line-height: 1.5;
-}
-
-.chipScheduled {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
     background: var(--color-surface-raised);
-    color: var(--color-text-secondary);
-}
-
-/* One rule, four tones. `resultTone` in the meta module decides which,
-   and this is the only place the colours exist — so they follow the
-   theme into dark mode instead of being frozen hexes in a .ts file. */
-.chipResult[data-tone="win"] {
-    background: var(--color-brand-muted);
-    color: var(--color-brand-hover);
-}
-
-.chipResult[data-tone="loss"] {
-    background: var(--color-surface-raised);
-    color: var(--color-error);
-}
-
-.chipResult[data-tone="draw"] {
-    background: var(--color-surface-raised);
-    color: var(--color-text-secondary);
-}
-
-.chipResult[data-tone="neutral"] {
-    background: var(--color-surface-raised);
-    color: var(--color-text-muted);
 }
 
 /* ── Skeleton ────────────────────────────────────────────────── */
-/* Same geometry as the real card — tinted band, a row of tiles, a meta
-   line — so nothing shifts when the data lands. */
 
 .cardSkeleton {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
 
+    padding: var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    overflow: hidden;
 
     background: var(--color-surface);
 }
 
-.skeletonHead {
-    display: block;
-    height: 44px;
-    background: var(--color-surface-raised);
-    animation: pulse 1.4s var(--ease-in-out) infinite;
-}
-
-.skeletonBody {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-
-    padding: var(--space-3);
-}
-
-.skeletonTiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
-    gap: var(--space-2);
-}
-
-.skeletonTile,
+.skeletonBadge,
 .skeletonLine {
     display: block;
-    border-radius: var(--radius-sm);
     background: var(--color-surface-raised);
     animation: pulse 1.4s var(--ease-in-out) infinite;
 }
 
-.skeletonTile {
-    height: 48px;
+.skeletonBadge {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+}
+
+.skeletonLines {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: 2px;
 }
 
 .skeletonLine {
     height: 12px;
-    width: 45%;
+    border-radius: var(--radius-sm);
 }
+
+.skeletonLine[data-width="title"] { width: 55%; height: 16px; }
+.skeletonLine[data-width="meta"] { width: 40%; }
+.skeletonLine[data-width="stats"] { width: 70%; }
 
 @keyframes pulse {
     0%,
@@ -771,9 +686,7 @@
    but the pulse would still run once at full opacity swing. Stop it
    outright — a skeleton does not need to move to say "loading". */
 @media (prefers-reduced-motion: reduce) {
-
-    .skeletonHead,
-    .skeletonTile,
+    .skeletonBadge,
     .skeletonLine {
         animation: none;
     }
@@ -795,6 +708,24 @@
     color: var(--color-text-muted);
 }
 
+.stateWelcome {
+    border-style: solid;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.stateIcon {
+    display: grid;
+    place-items: center;
+
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-full);
+
+    background: var(--color-brand-subtle);
+    color: var(--color-brand-strong);
+}
+
 .stateTitle {
     margin: 0;
 
@@ -804,7 +735,7 @@
 }
 
 .stateHint {
-    max-width: 34ch;
+    max-width: 40ch;
 
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
@@ -815,6 +746,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
+    min-height: 44px;
 
     padding: var(--space-2) var(--space-5);
     border: 0;
@@ -827,6 +759,7 @@
     background: var(--color-brand);
     color: var(--color-on-brand);
     cursor: pointer;
+    touch-action: manipulation;
 
     transition: background var(--duration-fast) var(--ease-out);
 }
@@ -836,6 +769,41 @@
 }
 
 .stateBtn:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+}
+
+.loadMoreError {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.loadMoreRetry {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    border: 0;
+
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semi);
+
+    background: transparent;
+    color: var(--color-brand-strong);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.loadMoreRetry:focus-visible {
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
 }

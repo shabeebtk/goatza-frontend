@@ -19,19 +19,20 @@
  * LEAVES `upcoming` and JOINS the list, in one PATCH. Neither side can be
  * skipped on the grounds that "it was only an edit".
  *
- * Error toasts use the shared sonner + getMatchDiaryErrorMessage pattern;
+ * Error toasts use the shared useToast + getMatchDiaryErrorMessage pattern;
  * success toasts are left to the calling component, which knows the context the
  * message should read in.
  */
 
 import {
+    keepPreviousData,
     useInfiniteQuery,
     useMutation,
     useQuery,
     useQueryClient,
 } from "@tanstack/react-query"
 import type { QueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import {
     createMatchApi,
@@ -135,6 +136,9 @@ export const useMatches = (
         enabled: options?.enabled ?? true,
         retry: retryMatchDiaryQuery,
         staleTime: 1000 * 60,
+        // A filter change keeps the old rows on screen until the new ones land,
+        // rather than flashing skeletons for the sake of one Select.
+        placeholderData: keepPreviousData,
     })
 
 /**
@@ -172,6 +176,8 @@ export const useMatchSummary = (
         enabled: options?.enabled ?? true,
         retry: retryMatchDiaryQuery,
         staleTime: 1000 * 60,
+        // Same reason as `useMatches`: it sits beside the list and changes with it.
+        placeholderData: keepPreviousData,
     })
 
 /**
@@ -253,13 +259,14 @@ export const useMatchDiarySettings = (enabled = true) =>
  * would mean rendering a row that changes under the user a moment later.
  */
 export const useCreateMatch = () => {
+    const toast = useToast()
     const qc = useQueryClient()
 
     return useMutation({
         mutationFn: (payload: CreateMatchPayload) => createMatchApi(payload),
 
         onError: (err) => {
-            toast.error(getMatchDiaryErrorMessage(err))
+            toast.show({ title: getMatchDiaryErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -278,6 +285,7 @@ export const useCreateMatch = () => {
  * `upcoming` would keep telling them to log a match they have already logged.
  */
 export const useUpdateMatch = () => {
+    const toast = useToast()
     const qc = useQueryClient()
 
     return useMutation({
@@ -290,7 +298,7 @@ export const useUpdateMatch = () => {
         }) => updateMatchApi(matchId, payload),
 
         onError: (err) => {
-            toast.error(getMatchDiaryErrorMessage(err))
+            toast.show({ title: getMatchDiaryErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -307,8 +315,12 @@ export const useUpdateMatch = () => {
  * the streak are recomputed server-side from the whole history — guessing what
  * they become would mean showing a total that is subtly wrong, and a wrong
  * total is not something a user can spot and correct.
+ *
+ * The row leaving the list must not take the open detail modal with it: see
+ * useMatchDetailState, which keeps a snapshot while this runs.
  */
 export const useDeleteMatch = () => {
+    const toast = useToast()
     const qc = useQueryClient()
 
     return useMutation({
@@ -348,7 +360,7 @@ export const useDeleteMatch = () => {
             for (const [key, data] of ctx?.snapshots ?? []) {
                 qc.setQueryData(key, data)
             }
-            toast.error(getMatchDiaryErrorMessage(err))
+            toast.show({ title: getMatchDiaryErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -367,6 +379,7 @@ export const useDeleteMatch = () => {
  * change them.
  */
 export const useUpdateMatchDiarySettings = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const key = matchDiaryKeys.settings()
 
@@ -390,7 +403,7 @@ export const useUpdateMatchDiarySettings = () => {
             // that silently stayed moved would tell a player their diary is
             // showcased when nobody can see it.
             if (ctx?.previous) qc.setQueryData(key, ctx.previous)
-            toast.error(getMatchDiaryErrorMessage(err))
+            toast.show({ title: getMatchDiaryErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {

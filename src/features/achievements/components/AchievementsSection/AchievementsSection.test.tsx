@@ -57,7 +57,9 @@ vi.mock("../AchievementModal/AchievementModal", () => ({
     default: () => null,
 }))
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock("@/shared/components/ui/Toast/Toast", () => ({
+    useToast: () => ({ show: vi.fn() }),
+}))
 
 afterEach(() => {
     cleanup()

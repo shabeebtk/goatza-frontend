@@ -1,34 +1,33 @@
 /* ============================================================
    GOATZA — MatchDetailModal
-   Mobile:  full-screen sheet. Sticky header, sticky footer, the
-            body scrolls between them.
-   640px+:  centred card, max 600px, 16px radius, body scrolls
-            internally.
+   Below 768px: full-screen, over the bars. Sticky hero, sticky
+                footer, the body scrolls between them.
+   768px+:      centred card, max 600px, body scrolls internally.
 
-   dvh, not vh, throughout — the same rule MatchEntrySheet states at
-   the top of its own module, and for the same reason: on a phone
-   `100vh` is the viewport WITHOUT the browser chrome, so a footer
-   pinned to it sits under the chrome instead of above it.
-
-   Every colour is a token. The header tint in particular has to
-   follow the theme into dark mode, which a hex could not.
+   Same geometry as MatchEntrySheet, which opens on top of this
+   one. Every colour is a token, the hero tint in particular: it
+   has to follow the theme into dark mode, which a hex could not.
    ============================================================ */
 
 @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp    { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes spin       { to { transform: rotate(360deg); } }
 
 /* ── Backdrop + shell ────────────────────────────────────────── */
 
 .backdrop {
   position: fixed;
-  inset: 0;
-  z-index: 500;
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
+  z-index: var(--z-match-detail);
 
   display: flex;
   align-items: flex-end;
   justify-content: center;
 
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-scrim);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   animation: backdropIn 0.18s var(--ease-out) both;
@@ -40,8 +39,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
 
   background: var(--color-surface);
   overflow: hidden;
@@ -53,7 +52,7 @@
    on the page behind it. It is a container, not a control — no ring. */
 .modal:focus { outline: none; }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .backdrop {
     align-items: center;
     padding: var(--space-6);
@@ -61,10 +60,10 @@
 
   .modal {
     height: auto;
-    max-height: 90dvh;
+    max-height: min(88dvh, 100%);
     max-width: 600px;
     border: 1.5px solid var(--color-border);
-    border-radius: 16px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
   }
 }
@@ -78,22 +77,19 @@
   .modal { animation: none; }
 }
 
-/* ── Header ──────────────────────────────────────────────────── */
-/* Same four tones as the diary card, driven by the same `resultTone`,
-   so a win is the same green on the card and on the modal it opens. */
+/* ── Hero ────────────────────────────────────────────────────── */
+/* Tinted by the same `resultTone` the badge on the card uses, so a win is
+   the same green on the card and on the modal it opens. */
 
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   flex-shrink: 0;
 
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 
-  padding: var(--space-4) var(--space-5);
-  padding-top: calc(var(--space-4) + var(--safe-top));
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  padding-top: calc(var(--space-3) + var(--safe-top));
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface-raised);
 }
@@ -114,7 +110,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: 36px;
+  min-height: 44px;
 }
 
 .chip {
@@ -134,12 +130,12 @@
 
 .chipResult[data-tone="win"] {
   background: var(--color-brand-muted);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-strong);
 }
 
 .chipResult[data-tone="loss"] {
   background: var(--color-surface);
-  color: var(--color-error);
+  color: var(--color-error-strong);
 }
 
 .chipResult[data-tone="draw"] {
@@ -167,6 +163,7 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
+  touch-action: manipulation;
 
   transition: background var(--duration-fast), color var(--duration-fast);
 }
@@ -180,7 +177,7 @@
 .closeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .opponent {
-  font-size: 22px;
+  font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
   line-height: var(--leading-snug);
   color: var(--color-text-primary);
@@ -194,6 +191,40 @@
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
+}
+
+.metaLine {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-secondary);
+}
+
+.career {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-secondary);
+}
+
+.careerValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  vertical-align: bottom;
+  color: var(--color-text-primary);
+}
+
+.careerName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.verified {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-brand);
 }
 
 /* ── Body ────────────────────────────────────────────────────── */
@@ -213,8 +244,7 @@
 }
 
 /* ── Stat tiles ──────────────────────────────────────────────── */
-/* Wider minimum than the card's 64px: three per row here, and the
-   labels are the full stat names rather than truncations. */
+/* Three per row on a phone, with the full stat names as labels. */
 
 .tiles {
   display: grid;
@@ -259,7 +289,7 @@
   font-size: var(--text-xs);
   line-height: var(--leading-snug);
   text-align: center;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 
   /* Wraps rather than truncates — twelve stats with cryptic labels is
      what `short_label` would give, and the room is here. */
@@ -291,64 +321,6 @@
 .ratingStars {
   display: inline-flex;
   gap: 2px;
-  color: var(--color-brand);
-}
-
-/* ── Meta rows ───────────────────────────────────────────────── */
-
-.meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.metaRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-
-  padding: var(--space-3) 0;
-}
-
-.metaRow + .metaRow {
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.metaIcon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  color: var(--color-text-muted);
-}
-
-.metaLabel {
-  flex: 0 0 auto;
-
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.metaValue {
-  flex: 1 1 auto;
-  min-width: 0;
-
-  font-size: var(--text-sm);
-  text-align: right;
-  color: var(--color-text-primary);
-  overflow-wrap: anywhere;
-}
-
-.careerValue {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.verified {
-  display: inline-flex;
-  flex: 0 0 auto;
   color: var(--color-brand);
 }
 
@@ -387,6 +359,21 @@
 
 /* ── Photo ───────────────────────────────────────────────────── */
 
+.photoBtn {
+  display: block;
+  flex-shrink: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+
+  background: transparent;
+  cursor: zoom-in;
+  touch-action: manipulation;
+}
+
+.photoBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
 .photo {
   width: 100%;
   max-height: 220px;
@@ -408,7 +395,7 @@
 
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
-  color: var(--color-error);
+  color: var(--color-error-strong);
 }
 
 .error svg { flex-shrink: 0; margin-top: 2px; }
@@ -416,9 +403,6 @@
 /* ── Footer ──────────────────────────────────────────────────── */
 
 .footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
   flex-shrink: 0;
 
   display: flex;
@@ -451,12 +435,14 @@
   background: var(--color-brand);
   color: var(--color-on-brand);
   cursor: pointer;
+  touch-action: manipulation;
 
   transition: background var(--duration-fast);
 }
 
-.editBtn:hover { background: var(--color-brand-hover); }
+.editBtn:hover:not(:disabled) { background: var(--color-brand-hover); }
 .editBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.editBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .trashBtn {
   flex: 0 0 auto;
@@ -469,68 +455,27 @@
   border-radius: var(--radius-full);
 
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-error-strong);
   cursor: pointer;
+  touch-action: manipulation;
 
-  transition: border-color var(--duration-fast), color var(--duration-fast);
+  transition: border-color var(--duration-fast), background var(--duration-fast);
 }
 
-.trashBtn:hover {
+.trashBtn:hover:not([aria-disabled="true"]) {
   border-color: var(--color-error);
-  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
 }
 
 .trashBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.trashBtn[aria-disabled="true"] { cursor: not-allowed; }
 
-/* ── Inline delete confirm ───────────────────────────────────── */
-
-.confirmText {
-  flex: 1 1 auto;
-  min-width: 0;
-
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semi);
-  color: var(--color-text-primary);
+.spinner {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
 }
-
-.confirmActions {
-  flex: 0 0 auto;
-  display: flex;
-  gap: var(--space-2);
-}
-
-.cancelBtn,
-.deleteBtn {
-  min-height: 44px;
-  padding: 10px var(--space-4);
-  border-radius: var(--radius-full);
-
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.cancelBtn {
-  border: 1.5px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
-.cancelBtn:hover { background: var(--color-surface-raised); color: var(--color-text-primary); }
-
-.deleteBtn {
-  border: none;
-  background: var(--color-error);
-  color: var(--color-text-inverted);
-}
-
-.deleteBtn:hover { opacity: 0.9; }
-
-.cancelBtn:disabled,
-.deleteBtn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.cancelBtn:focus-visible,
-.deleteBtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }

@@ -208,14 +208,6 @@ export default function OrganizationCombobox({
                                     <span className={styles.optionText}>
                                         <span className={styles.optionName}>
                                             {org.name}
-                                            {org.is_verified && (
-                                                <Icon
-                                                    icon="mdi:check-decagram"
-                                                    width={12}
-                                                    height={12}
-                                                    className={styles.optionTick}
-                                                />
-                                            )}
                                         </span>
                                         <span className={styles.optionUsername}>
                                             @{org.username}

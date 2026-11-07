@@ -1,0 +1,43 @@
+/* The label tokens, not --color-brand or --color-error: small letters in those
+   on their own tint only reach about 3.2:1. */
+
+.badge {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}
+
+.sm {
+  width: 36px;
+  height: 36px;
+  font-size: var(--text-sm);
+}
+
+.badge[data-tone="win"] {
+  background: var(--color-brand-muted);
+  color: var(--color-brand-strong);
+}
+
+.badge[data-tone="loss"] {
+  background: color-mix(in srgb, var(--color-error) 12%, var(--color-surface));
+  color: var(--color-error-strong);
+}
+
+.badge[data-tone="draw"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+.badge[data-tone="neutral"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+}

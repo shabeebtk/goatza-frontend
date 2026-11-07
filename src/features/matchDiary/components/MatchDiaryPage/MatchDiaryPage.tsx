@@ -9,95 +9,128 @@
  * 403 message rather than an empty list, because "you have no matches" and
  * "this feature is not for your account" are very different things to read.
  *
- * The order of the page is the order of intent, not the order of the data:
+ * The order of the page:
  *
- *   1. OVERDUE fixtures. The single highest-value element here — a match the
- *      player scheduled, played, and never logged. In v1 it is the only thing
- *      that pulls somebody back into the diary, so it sits above everything
- *      including their own history.
- *   2. Upcoming fixtures, which are a reminder rather than a task.
- *   3. Filters.
- *   4. The diary itself, grouped by month.
+ *   1. The season overview for the current filters. A compact card with a "See
+ *      all stats" toggle, and from 1024px the full card in a sticky right rail.
+ *   2. Fixtures. Overdue ones first, a match the player scheduled, played and
+ *      never logged, then Up next.
+ *   3. Results, PLAYED matches only, grouped by month. Fixtures live in Up next,
+ *      so the list has no status filter and never shows one twice.
  *
  * Filters drive SERVER params. The list is paginated, so filtering the loaded
  * pages would hide matches that had simply not been fetched yet.
  *
  * ── Reading a match, then editing it ──────────────────────────
  *
- * Tapping a card OPENS THE DETAIL MODAL, not the edit form. Editing used to be
- * the only thing a tap could do, which meant there was no way to read a match
- * at all — the note, the rating and eleven of the twelve stats existed only as
- * form fields. Two pieces of state, not one:
+ * Tapping a card OPENS THE DETAIL MODAL, not the edit form. "Edit match" opens
+ * the sheet over the modal and leaves it mounted underneath, so one back press
+ * or a save lands on the match that was being read, with the edit already
+ * showing. See useMatchDetailState.
  *
- *   detailId → which match is being read
- *   sheet    → what the edit form is doing, exactly as before
- *
- * They overlap on purpose. "Edit match" leaves `detailId` set and opens the
- * sheet over it, so closing the sheet lands back on the match that was being
- * read rather than on the list — with the edit already showing, because the
- * modal's entry is looked up in the list by id on every render instead of being
- * captured when the card was tapped.
- *
- * The one place a tap still goes straight to the form is "Log result" on an
- * overdue fixture. That is an action somebody has come back to perform, and
- * making them read the fixture first would put a step in front of the single
- * flow this page exists to complete.
+ * "Log result" on an overdue fixture goes straight to the form, in Played mode.
+ * That is an action somebody has come back to perform, and making them read the
+ * fixture first would put a step in front of it.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
 
 import BackHeader from "@/shared/components/ui/BackHeader/BackHeader"
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { useMyUserSports } from "@/features/profile/hooks/useSportsQueries"
 import {
     getMatchDiaryErrorMessage,
     isMatchDiaryForbidden,
 } from "../../services/matches.api"
-import { useMatches, useUpcomingMatches } from "../../hooks/useMatchDiary"
-import { MATCH_TYPE_LABELS, opponentLabel } from "../../matchDiaryMeta"
-import type { MatchEntry, MatchListFilters, UpcomingMatch } from "../../types"
+import {
+    useMatches,
+    useMatchSummary,
+    useUpcomingMatches,
+} from "../../hooks/useMatchDiary"
+import { useMatchDetailState } from "../../hooks/useMatchDetailState"
+import {
+    MATCH_TYPE_LABELS,
+    opponentHeading,
+    opponentLabel,
+} from "../../matchDiaryMeta"
+import type { MatchEntry, UpcomingMatch } from "../../types"
 import MatchDetailModal from "../MatchDetailModal/MatchDetailModal"
 import MatchEntrySheet from "../MatchEntrySheet/MatchEntrySheet"
+import SeasonSummaryCard, {
+    SeasonSummaryCardSkeleton,
+} from "../SeasonSummaryCard/SeasonSummaryCard"
 import MatchDiaryFilters, {
     filterSummary,
     hasActiveFilters,
+    type DiaryFilters,
     type SportOption,
 } from "./MatchDiaryFilters"
 import { MatchEntryCard, MatchEntryCardSkeleton } from "./MatchEntryCard"
 import styles from "./MatchDiaryPage.module.css"
 
+/** How many fixtures Up next shows before "Show all". */
+const UP_NEXT_PREVIEW = 3
+
 /**
  * What the sheet is currently doing, or null when it is closed.
  *
  * Both keys absent means "log a new match". `fixture` is its own case rather
- * than a null `entry`, for the reason `openFixture` explains.
+ * than a null `entry`: a blank sheet would log a SECOND match for a fixture the
+ * player already scheduled, and leave the original still asking to be logged.
  */
-type SheetState = { entry?: MatchEntry; fixture?: UpcomingMatch } | null
+type SheetState = {
+    entry?: MatchEntry
+    fixture?: UpcomingMatch
+    startPlayed?: boolean
+} | null
 
 export default function MatchDiaryPage() {
-    const [filters, setFilters] = useState<MatchListFilters>({})
-    /** The match being READ, by id. See the note at the top of the file. */
-    const [detailId, setDetailId] = useState<string | null>(null)
+    const [filters, setFilters] = useState<DiaryFilters>({})
     const [sheet, setSheet] = useState<SheetState>(null)
+    const [showAllUpcoming, setShowAllUpcoming] = useState(false)
 
-    const {
-        data,
-        isLoading,
-        isError,
-        error,
-        refetch,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-    } = useMatches(filters)
+    const isWide = useMediaQuery("(min-width: 1024px)")
 
+    const results = useMatches({ ...filters, status: "played" })
+    const summary = useMatchSummary(filters)
     const upcoming = useUpcomingMatches()
     const { data: userSports } = useMyUserSports()
 
+    const fixtures = useMemo(() => upcoming.data?.results ?? [], [upcoming.data])
+    const overdue = useMemo(
+        () => fixtures.filter((fixture) => fixture.is_overdue),
+        [fixtures]
+    )
+    const ahead = useMemo(
+        () => fixtures.filter((fixture) => !fixture.is_overdue),
+        [fixtures]
+    )
+
+    // The full rows behind Up next. `upcoming` is lighter and does not know
+    // about a note or a photo, and the detail modal renders a whole entry.
+    const scheduled = useMatches(
+        { status: "scheduled" },
+        { enabled: fixtures.length > 0 }
+    )
+
     const entries = useMemo(
-        () => data?.pages.flatMap((page) => page.results) ?? [],
-        [data?.pages]
+        () => results.data?.pages.flatMap((page) => page.results) ?? [],
+        [results.data?.pages]
+    )
+    const scheduledEntries = useMemo(
+        () => scheduled.data?.pages.flatMap((page) => page.results) ?? [],
+        [scheduled.data?.pages]
+    )
+    const knownEntries = useMemo(
+        () => [...entries, ...scheduledEntries],
+        [entries, scheduledEntries]
+    )
+
+    const detail = useMatchDetailState(
+        knownEntries,
+        Boolean(sheet) || results.isFetching || scheduled.isFetching
     )
 
     const sports: SportOption[] = useMemo(
@@ -109,108 +142,43 @@ export default function MatchDiaryPage() {
         [userSports]
     )
 
-    const fixtures = upcoming.data?.results ?? []
-    const overdue = useMemo(
-        () => fixtures.filter((fixture) => fixture.is_overdue),
-        [fixtures]
-    )
-    const ahead = useMemo(
-        () => fixtures.filter((fixture) => !fixture.is_overdue),
-        [fixtures]
-    )
+    /** Tapping a fixture is a read, when the full row is here to read. */
+    const readFixture = (fixture: UpcomingMatch) => {
+        const loaded = scheduledEntries.find((entry) => entry.id === fixture.id)
+        if (loaded) detail.open(loaded)
+        else setSheet({ fixture })
+    }
 
-    /**
-     * The match the modal is reading, looked up fresh on every render.
-     *
-     * Deliberately derived rather than stored. An edit that saves and closes
-     * invalidates the list; this then re-renders from the refetched entry, so
-     * the modal underneath shows the new numbers. Holding the object the card
-     * was tapped with would show the OLD ones until the modal was closed and
-     * reopened — which is exactly when somebody checks whether their edit took.
-     */
-    const detailEntry = useMemo(
-        () => entries.find((entry) => entry.id === detailId) ?? null,
-        [entries, detailId]
-    )
-
-    /**
-     * The match being read has left the list — an edit changed its status or
-     * its date while a filter is on, or it was deleted from somewhere else.
-     * Close, rather than sit on a modal with nothing behind it.
-     *
-     * Skipped while the sheet is open (the list is mid-invalidation and the
-     * modal is not on screen anyway) and while the first page is loading (a
-     * filter change empties `entries` before the new page lands).
-     *
-     * The rendering guard above already means nothing is drawn for a missing
-     * entry, so this is not about a blank modal — it is about the id not
-     * lingering. A stale one would pop the modal back open the moment the
-     * match returned to the list, which for a cleared filter is a dialog
-     * appearing out of a tap on something else.
-     */
-    useEffect(() => {
-        if (!detailId || sheet || isLoading) return
-        if (entries.some((entry) => entry.id === detailId)) return
-
-        /* The lint rule guards against an effect that cascades. This one
-           cannot: the render it schedules has `detailId === null`, which
-           returns on the first line above. */
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDetailId(null)
-    }, [detailId, entries, isLoading, sheet])
-
-    const openSheet = useCallback((entry?: MatchEntry) => {
-        setSheet({ entry })
-    }, [])
-
-    const openDetail = useCallback((entry: MatchEntry) => {
-        setDetailId(entry.id)
-    }, [])
-
-    /**
-     * The fixture strips work from an `UpcomingMatch`, which is lighter than a
-     * full entry. The diary list is checked first — a fixture is in the list
-     * too, and the full entry carries the notes, career stint and photo the
-     * lighter shape drops — and the fixture itself is handed over when it is
-     * not there, which is the normal case whenever a filter is on.
-     *
-     * What must NOT happen is falling back to a blank sheet: that would log a
-     * SECOND match for a fixture the player already scheduled, and leave the
-     * original sitting in "Up next" still asking to be logged.
-     *
-     * `read` is the difference between the two entry points. Tapping a fixture
-     * in "Up next" is a read, so it opens the modal — but only when the full
-     * entry is loaded, because the modal renders a `MatchEntry` and the lighter
-     * shape genuinely does not know whether there is a note or a photo. When it
-     * is not loaded the sheet takes over, which is where that tap always went.
-     * "Log result" on an overdue fixture is an action and always goes there.
-     */
-    const openFixture = useCallback(
-        (fixture: UpcomingMatch, read: boolean) => {
-            const loaded = entries.find((entry) => entry.id === fixture.id)
-
-            if (loaded && read) {
-                setDetailId(loaded.id)
-                return
-            }
-
-            setSheet(loaded ? { entry: loaded } : { fixture })
-        },
-        [entries]
-    )
+    /** "Log result" is an action: straight to the form, in Played mode. */
+    const logFixtureResult = (fixture: UpcomingMatch) => {
+        const loaded = scheduledEntries.find((entry) => entry.id === fixture.id)
+        setSheet(
+            loaded
+                ? { entry: loaded, startPlayed: true }
+                : { fixture, startPlayed: true }
+        )
+    }
 
     // ── Infinite scroll ────────────────────────────────────────
 
     const sentinelRef = useRef<HTMLDivElement | null>(null)
+    const {
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isFetchNextPageError,
+    } = results
 
     useEffect(() => {
         const node = sentinelRef.current
-        if (!node || !hasNextPage) return
+        // Quiet after a failed page: a new observer reports the sentinel at once,
+        // and that would retry forever. The inline row below is the retry.
+        if (!node || !hasNextPage || isFetchNextPageError) return
 
         const observer = new IntersectionObserver(
             (observed) => {
                 if (observed[0]?.isIntersecting && !isFetchingNextPage) {
-                    void fetchNextPage()
+                    void fetchNextPage({ cancelRefetch: false })
                 }
             },
             { rootMargin: "320px" }
@@ -218,7 +186,7 @@ export default function MatchDiaryPage() {
 
         observer.observe(node)
         return () => observer.disconnect()
-    }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+    }, [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError])
 
     // ── Month grouping ─────────────────────────────────────────
 
@@ -258,36 +226,56 @@ export default function MatchDiaryPage() {
 
     // The server's own words. It already says whether the problem is the role
     // or the actor, and it says it better than a generic guard could.
-    if (isError && isMatchDiaryForbidden(error)) {
+    if (results.isError && isMatchDiaryForbidden(results.error)) {
         return (
-            <main className={styles.page}>
-                <BackHeader title="Match diary" />
-                <div className={styles.state}>
-                    <Icon icon="mdi:lock-outline" width={34} height={34} />
-                    <p className={styles.stateTitle}>
-                        {getMatchDiaryErrorMessage(error)}
-                    </p>
+            <div className={styles.page}>
+                <div className={styles.headerRow}>
+                    <BackHeader title="Match diary" />
                 </div>
-            </main>
+                <div className={styles.content}>
+                    <div className={styles.state}>
+                        <Icon icon="mdi:lock-outline" width={34} height={34} />
+                        <p className={styles.stateTitle}>
+                            {getMatchDiaryErrorMessage(results.error)}
+                        </p>
+                    </div>
+                </div>
+            </div>
         )
     }
 
     const filtered = hasActiveFilters(filters)
-    const isEmpty = !isLoading && !isError && entries.length === 0
+    const failedOutright = results.isError && entries.length === 0
+    const isEmpty = !results.isLoading && !results.isError && entries.length === 0
+
+    const overview = summary.isPending ? (
+        <SeasonSummaryCardSkeleton />
+    ) : summary.data && summary.data.total_matches > 0 ? (
+        <SeasonSummaryCard
+            summary={summary.data}
+            year={filters.year ?? null}
+            isOwn
+            compact={!isWide}
+            stacked={isWide}
+        />
+    ) : null
+
+    const hasRail = isWide && overview !== null
+    const visibleAhead = showAllUpcoming ? ahead : ahead.slice(0, UP_NEXT_PREVIEW)
 
     return (
-        <main className={styles.page}>
+        <div className={`${styles.page} ${hasRail ? styles.pageWithRail : ""}`}>
             <div className={styles.headerRow}>
                 <BackHeader title="Match diary" />
 
-                {/* One add button at every width — icon-only below 640px. There
+                {/* One add button at every width — icon-only below 768px. There
                     is no FAB: it landed directly above the bottom nav's own
                     "+", which opens the post composer, and two plus buttons in
                     one corner doing different things is a coin toss. */}
                 <button
                     type="button"
                     className={styles.headerAddBtn}
-                    onClick={() => openSheet()}
+                    onClick={() => setSheet({})}
                     aria-label="Log a match"
                 >
                     <Icon icon="mdi:plus" width={18} height={18} />
@@ -295,204 +283,286 @@ export default function MatchDiaryPage() {
                 </button>
             </div>
 
-            <div className={styles.content}>
-                {/* ── Overdue ── */}
-                {overdue.length > 0 && (
-                    <section
-                        className={styles.overdue}
-                        aria-label="Matches waiting to be logged"
-                    >
-                        {overdue.map((fixture) => (
-                            <div key={fixture.id} className={styles.overdueRow}>
-                                <span
-                                    className={styles.overdueIcon}
-                                    aria-hidden="true"
+            <div className={styles.layout}>
+                <div className={styles.content}>
+                    {!isWide && overview}
+
+                    {/* ── Overdue ── */}
+                    {overdue.length > 0 && (
+                        <section
+                            className={styles.overdue}
+                            aria-label="Matches waiting to be logged"
+                        >
+                            {overdue.map((fixture) => (
+                                <div key={fixture.id} className={styles.overdueRow}>
+                                    <span
+                                        className={styles.overdueIcon}
+                                        aria-hidden="true"
+                                    >
+                                        <Icon
+                                            icon="mdi:calendar-alert-outline"
+                                            width={18}
+                                            height={18}
+                                        />
+                                    </span>
+                                    <p className={styles.overdueText}>
+                                        You played{" "}
+                                        <strong>
+                                            {opponentLabel(fixture.opponent_name)}
+                                        </strong>{" "}
+                                        on {dayjs(fixture.date).format("D MMM")}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className={styles.overdueBtn}
+                                        onClick={() => logFixtureResult(fixture)}
+                                    >
+                                        Log result
+                                    </button>
+                                </div>
+                            ))}
+                        </section>
+                    )}
+
+                    {/* ── Up next ──
+                        Tappable, same as a diary card: a fixture you can see but
+                        cannot open is a dead end when the kick-off moves, and it
+                        is also how a player logs a result the same evening rather
+                        than waiting for the row to go overdue. */}
+                    {ahead.length > 0 && (
+                        <section>
+                            <h2 className={styles.sectionTitle}>Up next</h2>
+                            <ul className={styles.upcomingList}>
+                                {visibleAhead.map((fixture) => (
+                                    <li key={fixture.id}>
+                                        <button
+                                            type="button"
+                                            className={styles.upcomingRow}
+                                            onClick={() => readFixture(fixture)}
+                                        >
+                                            <span className={styles.upcomingDate}>
+                                                {dayjs(fixture.date).format(
+                                                    "ddd D MMM"
+                                                )}
+                                                {fixture.kickoff_time && (
+                                                    <span
+                                                        className={
+                                                            styles.upcomingTime
+                                                        }
+                                                    >
+                                                        {fixture.kickoff_time.slice(
+                                                            0,
+                                                            5
+                                                        )}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span
+                                                className={styles.upcomingOpponent}
+                                            >
+                                                {opponentHeading(
+                                                    fixture.opponent_name
+                                                )}
+                                            </span>
+                                            <span className={styles.upcomingType}>
+                                                {
+                                                    MATCH_TYPE_LABELS[
+                                                    fixture.match_type
+                                                    ]
+                                                }
+                                            </span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+
+                            {ahead.length > UP_NEXT_PREVIEW && (
+                                <button
+                                    type="button"
+                                    className={styles.showAllBtn}
+                                    aria-expanded={showAllUpcoming}
+                                    onClick={() =>
+                                        setShowAllUpcoming((shown) => !shown)
+                                    }
                                 >
-                                    <Icon
-                                        icon="mdi:calendar-alert-outline"
-                                        width={18}
-                                        height={18}
-                                    />
-                                </span>
-                                <p className={styles.overdueText}>
-                                    You played{" "}
-                                    <strong>
-                                        {opponentLabel(fixture.opponent_name)}
-                                    </strong>{" "}
-                                    on {dayjs(fixture.date).format("D MMM")}
+                                    {showAllUpcoming
+                                        ? "Show fewer"
+                                        : `Show all (${ahead.length})`}
+                                </button>
+                            )}
+                        </section>
+                    )}
+
+                    {/* ── Results ── */}
+                    <section className={styles.results}>
+                        <h2 className={styles.sectionTitle}>Results</h2>
+
+                        {/* Nothing to narrow on an empty diary: the card below
+                            is the only thing that should be asking for attention. */}
+                        {(!isEmpty || filtered) && !failedOutright && (
+                            <MatchDiaryFilters
+                                filters={filters}
+                                sports={sports}
+                                onChange={setFilters}
+                            />
+                        )}
+
+                        {results.isLoading && (
+                            <ul className={styles.list}>
+                                {[0, 1, 2, 3, 4].map((index) => (
+                                    <MatchEntryCardSkeleton key={index} />
+                                ))}
+                            </ul>
+                        )}
+
+                        {failedOutright && (
+                            <div className={styles.state}>
+                                <Icon
+                                    icon="mdi:cloud-off-outline"
+                                    width={34}
+                                    height={34}
+                                />
+                                <p className={styles.stateTitle}>
+                                    {getMatchDiaryErrorMessage(results.error)}
                                 </p>
                                 <button
                                     type="button"
-                                    className={styles.overdueBtn}
-                                    onClick={() => openFixture(fixture, false)}
+                                    className={styles.stateBtn}
+                                    onClick={() => void results.refetch()}
                                 >
-                                    Log result
+                                    Retry
                                 </button>
                             </div>
-                        ))}
-                    </section>
-                )}
+                        )}
 
-                {/* ── Upcoming ──
-                    Tappable, same as a diary card: a fixture you can see but
-                    cannot open is a dead end when the kick-off moves, and it
-                    is also how a player logs a result the same evening rather
-                    than waiting for the row to go overdue. */}
-                {ahead.length > 0 && (
-                    <section className={styles.upcoming}>
-                        <h2 className={styles.sectionTitle}>Up next</h2>
-                        <ul className={styles.upcomingList}>
-                            {ahead.map((fixture) => (
-                                <li key={fixture.id}>
-                                    <button
-                                        type="button"
-                                        className={styles.upcomingRow}
-                                        onClick={() =>
-                                            openFixture(fixture, true)
-                                        }
-                                    >
-                                        <span className={styles.upcomingDate}>
-                                            {dayjs(fixture.date).format(
-                                                "ddd D MMM"
-                                            )}
-                                            {fixture.kickoff_time && (
-                                                <span
-                                                    className={
-                                                        styles.upcomingTime
-                                                    }
-                                                >
-                                                    {fixture.kickoff_time.slice(
-                                                        0,
-                                                        5
-                                                    )}
-                                                </span>
-                                            )}
-                                        </span>
-                                        <span
-                                            className={styles.upcomingOpponent}
-                                        >
-                                            {opponentLabel(
-                                                fixture.opponent_name
-                                            )}
-                                        </span>
-                                        <span className={styles.upcomingType}>
-                                            {
-                                                MATCH_TYPE_LABELS[
-                                                fixture.match_type
-                                                ]
-                                            }
-                                        </span>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-                )}
+                        {isEmpty && !filtered && (
+                            <div className={`${styles.state} ${styles.stateWelcome}`}>
+                                <span
+                                    className={styles.stateIcon}
+                                    aria-hidden="true"
+                                >
+                                    <Icon
+                                        icon="mdi:notebook-outline"
+                                        width={26}
+                                        height={26}
+                                    />
+                                </span>
+                                <p className={styles.stateTitle}>
+                                    Your season, in one place
+                                </p>
+                                <span className={styles.stateHint}>
+                                    Log each match you play: the result, your
+                                    minutes and the stats that matter for your
+                                    sport. It takes about thirty seconds, and the
+                                    diary keeps your running totals.
+                                </span>
+                                <button
+                                    type="button"
+                                    className={styles.stateBtn}
+                                    onClick={() => setSheet({})}
+                                >
+                                    <Icon icon="mdi:plus" width={16} height={16} />
+                                    Log your first match
+                                </button>
+                            </div>
+                        )}
 
-                {/* ── Filters ── */}
-                <MatchDiaryFilters
-                    filters={filters}
-                    sports={sports}
-                    onChange={setFilters}
-                />
-
-                {/* ── Loading ── */}
-                {isLoading && (
-                    <ul className={styles.list}>
-                        {[0, 1, 2, 3, 4].map((index) => (
-                            <MatchEntryCardSkeleton key={index} />
-                        ))}
-                    </ul>
-                )}
-
-                {/* ── Error ── */}
-                {isError && !isLoading && (
-                    <div className={styles.state}>
-                        <Icon icon="mdi:cloud-off-outline" width={34} height={34} />
-                        <p className={styles.stateTitle}>
-                            {getMatchDiaryErrorMessage(error)}
-                        </p>
-                        <button
-                            type="button"
-                            className={styles.stateBtn}
-                            onClick={() => void refetch()}
-                        >
-                            Try again
-                        </button>
-                    </div>
-                )}
-
-                {/* ── Empty ── */}
-                {isEmpty && !filtered && (
-                    <div className={styles.state}>
-                        <Icon icon="mdi:notebook-outline" width={34} height={34} />
-                        <p className={styles.stateTitle}>Log your first match.</p>
-                        <span className={styles.stateHint}>
-                            Opponent, result, a couple of stats — takes about
-                            thirty seconds.
-                        </span>
-                        <button
-                            type="button"
-                            className={styles.stateBtn}
-                            onClick={() => openSheet()}
-                        >
-                            <Icon icon="mdi:plus" width={16} height={16} />
-                            Log a match
-                        </button>
-                    </div>
-                )}
-
-                {isEmpty && filtered && (
-                    <div className={styles.state}>
-                        <Icon icon="mdi:filter-off-outline" width={34} height={34} />
-                        <p className={styles.stateTitle}>
-                            {filterSummary(filters, sports)}
-                        </p>
-                        <button
-                            type="button"
-                            className={styles.stateBtn}
-                            onClick={() => setFilters({})}
-                        >
-                            Clear filters
-                        </button>
-                    </div>
-                )}
-
-                {/* ── The diary ── */}
-                {months.map((month) => (
-                    <section key={month.key} className={styles.month}>
-                        <h2 className={styles.monthHeader}>{month.label}</h2>
-                        <ul className={styles.list}>
-                            {month.entries.map((entry) => (
-                                <MatchEntryCard
-                                    key={entry.id}
-                                    entry={entry}
-                                    onOpen={openDetail}
+                        {isEmpty && filtered && (
+                            <div className={styles.state}>
+                                <Icon
+                                    icon="mdi:filter-off-outline"
+                                    width={34}
+                                    height={34}
                                 />
+                                <p className={styles.stateTitle}>
+                                    {filterSummary(filters, sports)}
+                                </p>
+                                <button
+                                    type="button"
+                                    className={styles.stateBtn}
+                                    onClick={() => setFilters({})}
+                                >
+                                    Clear filters
+                                </button>
+                            </div>
+                        )}
+
+                        <div
+                            className={
+                                results.isPlaceholderData
+                                    ? styles.monthsStale
+                                    : undefined
+                            }
+                            aria-busy={results.isPlaceholderData}
+                        >
+                            {months.map((month) => (
+                                <section key={month.key} className={styles.month}>
+                                    <h3 className={styles.monthHeader}>
+                                        {month.label}
+                                    </h3>
+                                    <ul className={styles.list}>
+                                        {month.entries.map((entry) => (
+                                            <MatchEntryCard
+                                                key={entry.id}
+                                                entry={entry}
+                                                onOpen={detail.open}
+                                            />
+                                        ))}
+                                    </ul>
+                                </section>
                             ))}
-                        </ul>
+                        </div>
+
+                        {results.isFetchingNextPage && (
+                            <ul className={styles.list}>
+                                {[0, 1].map((index) => (
+                                    <MatchEntryCardSkeleton key={index} />
+                                ))}
+                            </ul>
+                        )}
+
+                        {isFetchNextPageError && (
+                            <div className={styles.loadMoreError}>
+                                <span>Couldn&apos;t load more matches</span>
+                                <button
+                                    type="button"
+                                    className={styles.loadMoreRetry}
+                                    onClick={() =>
+                                        void fetchNextPage({ cancelRefetch: false })
+                                    }
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        )}
+
+                        {hasNextPage && <div ref={sentinelRef} aria-hidden="true" />}
                     </section>
-                ))}
+                </div>
 
-                {isFetchingNextPage && (
-                    <ul className={styles.list}>
-                        {[0, 1].map((index) => (
-                            <MatchEntryCardSkeleton key={index} />
-                        ))}
-                    </ul>
+                {hasRail && (
+                    <aside className={styles.rail} aria-label="Season overview">
+                        {overview}
+                    </aside>
                 )}
-
-                {hasNextPage && <div ref={sentinelRef} aria-hidden="true" />}
             </div>
 
-            {/* Hidden while the sheet is open, and `detailId` is kept — so
-                saving an edit and closing the sheet lands back on this modal,
-                rendering the entry as the refreshed list now holds it. */}
-            {detailEntry && !sheet && (
+            {/* Stays mounted under the sheet, so saving or one back press lands
+                back on it, rendering the entry as the refreshed list holds it. */}
+            {detail.entry && (
                 <MatchDetailModal
-                    entry={detailEntry}
-                    onEdit={() => setSheet({ entry: detailEntry })}
-                    onClose={() => setDetailId(null)}
+                    entry={detail.entry}
+                    covered={Boolean(sheet)}
+                    onDeletingChange={detail.setDeleting}
+                    onEdit={() => {
+                        const current = detail.entry
+                        if (!current) return
+                        setSheet({
+                            entry: current,
+                            startPlayed: current.status === "scheduled",
+                        })
+                    }}
+                    onClose={detail.close}
                 />
             )}
 
@@ -500,9 +570,10 @@ export default function MatchDiaryPage() {
                 <MatchEntrySheet
                     entry={sheet.entry}
                     fixture={sheet.fixture}
+                    startPlayed={sheet.startPlayed}
                     onClose={() => setSheet(null)}
                 />
             )}
-        </main>
+        </div>
     )
 }

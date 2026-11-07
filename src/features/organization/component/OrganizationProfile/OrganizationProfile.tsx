@@ -10,11 +10,13 @@
  *   <OrgProfile orgId="019da088-…" />
  */
 
-import { useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
+import Portal from "@/shared/components/ui/Portal/Portal"
+import { useCloseOnScroll } from "@/shared/hooks/useCloseOnScroll"
 import { useOrgDetail, useFollowOrg } from "@/features/organization/hooks/useOrganizations"
 import type { OrgLocation, OrgSport, OrganizationDetail } from "@/features/organization/types"
 import BlockedProfileBanner from "@/features/moderation/components/BlockedProfileBanner/BlockedProfileBanner"
@@ -109,12 +111,129 @@ function StatPill({
     return <div className={styles.statPill}>{content}</div>
 }
 
+/** Gap between the badge and its popover, and from the popover to the screen edge. */
+const POPOVER_GAP = 6
+const POPOVER_EDGE = 16
+
+/**
+ * The tick staff set from the admin list. A tap on a phone, hover or keyboard
+ * focus on desktop explains what it means.
+ *
+ * Portalled and placed from the badge's rect: .profileCard clips with
+ * overflow: hidden, and .profilePage's entrance animation leaves a transform
+ * that would capture position: fixed. It closes on scroll, so the position
+ * never goes stale.
+ */
 function VerifiedBadge() {
+    const [open, setOpen] = useState(false)
+    const buttonRef = useRef<HTMLButtonElement | null>(null)
+    const popoverRef = useRef<HTMLDivElement | null>(null)
+    const popoverId = useId()
+    // A pointer press also focuses the button on most browsers. Only focus that
+    // no press caused (the keyboard's) should open the popover by itself.
+    const pressingRef = useRef(false)
+    const lastPointerRef = useRef<string | null>(null)
+
+    useCloseOnScroll(open, () => setOpen(false))
+
+    useLayoutEffect(() => {
+        if (!open) return
+        const button = buttonRef.current
+        const popover = popoverRef.current
+        if (!button || !popover) return
+        const rect = button.getBoundingClientRect()
+        const maxLeft = window.innerWidth - popover.offsetWidth - POPOVER_EDGE
+        // Before paint, straight on the element: nothing else depends on it.
+        popover.style.top = `${rect.bottom + POPOVER_GAP}px`
+        popover.style.left = `${Math.max(POPOVER_EDGE, Math.min(rect.left, maxLeft))}px`
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        const onPointerDown = (event: PointerEvent) => {
+            const target = event.target as Node
+            if (buttonRef.current?.contains(target) || popoverRef.current?.contains(target)) return
+            setOpen(false)
+        }
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setOpen(false)
+        }
+        document.addEventListener("pointerdown", onPointerDown)
+        document.addEventListener("keydown", onKeyDown)
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown)
+            document.removeEventListener("keydown", onKeyDown)
+        }
+    }, [open])
+
     return (
-        <span className={styles.verifiedBadge} title="Verified organization">
-            <Icon icon="mdi:check-decagram" width={14} height={14} />
-            Verified
-        </span>
+        <>
+            <button
+                ref={buttonRef}
+                type="button"
+                className={styles.verifiedBadge}
+                aria-label="Verified organization"
+                aria-expanded={open}
+                aria-describedby={open ? popoverId : undefined}
+                onPointerDown={(event) => {
+                    pressingRef.current = true
+                    lastPointerRef.current = event.pointerType
+                }}
+                onPointerEnter={(event) => {
+                    if (event.pointerType === "mouse") setOpen(true)
+                }}
+                onPointerLeave={(event) => {
+                    if (event.pointerType !== "mouse") return
+                    // Moving onto the popover keeps it open, so its text can be
+                    // selected. Its own pointer leave closes it from there.
+                    const next = event.relatedTarget
+                    if (next instanceof Node && popoverRef.current?.contains(next)) return
+                    setOpen(false)
+                }}
+                onFocus={() => {
+                    if (!pressingRef.current) setOpen(true)
+                }}
+                onBlur={() => {
+                    pressingRef.current = false
+                    setOpen(false)
+                }}
+                onClick={() => {
+                    pressingRef.current = false
+                    // A mouse already opened it by hovering, so a click must not
+                    // shut it. A tap, or Enter on the keyboard, toggles.
+                    if (lastPointerRef.current === "mouse") setOpen(true)
+                    else setOpen((was) => !was)
+                    lastPointerRef.current = null
+                }}
+            >
+                <Icon icon="mdi:check-decagram" width={14} height={14} />
+                Verified
+            </button>
+
+            {open && (
+                <Portal>
+                    <div
+                        ref={popoverRef}
+                        id={popoverId}
+                        className={styles.verifiedPopover}
+                        role="tooltip"
+                        onPointerLeave={(event) => {
+                            if (event.pointerType !== "mouse") return
+                            const next = event.relatedTarget
+                            if (next instanceof Node && buttonRef.current?.contains(next)) return
+                            setOpen(false)
+                        }}
+                    >
+                        <p className={styles.verifiedPopoverTitle}>
+                            Verified by Goatza
+                        </p>
+                        <p className={styles.verifiedPopoverText}>
+                            Goatza has confirmed this organization is genuine.
+                        </p>
+                    </div>
+                </Portal>
+            )}
+        </>
     )
 }
 

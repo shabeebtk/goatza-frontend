@@ -306,15 +306,6 @@ export default function AchievementCard({
                         aria-hidden="true"
                     />
                     {achievement.awarded_by_name}
-                    {achievement.awarded_by?.is_verified && (
-                        <Icon
-                            icon="mdi:check-decagram"
-                            width={12}
-                            height={12}
-                            className={styles.orgVerifiedTick}
-                            aria-label="Verified organization"
-                        />
-                    )}
                 </p>
             )}
 

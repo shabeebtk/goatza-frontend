@@ -175,7 +175,6 @@
   white-space: nowrap;
 }
 
-.verified { color: var(--color-brand); flex-shrink: 0; }
 
 .orgTagline {
   font-family: var(--font-body);

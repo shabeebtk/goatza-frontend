@@ -15,9 +15,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { useAdaptiveVideo } from "@/shared/hooks/useAdaptiveVideo"
 import { useVideoSound } from "@/shared/hooks/useVideoSound"
 import { hlsSrc, posterSrc, videoSrc } from "@/shared/services/mediaDelivery"
@@ -78,6 +78,7 @@ export default function HighlightViewer({
     headerActions,
     interstitial,
 }: HighlightViewerProps) {
+    const { show: showToast } = useToast()
     const [index, setIndex] = useState(() =>
         Math.min(Math.max(startIndex, 0), Math.max(clips.length - 1, 0))
     )
@@ -290,9 +291,9 @@ export default function HighlightViewer({
         if (brokenRef.current.has(clip.id)) return
         brokenRef.current.add(clip.id)
 
-        toast.error("That clip could not be played — skipping.")
+        showToast({ title: "That clip could not be played — skipping.", variant: "error" })
         goNext()
-    }, [clip, goNext, canFallBackRef])
+    }, [clip, goNext, canFallBackRef, showToast])
 
     // ── press / swipe gestures ────────────────────────────────
 
@@ -370,10 +371,11 @@ export default function HighlightViewer({
 
     const placeholder = useCallback(() => {
         setMenuOpen(false)
-        toast("Managing highlights is coming next", {
-            description: "Editing the title and visibility lands with the manage screen.",
+        showToast({
+            title: "Managing highlights is coming next",
+            message: "Editing the title and visibility lands with the manage screen.",
         })
-    }, [])
+    }, [showToast])
 
     const onConfirmDelete = useCallback(() => {
         if (!clip) return

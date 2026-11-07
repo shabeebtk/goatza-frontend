@@ -75,7 +75,8 @@ export const validateMatchPhoto = (file: File): string | null => {
  * one without the other — so this returns both or throws.
  */
 export const uploadMatchPhoto = async (
-    file: File
+    file: File,
+    signal?: AbortSignal
 ): Promise<UploadedMatchPhoto> => {
     const fileType = await preferredImageType()
     const compressed = await compressImage(
@@ -84,12 +85,20 @@ export const uploadMatchPhoto = async (
         { flow: "single", surface: "matches" }
     )
 
-    const res = await getUploadConfigApi("matches", [describeBlob(compressed)])
+    // Compression cannot be interrupted, so this is the first place to stop.
+    signal?.throwIfAborted()
+
+    const res = await getUploadConfigApi(
+        "matches",
+        [describeBlob(compressed)],
+        undefined,
+        signal
+    )
     const entry = res.uploads[0]
 
     if (!entry) throw new Error("Couldn't start the upload. Try again.")
 
-    await putToR2(compressed, entry)
+    await putToR2(compressed, entry, undefined, signal)
 
     return {
         photo_url: entry.public_url,

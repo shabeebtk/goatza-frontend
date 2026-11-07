@@ -91,6 +91,8 @@ export const useMatchPhotoUpload = (existingUrl = ""): MatchPhotoUpload => {
      * the counter has since moved.
      */
     const attemptRef = useRef(0)
+    /** Stops the running attempt: Remove, a new pick, or the sheet going away. */
+    const abortRef = useRef<AbortController | null>(null)
 
     const releasePreview = useCallback(() => {
         if (objectUrlRef.current) {
@@ -101,15 +103,28 @@ export const useMatchPhotoUpload = (existingUrl = ""): MatchPhotoUpload => {
 
     useEffect(() => releasePreview, [releasePreview])
 
+    useEffect(
+        () => () => {
+            attemptRef.current += 1
+            abortRef.current?.abort()
+            abortRef.current = null
+        },
+        []
+    )
+
     const start = useCallback(
         (file: File) => {
             const attempt = ++attemptRef.current
+
+            abortRef.current?.abort()
+            const controller = new AbortController()
+            abortRef.current = controller
 
             uploadedRef.current = null
             setStatus("uploading")
             setError(null)
 
-            const run = uploadMatchPhoto(file)
+            const run = uploadMatchPhoto(file, controller.signal)
                 .then((result) => {
                     if (attemptRef.current !== attempt) return null
 
@@ -169,6 +184,8 @@ export const useMatchPhotoUpload = (existingUrl = ""): MatchPhotoUpload => {
         // Bumping the counter orphans any upload still running, so it cannot
         // come back and re-attach itself to a photo the player has removed.
         attemptRef.current += 1
+        abortRef.current?.abort()
+        abortRef.current = null
         pendingRef.current = null
         uploadedRef.current = null
         fileRef.current = null

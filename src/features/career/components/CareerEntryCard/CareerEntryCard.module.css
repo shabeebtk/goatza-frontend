@@ -115,11 +115,6 @@
   word-break: break-word;
 }
 
-.orgVerifiedTick {
-  color: var(--color-brand);
-  flex-shrink: 0;
-}
-
 .dateRange {
   font-family: var(--font-body);
   font-size: var(--text-xs);

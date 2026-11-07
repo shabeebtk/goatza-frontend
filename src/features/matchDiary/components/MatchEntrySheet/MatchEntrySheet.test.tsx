@@ -23,9 +23,9 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import type { MatchStatField, UpcomingMatch } from "../../types"
+import type { MatchEntry, MatchStatField, UpcomingMatch } from "../../types"
 import MatchEntrySheet from "./MatchEntrySheet"
 
 vi.mock("@iconify/react", () => ({
@@ -38,7 +38,11 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
 }))
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+const showToast = vi.fn()
+
+vi.mock("@/shared/components/ui/Toast/Toast", () => ({
+    useToast: () => ({ show: showToast }),
+}))
 
 const createMutate = vi.fn().mockResolvedValue({})
 const updateMutate = vi.fn().mockResolvedValue({})
@@ -86,6 +90,9 @@ const STAT_FIELDS: MatchStatField[] = [
     },
 ]
 
+// Reassigned by the test that needs the catalogs still on their way.
+let sportsLoading = false
+
 vi.mock("../../hooks/useMatchDiary", () => ({
     matchDiaryKeys: { lists: () => ["matchDiary", "list"] },
     useMatchStatFields: () => ({
@@ -111,7 +118,7 @@ vi.mock("@/features/profile/hooks/useSportsQueries", () => ({
                 attributes: [],
             },
         ],
-        isLoading: false,
+        isLoading: sportsLoading,
     }),
     useMyUserSports: () => ({
         data: [
@@ -137,6 +144,13 @@ vi.mock("@/features/career/hooks/useCareerQueries", () => ({
     useUserCareer: () => ({ data: undefined }),
 }))
 
+const uploadPhoto = vi.fn()
+
+vi.mock("../../services/matchPhoto.service", () => ({
+    validateMatchPhoto: () => null,
+    uploadMatchPhoto: (...args: unknown[]) => uploadPhoto(...args),
+}))
+
 vi.mock("@/store/auth.store", () => ({
     useAuthStore: (selector: (s: unknown) => unknown) =>
         selector({ user: { id: "user-1" } }),
@@ -148,10 +162,16 @@ vi.mock("@tanstack/react-query", () => ({
     useQueryClient: () => ({ getQueriesData: () => [] }),
 }))
 
-afterEach(() => {
+afterEach(async () => {
     cleanup()
+    // jsdom keeps one history for the whole file. Let a pop still in flight land,
+    // then wipe the entry we are left on so the next test starts at depth 0.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    window.history.replaceState(null, "")
     createMutate.mockClear()
     updateMutate.mockClear()
+    showToast.mockClear()
+    sportsLoading = false
 })
 
 /** Taps the + beside a named stat, `times` times. */
@@ -207,7 +227,11 @@ describe("logging a played match", () => {
             { stat_field_id: "stat-assists", value: 1 },
         ])
 
-        expect(onClose).toHaveBeenCalled()
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(showToast).toHaveBeenCalledWith({
+            title: "Match logged",
+            variant: "success",
+        })
     })
 
     it("keeps everything the player typed when the server refuses it", async () => {
@@ -251,6 +275,239 @@ describe("logging a played match", () => {
         expect(createMutate).not.toHaveBeenCalled()
         // A rejected submit must leave the form editable — see `onInvalid`.
         expect(statInput("Goals").disabled).toBe(false)
+    })
+})
+
+describe("saying what happened", () => {
+    it("says a fixture was added", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+
+        fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }))
+        fireEvent.change(screen.getByLabelText("Date"), {
+            target: { value: "2099-01-01" },
+        })
+        fireEvent.click(screen.getByRole("button", { name: "Add fixture" }))
+
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(showToast).toHaveBeenCalledWith({
+            title: "Fixture added",
+            variant: "success",
+        })
+    })
+})
+
+describe("closing", () => {
+    const dirty = () =>
+        fireEvent.change(screen.getByLabelText(/^Opponent/), {
+            target: { value: "Riverside FC" },
+        })
+
+    it("closes on one back press when nothing has changed", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+
+        act(() => window.history.back())
+
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+        expect(screen.queryByRole("alertdialog")).toBeNull()
+    })
+
+    it("asks first on a back press when the form is dirty, and keeps the form", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+        dirty()
+
+        act(() => window.history.back())
+
+        const confirm = await screen.findByRole("alertdialog")
+        expect(confirm.textContent).toContain("Discard this match?")
+        expect(onClose).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole("button", { name: "Keep editing" }))
+
+        await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+        expect(onClose).not.toHaveBeenCalled()
+        expect(
+            (screen.getByLabelText(/^Opponent/) as HTMLInputElement).value
+        ).toBe("Riverside FC")
+    })
+
+    it("closes the form when Discard is the answer", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+        dirty()
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }))
+        fireEvent.click(await screen.findByRole("button", { name: "Discard" }))
+
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    })
+
+    it("lets one back press close the confirm and leaves the sheet", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+        dirty()
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }))
+        await screen.findByRole("alertdialog")
+
+        act(() => window.history.back())
+
+        await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+        expect(onClose).not.toHaveBeenCalled()
+        expect(screen.getByRole("dialog")).toBeTruthy()
+    })
+
+    it("lets Esc close the confirm only", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+        dirty()
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }))
+        await screen.findByRole("alertdialog")
+
+        fireEvent.keyDown(document, { key: "Escape" })
+
+        await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+        expect(onClose).not.toHaveBeenCalled()
+        expect(screen.getByRole("dialog")).toBeTruthy()
+    })
+
+    it("has a way out while the catalogs are still loading", async () => {
+        sportsLoading = true
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+
+        expect(screen.getByRole("dialog", { name: "Log a match" })).toBeTruthy()
+
+        fireEvent.keyDown(window, { key: "Escape" })
+
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    })
+})
+
+describe("the form", () => {
+    it("keeps the file input mounted, so one tap on 'Add a photo' opens the picker", () => {
+        const click = vi
+            .spyOn(HTMLInputElement.prototype, "click")
+            .mockImplementation(() => {})
+
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+
+        fireEvent.click(screen.getByRole("button", { name: "Add a photo" }))
+
+        expect(click).toHaveBeenCalledTimes(1)
+        click.mockRestore()
+    })
+
+    it("caps the date at today in Played mode, and not for a fixture", () => {
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+        const date = screen.getByLabelText("Date") as HTMLInputElement
+
+        expect(date.max).toBeTruthy()
+
+        fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }))
+
+        expect(date.max).toBe("")
+    })
+
+    it("stays 'Log a match' when a new entry flips to Upcoming", () => {
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+
+        fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }))
+
+        expect(screen.getByRole("dialog", { name: "Log a match" })).toBeTruthy()
+    })
+})
+
+describe("the photo's status", () => {
+    URL.createObjectURL = vi.fn(() => "blob:photo")
+    URL.revokeObjectURL = vi.fn()
+
+    const liveRegion = () =>
+        screen
+            .getByRole("dialog")
+            .querySelector('[aria-live="polite"]') as HTMLElement
+
+    const pickPhoto = () => {
+        const click = vi
+            .spyOn(HTMLInputElement.prototype, "click")
+            .mockImplementation(() => {})
+        fireEvent.click(screen.getByRole("button", { name: "Add a photo" }))
+        click.mockRestore()
+
+        fireEvent.change(screen.getByLabelText("Choose a photo"), {
+            target: {
+                files: [new File(["x"], "match.jpg", { type: "image/jpeg" })],
+            },
+        })
+    }
+
+    it("reads out 'Uploading…', from a region that was already there and empty", async () => {
+        let finish: (photo: object) => void = () => {}
+        uploadPhoto.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve
+            })
+        )
+
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+
+        // A live region that arrives holding its text announces nothing.
+        const region = liveRegion()
+        expect(region.textContent).toBe("")
+
+        pickPhoto()
+
+        expect(liveRegion()).toBe(region)
+        expect(region.textContent).toBe("Uploading…")
+
+        act(() =>
+            finish({
+                photo_url: "https://example.test/photo.jpg",
+                photo_public_id: "photo",
+            })
+        )
+
+        await vi.waitFor(() => expect(region.textContent).toBe("Ready"))
+    })
+
+    it("says when the photo did not upload", async () => {
+        uploadPhoto.mockRejectedValueOnce(new Error("Nope"))
+
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+        pickPhoto()
+
+        await vi.waitFor(() =>
+            expect(liveRegion().textContent).toBe("Didn't upload")
+        )
+    })
+
+    it("says nothing about a photo the match already had", () => {
+        const entry: MatchEntry = {
+            id: "match-7",
+            sport: { id: "sport-1", name: "Football", icon_name: "", icon_url: "" },
+            status: "played",
+            date: "2020-05-09",
+            kickoff_time: null,
+            opponent_name: "Riverside FC",
+            match_type: "league",
+            result: "win",
+            minutes_played: 90,
+            position: null,
+            self_rating: null,
+            notes: "",
+            career_entry: null,
+            photo_url: "https://example.test/photo.jpg",
+            stats: [],
+            created_at: "2020-05-09T18:00:00Z",
+            updated_at: "2020-05-09T18:00:00Z",
+        }
+
+        render(<MatchEntrySheet entry={entry} onClose={vi.fn()} />)
+
+        expect(liveRegion().textContent).toBe("")
     })
 })
 
@@ -307,5 +564,124 @@ describe("promoting a fixture", () => {
         // them — so they must not be sent back as the blanks the form holds.
         expect(payload).not.toHaveProperty("notes")
         expect(payload).not.toHaveProperty("career_entry")
+    })
+
+    it("opens already in Played mode with startPlayed, with no extra tap", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />)
+
+        expect(screen.queryByRole("button", { name: /Log the result/i })).toBeNull()
+        expect(
+            (screen.getByLabelText("Date") as HTMLInputElement).value
+        ).toBe("2020-05-09")
+        expect(
+            (screen.getByLabelText(/^Opponent/) as HTMLInputElement).value
+        ).toBe("Riverside FC")
+
+        fireEvent.click(screen.getByRole("radio", { name: "Won" }))
+        fireEvent.click(screen.getByRole("button", { name: "Log result" }))
+
+        await vi.waitFor(() => expect(updateMutate).toHaveBeenCalledTimes(1))
+        expect(updateMutate.mock.calls[0][0].payload).toMatchObject({
+            status: "played",
+            result: "win",
+            match_type: "league",
+        })
+
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(showToast).toHaveBeenCalledWith({
+            title: "Match logged",
+            variant: "success",
+        })
+    })
+
+    it("does not count startPlayed as an edit, so it closes without asking", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />)
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+        expect(screen.queryByRole("alertdialog")).toBeNull()
+    })
+
+    describe("after 'Not played yet'", () => {
+        const undo = () =>
+            fireEvent.click(screen.getByRole("button", { name: /Not played yet/ }))
+
+        it("titles itself from the status it is on now", () => {
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={vi.fn()} />
+            )
+            expect(screen.getByRole("dialog", { name: "Log result" })).toBeTruthy()
+
+            undo()
+            expect(screen.getByRole("dialog", { name: "Edit fixture" })).toBeTruthy()
+            expect(screen.getByRole("heading", { name: "Edit fixture" })).toBeTruthy()
+
+            fireEvent.click(screen.getByRole("button", { name: /Log the result/i }))
+            expect(screen.getByRole("dialog", { name: "Log result" })).toBeTruthy()
+        })
+
+        it("does not count the switch back as a change", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            undo()
+            fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+            await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+            expect(screen.queryByRole("alertdialog")).toBeNull()
+        })
+
+        it("does not ask on a back press either", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            undo()
+            act(() => window.history.back())
+
+            await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+            expect(screen.queryByRole("alertdialog")).toBeNull()
+        })
+
+        it("does not count what the switch cleared, either", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            fireEvent.click(screen.getByRole("radio", { name: "Won" }))
+            bumpStat("Goals", 2)
+            fireEvent.change(screen.getByLabelText(/^Minutes played/), {
+                target: { value: "90" },
+            })
+
+            undo()
+            fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+            await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+            expect(screen.queryByRole("alertdialog")).toBeNull()
+        })
+
+        it("still asks when a real edit survives the switch back", async () => {
+            const onClose = vi.fn()
+            render(
+                <MatchEntrySheet fixture={fixture} startPlayed onClose={onClose} />
+            )
+
+            fireEvent.change(screen.getByLabelText(/^Opponent/), {
+                target: { value: "Northgate United" },
+            })
+            undo()
+            fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+            expect(await screen.findByRole("alertdialog")).toBeTruthy()
+            expect(onClose).not.toHaveBeenCalled()
+        })
     })
 })

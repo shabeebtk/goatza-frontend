@@ -67,4 +67,21 @@ describe("PlayersOnly", () => {
     expect(screen.queryByText("The diary")).toBeNull()
     expect(replace).not.toHaveBeenCalled()
   })
+
+  it("shows the page's header while it waits, not a blank page", () => {
+    as(null, "user", true)
+
+    renderGuard()
+
+    expect(screen.getByText("Match diary")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy()
+  })
+
+  it("shows no header once it has decided to send somebody away", () => {
+    as("coach")
+
+    renderGuard()
+
+    expect(screen.queryByText("Match diary")).toBeNull()
+  })
 })

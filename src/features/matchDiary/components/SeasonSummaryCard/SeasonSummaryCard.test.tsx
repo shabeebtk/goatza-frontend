@@ -16,7 +16,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import type { MatchSummary } from "../../types"
 import FormTrend from "../FormTrend/FormTrend"
@@ -172,6 +172,34 @@ describe("three matches logged", () => {
 
 // ── FormTrend ─────────────────────────────────────────────────
 
+describe("compact", () => {
+    it("keeps the stat grid behind a toggle", () => {
+        render(<SeasonSummaryCard summary={summary({ stats: [goals(14)] })} compact />)
+
+        const toggle = screen.getByRole("button", { name: "See all stats" })
+        expect(toggle.getAttribute("aria-expanded")).toBe("false")
+        // The figure is in the headline either way. The grid's own label is not.
+        expect(screen.queryByText("Goals")).toBeNull()
+
+        fireEvent.click(toggle)
+
+        expect(screen.getByText("Goals")).toBeTruthy()
+        expect(
+            screen.getByRole("button", { name: "Hide stats" }).getAttribute("aria-expanded")
+        ).toBe("true")
+    })
+
+    it("offers no toggle when nothing was logged, and none outside compact", () => {
+        const { unmount } = render(<SeasonSummaryCard summary={summary()} compact />)
+        expect(screen.queryByRole("button", { name: "See all stats" })).toBeNull()
+        unmount()
+
+        render(<SeasonSummaryCard summary={summary({ stats: [goals(14)] })} />)
+        expect(screen.queryByRole("button", { name: "See all stats" })).toBeNull()
+        expect(screen.getByText("Goals")).toBeTruthy()
+    })
+})
+
 describe("FormTrend", () => {
     it("stays hidden below three rated matches", () => {
         const { container } = render(<FormTrend ratings={[4, null, 3]} />)
@@ -187,7 +215,7 @@ describe("FormTrend", () => {
 
         expect(container.querySelectorAll("polyline").length).toBe(2)
         // A dot per rated match, and none for the gap.
-        expect(container.querySelectorAll("circle").length).toBe(6)
+        expect(container.querySelectorAll("[data-dot]").length).toBe(6)
     })
 
     it("still marks a rated match stranded between two gaps", () => {
@@ -197,7 +225,17 @@ describe("FormTrend", () => {
 
         // The lone 4 gets no line of its own but must not disappear.
         expect(container.querySelectorAll("polyline").length).toBe(1)
-        expect(container.querySelectorAll("circle").length).toBe(5)
+        expect(container.querySelectorAll("[data-dot]").length).toBe(5)
+    })
+
+    it("draws guide lines at 1, 3 and 5, and makes only the latest dot bigger", () => {
+        const { container } = render(<FormTrend ratings={[4, 3, 5, null, 4]} />)
+
+        expect(container.querySelectorAll("line").length).toBe(3)
+
+        const dots = Array.from(container.querySelectorAll("[data-dot]"))
+        const last = dots[dots.length - 1]
+        expect(dots.filter((dot) => dot.className === last.className)).toHaveLength(1)
     })
 
     it("says the trend in words, because a sparkline says nothing to a reader", () => {

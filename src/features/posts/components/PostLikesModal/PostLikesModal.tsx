@@ -32,7 +32,6 @@ interface PostLikesModalProps {
 function LikeRow({ like, onNavigate }: { like: PostLike; onNavigate: () => void }) {
   const { toProfile } = useNavigation()
   const { actor, actor_type } = like
-  const isOrg = actor_type === "organization"
   const avatar = actor.profile_photo || actor.logo || undefined
   const initials = (actor.name || actor.username || "?").slice(0, 2).toUpperCase()
   const meta = REACTION_META[like.type] ?? REACTION_META.like
@@ -48,15 +47,6 @@ function LikeRow({ like, onNavigate }: { like: PostLike; onNavigate: () => void 
         <span className={styles.text}>
           <span className={styles.nameLine}>
             <span className={styles.name}>{actor.name || actor.username}</span>
-            {isOrg && actor.is_verified && (
-              <Icon
-                icon="mdi:check-decagram"
-                width={15}
-                height={15}
-                className={styles.verified}
-                aria-label="Verified organization"
-              />
-            )}
           </span>
           {actor.headline && <span className={styles.headline}>{actor.headline}</span>}
         </span>

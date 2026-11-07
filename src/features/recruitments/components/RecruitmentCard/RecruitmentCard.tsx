@@ -462,14 +462,6 @@ export default function RecruitmentCard({
               <span className={styles.orgNameText}>
                 {recruitment.organization.name}
               </span>
-              {recruitment.organization.is_verified && (
-                <Icon
-                  icon="mdi:check-decagram"
-                  width={12}
-                  height={12}
-                  className={styles.verifiedBadge}
-                />
-              )}
             </Link>
           )}
 

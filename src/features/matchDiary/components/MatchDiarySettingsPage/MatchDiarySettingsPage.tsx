@@ -55,7 +55,7 @@ import styles from "./MatchDiarySettingsPage.module.css"
 export default function MatchDiarySettingsPage() {
     // Enabled: this GET get-or-creates the settings row server-side, which is
     // exactly right for a screen the owner opened on purpose.
-    const { data: settings, isPending, error } = useMatchDiarySettings()
+    const { data: settings, isPending, error, refetch } = useMatchDiarySettings()
     const update = useUpdateMatchDiarySettings()
 
     if (error) {
@@ -72,6 +72,15 @@ export default function MatchDiarySettingsPage() {
                             )
                             : "Couldn't load your match diary settings."}
                     </p>
+                    {!isMatchDiaryForbidden(error) && (
+                        <button
+                            type="button"
+                            className={styles.retryBtn}
+                            onClick={() => void refetch()}
+                        >
+                            Retry
+                        </button>
+                    )}
                 </div>
             </div>
         )
@@ -98,10 +107,17 @@ export default function MatchDiarySettingsPage() {
                     // never does.
                     description="Your totals, record and streak become visible to anyone who can see your profile. Individual matches, notes and photos stay private either way."
                     checked={showcase}
+                    // Until the first answer lands the switch only knows a guess,
+                    // and a tap on a guess could publish a season.
+                    disabled={isPending}
+                    // A save only marks it. Disabling it would drop the focus of
+                    // whoever just pressed it, so the next press is ignored
+                    // instead, and a double flip cannot send two requests.
                     busy={update.isPending}
-                    onChange={(next) =>
+                    onChange={(next) => {
+                        if (update.isPending) return
                         update.mutate({ showcase_summary: next })
-                    }
+                    }}
                 />
             </SettingsSection>
 

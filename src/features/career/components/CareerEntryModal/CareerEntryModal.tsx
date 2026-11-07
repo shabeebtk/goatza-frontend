@@ -19,7 +19,7 @@ import { useMemo, useState } from "react"
 import { Controller, useForm, type Resolver, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import {
     useSportsList,
@@ -361,6 +361,7 @@ function CareerEntryForm({
     primarySportId,
     onClose,
 }: CareerEntryFormProps) {
+    const toast = useToast()
     const isEdit = Boolean(entry)
 
     const role = useAuthStore((s) => s.user?.role)
@@ -487,25 +488,29 @@ function CareerEntryForm({
                     entryId: entry.id,
                     payload: toUpdateCareerEntryPayload(formValues),
                 })
-                toast.success(
-                    willResetVerification && taggedOrg
-                        ? `Updated — ${formValues.organization_name} will be asked to verify it again`
-                        : "Career entry updated"
-                )
+                toast.show({
+                    title:
+                        willResetVerification && taggedOrg
+                            ? `Updated — ${formValues.organization_name} will be asked to verify it again`
+                            : "Career entry updated",
+                    variant: "success",
+                })
             } else {
                 await createEntry.mutateAsync(toCreateCareerEntryPayload(formValues))
-                toast.success(
-                    taggedOrg
-                        ? `Added — verification requested from ${formValues.organization_name}`
-                        : "Career entry added"
-                )
+                toast.show({
+                    title:
+                        taggedOrg
+                            ? `Added — verification requested from ${formValues.organization_name}`
+                            : "Career entry added",
+                    variant: "success",
+                })
             }
             reset()
             void settleViewport()
             onClose()
         } catch {
-            // The mutation hooks already surface the server's message via
-            // sonner; the modal stays open so the entered values aren't lost.
+            // The mutation hooks already surface the server's message as a
+            // toast; the modal stays open so the entered values aren't lost.
         }
     }
 

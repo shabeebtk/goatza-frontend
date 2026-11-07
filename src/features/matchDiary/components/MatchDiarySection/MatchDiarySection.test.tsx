@@ -17,11 +17,17 @@
  *      chart of individual self-ratings.
  *   3. The logged-out profile fires nothing at all — that endpoint is
  *      authenticated, and the CV is the surface that faces the public web.
- *   4. The owner gets the diary: card, fixture, recent matches, both ways in.
+ *   4. The owner gets the diary: card, fixture, recent PLAYED matches, both ways
+ *      in. A recent row is a read, and a real failure is not an empty diary.
+ *   5. An open sheet or detail modal outlives whatever the section behind it is
+ *      showing. Every match write refetches the summary, so a flaky refetch or a
+ *      first match would otherwise take the typed form with it.
  */
 
+import { useEffect } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { AxiosError, type AxiosResponse } from "axios"
 
 import type {
     MatchEntry,
@@ -44,9 +50,31 @@ vi.mock("next/link", () => ({
     }) => <a href={href}>{children}</a>,
 }))
 
+/** Counts real mounts: a remount is what loses what was typed in the sheet. */
+const sheetMounted = vi.fn()
+const detailMounted = vi.fn()
+
 // Mounting the sheet would drag in react-hook-form, the sports catalog and the
-// stat catalog for a component that never opens it in these tests.
-vi.mock("../MatchEntrySheet/MatchEntrySheet", () => ({ default: () => null }))
+// stat catalog for a component whose own behaviour is tested elsewhere.
+vi.mock("../MatchEntrySheet/MatchEntrySheet", () => {
+    function SheetStub() {
+        useEffect(() => {
+            sheetMounted()
+        }, [])
+        return <div data-testid="sheet" />
+    }
+    return { default: SheetStub }
+})
+
+vi.mock("../MatchDetailModal/MatchDetailModal", () => {
+    function DetailStub({ entry }: { entry: MatchEntry }) {
+        useEffect(() => {
+            detailMounted()
+        }, [])
+        return <div data-testid="detail">Reading {entry.id}</div>
+    }
+    return { default: DetailStub }
+})
 
 vi.mock("@/shared/services/navigation.service", () => ({
     useNavigation: () => ({ toMatchDiary: () => "/matches" }),
@@ -174,6 +202,8 @@ afterEach(() => {
     playerSummary.mockReset()
     upcoming.mockReset()
     matches.mockReset()
+    sheetMounted.mockClear()
+    detailMounted.mockClear()
 })
 
 // ── Visitor ───────────────────────────────────────────────────
@@ -258,6 +288,93 @@ describe("the owner", () => {
         expect(screen.getByText(/Log a match/)).toBeTruthy()
     })
 
+    it("asks for played matches only, so a fixture never shows twice", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY], fixtures: [FIXTURE] })
+
+        render(<MatchDiarySection username="riya" isOwn />)
+
+        expect(matches.mock.calls[0][0]).toEqual({ status: "played" })
+        expect(screen.getAllByText(/Northgate United/)).toHaveLength(1)
+    })
+
+    it("shows a recent row as a badge, the opponent, the date and one key stat", () => {
+        setup({
+            summary: SUMMARY,
+            entries: [
+                {
+                    ...ENTRY,
+                    stats: [
+                        {
+                            stat_field_id: "s1",
+                            name: "Goals",
+                            short_label: "G",
+                            unit: "",
+                            value_type: "integer",
+                            is_primary: true,
+                            value: 2,
+                        },
+                    ],
+                },
+            ],
+        })
+
+        render(<MatchDiarySection username="riya" isOwn />)
+
+        expect(screen.getByRole("img", { name: "Won" }).textContent).toBe("W")
+        expect(screen.getByText("Riverside FC")).toBeTruthy()
+        expect(screen.getByText("9 Aug · 2 Goals")).toBeTruthy()
+    })
+
+    it("opens a recent row as a read, not as the edit form", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+
+        render(<MatchDiarySection username="riya" isOwn />)
+        fireEvent.click(screen.getByRole("button", { name: /Riverside FC/ }))
+
+        expect(screen.getByText("Reading m1")).toBeTruthy()
+        expect(screen.queryByTestId("sheet")).toBeNull()
+    })
+
+    it("shows an error and a retry when the summary fails for a real reason", () => {
+        const refetch = vi.fn()
+        const failure = new AxiosError("Server error")
+        failure.response = { status: 500 } as AxiosResponse
+        setup({})
+        playerSummary.mockReturnValue({
+            data: undefined,
+            isPending: false,
+            isError: true,
+            error: failure,
+            refetch,
+        })
+
+        render(<MatchDiarySection username="riya" isOwn />)
+
+        // They may well have a diary. An invitation to start one would be wrong.
+        expect(screen.queryByText(/build a season record/i)).toBeNull()
+        expect(screen.getByRole("alert")).toBeTruthy()
+
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+        expect(refetch).toHaveBeenCalled()
+    })
+
+    it("still invites them on a 404, which only means there is no summary yet", () => {
+        const notFound = new AxiosError("Not found")
+        notFound.response = { status: 404 } as AxiosResponse
+        setup({})
+        playerSummary.mockReturnValue({
+            data: undefined,
+            isPending: false,
+            isError: true,
+            error: notFound,
+            refetch: vi.fn(),
+        })
+
+        render(<MatchDiarySection username="riya" isOwn />)
+
+        expect(screen.getByText(/build a season record/i)).toBeTruthy()
+    })
+
     it("gets a one-line invitation, not an empty card, with nothing logged", () => {
         setup({ summary: { ...SUMMARY, total_matches: 0, stats: [], form: [] } })
 
@@ -304,5 +421,88 @@ describe("the owner", () => {
         )
 
         expect(container.innerHTML).toBe("")
+    })
+})
+
+// ── Open overlays ─────────────────────────────────────────────
+
+describe("an open overlay", () => {
+    // A new element every time: React skips a rerender handed the same one, and
+    // the section would never read the query state a test has just changed.
+    const section = () => <MatchDiarySection username="riya" isOwn />
+
+    /** What the hook returns once a refetch has failed: cached data stays. */
+    const refetchFails = (data?: PlayerMatchSummary) => {
+        const failure = new AxiosError("Server error")
+        failure.response = { status: 500 } as AxiosResponse
+        playerSummary.mockReturnValue({
+            data,
+            isPending: false,
+            isError: true,
+            error: failure,
+            refetch: vi.fn(),
+        })
+    }
+
+    it("keeps the section and the sheet when a background refetch fails", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /Log a match/ }))
+
+        refetchFails(SUMMARY)
+        rerender(section())
+
+        expect(screen.queryByRole("alert")).toBeNull()
+        expect(screen.getByText(/4 weeks running/)).toBeTruthy()
+        expect(screen.getByTestId("sheet")).toBeTruthy()
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps the detail modal when a background refetch fails", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /Riverside FC/ }))
+
+        refetchFails(SUMMARY)
+        rerender(section())
+
+        expect(screen.queryByRole("alert")).toBeNull()
+        expect(screen.getByText("Reading m1")).toBeTruthy()
+        expect(detailMounted).toHaveBeenCalledTimes(1)
+    })
+
+    it("survives the section going to the error state and the skeleton", () => {
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /Log a match/ }))
+
+        // Nothing cached, so this one really is the error state.
+        refetchFails(undefined)
+        rerender(section())
+        expect(screen.getByRole("alert")).toBeTruthy()
+
+        playerSummary.mockReturnValue({ data: undefined, isPending: true })
+        rerender(section())
+        expect(screen.queryByRole("alert")).toBeNull()
+
+        expect(screen.getByTestId("sheet")).toBeTruthy()
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
+    })
+
+    it("does not remount the sheet when a first match replaces the invitation", () => {
+        setup({ summary: { ...SUMMARY, total_matches: 0, stats: [], form: [] } })
+        const { rerender } = render(section())
+        fireEvent.click(screen.getByRole("button", { name: /build a season record/i }))
+
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
+
+        // The save has landed and the summary refetched, with the sheet still up.
+        setup({ summary: SUMMARY, entries: [ENTRY] })
+        rerender(section())
+
+        expect(screen.queryByText(/build a season record/i)).toBeNull()
+        expect(screen.getByText("Match diary")).toBeTruthy()
+        expect(screen.getAllByTestId("sheet")).toHaveLength(1)
+        expect(sheetMounted).toHaveBeenCalledTimes(1)
     })
 })

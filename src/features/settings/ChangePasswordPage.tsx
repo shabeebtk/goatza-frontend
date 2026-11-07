@@ -15,7 +15,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Icon } from "@iconify/react"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 import { BackHeader, Button, Input } from "@/shared/components/ui"
 import { useChangePassword } from "./hooks/useChangePassword"
 import type { ChangePasswordErrorCode } from "./services/settings.api"
@@ -85,6 +85,7 @@ function readApiError(err: unknown): { code?: string; message?: string } {
 // ── Page ─────────────────────────────────────────────────────
 
 export default function ChangePasswordPage() {
+  const toast = useToast()
   const router = useRouter()
   const changePassword = useChangePassword()
   const [apiError, setApiError] = useState<string | null>(null)
@@ -112,7 +113,7 @@ export default function ChangePasswordPage() {
         new_password: values.new_password,
       })
 
-      toast.success("Password changed successfully")
+      toast.show({ title: "Password changed successfully", variant: "success" })
       router.back()
     } catch (err) {
       const { code, message } = readApiError(err)

@@ -24,7 +24,7 @@ import { useState } from "react"
 import { Icon } from "@iconify/react"
 import { isAxiosError } from "axios"
 import Link from "next/link"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
@@ -365,6 +365,7 @@ function RequestRow({
  * tabs and the list. The page shell owns the title and the domain tabs.
  */
 export default function OrgAchievementVerifications() {
+    const toast = useToast()
     const [tab, setTab] = useState<AchievementReviewTab>("pending")
 
     const {
@@ -392,9 +393,10 @@ export default function OrgAchievementVerifications() {
                 userId: request.user.id,
                 tab,
             })
-            toast.success(
-                `Verified — ${request.user.name || request.user.username}'s achievement now shows your check mark`
-            )
+            toast.show({
+                title: `Verified — ${request.user.name || request.user.username}'s achievement now shows your check mark`,
+                variant: "success",
+            })
         } catch {
             // The hook restores the row and toasts the server's message.
         } finally {
@@ -414,11 +416,13 @@ export default function OrgAchievementVerifications() {
                 reason: reason || undefined,
                 tab,
             })
-            toast.success(
-                request.verification_status === "verified"
-                    ? "Verification withdrawn — they've been told"
-                    : "Rejected — they've been told"
-            )
+            toast.show({
+                title:
+                    request.verification_status === "verified"
+                        ? "Verification withdrawn — they've been told"
+                        : "Rejected — they've been told",
+                variant: "success",
+            })
             setRejectingId(null)
         } catch {
             // Same: the hook restores the row and surfaces the message.

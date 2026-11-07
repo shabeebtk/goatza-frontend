@@ -3,14 +3,15 @@
 /**
  * MatchDiarySection — the match diary on a player's profile.
  *
- * In v1 this is the diary's ONLY entry point: there is no nav item, so a player
- * who never scrolls their own profile never finds the feature. That is why the
- * owner's empty state is an invitation rather than a blank card.
+ * The owner's empty state is an invitation rather than a blank card: this is
+ * where a player who never opens the nav's diary item finds out it exists.
  *
  * ── Who sees what, and why ────────────────────────────────────
  *
- * OWNER   → the summary, their next fixture, their three most recent matches,
- *           and the two ways in: "Log a match" and "View all".
+ * OWNER   → the summary, their next fixture, their three most recent PLAYED
+ *           matches (a fixture belongs under "Up next", never in both), and the
+ *           two ways in: "Log a match" and "View all". A recent row opens the
+ *           detail modal, with the edit sheet on top of that, as on /matches.
  * VISITOR → the summary and nothing else. Not the entries, not the notes, not
  *           the photos, not the ratings. The diary is private; the SUMMARY is
  *           the part a player chose to publish, and that choice is a single
@@ -32,7 +33,7 @@
  * profile would 401 under a section that then has nothing to show.
  */
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import dayjs from "dayjs"
 import { Icon } from "@iconify/react"
@@ -41,19 +42,24 @@ import { usePublicProfile } from "@/features/profile/context/PublicProfileContex
 import { useNavigation } from "@/shared/services/navigation.service"
 import { useAuthStore } from "@/store/auth.store"
 
+import { useMatchDetailState } from "../../hooks/useMatchDetailState"
 import {
     useMatches,
     usePlayerMatchSummary,
     useUpcomingMatches,
 } from "../../hooks/useMatchDiary"
 import {
-    MATCH_RESULT_LABELS,
     headlineStat,
-    opponentLabel,
-    resultTone,
+    opponentHeading,
 } from "../../matchDiaryMeta"
+import {
+    getMatchDiaryErrorMessage,
+    isMatchDiaryNotFound,
+} from "../../services/matches.api"
 import { UPCOMING_LIMIT, type MatchEntry, type UpcomingMatch } from "../../types"
+import MatchDetailModal from "../MatchDetailModal/MatchDetailModal"
 import MatchEntrySheet from "../MatchEntrySheet/MatchEntrySheet"
+import MatchResultBadge from "../MatchResultBadge/MatchResultBadge"
 import SeasonSummaryCard, {
     SeasonSummaryCardSkeleton,
 } from "../SeasonSummaryCard/SeasonSummaryCard"
@@ -63,18 +69,21 @@ import styles from "./MatchDiarySection.module.css"
 const RECENT_LIMIT = 3
 
 /** What the sheet is doing, or null when closed. Mirrors MatchDiaryPage. */
-type SheetState = { entry?: MatchEntry; fixture?: UpcomingMatch } | null
+type SheetState = {
+    entry?: MatchEntry
+    fixture?: UpcomingMatch
+    startPlayed?: boolean
+} | null
 
 // ── Recent row ────────────────────────────────────────────────
 
 /**
- * Deliberately thinner than MatchDiaryPage's row and not shared with it.
+ * Deliberately thinner than MatchDiaryPage's card and not shared with it.
  *
- * That row is a control — it opens the edit sheet, carries a photo thumbnail
- * and a screen-reader summary, and is sized for a scannable list of twenty.
- * This is a glance at three, inside a card, on a page about something else.
- * Sharing one component would mean the profile inheriting every change made
- * for the diary page, which is the wrong dependency direction.
+ * That card carries a photo thumbnail, a note and a career line, and is sized
+ * for a scannable list of twenty. This is a glance at three, on a page about
+ * something else. Sharing one component would mean the profile inheriting every
+ * change made for the diary page, which is the wrong dependency direction.
  */
 function RecentRow({
     entry,
@@ -83,7 +92,6 @@ function RecentRow({
     entry: MatchEntry
     onOpen: (entry: MatchEntry) => void
 }) {
-    const resultLabel = MATCH_RESULT_LABELS[entry.result]
     const headline = headlineStat(entry)
 
     return (
@@ -93,26 +101,17 @@ function RecentRow({
                 className={styles.recentRow}
                 onClick={() => onOpen(entry)}
             >
-                <span className={styles.recentDate}>
-                    {dayjs(entry.date).format("D MMM")}
-                </span>
+                <MatchResultBadge result={entry.result} size="sm" />
 
-                <span className={styles.recentOpponent}>
-                    {opponentLabel(entry.opponent_name)}
-                </span>
-
-                {headline && (
-                    <span className={styles.recentStat}>{headline}</span>
-                )}
-
-                {resultLabel && (
-                    <span
-                        className={styles.recentResult}
-                        data-tone={resultTone(entry.result)}
-                    >
-                        {resultLabel}
+                <span className={styles.recentMain}>
+                    <span className={styles.recentOpponent}>
+                        {opponentHeading(entry.opponent_name)}
                     </span>
-                )}
+                    <span className={styles.recentMeta}>
+                        {dayjs(entry.date).format("D MMM")}
+                        {headline && ` · ${headline}`}
+                    </span>
+                </span>
             </button>
         </li>
     )
@@ -165,13 +164,14 @@ export default function MatchDiarySection({
      * read the VIEWER'S OWN while they look at someone else's page. Two
      * requests per profile view, for data nothing on the page can render.
      *
-     * `useMatches({})` is the same key the diary page uses unfiltered, so the
-     * three rows here also warm /matches for the tap that usually follows.
+     * `useMatches({ status: "played" })` is the same key the diary page's results
+     * use unfiltered, so the three rows here also warm /matches for the tap that
+     * usually follows.
      */
     const upcomingQuery = useUpcomingMatches(UPCOMING_LIMIT, {
         enabled: canManage,
     })
-    const recentQuery = useMatches({}, { enabled: canManage })
+    const recentQuery = useMatches({ status: "played" }, { enabled: canManage })
 
     const summary = summaryQuery.data
 
@@ -191,6 +191,11 @@ export default function MatchDiarySection({
         ? (recentQuery.data?.pages[0]?.results ?? [])
         : []
     const recent = entries.slice(0, RECENT_LIMIT)
+
+    const detail = useMatchDetailState(
+        entries,
+        Boolean(sheet) || Boolean(recentQuery.isFetching)
+    )
 
     /**
      * Years the player can be PROVEN to have matches in.
@@ -220,15 +225,26 @@ export default function MatchDiarySection({
     // for you", which must look identical to "no such player".
     if (!canManage && (summaryQuery.isPending || !summary)) return null
 
-    // The owner's first load. A skeleton at the card's real height, so the
-    // sections below it do not jump when the summary lands.
-    //
-    // Waits on the FIXTURE query too, even though the card does not use it:
-    // whether there is a fixture decides between the full section and the
-    // one-line invitation, and resolving that after paint would swap one for
-    // the other under the reader.
+    // ── What the section is showing ───────────────────────────
+
+    /**
+     * Put in a variable rather than returned, so the overlays below sit outside
+     * every branch. The summary can move between these at any moment under an
+     * open sheet (a refetch landing, a first match turning the invitation into
+     * the full section), and returning from a branch would unmount the sheet and
+     * what was typed in it.
+     */
+    let content: ReactNode
+
     if (canManage && (summaryQuery.isPending || upcomingQuery.isPending)) {
-        return (
+        // The owner's first load. A skeleton at the card's real height, so the
+        // sections below it do not jump when the summary lands.
+        //
+        // Waits on the FIXTURE query too, even though the card does not use it:
+        // whether there is a fixture decides between the full section and the
+        // one-line invitation, and resolving that after paint would swap one for
+        // the other under the reader.
+        content = (
             <div className={styles.section}>
                 <div className={styles.header}>
                     <h2 className={styles.title}>
@@ -244,69 +260,19 @@ export default function MatchDiarySection({
                 <SeasonSummaryCardSkeleton />
             </div>
         )
-    }
-
-    /**
-     * The owner, with no diary at all.
-     *
-     * A single line, not a card. This is the feature's only entry point, so it
-     * has to say it exists — but a full empty card on the profile of somebody
-     * who has not opted into the feature is the profile nagging, and the
-     * sections above and below it have earned their space.
-     *
-     * Also covers the owner whose summary 404'd (a role change, a fresh
-     * account): there is nothing to show either way, and the invitation is
-     * still the right thing on their own profile.
-     */
-    // `year === null` guards the one false positive: a player who picks a year
-    // they played nothing in should get the card back with the picker still on
-    // it, not an invitation to a feature they are already using.
-    if (canManage && year === null && (!summary || summary.total_matches === 0)) {
-        // A scheduled-only diary is not empty — the fixture strip below has
-        // something to say — so only fall through to the invitation when there
-        // is genuinely nothing.
-        if (!nextFixture) {
-            return (
-                <div className={styles.section}>
-                    <button
-                        type="button"
-                        className={styles.invitation}
-                        onClick={() => setSheet({})}
-                    >
-                        <Icon
-                            icon="mdi:notebook-plus-outline"
-                            width={18}
-                            height={18}
-                            aria-hidden="true"
-                        />
-                        <span>
-                            Log a match — build a season record coaches can read.
-                        </span>
-                        <Icon
-                            icon="mdi:chevron-right"
-                            width={18}
-                            height={18}
-                            aria-hidden="true"
-                        />
-                    </button>
-
-                    {sheet && (
-                        <MatchEntrySheet
-                            entry={sheet.entry}
-                            fixture={sheet.fixture}
-                            onClose={() => setSheet(null)}
-                        />
-                    )}
-                </div>
-            )
-        }
-    }
-
-    // ── The section ───────────────────────────────────────────
-
-    return (
-        <>
-            <div className={styles.section} id="match-diary">
+    } else if (
+        canManage &&
+        summaryQuery.isError &&
+        !summaryQuery.data &&
+        !isMatchDiaryNotFound(summaryQuery.error)
+    ) {
+        // Their own summary failed for a real reason, with nothing cached to
+        // show. An invitation to start a diary would be wrong: they may well have
+        // one. A 404 falls through to it below. `isError` alone is not the test,
+        // because TanStack also sets it when a BACKGROUND refetch fails, and every
+        // match write triggers one.
+        content = (
+            <div className={styles.section}>
                 <div className={styles.header}>
                     <h2 className={styles.title}>
                         <Icon
@@ -317,114 +283,216 @@ export default function MatchDiarySection({
                         />
                         Match diary
                     </h2>
-
-                    {canManage && (
-                        <button
-                            type="button"
-                            className={styles.addBtn}
-                            onClick={() => setSheet({})}
-                        >
-                            <Icon icon="mdi:plus" width={15} height={15} />
-                            Log a match
-                        </button>
-                    )}
                 </div>
-
-                {summary && (
-                    <SeasonSummaryCard
-                        summary={summary}
-                        streakWeeks={summary.current_streak_weeks}
-                        years={years}
-                        year={year}
-                        onYearChange={setYear}
-                        isOwn={canManage}
+                <div className={styles.error} role="alert">
+                    <p className={styles.errorText}>
+                        {getMatchDiaryErrorMessage(summaryQuery.error)}
+                    </p>
+                    <button
+                        type="button"
+                        className={styles.retryBtn}
+                        onClick={() => void summaryQuery.refetch()}
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        )
+    } else if (
+        // `year === null` guards the one false positive: a player who picks a year
+        // they played nothing in should get the card back with the picker still on
+        // it, not an invitation to a feature they are already using.
+        canManage &&
+        year === null &&
+        (!summary || summary.total_matches === 0) &&
+        // A scheduled-only diary is not empty: the fixture strip has something to
+        // say, so only the owner with genuinely nothing gets the invitation.
+        !nextFixture
+    ) {
+        /**
+         * The owner, with no diary at all.
+         *
+         * A single line, not a card. This is the feature's only entry point, so it
+         * has to say it exists — but a full empty card on the profile of somebody
+         * who has not opted into the feature is the profile nagging, and the
+         * sections above and below it have earned their space.
+         *
+         * Also covers the owner whose summary 404'd (a role change, a fresh
+         * account): there is nothing to show either way, and the invitation is
+         * still the right thing on their own profile.
+         */
+        content = (
+            <div className={styles.section}>
+                <button
+                    type="button"
+                    className={styles.invitation}
+                    onClick={() => setSheet({})}
+                >
+                    <Icon
+                        icon="mdi:notebook-plus-outline"
+                        width={18}
+                        height={18}
+                        aria-hidden="true"
                     />
-                )}
+                    <span>
+                        Log a match — build a season record coaches can read.
+                    </span>
+                    <Icon
+                        icon="mdi:chevron-right"
+                        width={18}
+                        height={18}
+                        aria-hidden="true"
+                    />
+                </button>
+            </div>
+        )
+    } else {
+        content = (
+        <div className={styles.section} id="match-diary">
+            <div className={styles.header}>
+                <h2 className={styles.title}>
+                    <Icon
+                        icon="mdi:notebook-outline"
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                    />
+                    Match diary
+                </h2>
 
-                {/* ── Owner only, below the card ── */}
                 {canManage && (
-                    <>
-                        {nextFixture && (
-                            <button
-                                type="button"
-                                className={styles.fixture}
-                                onClick={() =>
-                                    setSheet({ fixture: nextFixture })
-                                }
-                            >
-                                <span
-                                    className={styles.fixtureIcon}
-                                    aria-hidden="true"
-                                >
-                                    <Icon
-                                        icon="mdi:calendar-clock-outline"
-                                        width={16}
-                                        height={16}
-                                    />
-                                </span>
-                                <span className={styles.fixtureText}>
-                                    <span className={styles.fixtureLabel}>
-                                        Up next
-                                    </span>
-                                    <span className={styles.fixtureMatch}>
-                                        {opponentLabel(
-                                            nextFixture.opponent_name
-                                        )}
-                                        {" · "}
-                                        {dayjs(nextFixture.date).format(
-                                            "ddd D MMM"
-                                        )}
-                                        {nextFixture.kickoff_time && (
-                                            <>
-                                                {" · "}
-                                                {nextFixture.kickoff_time.slice(
-                                                    0,
-                                                    5
-                                                )}
-                                            </>
-                                        )}
-                                    </span>
-                                </span>
-                                <Icon
-                                    icon="mdi:chevron-right"
-                                    width={18}
-                                    height={18}
-                                    aria-hidden="true"
-                                />
-                            </button>
-                        )}
-
-                        {recent.length > 0 && (
-                            <ul className={styles.recentList}>
-                                {recent.map((entry) => (
-                                    <RecentRow
-                                        key={entry.id}
-                                        entry={entry}
-                                        onOpen={(target) =>
-                                            setSheet({ entry: target })
-                                        }
-                                    />
-                                ))}
-                            </ul>
-                        )}
-
-                        <Link href={toMatchDiary()} className={styles.viewAll}>
-                            View all matches
-                            <Icon
-                                icon="mdi:arrow-right"
-                                width={15}
-                                height={15}
-                                aria-hidden="true"
-                            />
-                        </Link>
-                    </>
+                    <button
+                        type="button"
+                        className={styles.addBtn}
+                        onClick={() => setSheet({})}
+                    >
+                        <Icon icon="mdi:plus" width={15} height={15} />
+                        Log a match
+                    </button>
                 )}
             </div>
+
+            {summary && (
+                <SeasonSummaryCard
+                    summary={summary}
+                    streakWeeks={summary.current_streak_weeks}
+                    years={years}
+                    year={year}
+                    onYearChange={setYear}
+                    isOwn={canManage}
+                />
+            )}
+
+            {/* ── Owner only, below the card ── */}
+            {canManage && (
+                <>
+                    {nextFixture && (
+                        <button
+                            type="button"
+                            className={styles.fixture}
+                            onClick={() =>
+                                setSheet({ fixture: nextFixture })
+                            }
+                        >
+                            <span
+                                className={styles.fixtureIcon}
+                                aria-hidden="true"
+                            >
+                                <Icon
+                                    icon="mdi:calendar-clock-outline"
+                                    width={16}
+                                    height={16}
+                                />
+                            </span>
+                            <span className={styles.fixtureText}>
+                                <span className={styles.fixtureLabel}>
+                                    Up next
+                                </span>
+                                <span className={styles.fixtureMatch}>
+                                    {opponentHeading(
+                                        nextFixture.opponent_name
+                                    )}
+                                    {" · "}
+                                    {dayjs(nextFixture.date).format(
+                                        "ddd D MMM"
+                                    )}
+                                    {nextFixture.kickoff_time && (
+                                        <>
+                                            {" · "}
+                                            {nextFixture.kickoff_time.slice(
+                                                0,
+                                                5
+                                            )}
+                                        </>
+                                    )}
+                                </span>
+                            </span>
+                            <Icon
+                                icon="mdi:chevron-right"
+                                width={18}
+                                height={18}
+                                aria-hidden="true"
+                            />
+                        </button>
+                    )}
+
+                    {recent.length > 0 && (
+                        <ul className={styles.recentList}>
+                            {recent.map((entry) => (
+                                <RecentRow
+                                    key={entry.id}
+                                    entry={entry}
+                                    onOpen={detail.open}
+                                />
+                            ))}
+                        </ul>
+                    )}
+
+                    <Link href={toMatchDiary()} className={styles.viewAll}>
+                        View all matches
+                        <Icon
+                            icon="mdi:arrow-right"
+                            width={15}
+                            height={15}
+                            aria-hidden="true"
+                        />
+                    </Link>
+                </>
+            )}
+        </div>
+        )
+    }
+
+    // ── Overlays ──────────────────────────────────────────────
+
+    return (
+        <>
+            {content}
+
+            {/* Stays mounted under the sheet, so saving or one back press lands
+                back on it. Same stacking as the diary page. */}
+            {detail.entry && canManage && (
+                <MatchDetailModal
+                    entry={detail.entry}
+                    covered={Boolean(sheet)}
+                    onDeletingChange={detail.setDeleting}
+                    onEdit={() => {
+                        const current = detail.entry
+                        if (!current) return
+                        setSheet({
+                            entry: current,
+                            startPlayed: current.status === "scheduled",
+                        })
+                    }}
+                    onClose={detail.close}
+                />
+            )}
 
             {sheet && canManage && (
                 <MatchEntrySheet
                     entry={sheet.entry}
                     fixture={sheet.fixture}
+                    startPlayed={sheet.startPlayed}
                     onClose={() => setSheet(null)}
                 />
             )}

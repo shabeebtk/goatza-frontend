@@ -13,7 +13,7 @@
  * the owner mutations resolve their own cache key from the auth store instead
  * of making every caller pass an id around.
  *
- * Error toasts use the shared sonner + getApiErrorMessage pattern; success
+ * Error toasts use the shared useToast + getApiErrorMessage pattern; success
  * toasts are left to the calling component, which knows the context the message
  * should read in.
  */
@@ -25,7 +25,7 @@ import {
     useQueryClient,
 } from "@tanstack/react-query"
 import type { QueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
+import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import { useAuthStore } from "@/store/auth.store"
 import {
@@ -109,6 +109,7 @@ export const useUserAchievements = (userId?: string | null) =>
  * more here than it does for careers, because a pinned award jumps to the top.
  */
 export const useCreateAchievement = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnAchievementsKey()
 
@@ -129,7 +130,7 @@ export const useCreateAchievement = () => {
         },
 
         onError: (err) => {
-            toast.error(getAchievementErrorMessage(err))
+            toast.show({ title: getAchievementErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -152,6 +153,7 @@ export const useCreateAchievement = () => {
  * is written into the cache on success instead.
  */
 export const useUpdateAchievement = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnAchievementsKey()
 
@@ -178,7 +180,7 @@ export const useUpdateAchievement = () => {
         },
 
         onError: (err) => {
-            toast.error(getAchievementErrorMessage(err))
+            toast.show({ title: getAchievementErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -192,6 +194,7 @@ export const useUpdateAchievement = () => {
 
 /** Hard delete, so the optimistic removal is the final state on success. */
 export const useDeleteAchievement = () => {
+    const toast = useToast()
     const qc = useQueryClient()
     const { key } = useOwnAchievementsKey()
 
@@ -220,7 +223,7 @@ export const useDeleteAchievement = () => {
 
         onError: (err, _achievementId, ctx) => {
             if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-            toast.error(getAchievementErrorMessage(err))
+            toast.show({ title: getAchievementErrorMessage(err), variant: "error" })
         },
 
         onSettled: () => {
@@ -314,6 +317,7 @@ type QueueSnapshot = { prev?: ReviewPages }
 const useAchievementDecision = <V extends AchievementDecisionVariables>(
     mutationFn: (variables: V) => Promise<unknown>
 ) => {
+    const toast = useToast()
     const qc = useQueryClient()
     const organizationId = useActingOrganizationId()
     const orgKey = achievementKeys.verificationRequests(organizationId ?? "")
@@ -360,7 +364,7 @@ const useAchievementDecision = <V extends AchievementDecisionVariables>(
                     ctx.prev
                 )
             }
-            toast.error(getAchievementErrorMessage(err))
+            toast.show({ title: getAchievementErrorMessage(err), variant: "error" })
         },
 
         onSettled: (_data, _err, variables) => {

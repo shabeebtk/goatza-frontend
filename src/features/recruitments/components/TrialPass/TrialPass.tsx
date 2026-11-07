@@ -108,9 +108,6 @@ export default function TrialPass({ pass }: { pass: TrialPassData }) {
                     <div className={styles.headText}>
                         <span className={styles.org}>
                             {pass.organization.name}
-                            {pass.organization.is_verified && (
-                                <Icon icon="mdi:check-decagram" width={13} height={13} />
-                            )}
                         </span>
                         <h1 className={styles.title}>{pass.recruitment.title}</h1>
                     </div>
