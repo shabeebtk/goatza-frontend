@@ -212,7 +212,7 @@ function IdentityForm({
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       const result = await checkUsername.mutateAsync(current).catch(() => null)
-      if (!result) setUsernameStatus("invalid")
+      if (!result || !result.valid) setUsernameStatus("invalid")
       else setUsernameStatus(result.available ? "available" : "taken")
     }, 400)
 

@@ -134,6 +134,8 @@ export type OrgLocationPayload = {
 export type CreateOrganizationPayload = {
   name:         string
   type:         OrgType
+  /** The handle the person chose. Absent: the server generates one from the name. */
+  username?:    string
   headline?:    string
   website?:     string
   logo?:        string
@@ -142,3 +144,32 @@ export type CreateOrganizationPayload = {
   location?:    OrgLocationPayload
   sport_ids?:   string[]
 }
+
+/** What POST /organizations/create answers with. */
+export type CreatedOrganization = {
+  id:       string
+  name:     string
+  username: string
+  type:     OrgType
+  headline: string
+  logo:     string
+}
+
+/** GET /organizations/create/eligibility: may this person make another page? */
+export type CreateEligibility = {
+  allowed: boolean
+  limit:   number
+  used:    number
+}
+
+/**
+ * Why a create was refused. The first four are the server's codes; "network"
+ * covers no response at all and any 5xx, and "unknown" a 4xx without a code.
+ */
+export type CreateOrgErrorCode =
+  | "username_taken"
+  | "username_invalid"
+  | "org_limit"
+  | "invalid"
+  | "network"
+  | "unknown"

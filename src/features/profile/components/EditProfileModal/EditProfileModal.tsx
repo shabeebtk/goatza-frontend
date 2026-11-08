@@ -227,7 +227,7 @@ export default function EditProfileModal({ profile, onClose, onSaved }: EditProf
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       const result = await checkUsername.mutateAsync(current).catch(() => null)
-      if (!result) setUsernameStatus("invalid")
+      if (!result || !result.valid) setUsernameStatus("invalid")
       else if (result.available) setUsernameStatus("available")
       else setUsernameStatus("taken")
     }, 500)

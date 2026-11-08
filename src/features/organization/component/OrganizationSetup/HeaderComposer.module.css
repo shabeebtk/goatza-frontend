@@ -1,0 +1,175 @@
+/* Mirrors the real page header: a 3:1 banner (COVER_ASPECT_RATIO) and a square
+   logo with rounded corners overlapping its bottom edge. */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+}
+
+.cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  padding: 0;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--duration-fast);
+}
+
+.cover:hover:not(:disabled) { border-color: var(--color-brand-muted); }
+
+.cover:focus-visible,
+.logo:focus-visible,
+.action:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.cover:has(.coverImg) { border-style: solid; }
+
+.coverImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.coverEmpty {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+}
+
+.identity {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  /* The logo rides up over the banner, like on the page. */
+  margin-top: -36px;
+  padding-left: var(--space-3);
+  min-width: 0;
+}
+
+.logo {
+  position: relative;
+  flex-shrink: 0;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 3px solid var(--color-surface);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-md);
+  overflow: visible;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.logoImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: calc(var(--radius-md) - 3px);
+}
+
+.logoEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+}
+
+.logoBadge {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-full);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.actionGroup {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+}
+
+.action {
+  min-height: 32px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--color-brand-hover);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.action:hover:not(:disabled) { text-decoration: underline; }
+
+.actionRemove { color: var(--color-text-secondary); }
+
+.cover:disabled,
+.logo:disabled,
+.action:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.hint {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-error);
+}
+
+.error :global(svg) { flex-shrink: 0; margin-top: 1px; }
+
+@media (min-width: 768px) {
+  .identity { margin-top: -44px; padding-left: var(--space-4); }
+  .logo { width: 88px; height: 88px; }
+}

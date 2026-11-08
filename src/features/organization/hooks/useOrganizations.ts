@@ -1,28 +1,19 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
 import api from "@/core/api/axios"
 
 import {
-  createOrganizationApi,
   followOrganizationApi,
+  getCreateEligibilityApi,
   getOrganizationDetailApi,
   unfollowOrganizationApi,
-  updateOrgMediaApi,
 } from "../services/organization.api"
 import {
-  CreateOrganizationPayload,
   OrganizationDetail,
   OrganizationMini,
 } from "../types"
 import { useAuthStore } from "@/store/auth.store"
-import {
-  describeBlob,
-  getUploadConfigApi,
-  putToR2,
-} from "@/shared/services/mediaUpload"
-import { compressImage, preferredImageType } from "@/shared/services/imageVariants"
 
 // ── Query keys ────────────────────────────────────────────────────
 
@@ -30,16 +21,6 @@ export const orgKeys = {
   all:    ()           => ["organizations"]                   as const,
   list:   ()           => ["organizations", "list"]           as const,
   detail: (id: string) => ["organizations", "detail", id]    as const,
-}
-
-// ── Compression (shared with OrgPhotoUpload) ──────────────────────
-
-// Format chosen per browser at upload time (`preferredImageType`).
-const LOGO_COMPRESSION = {
-  maxSizeMB:        1,        // was 0.5 — less aggressive, sharper logo
-  maxWidthOrHeight: 1200,     // was 800
-  initialQuality:   0.9,
-  useWebWorker:     true,
 }
 
 // ── List ──────────────────────────────────────────────────────────
@@ -77,75 +58,27 @@ export const useOrgDetail = (
   })
 }
 
-// ── Create + optional logo upload ────────────────────────────────
+// ── Create ───────────────────────────────────────────────────────
 //
-// Flow:
-//   1. POST /organizations/create  → get org.id
-//   2. If logoFile provided:
-//        a. compress
-//        b. GET signature (with org_id so backend scopes the folder)
-//        c. upload to storage
-//        d. PATCH /organizations/update/logo/cover?org_id=…
-//   3. Invalidate queries → redirect
+// The create itself is useCreateOrganization (its own file: create → logo →
+// cover → land). This is the question asked before the form is shown.
 
-export type CreateOrgInput = {
-  payload:   CreateOrganizationPayload
-  logoFile?: File | null     // raw File from the local preview, not uploaded yet
-}
+/** Not under orgKeys.all(): invalidating the org caches must not refetch it. */
+export const createEligibilityKey = ["organization-create", "eligibility"] as const
 
-export const useCreateOrganization = () => {
-  const qc     = useQueryClient()
-  const router = useRouter()
-  const switchToOrganization = useAuthStore((s) => s.switchToOrganization)
-
-  return useMutation({
-    mutationFn: async ({ payload, logoFile }: CreateOrgInput) => {
-      // Step 1 — create org (no logo in payload)
-      const org = await createOrganizationApi(payload)
-
-      // Step 2 — upload logo if user picked one
-      if (logoFile) {
-        try {
-          const fileType = await preferredImageType()
-          const compressed = await compressImage(
-            logoFile,
-            { ...LOGO_COMPRESSION, fileType },
-            { flow: "single", surface: "organization_logo" }
-          )
-
-          // Pass org_id so the backend scopes the object key to this org — the
-          // actor is still the person, who has only just become its owner.
-          const sigRes = await getUploadConfigApi(
-            "organization_logo",
-            [describeBlob(compressed)],
-            org.id
-          )
-          const entry = sigRes.uploads[0]
-          if (!entry) throw new Error("Upload config missing")
-
-          await putToR2(compressed, entry)
-
-          await updateOrgMediaApi(org.id, {
-            logo:           entry.public_url,
-            logo_public_id: entry.key,
-          })
-        } catch {
-          // Logo upload is non-fatal — org is already created.
-          // User can re-upload from profile settings.
-          console.warn("Logo upload failed after org creation — skipping")
-        }
-      }
-
-      return org
-    },
-
-    onSuccess: (org) => {
-      switchToOrganization(org.id)
-      qc.invalidateQueries({ queryKey: orgKeys.all() })
-      router.push(`/organization/admin/${org.id}/dashboard`)
-    },
+/**
+ * May this person make another page? Never served from cache (gcTime 0): an
+ * answer from before their last create would show the form to someone who is
+ * already at the limit.
+ */
+export const useCreateEligibility = (enabled = true) =>
+  useQuery({
+    queryKey: createEligibilityKey,
+    queryFn:  getCreateEligibilityApi,
+    staleTime: 0,
+    gcTime:    0,
+    enabled,
   })
-}
 
 // ── Follow ────────────────────────────────────────────────────────
 

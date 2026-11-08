@@ -1,0 +1,248 @@
+.step {
+  display: flex;
+  flex-direction: column;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+}
+
+.heading:focus { outline: none; }
+
+.heading:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.lead {
+  margin: var(--space-2) 0 var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+}
+
+.inlineError {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-error);
+}
+
+/* ── Page link ───────────────────────────────────────────────── */
+
+.handleBox {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.handleBox:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-subtle);
+}
+
+.handleBoxInvalid { border-color: var(--color-error); }
+
+.handleBoxInvalid:focus-within {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 18%, transparent);
+}
+
+.handlePrefix {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 50%;
+  padding-left: var(--space-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+
+/* The box draws the border; the input inside it is bare. */
+.handleInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 12px var(--space-4) 12px 1px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  /* 16px, never less: iOS zooms the page into a smaller input on focus. */
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.handleInput:focus { outline: none; }
+
+.status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-height: 20px;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-muted);
+}
+
+.status :global(svg) { flex-shrink: 0; }
+
+.statusOk { color: var(--color-success); }
+
+.statusBad { color: var(--color-error); }
+
+.suggestion {
+  min-height: 32px;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.suggestion:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Level chips ─────────────────────────────────────────────── */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+}
+
+.optional {
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--duration-fast), background var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.chip:hover:not(:disabled) { border-color: var(--color-brand-muted); }
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.chipOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-hover);
+}
+
+/* ── More about your page ────────────────────────────────────── */
+
+.more {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
+.moreToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.moreToggle:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.morePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.6s; }
+}

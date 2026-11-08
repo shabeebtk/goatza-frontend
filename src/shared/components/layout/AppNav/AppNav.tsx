@@ -18,6 +18,7 @@ import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQu
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
+import { isFocusedRoute } from "@/shared/components/layout/focusedRoutes"
 import MobileNavSheet, {
   type NavDockTab,
   type NavSheetGroup,
@@ -142,16 +143,18 @@ export default function AppNav() {
   const notifCount = useUnreadCount().data?.count ?? 0
   const messageCount = useConversationsUnreadSummary().data?.total ?? 0
 
-  const isChatPage = /^\/messages\/.+/.test(pathname)
+  // A chat thread, or another page that takes the whole phone screen (the
+  // create-a-page flow): no mobile top bar, no tab dock. See focusedRoutes.
+  const isFocusedPage = isFocusedRoute(pathname)
 
   // Scroll-linked auto-hide for the mobile chrome: the bars slide off as you
   // scroll down and follow you back on the way up, settling smoothly when you
-  // stop. Inert on chat pages (bars already fully hidden there) and, via CSS,
+  // stop. Inert on focused pages (bars already fully hidden there) and, via CSS,
   // on desktop. Drives the `--chrome-progress` var on <html> — no re-renders.
   // The sheet sits over the bar and the bar is the thing it grew out of —
   // letting the scroll hide it mid-sheet would pull the floor away. Disabled
   // also forces the chrome fully visible, which is exactly what is wanted.
-  useScrollChrome({ enabled: !isChatPage && !mobileSheetOpen })
+  useScrollChrome({ enabled: !isFocusedPage && !mobileSheetOpen })
 
   // Nav is driven entirely by the role config — no role branching in JSX.
   const navItems = getNavItems(user?.role)
@@ -167,9 +170,9 @@ export default function AppNav() {
   const profileHref = user?.username ? `/profile/${user.username}` : "/profile"
 
   // The toasts offset themselves by the mobile bars only while the bars are
-  // actually there: not on a public page, not on a chat page (bars hidden),
+  // actually there: not on a public page, not on a focused page (bars hidden),
   // and not while the role is still resolving.
-  const barsMounted = navItems !== null && !isChatPage
+  const barsMounted = navItems !== null && !isFocusedPage
   useHtmlFlag("top-bar", barsMounted)
   useHtmlFlag("bottom-bar", barsMounted)
   const badgeCount = (badge: NavBadgeKey | undefined) =>
@@ -495,7 +498,7 @@ export default function AppNav() {
       />
 
       <header
-        className={`${styles.mobileTopBar} ${isChatPage ? styles.mobileTopBarHidden : ""}`}
+        className={`${styles.mobileTopBar} ${isFocusedPage ? styles.mobileTopBarHidden : ""}`}
         role="banner"
         aria-label="Mobile header"
       >
@@ -538,7 +541,7 @@ export default function AppNav() {
         sections={sheetSections}
         footerItems={sheetFooterItems}
         pathname={pathname}
-        visible={!isChatPage}
+        visible={!isFocusedPage}
         account={{
           name: user?.name || "You",
           avatarUrl: user?.profile_photo,

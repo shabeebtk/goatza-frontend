@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios"
 import api from "@/core/api/axios"
 
 // ── Types ────────────────────────────────────────────────────
@@ -131,8 +132,25 @@ export type UserProfile = {
 }
 
 export type UsernameAvailability = {
+  /** The normalized handle the server checked. */
   username: string
+  /** False for a handle that could never be allowed; `message` says why. */
+  valid: boolean
   available: boolean
+  /** A free handle to offer instead — only on a taken `for: "organization"` check. */
+  suggestion?: string
+  message?: string
+}
+
+export type UsernameCheckOptions = {
+  /**
+   * Whose handle this is. "organization": the person's OWN handle counts as
+   * taken (it is theirs, not the page's), and only `orgId`'s current handle is
+   * ignored, for a rename. Absent: the person's own handle counts as free.
+   */
+  for?: "organization"
+  /** The org being renamed. The server ignores it unless the caller belongs to it. */
+  orgId?: string
 }
 
 /** Only include fields that actually changed — empty string clears in backend */
@@ -190,14 +208,47 @@ export const updateProfileDataApi = async (
   return res.data.data
 }
 
+/**
+ * Is `username` free? An INVALID handle is an answer, not a failure: the
+ * server's 400 comes back as `valid: false` with its reason in `message`.
+ * Only a network error or a 5xx throws.
+ */
 export const checkUsernameApi = async (
-  username: string
+  username: string,
+  options: UsernameCheckOptions = {}
 ): Promise<UsernameAvailability> => {
-  const res = await api.get("/user/check/username/availability", {
-    params: { username },
-  })
-  if (!res.data.success) return { username, available: false }
-  return res.data.data
+  const params: Record<string, string> = { username }
+  if (options.for) params.for = options.for
+  if (options.orgId) params.org_id = options.orgId
+
+  try {
+    const res = await api.get("/user/check/username/availability", { params })
+    const data = res.data?.data ?? {}
+    if (!res.data?.success) {
+      return { username, valid: true, available: false, message: res.data?.message }
+    }
+    return {
+      username: data.username ?? username,
+      valid: data.valid !== false,
+      available: !!data.available,
+      ...(data.suggestion ? { suggestion: String(data.suggestion) } : {}),
+      ...(res.data?.message ? { message: String(res.data.message) } : {}),
+    }
+  } catch (err) {
+    if (isAxiosError(err) && err.response?.status === 400) {
+      const body = err.response.data as
+        | { message?: string; data?: { username?: string; valid?: boolean } }
+        | undefined
+      // "username is required" is a 400 too, without `valid` — still invalid.
+      return {
+        username: body?.data?.username ?? username.trim().toLowerCase(),
+        valid: false,
+        available: false,
+        message: body?.message || "This username is not allowed",
+      }
+    }
+    throw err
+  }
 }
 
 // ── Connections API ──────────────────────────────────────────
