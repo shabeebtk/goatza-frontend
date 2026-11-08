@@ -3,8 +3,10 @@
 /**
  * OrgPhotoEditModal
  *
- * Handles both org logo (1:1 SQUARE crop) and cover (16:9).
+ * Handles both org logo (1:1 SQUARE crop) and cover (COVER_ASPECT_RATIO).
  * Logo preview is square with rounded corners — NOT circular like user profile.
+ * The crop itself is OrgPhotoCropSheet, which opens on top of this modal and
+ * runs the upload as its Apply; the create page uses the same sheet.
  *
  * Props:
  *   type       — "logo" | "cover"
@@ -14,25 +16,16 @@
  *   onClose    — called when done
  */
 
-import { useCallback, useRef, useState } from "react"
-import Cropper from "react-easy-crop"
+import { useRef, useState } from "react"
 import { Icon } from "@iconify/react"
 import { useOrgPhotoUpload, type OrgPhotoType } from "../../hooks/useOrgPhotoUpload"
-import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
-import { COVER_ASPECT_RATIO } from "@/constants"
+import OrgPhotoCropSheet from "../OrgPhotoCropSheet/OrgPhotoCropSheet"
 import styles from "./OrgPhotoEditModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { ensureDecodableImage } from "@/shared/services/imageVariants"
-import { checkRawImageSize } from "@/shared/constants/media"
+import { checkRawImageSize, isImageFile } from "@/shared/constants/media"
 
 // ── Config ────────────────────────────────────────────────────
-
-type ModalState = "view" | "crop" | "saving"
-
-const ASPECT: Record<OrgPhotoType, number> = {
-  logo:  1,                     // 1:1 — square crop, square preview
-  cover: COVER_ASPECT_RATIO,    // 3:1 banner — matches .coverWrap on the profile
-}
 
 const LABELS: Record<OrgPhotoType, string> = {
   logo:  "Organization Logo",
@@ -61,13 +54,8 @@ export default function OrgPhotoEditModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { upload, deleteLogo, deleteCover } = useOrgPhotoUpload(orgId)
 
-  const [state, setState]               = useState<ModalState>("view")
-  const [imageSrc, setImageSrc]         = useState("")
-  const [origName, setOrigName]         = useState("photo.jpg")
-  const [error, setError]               = useState<string | null>(null)
-  const [crop, setCrop]                 = useState({ x: 0, y: 0 })
-  const [zoom, setZoom]                 = useState(1)
-  const [croppedArea, setCroppedArea]   = useState<PixelCrop | null>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
+  const [error, setError]       = useState<string | null>(null)
 
   // Body scroll lock
   useBodyScrollLock()
@@ -78,51 +66,33 @@ export default function OrgPhotoEditModal({
     e.target.value = ""
     if (!picked) return
     setError(null)
+    // By type, or by extension when the browser gave none (a .heic on Windows).
+    if (!isImageFile(picked)) { setError("Pick a photo."); return }
     // The shared 25 MB pick-time ceiling; the server's 5 MB cap is on the
-    // compressed file, which useOrgPhotoUpload holds it to.
+    // compressed file, which uploadOrgPhoto holds it to.
     const tooLarge = checkRawImageSize(picked)
     if (tooLarge) { setError(tooLarge); return }
     // The cropper renders the photo itself, so a HEIC this browser cannot
     // decode (Chrome, Firefox) is converted to JPEG before it gets there.
-    let file: File
     try {
-      file = await ensureDecodableImage(picked, { flow: "single", surface: `organization_${type}` })
+      setCropFile(await ensureDecodableImage(picked, { flow: "single", surface: `organization_${type}` }))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Couldn't open that photo.")
-      return
     }
-    setOrigName(file.name)
-    const reader = new FileReader()
-    reader.onload = () => {
-      setImageSrc(reader.result as string)
-      setCrop({ x: 0, y: 0 })
-      setZoom(1)
-      setState("crop")
-    }
-    reader.readAsDataURL(file)
   }
 
-  const onCropComplete = useCallback(
-    (_: unknown, px: PixelCrop) => setCroppedArea(px),
-    []
-  )
-
-  // ── Confirm → upload ──────────────────────────────────────
-  const handleConfirm = async () => {
-    if (!croppedArea || !imageSrc) return
-    setError(null)
-    setState("saving")
-    try {
-      await upload.mutateAsync({ type, croppedBlob: await getCroppedBlob(imageSrc, croppedArea), originalName: origName })
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed. Please try again.")
-      setState("crop")
-    }
+  // ── Crop applied → upload ─────────────────────────────────
+  // A throw is shown by the sheet, which keeps the crop for a retry.
+  const handleCropped = async (blob: Blob) => {
+    if (!cropFile) return
+    await upload.mutateAsync({ type, croppedBlob: blob, originalName: cropFile.name })
+    setCropFile(null)
+    onClose()
   }
 
   // ── Delete ─────────────────────────────────────────────────
   const handleDelete = async () => {
+    setError(null)
     try {
       if (type === "logo") await deleteLogo.mutateAsync()
       else                 await deleteCover.mutateAsync()
@@ -135,175 +105,115 @@ export default function OrgPhotoEditModal({
   const isDeleting = deleteLogo.isPending || deleteCover.isPending
 
   const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget && state === "view") onClose()
+    if (e.target === e.currentTarget && !cropFile) onClose()
   }
 
   return (
-    <div
-      className={styles.backdrop}
-      onClick={handleBackdrop}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${LABELS[type]} editor`}
-    >
-      <div className={`${styles.modal} ${state === "crop" ? styles.modalCrop : ""}`}>
+    <>
+      <div
+        className={styles.backdrop}
+        onClick={handleBackdrop}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${LABELS[type]} editor`}
+      >
+        <div className={styles.modal}>
 
-        {/* ── Header ── */}
-        <div className={styles.header}>
-          {state === "crop" ? (
-            <button className={styles.headerBtn} onClick={() => setState("view")} type="button" aria-label="Back">
-              <Icon icon="mdi:arrow-left" width={20} height={20} />
-            </button>
-          ) : (
+          {/* ── Header ── */}
+          <div className={styles.header}>
             <div className={styles.headerSpacer} />
-          )}
-          <h2 className={styles.headerTitle}>{LABELS[type]}</h2>
-          <button className={styles.headerBtn} onClick={onClose} type="button" aria-label="Close">
-            <Icon icon="mdi:close" width={20} height={20} />
-          </button>
-        </div>
+            <h2 className={styles.headerTitle}>{LABELS[type]}</h2>
+            <button className={styles.headerBtn} onClick={onClose} type="button" aria-label="Close">
+              <Icon icon="mdi:close" width={20} height={20} />
+            </button>
+          </div>
 
-        {/* ── VIEW ── */}
-        {state === "view" && (
-          <>
-            <div className={styles.viewWrap}>
-              {currentSrc ? (
-                <img
-                  src={currentSrc}
-                  alt={LABELS[type]}
-                  className={`${styles.viewImg} ${type === "logo" ? styles.viewImgSquare : ""}`}
-                />
-              ) : (
-                <div className={styles.viewEmpty}>
-                  <Icon
-                    icon={type === "logo" ? "mdi:office-building-outline" : "mdi:image-outline"}
-                    width={72}
-                    height={72}
-                  />
-                  <p>No {LABELS[type].toLowerCase()} set</p>
-                </div>
-              )}
-            </div>
-
-            <div className={styles.actionSheet}>
-              {isOwn && (
-                <>
-                  <button
-                    className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
-                    onClick={() => fileInputRef.current?.click()}
-                    type="button"
-                  >
-                    <Icon icon="mdi:camera-plus-outline" width={20} height={20} />
-                    {currentSrc ? `Change ${LABELS[type]}` : `Add ${LABELS[type]}`}
-                  </button>
-
-                  {currentSrc && (
-                    <button
-                      className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      type="button"
-                    >
-                      {isDeleting
-                        ? <><span className={styles.spinner} /> Removing…</>
-                        : <><Icon icon="mdi:trash-can-outline" width={20} height={20} /> Remove</>
-                      }
-                    </button>
-                  )}
-                </>
-              )}
-
-              <button
-                className={`${styles.actionBtn} ${styles.actionBtnCancel}`}
-                onClick={onClose}
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ── CROP / SAVING ── */}
-        {(state === "crop" || state === "saving") && (
-          <>
-            {/* data-allow-touchmove: the page scroll lock must not cancel
-                the cropper's drag and pinch. */}
-            <div className={styles.cropArea} data-allow-touchmove="">
-              <Cropper
-                image={imageSrc}
-                crop={crop}
-                zoom={zoom}
-                aspect={ASPECT[type]}
-                cropShape="rect"          /* always rect — logo square, cover 16:9 */
-                showGrid={type === "cover"}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={onCropComplete}
+          {/* ── VIEW ── */}
+          <div className={styles.viewWrap}>
+            {currentSrc ? (
+              <img
+                src={currentSrc}
+                alt={LABELS[type]}
+                className={`${styles.viewImg} ${type === "logo" ? styles.viewImgSquare : ""}`}
               />
-            </div>
-
-            {type === "logo" && (
-              <div className={styles.cropGuide}>
-                <Icon icon="mdi:information-outline" width={13} height={13} />
-                Square crop — center your logo
+            ) : (
+              <div className={styles.viewEmpty}>
+                <Icon
+                  icon={type === "logo" ? "mdi:office-building-outline" : "mdi:image-outline"}
+                  width={72}
+                  height={72}
+                />
+                <p>No {LABELS[type].toLowerCase()} set</p>
               </div>
             )}
+          </div>
 
-            <div className={styles.zoomWrap}>
-              <Icon icon="mdi:magnify-minus-outline" width={18} height={18} className={styles.zoomIcon} />
-              <input
-                type="range" min={1} max={3} step={0.01}
-                value={zoom}
-                onChange={(e) => setZoom(Number(e.target.value))}
-                className={styles.zoomSlider}
-                aria-label="Zoom"
-                disabled={state === "saving"}
-              />
-              <Icon icon="mdi:magnify-plus-outline" width={18} height={18} className={styles.zoomIcon} />
-            </div>
+          {error && (
+            <p className={styles.errorMsg} role="alert">
+              <Icon icon="mdi:alert-circle-outline" width={14} height={14} />
+              {error}
+            </p>
+          )}
 
-            {error && (
-              <p className={styles.errorMsg} role="alert">
-                <Icon icon="mdi:alert-circle-outline" width={14} height={14} />
-                {error}
-              </p>
+          <div className={styles.actionSheet}>
+            {isOwn && (
+              <>
+                <button
+                  className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <Icon icon="mdi:camera-plus-outline" width={20} height={20} />
+                  {currentSrc ? `Change ${LABELS[type]}` : `Add ${LABELS[type]}`}
+                </button>
+
+                {currentSrc && (
+                  <button
+                    className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    type="button"
+                  >
+                    {isDeleting
+                      ? <><span className={styles.spinner} /> Removing…</>
+                      : <><Icon icon="mdi:trash-can-outline" width={20} height={20} /> Remove</>
+                    }
+                  </button>
+                )}
+              </>
             )}
 
-            <div className={styles.cropActions}>
-              <button
-                className={`${styles.actionBtn} ${styles.actionBtnCancel}`}
-                onClick={() => setState("view")}
-                disabled={state === "saving"}
-                type="button"
-              >
-                Back
-              </button>
-              <button
-                className={`${styles.actionBtn} ${styles.actionBtnConfirm}`}
-                onClick={handleConfirm}
-                disabled={state === "saving"}
-                type="button"
-              >
-                {state === "saving"
-                  ? <><span className={styles.spinner} /> Saving…</>
-                  : <><Icon icon="mdi:check" width={18} height={18} /> Apply</>
-                }
-              </button>
-            </div>
-          </>
-        )}
+            <button
+              className={`${styles.actionBtn} ${styles.actionBtnCancel}`}
+              onClick={onClose}
+              type="button"
+            >
+              Close
+            </button>
+          </div>
 
-        {isOwn && (
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={handleFileChange}
-          />
-        )}
+          {isOwn && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleFileChange}
+            />
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* A sibling, not a child: it is portalled anyway, and keeping it out of
+          the backdrop keeps its clicks away from the backdrop's handler. */}
+      {cropFile && (
+        <OrgPhotoCropSheet
+          type={type}
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onDone={handleCropped}
+        />
+      )}
+    </>
   )
 }

@@ -1,5 +1,13 @@
+import { isAxiosError } from "axios"
 import api from "@/core/api/axios"
-import { CreateOrganizationPayload, Organization, OrganizationDetail, OrganizationMini } from "../types"
+import {
+  CreateEligibility,
+  CreatedOrganization,
+  CreateOrganizationPayload,
+  CreateOrgErrorCode,
+  OrganizationDetail,
+  OrganizationMini,
+} from "../types"
 
 
 
@@ -11,10 +19,94 @@ export const getOrganizationsApi = async (): Promise<OrganizationMini[]> => {
  
 // ── API ───────────────────────────────────────────────────────
  
+/** What a create that failed for want of a connection (or a 5xx) says. */
+export const CREATE_ORG_CONNECTION_MESSAGE =
+  "Couldn't create your page. Check your connection and try again."
+
+/**
+ * A refused create, typed. `code` is the server's (`username_taken`,
+ * `username_invalid`, `org_limit`, `invalid`) or `network` for no response /
+ * a 5xx. `field` names the input it belongs to; `fields` carries every field
+ * message an `invalid` answer had.
+ */
+export class CreateOrgError extends Error {
+  readonly code: CreateOrgErrorCode
+  readonly field?: string
+  readonly fields: Record<string, string>
+
+  constructor(init: {
+    code: CreateOrgErrorCode
+    message: string
+    field?: string
+    fields?: Record<string, string>
+  }) {
+    super(init.message)
+    this.name = "CreateOrgError"
+    this.code = init.code
+    this.field = init.field
+    this.fields = init.fields ?? {}
+  }
+}
+
+const KNOWN_CODES: CreateOrgErrorCode[] = [
+  "username_taken",
+  "username_invalid",
+  "org_limit",
+  "invalid",
+]
+
+/** Any throw from the create → a CreateOrgError the page can switch on. */
+export function toCreateOrgError(err: unknown): CreateOrgError {
+  if (err instanceof CreateOrgError) return err
+
+  if (isAxiosError(err) && err.response && err.response.status < 500) {
+    const body = err.response.data as
+      | {
+          message?: string
+          data?: {
+            code?: string
+            field?: string
+            message?: string
+            errors?: Record<string, unknown>
+          }
+        }
+      | undefined
+    const data = body?.data ?? {}
+
+    const fields: Record<string, string> = {}
+    for (const [key, value] of Object.entries(data.errors ?? {})) {
+      if (key !== "non_field_errors" && typeof value === "string" && value.trim()) {
+        fields[key] = value
+      }
+    }
+
+    const code = KNOWN_CODES.find((known) => known === data.code) ?? "unknown"
+    return new CreateOrgError({
+      code,
+      message: data.message || body?.message || CREATE_ORG_CONNECTION_MESSAGE,
+      field: data.field || undefined,
+      fields,
+    })
+  }
+
+  return new CreateOrgError({ code: "network", message: CREATE_ORG_CONNECTION_MESSAGE })
+}
+
+/** Rejects with a {@link CreateOrgError}, never a raw axios error. */
 export const createOrganizationApi = async (
   payload: CreateOrganizationPayload
-): Promise<Organization> => {
-  const res = await api.post("/organizations/create", payload)
+): Promise<CreatedOrganization> => {
+  try {
+    const res = await api.post("/organizations/create", payload)
+    return res.data.data
+  } catch (err) {
+    throw toCreateOrgError(err)
+  }
+}
+
+/** May this person make another page? (`{allowed, limit, used}`; 3 pages each.) */
+export const getCreateEligibilityApi = async (): Promise<CreateEligibility> => {
+  const res = await api.get("/organizations/create/eligibility")
   return res.data.data
 }
 
@@ -41,14 +133,28 @@ export type OrgMediaPayload =
   | { is_delete_logo: true }
   | { is_delete_cover: true }
  
+/**
+ * Attach (or clear) the logo / cover. Resolves with the stored URL of the
+ * photo just attached — `?v=` included — when the server sends it back.
+ *
+ * org_id goes in the query string and names the org explicitly, so this works
+ * while acting as the person too (the create page attaches the first logo
+ * before it switches to the new page).
+ */
 export const updateOrgMediaApi = async (
   orgId:   string,
   payload: OrgMediaPayload,
-): Promise<void> => {
-  // org_id in query params, body carries the media fields
-  await api.post("/organizations/update/logo/cover", payload, {
+  signal?: AbortSignal,
+): Promise<string | undefined> => {
+  const res = await api.post("/organizations/update/logo/cover", payload, {
     params: { org_id: orgId },
+    signal,
   })
+  const data = res.data?.data
+  if (!data || typeof data !== "object") return undefined
+  const url =
+    "logo" in payload ? data.logo : "cover_image" in payload ? data.cover_image : undefined
+  return typeof url === "string" && url ? url : undefined
 }
 
 // ── Update ───────────────────────────────────────────────────────

@@ -52,9 +52,6 @@
   }
 }
 
-.modalCrop { max-height: 100dvh; }
-@media (min-width: 640px) { .modalCrop { max-height: 88dvh; } }
-
 /* ── Header ──────────────────────────────────────────────────── */
 
 .header {
@@ -139,20 +136,6 @@
   text-transform: uppercase;
 }
 
-/* Hint shown below logo preview */
-.cropHint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  padding-bottom: var(--space-2);
-}
-
 /* ── Action sheet ────────────────────────────────────────────── */
 
 .actionSheet {
@@ -160,88 +143,6 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-5) calc(var(--space-5) + var(--safe-bottom));
-  border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-/* ── Crop area ───────────────────────────────────────────────── */
-
-.cropArea {
-  position: relative;
-  flex: 1;
-  min-height: 280px;
-  background: var(--primitive-neutral-950);
-  overflow: hidden;
-}
-
-.cropArea :global(.reactEasyCrop_Container) {
-  position: absolute !important;
-  inset: 0 !important;
-}
-
-/* Guide text in crop mode */
-.cropGuide {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-bg);
-  border-top: 1px solid var(--color-border);
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-/* ── Zoom ────────────────────────────────────────────────────── */
-
-.zoomWrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  background: var(--color-bg);
-  border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.zoomIcon { color: var(--color-text-muted); flex-shrink: 0; line-height: 0; }
-
-.zoomSlider {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  background: var(--color-border);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-}
-
-.zoomSlider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--color-brand);
-  cursor: pointer;
-  border: 2px solid var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--duration-fast) var(--ease-spring);
-}
-
-.zoomSlider::-webkit-slider-thumb:hover { transform: scale(1.2); }
-.zoomSlider:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* ── Crop actions ────────────────────────────────────────────── */
-
-.cropActions {
-  display: flex;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5) calc(var(--space-4) + var(--safe-bottom));
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -254,9 +155,10 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-5);
   font-size: var(--text-xs);
+  margin: 0;
   color: var(--color-error);
-  background: rgba(232, 70, 42, 0.07);
-  border-top: 1px solid rgba(232, 70, 42, 0.15);
+  background: color-mix(in srgb, var(--color-error) 7%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--color-error) 15%, transparent);
 }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
@@ -300,12 +202,12 @@
 .actionBtnConfirm:hover:not(:disabled) { background: var(--color-brand-hover); }
 
 .actionBtnDanger {
-  background: rgba(232, 70, 42, 0.08);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
   color: var(--color-error);
-  border: 1.5px solid rgba(232, 70, 42, 0.2);
+  border: 1.5px solid color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 .actionBtnDanger:hover:not(:disabled) {
-  background: rgba(232, 70, 42, 0.14);
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
   border-color: var(--color-error);
 }
 
@@ -317,12 +219,6 @@
 .actionBtnCancel:hover:not(:disabled) {
   background: var(--color-bg);
   color: var(--color-text-primary);
-}
-
-.cropActions .actionBtnCancel {
-  flex: 0 0 auto;
-  width: auto;
-  padding-inline: var(--space-6);
 }
 
 /* ── Spinner ─────────────────────────────────────────────────── */

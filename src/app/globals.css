@@ -402,7 +402,8 @@
              delete-account modal
        700   select panel (--z-select-panel): a field's dropdown/sheet must sit
              above the modal it was opened from, incl. the post editor.
-       700   image cropper (over the editor); legal consent gate
+       700   image cropper (over the editor; --z-image-cropper, which the org
+             logo/cover crop sheet uses); legal consent gate
        800   location picker (over the editor and the cropper)
       1000   likes list, share sheet, login wall, image/media lightboxes
       9999   toasts, page loader
@@ -416,6 +417,7 @@
   --z-match-sheet: 600;
   --z-post-editor: 650;
   --z-select-panel: 700;
+  --z-image-cropper: 700;
 }
 
 /* ── 5. MOTION TOKENS ──────────────────────────────────────── */

@@ -14,6 +14,7 @@ import {
   type UpdateProfileLegacyPayload,
   type UpdateProfileDataPayload,
   type UserProfile,
+  type UsernameCheckOptions,
 } from "../services/profile.api"
 import { invalidateProfileScoredRecruitments } from "@/features/recruitments/hooks/useRecruitments"
 
@@ -92,9 +93,9 @@ export const useUpdateProfileData = (username: string) => {
 // Returns a regular async function — call from form's onChange after debounce.
 // We don't use useQuery here because it's imperative / on-demand.
 
-export const useCheckUsername = () =>
+export const useCheckUsername = (options?: UsernameCheckOptions) =>
   useMutation({
-    mutationFn: checkUsernameApi,
+    mutationFn: (username: string) => checkUsernameApi(username, options),
   })
 
 // ── Photo upload ─────────────────────────────────────────────

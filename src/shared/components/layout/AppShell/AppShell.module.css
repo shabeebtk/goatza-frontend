@@ -17,6 +17,13 @@
     padding-top: calc(var(--top-nav-h) + var(--safe-top));
 }
 
+/* A focused page (a chat, the create-a-page flow) has no mobile bars. */
+@media (max-width: 767px) {
+    .contentFocused {
+        padding-top: 0;
+    }
+}
+
 /* Desktop: only top bar (60px), no bottom bar */
 @media (min-width: 768px) {
     .content {

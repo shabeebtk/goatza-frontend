@@ -119,7 +119,9 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
   const updateOrgData = useUpdateOrganization(org.id)
   const upsertLocation = useUpsertOrgLocation(org.id)
   const deleteLocation = useDeleteOrgLocation(org.id)
-  const checkUsername = useCheckUsername()
+  // A PAGE's handle: the owner's own personal handle is taken here, and only
+  // this org's current handle counts as free.
+  const checkUsername = useCheckUsername({ for: "organization", orgId: org.id })
 
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle")
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -171,7 +173,7 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       const result = await checkUsername.mutateAsync(current).catch(() => null)
-      if (!result) setUsernameStatus("invalid")
+      if (!result || !result.valid) setUsernameStatus("invalid")
       else if (result.available) setUsernameStatus("available")
       else setUsernameStatus("taken")
     }, 500)
