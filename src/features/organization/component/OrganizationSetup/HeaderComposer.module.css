@@ -1,7 +1,14 @@
 /* Mirrors the real page header: a 3:1 banner (COVER_ASPECT_RATIO) and a square
-   logo with rounded corners overlapping its bottom edge. */
+   logo with rounded corners overlapping its bottom edge.
+
+   Only the LOGO overlaps. The banner is a positioned button, so it paints over
+   anything in the overlap that isn't positioned itself — the Replace/Remove
+   row once sat there, drawn under the photo, and a tap on it picked a new
+   cover. The row now starts one overlap down, below the banner's edge, and is
+   positioned as well, so nothing of it can end up under the banner. */
 
 .composer {
+  --logo-overlap: 36px;
   display: flex;
   flex-direction: column;
 }
@@ -60,10 +67,10 @@
 
 .identity {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--space-3);
   /* The logo rides up over the banner, like on the page. */
-  margin-top: -36px;
+  margin-top: calc(-1 * var(--logo-overlap));
   padding-left: var(--space-3);
   min-width: 0;
 }
@@ -117,11 +124,14 @@
 }
 
 .actions {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  padding-bottom: 2px;
+  /* Clear of the banner: the overlap, plus a little air under its edge. */
+  margin-top: calc(var(--logo-overlap) + var(--space-1));
 }
 
 .actionGroup {
@@ -170,6 +180,7 @@
 .error :global(svg) { flex-shrink: 0; margin-top: 1px; }
 
 @media (min-width: 768px) {
-  .identity { margin-top: -44px; padding-left: var(--space-4); }
+  .composer { --logo-overlap: 44px; }
+  .identity { padding-left: var(--space-4); }
   .logo { width: 88px; height: 88px; }
 }

@@ -16,6 +16,16 @@ export const getOrganizationsApi = async (): Promise<OrganizationMini[]> => {
   return res.data.data
 }
 
+/**
+ * The same list, asked as the PERSON whatever the active actor is: the create
+ * flow reads it while it is still the person, and after a create whose answer
+ * was lost, to find the page that may already exist.
+ */
+export const getMyOrganizationsAsPersonApi = async (): Promise<OrganizationMini[]> => {
+  const res = await api.get("/organizations/list", { actor: { type: "user" } })
+  return res.data.data
+}
+
  
 // ── API ───────────────────────────────────────────────────────
  

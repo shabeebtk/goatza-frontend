@@ -12,6 +12,13 @@ export const createInputClass = styles.input
 export const fieldId = (field: CreateFieldKey) => `org-create-${field}`
 
 /**
+ * The whole labelled box. Focus falls back to the first control in it when
+ * the field's own element is not on screen (a picked town shows the
+ * LocationPicker's pill and its clear button, not the search input).
+ */
+export const fieldBoxId = (field: CreateFieldKey) => `${fieldId(field)}-box`
+
+/**
  * The ids an input should list in `aria-describedby`, in reading order:
  * hint, counter, error. Only the parts that are rendered.
  */
@@ -57,7 +64,7 @@ export default function CreateField({
   const near = count ? count.value >= count.max * 0.9 : false
 
   return (
-    <div className={`${styles.field} ${error ? styles.hasError : ""}`}>
+    <div id={fieldBoxId(field)} className={`${styles.field} ${error ? styles.hasError : ""}`}>
       <div className={styles.labelRow}>
         <label htmlFor={id} className={styles.label}>
           {label}
@@ -65,10 +72,13 @@ export default function CreateField({
           {optional && <span className={styles.optional}> (optional)</span>}
         </label>
         {count && (
+          // Live only near the limit: announcing every keystroke would talk
+          // over the typing. The input lists it in aria-describedby, so the
+          // count is read on focus either way.
           <span
             id={`${id}-count`}
             className={`${styles.count} ${near ? styles.countNear : ""}`}
-            aria-live="polite"
+            aria-live={near ? "polite" : undefined}
           >
             <span className={styles.srOnly}>Characters used: </span>
             {count.value}/{count.max}

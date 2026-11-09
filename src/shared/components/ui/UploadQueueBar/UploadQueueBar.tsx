@@ -6,7 +6,8 @@
  * Mounted once by AppShell and once by OrgShell (never both). Under the top
  * bar on a phone — following it exactly like the toasts do (`--top-nav-h` ×
  * (1 − `--chrome-progress`), plus the safe area) — and at the top of the main
- * column on desktop. Hidden on chat threads, under `data-chrome-covered`, and
+ * column on desktop. Hidden on chat threads and the other focused pages
+ * (focusedRoutes.ts: the create-a-page flow), under `data-chrome-covered`, and
  * while UploadScreen is showing a task. Only the ACTIVE actor's tasks.
  *
  * Tapping it opens UploadScreen on that task, which is where Retry, Edit,
@@ -27,10 +28,19 @@ import {
 } from "@/shared/upload/uploadQueue"
 import { useTaskDestination } from "@/shared/upload/useTaskDestination"
 import { useUploadQueueStore, type QueueTask } from "@/store/uploadQueue.store"
+import { isFocusedRoute } from "@/shared/components/layout/focusedRoutes"
 import styles from "./UploadQueueBar.module.css"
 
 /** The chat thread, where every bar is already hidden — user app and org admin. */
 const CHAT_PAGES = [/^\/messages\/.+/, /^\/organization\/admin\/[^/]+\/messages\/.+/]
+
+/**
+ * Where the pill stays out: a chat thread, and every other focused page
+ * (`focusedRoutes.ts` — the create-a-page flow), which brings its own header
+ * where the pill would sit.
+ */
+const isPillFreePage = (pathname: string) =>
+    CHAT_PAGES.some((pattern) => pattern.test(pathname)) || isFocusedRoute(pathname)
 
 /**
  * Which task the one pill speaks for, lowest first. "Posted" only stays a few
@@ -114,9 +124,9 @@ export default function UploadQueueBar() {
     )
 
     const current = visible[0]
-    const onChatPage = CHAT_PAGES.some((pattern) => pattern.test(pathname ?? ""))
+    const onPillFreePage = isPillFreePage(pathname ?? "")
 
-    if (onChatPage || expanded || !current) return null
+    if (onPillFreePage || expanded || !current) return null
 
     const waiting = visible.filter((t) => t.id !== current.id && t.status !== "done").length
 

@@ -3,6 +3,7 @@
 import { useState, type ReactNode, type RefObject } from "react"
 import { Icon } from "@iconify/react"
 
+import { USERNAME_MIN_LENGTH } from "@/shared/constants/username"
 import type { OrgPhotoType } from "../../services/uploadOrgPhoto"
 import {
   ABOUT_MAX,
@@ -22,7 +23,9 @@ import styles from "./BasicsStep.module.css"
 
 const HANDLE_STATUS_ID = `${fieldId("username")}-status`
 const HANDLE_PREFIX_ID = `${fieldId("username")}-prefix`
+const PHOTOS_ERROR_ID = `${fieldId("photos")}-error`
 const MORE_PANEL_ID = "org-create-more"
+const IDLE_STATUS: HandleStatus = { state: "idle" }
 
 export default function BasicsStep({
   draft,
@@ -65,8 +68,17 @@ export default function BasicsStep({
   )
   const moreOpen = moreWanted || !!(errors.description || errors.website)
 
+  // While the link still follows the name, the first letter or two of a
+  // name are not a mistake: "too short" waits until the link is long enough
+  // or the person edits it (Continue still says it).
+  const quietShortHandle =
+    !draft.usernameEdited &&
+    handleStatus.state === "invalid" &&
+    draft.username.trim().length < USERNAME_MIN_LENGTH
+  const shownStatus = quietShortHandle ? IDLE_STATUS : handleStatus
+
   const handleInvalid =
-    !!errors.username || handleStatus.state === "taken" || handleStatus.state === "invalid"
+    !!errors.username || shownStatus.state === "taken" || shownStatus.state === "invalid"
 
   return (
     <section className={styles.step} aria-labelledby="org-create-basics-heading">
@@ -86,9 +98,10 @@ export default function BasicsStep({
         onChange={onPhoto}
         typeIcon={typeOption?.icon ?? "mdi:domain"}
         disabled={disabled}
+        errorId={errors.photos ? PHOTOS_ERROR_ID : undefined}
       />
       {errors.photos && (
-        <p className={styles.inlineError}>
+        <p id={PHOTOS_ERROR_ID} className={styles.inlineError}>
           <Icon icon="mdi:alert-circle-outline" width={14} height={14} aria-hidden="true" />
           {errors.photos}
         </p>
@@ -138,7 +151,7 @@ export default function BasicsStep({
             />
           </div>
           <HandleStatusLine
-            status={handleStatus}
+            status={shownStatus}
             error={errors.username}
             onUseSuggestion={onUseSuggestion}
             disabled={disabled}

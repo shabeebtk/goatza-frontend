@@ -17,6 +17,16 @@
  * back press cancels, `--z-image-cropper`, a bottom sheet below 768px and a
  * dialog from 768px. The cropper carries `data-allow-touchmove` so the scroll
  * lock does not cancel its drag and pinch.
+ *
+ * A back press while the blob is being saved is refused: the save is already
+ * on its way, and closing under it would show the old photo as if it had
+ * failed. The press has already used up the sheet's history entry by then,
+ * so useGuardedBack reserves a fresh one — otherwise the NEXT press would
+ * leave the page underneath.
+ *
+ * On a short screen (a phone on its side) the crop well gives up height
+ * first, and the sheet scrolls if even that is not enough, so the buttons are
+ * always reachable.
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
@@ -25,7 +35,7 @@ import { Icon } from "@iconify/react"
 
 import Portal from "@/shared/components/ui/Portal/Portal"
 import Button from "@/shared/components/ui/Button/Button"
-import { useBackToClose } from "@/shared/hooks/useBackToClose"
+import { useGuardedBack } from "@/shared/hooks/useGuardedBack"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { getCroppedBlob, type PixelCrop } from "@/features/profile/utils/getCroppedBlob"
 import { COVER_ASPECT_RATIO } from "@/constants"
@@ -71,11 +81,9 @@ export default function OrgPhotoCropSheet({
 
   useBodyScrollLock()
 
-  // A back press while the blob is being saved is ignored: the save is already
-  // on its way and closing under it would show the old photo as if it failed.
-  const { requestClose } = useBackToClose(() => {
-    if (!busy) onCancel()
-  })
+  // Refused while busy (see the top); every way out goes through `close`, which
+  // walks back through the sheet's entry.
+  const { guard, close: requestClose } = useGuardedBack(onCancel, () => busy)
 
   // Revoked when the sheet goes — a tick later, and cancelled by a remount, so
   // StrictMode's simulated unmount doesn't revoke the URL still on screen.
@@ -107,6 +115,7 @@ export default function OrgPhotoCropSheet({
 
   return (
     <Portal>
+      {guard}
       <div
         className={styles.backdrop}
         onClick={(event) => {

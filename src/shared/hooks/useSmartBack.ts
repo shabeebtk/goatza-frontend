@@ -34,6 +34,22 @@ export function useMarkAppEntry() {
 }
 
 /**
+ * Is there an in-app page beneath the current history entry? The same test
+ * useSmartBack makes. Read it on ARRIVAL when the page pushes entries of its
+ * own afterwards (the create-a-page flow does): those pushes grow
+ * `history.length` past the baseline without putting anything of the app's
+ * underneath. Before the baseline is recorded (a hard load: a page's effects
+ * run before its layout's) the answer is no.
+ */
+export function hasInAppHistory(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    historyBaseline !== null &&
+    window.history.length > historyBaseline
+  )
+}
+
+/**
  * Returns a handler that goes back when there is in-app history, or navigates
  * to `fallback` (default: the user dashboard) when going back would leave the
  * app.
@@ -42,12 +58,7 @@ export function useSmartBack(fallback = "/home") {
   const router = useRouter()
 
   return useCallback(() => {
-    const canGoBack =
-      typeof window !== "undefined" &&
-      historyBaseline !== null &&
-      window.history.length > historyBaseline
-
-    if (canGoBack) {
+    if (hasInAppHistory()) {
       router.back()
     } else {
       router.push(fallback)

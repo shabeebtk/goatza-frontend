@@ -14,17 +14,35 @@
  * This scrolls the container (only the container — never the page, which is
  * locked) so the active input/textarea sits inside it with a little margin,
  * on every focus and again on every visual-viewport resize.
+ *
+ * `insets` are for a container that has sticky parts of its own (the create
+ * page's header and footer are sticky INSIDE its one scroll container): the
+ * px they cover at the top and bottom, read live on every reveal. Both
+ * default to 0, which is the sheet case — a sheet's footer sits outside its
+ * scrolling body.
  */
 
-import { useEffect, type RefObject } from "react"
+import { useEffect, useRef, type RefObject } from "react"
 
 const FIELD = 'input:not([type="hidden"]), textarea, [contenteditable="true"]'
 const MARGIN = 16
 
+export type FocusedFieldInsets = {
+  /** Px covered at the container's top (a sticky header), measured now. */
+  top?: () => number
+  /** Px covered at the container's bottom (a sticky footer), measured now. */
+  bottom?: () => number
+}
+
 export function useFocusedFieldVisible(
   containerRef: RefObject<HTMLElement | null>,
-  enabled = true
+  enabled = true,
+  insets?: FocusedFieldInsets
 ) {
+  // Callers pass a fresh object each render; the listeners read the latest.
+  const insetsRef = useRef(insets)
+  useEffect(() => { insetsRef.current = insets })
+
   useEffect(() => {
     if (!enabled) return
     let raf = 0
@@ -41,10 +59,12 @@ export function useFocusedFieldVisible(
 
         const r = root.getBoundingClientRect()
         const e = el.getBoundingClientRect()
-        if (e.bottom > r.bottom - MARGIN) {
-          root.scrollTop += e.bottom - (r.bottom - MARGIN)
-        } else if (e.top < r.top + MARGIN) {
-          root.scrollTop -= r.top + MARGIN - e.top
+        const top = r.top + (insetsRef.current?.top?.() ?? 0) + MARGIN
+        const bottom = r.bottom - (insetsRef.current?.bottom?.() ?? 0) - MARGIN
+        if (e.bottom > bottom) {
+          root.scrollTop += e.bottom - bottom
+        } else if (e.top < top) {
+          root.scrollTop -= top - e.top
         }
       })
     }

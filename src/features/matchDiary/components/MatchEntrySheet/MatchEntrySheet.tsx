@@ -79,7 +79,7 @@ import {
     useMatchStatFields,
     useUpdateMatch,
 } from "../../hooks/useMatchDiary"
-import { useGuardedBack } from "../../hooks/useGuardedBack"
+import { useGuardedBack } from "@/shared/hooks/useGuardedBack"
 import { MATCH_TYPE_LABELS } from "../../matchDiaryMeta"
 import {
     getMatchDiaryErrorMessage,

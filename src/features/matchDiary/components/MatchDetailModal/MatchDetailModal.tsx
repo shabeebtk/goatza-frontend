@@ -56,7 +56,7 @@ import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
 import { returnFocus } from "@/shared/services/focusReturn"
 
-import { useGuardedBack } from "../../hooks/useGuardedBack"
+import { useGuardedBack } from "@/shared/hooks/useGuardedBack"
 import { useDeleteMatch } from "../../hooks/useMatchDiary"
 import {
     MATCH_RESULT_LABELS,

@@ -14,6 +14,12 @@
  *   or a link in the app nav — asks "Discard this page?" first.
  * - Validation on blur and on Continue; the first error is scrolled to and
  *   focused. Every step change scrolls to the top and focuses its heading.
+ * - Opened directly (a new tab, the installed app, a link after signing in)
+ *   there is nothing of the app's beneath the flow, so leaving replaces it
+ *   with /home instead of going "back" to nowhere.
+ * - The footer's primary button ignores taps for STEP_TAP_GUARD_MS after a
+ *   step appears: Continue and "Create page" share its slot, and a double tap
+ *   on Continue used to create the page without the Review.
  * - Eligibility is asked on mount: at the limit, a friendly state replaces
  *   the form. The create can still answer `org_limit`; it lands there too.
  *
@@ -34,7 +40,7 @@ import ConfirmDialog from "@/shared/components/ui/ConfirmDialog/ConfirmDialog"
 import { useFocusedFieldVisible } from "@/shared/hooks/useFocusedFieldVisible"
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport"
 import { useScreenWakeLock } from "@/shared/hooks/useScreenWakeLock"
-import { useSmartBack } from "@/shared/hooks/useSmartBack"
+import { hasInAppHistory, useSmartBack } from "@/shared/hooks/useSmartBack"
 import { useAuthStore } from "@/store/auth.store"
 import { useSportsList } from "@/features/profile/hooks/useSportsQueries"
 import { useProfileBias } from "@/features/profile/hooks/useProfileBias"
@@ -66,7 +72,7 @@ import {
   type CreateStep,
   type FieldErrors,
 } from "./createPageDraft"
-import { fieldId } from "./CreateField"
+import { fieldBoxId, fieldId } from "./CreateField"
 import { useCreateSteps, CREATE_PAGE_PATH } from "./useCreateSteps"
 import { useHandleCheck } from "./useHandleCheck"
 import TypeStep from "./TypeStep"
@@ -80,6 +86,19 @@ import type { PickedPhoto } from "./HeaderComposer"
 import styles from "./OrganizationSetup.module.css"
 
 export const OFFLINE_CREATE_MESSAGE = "You're offline. Check your connection and try again."
+
+/** How long after a step appears its footer button ignores taps. */
+export const STEP_TAP_GUARD_MS = 400
+
+const FOCUSABLE =
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), ' +
+  'button:not([disabled]), [tabindex="0"]'
+
+/** The element itself when it takes focus, else the first control in it. */
+function focusTargetIn(element: HTMLElement): HTMLElement | null {
+  if (element.matches("input, textarea, button, [tabindex]")) return element
+  return element.querySelector<HTMLElement>(FOCUSABLE)
+}
 
 /** The draft keys → the field whose error they can clear. */
 const DRAFT_KEY_FIELD: Partial<Record<keyof CreateDraft, CreateField>> = {
@@ -137,7 +156,8 @@ export default function OrganizationSetup() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [limitHit, setLimitHit]       = useState(false)
   const [confirm, setConfirm]         = useState<Confirm | null>(null)
-  const [continuing, setContinuing]   = useState(false)
+  // The step a Continue is waiting on the page link's check for.
+  const [continuingOn, setContinuingOn] = useState<CreateStep | null>(null)
   const [done, setDone]               = useState(false)
 
   // Latest values for callbacks that outlive a render (history, listeners).
@@ -178,18 +198,47 @@ export default function OrganizationSetup() {
   useEffect(() => () => { if (logo) URL.revokeObjectURL(logo.url) }, [logo])
   useEffect(() => () => { if (cover) URL.revokeObjectURL(cover.url) }, [cover])
 
+  // ── Create ─────────────────────────────────────────────────────
+  const create = useCreateOrganization({
+    beforeLanding: () => {
+      persistRef.current = false
+      leavingRef.current = true
+      clearDraft()
+      setDone(true)
+    },
+  })
+  const busy = create.isPending || done
+  useScreenWakeLock(create.isPending)
+
   // ── Eligibility ────────────────────────────────────────────────
-  const eligibility = useCreateEligibility()
-  const atLimit = !done && (limitHit || eligibility.data?.allowed === false)
+  // Not asked again once the page exists (the landing clears the cache).
+  const eligibility = useCreateEligibility(!done)
+  // Never the limit state while this person's own create is running or
+  // landing: a late answer would swap the form out from under it.
+  const atLimit = !busy && (limitHit || eligibility.data?.allowed === false)
   // A failed eligibility read shows the form: the create re-checks anyway.
-  const showWizard = !eligibility.isPending && !atLimit
+  const showWizard = !atLimit && (busy || !eligibility.isPending)
   const ready = restored && showWizard
+  const loading = !atLimit && !busy && (eligibility.isPending || !restored)
 
   // ── Leaving ────────────────────────────────────────────────────
+  // Is there an app page beneath the flow? Read once, on arrival: the flow's
+  // own pushes (step 1 over the bare entry) grow history.length without
+  // putting anything of the app's underneath.
+  const arrivedWithHistoryRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    if (arrivedWithHistoryRef.current === null) {
+      arrivedWithHistoryRef.current = hasInAppHistory()
+    }
+  }, [])
+
   const leave = useCallback(() => {
     leavingRef.current = true
-    smartBack()
-  }, [smartBack])
+    // Opened directly: back would leave the app, or (with only the flow's own
+    // entries beneath) do nothing at all — and on a phone the bars are hidden.
+    if (arrivedWithHistoryRef.current) smartBack()
+    else router.replace("/home")
+  }, [router, smartBack])
 
   const discard = useCallback(() => {
     persistRef.current = false
@@ -211,39 +260,26 @@ export default function OrganizationSetup() {
     },
   })
   const index = stepIndex(step)
+  // Only the step it started on shows the wait (Back during the check leaves it).
+  const continuing = continuingOn !== null && continuingOn === step
 
   // ── The page link check ────────────────────────────────────────
   const handleCheck = useHandleCheck(draft.username, ready)
 
-  // ── Create ─────────────────────────────────────────────────────
-  const create = useCreateOrganization({
-    beforeLanding: () => {
-      persistRef.current = false
-      leavingRef.current = true
-      clearDraft()
-      setDone(true)
-    },
-  })
-  const busy = create.isPending || done
-  useScreenWakeLock(create.isPending)
-
   // ── Phone frame ────────────────────────────────────────────────
   const screenRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
   useVisualViewport()
-  useFocusedFieldVisible(screenRef, ready)
+  // The header and footer are sticky INSIDE the scroll container, so a field
+  // is only visible between them.
+  useFocusedFieldVisible(screenRef, ready, {
+    top:    () => headRef.current?.getBoundingClientRect().height ?? 0,
+    bottom: () => footerRef.current?.getBoundingClientRect().height ?? 0,
+  })
 
-  // Every step change: back to the top, focus on the step's heading — unless
-  // the change was a jump to a field, which gets the focus instead.
-  const shownStepRef = useRef<CreateStep | null>(null)
-  useEffect(() => {
-    if (!ready) return
-    if (shownStepRef.current === null || shownStepRef.current === step) {
-      shownStepRef.current = step
-      return
-    }
-    shownStepRef.current = step
-    if (pendingFocusRef.current) return
+  const showStepTop = useCallback(() => {
     screenRef.current?.scrollTo?.({ top: 0 })
     try {
       window.scrollTo({ top: 0 })
@@ -251,21 +287,57 @@ export default function OrganizationSetup() {
       // Not every environment scrolls the window.
     }
     headingRef.current?.focus({ preventScroll: true })
-  }, [step, ready])
+  }, [])
 
-  // A field asked for focus (first error, a server error): once it is on
-  // screen, scroll it into view and focus it — or the first focusable in it.
+  // Every step change: back to the top, focus on the step's heading — unless
+  // the change was a jump to a field, which gets the focus instead. It also
+  // starts the footer's tap guard, and makes a Continue still waiting on the
+  // page link's check stale, so it never moves on from a step that is gone.
+  const shownStepRef = useRef<CreateStep | null>(null)
+  const stepShownAtRef = useRef(0)
+  useEffect(() => {
+    if (!ready || shownStepRef.current === step) return
+    const first = shownStepRef.current === null
+    shownStepRef.current = step
+    stepShownAtRef.current = Date.now()
+    continueTokenRef.current += 1
+    // A focus asked for on another step (the person went elsewhere first)
+    // is dropped; this step gets the usual top and heading.
+    const pending = pendingFocusRef.current
+    if (pending && FIELD_STEP[pending] !== step) pendingFocusRef.current = null
+    if (first || pendingFocusRef.current) return
+    showStepTop()
+  }, [step, ready, showStepTop])
+
+  const tappedTooSoon = useCallback(
+    () => Date.now() - stepShownAtRef.current < STEP_TAP_GUARD_MS,
+    []
+  )
+
+  // A field asked for focus (first error, a server error). Once its step is
+  // on screen: scroll it into view and focus it, or the first control in its
+  // box (a picked town is the LocationPicker's pill and its clear button).
+  // Nothing to focus → the step's heading, as any step change. Either way
+  // the request is done with, so it can't hold up a later step change.
   useEffect(() => {
     const field = pendingFocusRef.current
     if (!field) return
-    const element = document.getElementById(fieldId(field))
-    if (!element) return
+    if (atLimit) {
+      pendingFocusRef.current = null
+      return
+    }
+    if (loading || FIELD_STEP[field] !== step) return
     pendingFocusRef.current = null
-    const target = element.matches("input, textarea, button, [tabindex]")
-      ? element
-      : element.querySelector<HTMLElement>('[tabindex="0"], input, textarea, button')
+
+    const element =
+      document.getElementById(fieldId(field)) ?? document.getElementById(fieldBoxId(field))
+    const target = element ? focusTargetIn(element) : null
+    if (!element || !target) {
+      showStepTop()
+      return
+    }
     element.scrollIntoView?.({ block: "center" })
-    ;(target ?? element).focus?.({ preventScroll: true })
+    target.focus({ preventScroll: true })
   })
 
   const focusField = useCallback(
@@ -349,6 +421,8 @@ export default function OrganizationSetup() {
   // ── Footer actions ─────────────────────────────────────────────
   const onBack = useCallback(() => {
     if (busy) return
+    // A Continue still waiting on the page link's check must not move on.
+    continueTokenRef.current += 1
     if (back()) return
     // Step 1 with nothing of ours underneath: leave from here.
     if (isDirty()) setConfirm({ reason: "back" })
@@ -356,7 +430,7 @@ export default function OrganizationSetup() {
   }, [back, busy, isDirty, leave])
 
   const onContinue = useCallback(async () => {
-    if (busy || continuing) return
+    if (busy || continuing || tappedTooSoon()) return
     setSubmitError(null)
 
     let current = draftRef.current
@@ -379,9 +453,9 @@ export default function OrganizationSetup() {
     if (step === "basics") {
       // Wait for the page link's answer; a taken or invalid one stops here.
       const token = ++continueTokenRef.current
-      setContinuing(true)
+      setContinuingOn(step)
       const answer = await handleCheck.flush()
-      setContinuing(false)
+      setContinuingOn(null)
       if (token !== continueTokenRef.current) return
       if (answer.state === "taken" || answer.state === "invalid") {
         focusField("username")
@@ -390,8 +464,12 @@ export default function OrganizationSetup() {
     }
 
     const next = CREATE_STEPS[index + 1]
-    if (next) goTo(next)
-  }, [busy, continuing, focusField, goTo, handleCheck, index, step, update])
+    if (!next) return
+    // The guard starts now, not when the next step has rendered: a second tap
+    // in between would land on this step's Continue again.
+    stepShownAtRef.current = Date.now()
+    goTo(next)
+  }, [busy, continuing, focusField, goTo, handleCheck, index, step, tappedTooSoon, update])
 
   const applyCreateError = useCallback((error: CreateOrgError) => {
     const current = draftRef.current
@@ -431,7 +509,7 @@ export default function OrganizationSetup() {
   }, [focusField, handleCheck])
 
   const onCreate = useCallback(async () => {
-    if (submittingRef.current || busy) return
+    if (submittingRef.current || busy || tappedTooSoon()) return
     setSubmitError(null)
 
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -463,11 +541,13 @@ export default function OrganizationSetup() {
     } finally {
       submittingRef.current = false
     }
-  }, [applyCreateError, busy, create, focusField, goTo])
+  }, [applyCreateError, busy, create, focusField, goTo, tappedTooSoon])
 
   // ── A link out of the page, with something entered, asks first ─
+  // While the create runs (or lands) a link does nothing at all: the page is
+  // about to exist and open, and "won't be saved" would be untrue.
   useEffect(() => {
-    if (!ready || done) return
+    if (!ready) return
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0) return
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -481,6 +561,11 @@ export default function OrganizationSetup() {
         return
       }
       if (url.origin !== window.location.origin || url.pathname === CREATE_PAGE_PATH) return
+      if (busy) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
       if (leavingRef.current || !isDirty()) return
       // Capture phase on the document: next/link's own handler never runs.
       event.preventDefault()
@@ -489,7 +574,7 @@ export default function OrganizationSetup() {
     }
     document.addEventListener("click", onClick, true)
     return () => document.removeEventListener("click", onClick, true)
-  }, [done, isDirty, ready])
+  }, [busy, isDirty, ready])
 
   const onConfirmDiscard = useCallback(() => {
     const asked = confirm
@@ -513,7 +598,6 @@ export default function OrganizationSetup() {
   }, [queryClient, router])
 
   // ── Render ─────────────────────────────────────────────────────
-  const loading = !atLimit && (eligibility.isPending || !restored)
   const showPreview = showWizard && step !== "review"
   const createLabel = done
     ? createPhaseLabel.opening
@@ -526,13 +610,13 @@ export default function OrganizationSetup() {
     <div className={styles.screen} ref={screenRef}>
       <div className={`${styles.layout} ${showPreview ? styles.layoutWithPreview : ""}`}>
         <section className={styles.card} aria-labelledby="org-create-title">
-          <header className={styles.head}>
+          <header className={styles.head} ref={headRef}>
             <div className={styles.headRow}>
               <button
                 type="button"
                 className={styles.headBack}
                 onClick={showWizard ? onBack : leave}
-                disabled={busy}
+                disabled={busy || continuing}
                 aria-label="Back"
               >
                 <Icon icon="mdi:arrow-left" width={22} height={22} aria-hidden="true" />
@@ -626,7 +710,7 @@ export default function OrganizationSetup() {
           </div>
 
           {showWizard && !loading && (
-            <div className={styles.footer}>
+            <div className={styles.footer} ref={footerRef}>
               {submitError && (
                 <p className={styles.submitError} role="alert">
                   <Icon icon="mdi:alert-circle-outline" width={16} height={16} aria-hidden="true" />
@@ -640,7 +724,7 @@ export default function OrganizationSetup() {
                     variant="outline"
                     className={styles.footerBack}
                     onClick={onBack}
-                    disabled={busy}
+                    disabled={busy || continuing}
                   >
                     Back
                   </Button>

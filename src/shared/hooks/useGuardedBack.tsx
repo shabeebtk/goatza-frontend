@@ -6,9 +6,10 @@
  * useBackToClose consumes its entry on popstate and then calls back, so by the
  * time an overlay hears the press the entry is already gone. The diary's sheet
  * wants that press to ask "discard?" when the form is dirty, and the detail
- * modal wants to stay put while a delete is running. So the hook lives in a null
- * component that is remounted by `key` after a refused press, which reserves a
- * fresh entry. Same shape as the back handling in CreateRecruitmentModal.
+ * modal wants to stay put while a delete is running, and OrgPhotoCropSheet
+ * while Apply is uploading. So the hook lives in a null component that is
+ * remounted by `key` after a refused press, which reserves a fresh entry. Same
+ * shape as the back handling in CreateRecruitmentModal.
  *
  * Every self-close goes through `close()`, which walks back through the entry so
  * it is never left behind. The overlay is closed by the pop, not before it.

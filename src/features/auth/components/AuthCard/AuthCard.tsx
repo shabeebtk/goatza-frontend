@@ -324,8 +324,10 @@ function AuthCard() {
                 setOtpPending(true)
                 return
             }
-            // CASE 2: Normal login
-            router.push(nextPath)
+            // CASE 2: Normal login. Replace, like the Google callback: /auth
+            // must not stay beneath the page it sends you to, or back from
+            // there lands on /auth, which bounces straight forward again.
+            router.replace(nextPath)
 
         } catch (err) {
             const msg = extractErrorMessage(err)
@@ -418,7 +420,8 @@ function AuthCard() {
                 return
             }
 
-            router.push(nextPath)
+            // Replace, as above: no /auth beneath the first page.
+            router.replace(nextPath)
         } catch (err) {
             setApiError(extractErrorMessage(err))
         }

@@ -12,6 +12,17 @@ import { useRef } from "react"
 
 import { useFocusedFieldVisible } from "./useFocusedFieldVisible"
 
+/** A container with a sticky header and footer of its own (the create page). */
+function StickyScreen({ top, bottom }: { top: number; bottom: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useFocusedFieldVisible(ref, true, { top: () => top, bottom: () => bottom })
+  return (
+    <div data-testid="body" ref={ref}>
+      <input data-testid="field" />
+    </div>
+  )
+}
+
 function Sheet({ enabled = true }: { enabled?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   useFocusedFieldVisible(ref, enabled)
@@ -109,5 +120,35 @@ describe("useFocusedFieldVisible", () => {
     field.getBoundingClientRect = () => rect(320, 360)
     field.focus()
     expect(body.scrollTop).toBe(50)
+  })
+
+  it("keeps the field clear of a sticky footer (bottom inset)", () => {
+    const { getByTestId } = render(<StickyScreen top={0} bottom={80} />)
+    const body = getByTestId("body")
+    const field = getByTestId("field")
+    body.scrollTop = 0
+    body.getBoundingClientRect = () => rect(0, 600)
+    // Inside the container, but behind an 80px footer.
+    field.getBoundingClientRect = () => rect(500, 540)
+
+    field.focus()
+
+    // 540 - (600 - 80 - 16) = 36 further down.
+    expect(body.scrollTop).toBe(36)
+  })
+
+  it("keeps the field clear of a sticky header (top inset)", () => {
+    const { getByTestId } = render(<StickyScreen top={56} bottom={0} />)
+    const body = getByTestId("body")
+    const field = getByTestId("field")
+    body.scrollTop = 200
+    body.getBoundingClientRect = () => rect(0, 600)
+    // Inside the container, but under a 56px header.
+    field.getBoundingClientRect = () => rect(40, 80)
+
+    field.focus()
+
+    // (0 + 56 + 16) - 40 = 32 back up.
+    expect(body.scrollTop).toBe(168)
   })
 })
