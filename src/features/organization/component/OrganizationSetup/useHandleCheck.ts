@@ -17,6 +17,11 @@
  * answer for the current handle. A check that failed for want of a
  * connection resolves as "error" — shown, never cached as final (flush asks
  * again), and it does not block Continue: the create is the final word.
+ *
+ * Every request carries a number per handle, and only the newest one's
+ * answer is kept: `markTaken` (the create said "taken") moves the number on,
+ * so a check that was still out from before can't come back and turn the
+ * handle "available" again.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -50,6 +55,14 @@ export function useHandleCheck(handle: string, enabled = true) {
   const value = key(handle)
   const [answers, setAnswers] = useState<Record<string, Answer>>({})
   const pendingRef = useRef(new Map<string, Promise<Answer>>())
+  // The newest request per handle; an answer from an older one is dropped.
+  const requestIdRef = useRef(new Map<string, number>())
+
+  const nextRequestId = useCallback((handleKey: string) => {
+    const id = (requestIdRef.current.get(handleKey) ?? 0) + 1
+    requestIdRef.current.set(handleKey, id)
+    return id
+  }, [])
 
   const remember = useCallback((answer: Answer) => {
     setAnswers((current) => ({ ...current, [answer.handle]: answer }))
@@ -59,7 +72,8 @@ export function useHandleCheck(handle: string, enabled = true) {
     const inFlight = pendingRef.current.get(handleKey)
     if (inFlight) return inFlight
 
-    const promise = checkUsernameApi(handleKey, { for: "organization" })
+    const id = nextRequestId(handleKey)
+    const promise: Promise<Answer> = checkUsernameApi(handleKey, { for: "organization" })
       .then((result): Answer => {
         if (!result.valid) {
           return {
@@ -74,14 +88,14 @@ export function useHandleCheck(handle: string, enabled = true) {
       })
       .catch((): Answer => ({ state: "error", handle: handleKey }))
       .then((answer) => {
-        pendingRef.current.delete(handleKey)
-        remember(answer)
+        if (pendingRef.current.get(handleKey) === promise) pendingRef.current.delete(handleKey)
+        if (requestIdRef.current.get(handleKey) === id) remember(answer)
         return answer
       })
 
     pendingRef.current.set(handleKey, promise)
     return promise
-  }, [remember])
+  }, [nextRequestId, remember])
 
   const kept = answers[value]
   const status: HandleStatus = !enabled
@@ -113,9 +127,11 @@ export function useHandleCheck(handle: string, enabled = true) {
   const markTaken = useCallback((raw: string) => {
     const handleKey = key(raw)
     pendingRef.current.delete(handleKey)
+    const id = nextRequestId(handleKey)
     remember({ state: "taken", handle: handleKey })
     void checkUsernameApi(handleKey, { for: "organization" })
       .then((result) => {
+        if (requestIdRef.current.get(handleKey) !== id) return
         remember({
           state: "taken",
           handle: handleKey,
@@ -123,7 +139,7 @@ export function useHandleCheck(handle: string, enabled = true) {
         })
       })
       .catch(() => undefined)
-  }, [remember])
+  }, [nextRequestId, remember])
 
   return { status, flush, markTaken }
 }

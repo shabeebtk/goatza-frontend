@@ -38,7 +38,11 @@
   flex-direction: column;
   background: var(--color-surface);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  overflow: hidden;
+  /* The well shrinks first (below); scrolling is the last resort, so Use /
+     Cancel are reachable on a phone held sideways. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: sheetUp 0.26s var(--ease-spring) both;
 }
 
@@ -91,7 +95,7 @@
 .cropArea {
   position: relative;
   flex: 1 1 auto;
-  min-height: 280px;
+  min-height: min(280px, 40dvh);
   height: min(60dvh, 420px);
   background: var(--primitive-neutral-950);
   overflow: hidden;
@@ -99,7 +103,7 @@
 
 .cropAreaCover {
   height: min(45dvh, 320px);
-  min-height: 220px;
+  min-height: min(220px, 35dvh);
 }
 
 .cropArea :global(.reactEasyCrop_Container) {

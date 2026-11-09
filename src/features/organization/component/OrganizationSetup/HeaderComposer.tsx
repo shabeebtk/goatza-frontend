@@ -35,6 +35,7 @@ export default function HeaderComposer({
   onChange,
   typeIcon,
   disabled,
+  errorId,
 }: {
   logo:  PickedPhoto | null
   cover: PickedPhoto | null
@@ -42,7 +43,10 @@ export default function HeaderComposer({
   /** Shown in an empty logo, so the composer looks like the page it makes. */
   typeIcon: string
   disabled?: boolean
+  /** The id of an error about the photos shown by the step, when there is one. */
+  errorId?: string
 }) {
+  const describedBy = errorId ? `${PHOTO_HINT_ID} ${errorId}` : PHOTO_HINT_ID
   const logoInputRef  = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
   const [cropping, setCropping]   = useState<{ type: OrgPhotoType; file: File } | null>(null)
@@ -96,7 +100,7 @@ export default function HeaderComposer({
         onClick={() => pick("cover")}
         disabled={disabled}
         aria-label={cover ? "Change cover photo" : "Add cover photo"}
-        aria-describedby={PHOTO_HINT_ID}
+        aria-describedby={describedBy}
       >
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element -- a blob: preview of an unsaved crop; next/image can't load one
@@ -116,7 +120,7 @@ export default function HeaderComposer({
           onClick={() => pick("logo")}
           disabled={disabled}
           aria-label={logo ? "Change logo" : "Add logo"}
-          aria-describedby={PHOTO_HINT_ID}
+          aria-describedby={describedBy}
         >
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- a blob: preview of an unsaved crop; next/image can't load one

@@ -17,6 +17,10 @@
  * `?step=type` directly (a refresh) has no such entry; Back still asks, the
  * gesture does not, and the draft is kept either way.
  *
+ * STEP 1 WITH A STEP UNDER IT. Review's "Edit" (and a server error about
+ * the type) PUSHES step 1 on top of Review. Back from there goes back to
+ * whatever step is beneath — it is not leaving the flow, so nothing asks.
+ *
  * What is underneath is tracked in memory (`trail`), from the pushes this
  * hook made and the URL changes it saw. Overlay entries (a crop sheet, a
  * ConfirmDialog) sit on the same URL, so they never change the step and are
@@ -123,7 +127,9 @@ export function useCreateSteps({
     const below = trail.length >= 2 ? trail[trail.length - 2] : null
 
     if (index === 0) {
-      if (below === "") {
+      // The bare entry (it decides whether to ask), or a step this one was
+      // jumped to from (Review's Edit): either way, history has it.
+      if (below !== null) {
         router.back()
         return true
       }

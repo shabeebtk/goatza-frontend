@@ -77,6 +77,10 @@ export const useCreateEligibility = (enabled = true) =>
     queryFn:  getCreateEligibilityApi,
     staleTime: 0,
     gcTime:    0,
+    // Asked once, on arrival. A refetch on focus or reconnect could answer
+    // "at the limit" while this person's own create is landing.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect:   false,
     enabled,
   })
 

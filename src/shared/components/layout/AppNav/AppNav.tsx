@@ -80,7 +80,10 @@ function NotifDot({ count }: { count: number }) {
 
 // Skeleton chrome shown until the user's role resolves, so a wrong nav never
 // flashes for coach/scout. Matches the real bars' geometry to avoid layout shift.
-function NavSkeleton() {
+// On a focused page (a chat thread, the create flow) the real bars are hidden
+// on a phone, so the skeleton draws no phone bars either — a hard reload there
+// used to flash a top bar and dock over the page's own header and footer.
+function NavSkeleton({ focused = false }: { focused?: boolean }) {
   return (
     <>
       <header className={styles.topNav} role="banner">
@@ -98,21 +101,25 @@ function NavSkeleton() {
         </div>
       </header>
 
-      <header className={styles.mobileTopBar} role="banner" aria-hidden="true">
-        <LogoMark />
-        <div className={styles.mobileTopActions}>
-          <span className={styles.skeletonCircle} />
-          <span className={styles.skeletonCircle} />
-        </div>
-      </header>
+      {!focused && (
+        <>
+          <header className={styles.mobileTopBar} role="banner" aria-hidden="true">
+            <LogoMark />
+            <div className={styles.mobileTopActions}>
+              <span className={styles.skeletonCircle} />
+              <span className={styles.skeletonCircle} />
+            </div>
+          </header>
 
-      <nav className={styles.bottomBar} aria-hidden="true">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <span key={i} className={styles.bottomTab}>
-            <span className={styles.skeletonCircle} />
-          </span>
-        ))}
-      </nav>
+          <nav className={styles.bottomBar} aria-hidden="true">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <span key={i} className={styles.bottomTab}>
+                <span className={styles.skeletonCircle} />
+              </span>
+            ))}
+          </nav>
+        </>
+      )}
     </>
   )
 }
@@ -239,7 +246,7 @@ export default function AppNav() {
 
   // Role not resolved yet → render skeleton chrome, no nav destinations.
   if (!navItems) {
-    return <NavSkeleton />
+    return <NavSkeleton focused={isFocusedPage} />
   }
 
   // Three desktop clusters, not one flat list: destinations inline on the
