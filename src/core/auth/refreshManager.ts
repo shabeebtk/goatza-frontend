@@ -22,6 +22,29 @@ const REFRESH_URL = `${process.env.NEXT_PUBLIC_API_URL}/user/token/refresh`
 const PROACTIVE_LEAD_MS = 60_000        // refresh 60s before expiry
 const NEAR_EXPIRY_MS = 120_000          // "needs refresh" threshold
 
+/**
+ * How long one refresh request may take.
+ *
+ * Every request that meets a 401 waits on the refresh in flight, so a refresh
+ * that never answered held ALL of them, and the app sat on "Saving…" until a
+ * reload. A phone makes that easy: the proactive refresh fires as the page
+ * comes back from a locked screen, and a request sent before the network is
+ * back can stay pending with no error at all. A timeout is a retryable failure
+ * (auth state untouched), so the caller's request fails and can be tried again.
+ */
+export const REFRESH_TIMEOUT_MS = 15_000
+
+/**
+ * How long to wait for another tab to finish ITS refresh.
+ *
+ * The cross-tab lock is only released when the holding tab's refresh settles,
+ * and a tab frozen in the background (iOS does this to any tab it is not
+ * showing) can sit on it indefinitely. Past this, refresh without the lock: the
+ * server's grace window for a just-rotated token covers the race the lock was
+ * avoiding.
+ */
+export const LOCK_WAIT_MS = 10_000
+
 let inflight: Promise<string> | null = null
 let proactiveTimer: ReturnType<typeof setTimeout> | null = null
 let listenersAttached = false
@@ -49,7 +72,10 @@ function isDefinitiveAuthFailure(err: unknown): boolean {
 async function doRefresh(): Promise<string> {
   try {
     // Raw axios (NOT the api instance) — must bypass interceptors.
-    const res = await axios.post(REFRESH_URL, {}, { withCredentials: true })
+    const res = await axios.post(REFRESH_URL, {}, {
+      withCredentials: true,
+      timeout: REFRESH_TIMEOUT_MS,
+    })
     const token = res.data?.data?.access_token as string
     if (!token) throw new Error("Malformed refresh response")
     useAuthStore.getState().updateAccessToken(token)
@@ -72,16 +98,38 @@ export function getFreshAccessToken(): Promise<string> {
     if (typeof navigator !== "undefined" && "locks" in navigator) {
       // Cross-tab mutex: after the winning tab rotates, the shared cookie jar
       // already holds the new cookie, so waiting tabs refresh cleanly.
-      return (navigator as Navigator & { locks: LockManager }).locks.request(
-        "goatza-token-refresh",
-        doRefresh
-      )
+      return refreshUnderLock((navigator as Navigator & { locks: LockManager }).locks)
     }
     return doRefresh() // fallback (older Safari): per-tab single-flight only;
                        // the server grace window covers cross-tab races
   }
   inflight = run().finally(() => { inflight = null })
   return inflight
+}
+
+/** The refresh, under the cross-tab lock, but never waiting on it for ever. */
+async function refreshUnderLock(locks: LockManager): Promise<string> {
+  const controller = new AbortController()
+  let granted = false
+  const timer = setTimeout(() => controller.abort(), LOCK_WAIT_MS)
+
+  try {
+    return await locks.request(
+      "goatza-token-refresh",
+      { signal: controller.signal },
+      () => {
+        granted = true
+        clearTimeout(timer)
+        return doRefresh()
+      }
+    )
+  } catch (err) {
+    // Gave up waiting for another tab's refresh (see LOCK_WAIT_MS).
+    if (!granted && controller.signal.aborted) return doRefresh()
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Return current token, refreshing first if missing or expiring soon. */

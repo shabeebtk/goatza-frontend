@@ -36,6 +36,7 @@ import { useToast } from "@/shared/components/ui/Toast/Toast"
 import {
   createOrganizationApi,
   getMyOrganizationsAsPersonApi,
+  ORG_LIST_AFTER_CREATE_TIMEOUT_MS,
   toCreateOrgError,
   type CreateOrgError,
 } from "../services/organization.api"
@@ -82,6 +83,19 @@ export const createPhaseLabel: Record<CreatePhase, string> = {
 const MAY_HAVE_BEEN_CREATED: CreateOrgErrorCode[] = ["network", "username_taken"]
 
 /**
+ * The most one photo may take, start to finish (compress, sign, upload,
+ * attach). The page already exists by then, so a photo that is still going
+ * after this is given up on like any failed one — the person is told and adds
+ * it from the page — rather than holding the button on "Uploading logo…" with
+ * a request that may never answer. A cropped logo or cover is a few hundred KB
+ * to ~2 MB; two minutes covers a slow mobile connection.
+ */
+export const CREATE_PHOTO_BUDGET_MS = 120_000
+
+const listAsPerson = () =>
+  getMyOrganizationsAsPersonApi({ timeout: ORG_LIST_AFTER_CREATE_TIMEOUT_MS })
+
+/**
  * After a create whose answer was lost: the page it made, if it made one.
  * Exactly the requested handle, and not one of the person's pages from before
  * this create (`knownIds`) — their existing page with that handle is a real
@@ -98,7 +112,7 @@ export async function findPageAfterLostAnswer(
 
   let organizations: OrganizationMini[]
   try {
-    organizations = await getMyOrganizationsAsPersonApi()
+    organizations = await listAsPerson()
   } catch {
     return null
   }
@@ -152,9 +166,11 @@ export const useCreateOrganization = ({
 
       // The fresh list carries my_permissions. If it can't be had, the new org
       // is added by hand so the dashboard's member guard lets the owner in.
+      // Bounded: the draft is already gone by now, so a read that never
+      // answered left "Opening your page…" on screen over a page that existed.
       let organizations: OrganizationMini[] = []
       try {
-        organizations = await getMyOrganizationsAsPersonApi()
+        organizations = await listAsPerson()
       } catch {
         organizations = []
       }
@@ -222,17 +238,23 @@ export const useCreateOrganization = ({
       for (const [type, photo] of photos) {
         if (!photo) continue
         setPhase(type)
+        const budget = new AbortController()
+        const timer = setTimeout(() => budget.abort(), CREATE_PHOTO_BUDGET_MS)
         try {
           const url = await uploadOrgPhoto({
             orgId: org.id,
             type,
             blob: photo.blob,
             originalName: photo.name,
+            signal: budget.signal,
           })
           if (type === "logo") logoUrl = url
         } catch {
-          // Reported by the upload helpers themselves; non-fatal here.
+          // Reported by the upload helpers themselves; non-fatal here. Out of
+          // time (CREATE_PHOTO_BUDGET_MS) counts as failed, like any other.
           failedPhotos.push(type)
+        } finally {
+          clearTimeout(timer)
         }
       }
 

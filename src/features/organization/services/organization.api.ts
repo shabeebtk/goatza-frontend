@@ -21,17 +21,43 @@ export const getOrganizationsApi = async (): Promise<OrganizationMini[]> => {
  * flow reads it while it is still the person, and after a create whose answer
  * was lost, to find the page that may already exist.
  */
-export const getMyOrganizationsAsPersonApi = async (): Promise<OrganizationMini[]> => {
-  const res = await api.get("/organizations/list", { actor: { type: "user" } })
+export const getMyOrganizationsAsPersonApi = async (
+  options: { timeout?: number } = {}
+): Promise<OrganizationMini[]> => {
+  const res = await api.get("/organizations/list", {
+    actor: { type: "user" },
+    ...(options.timeout ? { timeout: options.timeout } : {}),
+  })
   return res.data.data
 }
 
  
 // ── API ───────────────────────────────────────────────────────
  
-/** What a create that failed for want of a connection (or a 5xx) says. */
+/** What a create that failed for want of a connection says. */
 export const CREATE_ORG_CONNECTION_MESSAGE =
   "Couldn't create your page. Check your connection and try again."
+
+/**
+ * What a create the SERVER failed says. It used to say the connection line
+ * too, which sent people checking a Wi-Fi that was fine.
+ */
+export const CREATE_ORG_SERVER_MESSAGE =
+  "Something went wrong on our side and your page wasn't created. Try again in a moment."
+
+/** A refusal with no words of its own (rare: every refusal here carries one). */
+export const CREATE_ORG_REFUSED_MESSAGE = "Couldn't create your page. Please try again."
+
+/**
+ * How long the create may run. The api client has no timeout, so a request the
+ * phone lost never settled and the button said "Creating your page…" for ever.
+ * Running out is a lost answer (`network`): the person's list is read before
+ * anything is shown, exactly as for a dropped connection.
+ */
+export const CREATE_ORG_TIMEOUT_MS = 30_000
+
+/** The person's list, read after a create: long enough, never for ever. */
+export const ORG_LIST_AFTER_CREATE_TIMEOUT_MS = 15_000
 
 /**
  * A refused create, typed. `code` is the server's (`username_taken`,
@@ -69,10 +95,18 @@ const KNOWN_CODES: CreateOrgErrorCode[] = [
 export function toCreateOrgError(err: unknown): CreateOrgError {
   if (err instanceof CreateOrgError) return err
 
-  if (isAxiosError(err) && err.response && err.response.status < 500) {
+  // A 5xx stays `network`: a proxy's 502/504 can arrive after the page was
+  // made, so the lost-answer check still has to run. Only the words change.
+  if (isAxiosError(err) && err.response && err.response.status >= 500) {
+    return new CreateOrgError({ code: "network", message: CREATE_ORG_SERVER_MESSAGE })
+  }
+
+  if (isAxiosError(err) && err.response) {
     const body = err.response.data as
       | {
           message?: string
+          // DRF's own refusals (the terms gate, throttling, auth) carry only this.
+          detail?: string
           data?: {
             code?: string
             field?: string
@@ -93,7 +127,7 @@ export function toCreateOrgError(err: unknown): CreateOrgError {
     const code = KNOWN_CODES.find((known) => known === data.code) ?? "unknown"
     return new CreateOrgError({
       code,
-      message: data.message || body?.message || CREATE_ORG_CONNECTION_MESSAGE,
+      message: data.message || body?.message || body?.detail || CREATE_ORG_REFUSED_MESSAGE,
       field: data.field || undefined,
       fields,
     })
@@ -107,7 +141,9 @@ export const createOrganizationApi = async (
   payload: CreateOrganizationPayload
 ): Promise<CreatedOrganization> => {
   try {
-    const res = await api.post("/organizations/create", payload)
+    const res = await api.post("/organizations/create", payload, {
+      timeout: CREATE_ORG_TIMEOUT_MS,
+    })
     return res.data.data
   } catch (err) {
     throw toCreateOrgError(err)

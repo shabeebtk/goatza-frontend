@@ -43,6 +43,32 @@ describe("website", () => {
     expect(validateWebsite("https://localhost")).not.toBeNull()
     expect(validateWebsite("ftp://kannurfc.in")).not.toBeNull()
   })
+
+  // Each of these passes the browser's URL parser and was a 400 from the
+  // server's URLField after the Review.
+  it("refuses what the server would refuse", () => {
+    expect(validateWebsite("my_club.com")).not.toBeNull()
+    expect(validateWebsite("club.c")).not.toBeNull()
+    expect(validateWebsite("club.123")).not.toBeNull()
+    expect(validateWebsite("-club.com")).not.toBeNull()
+  })
+
+  it("still takes ordinary addresses, hyphens, subdomains and non-Latin hosts", () => {
+    expect(validateWebsite("kannur-fc.co.in")).toBeNull()
+    expect(validateWebsite("https://www.instagram.com/kannurfc/?hl=en")).toBeNull()
+    expect(validateWebsite("കണ്ണൂർ.in")).toBeNull()
+  })
+
+  it("sends spaces in a pasted link as %20, so the server takes it", () => {
+    expect(validateWebsite("fb.com/Kannur FC Academy")).toBeNull()
+    const payload = buildCreatePayload({
+      ...EMPTY_DRAFT,
+      type: "club",
+      name: "Kannur FC",
+      website: "fb.com/Kannur FC Academy",
+    })
+    expect(payload.website).toBe("https://fb.com/Kannur%20FC%20Academy")
+  })
 })
 
 describe("steps", () => {

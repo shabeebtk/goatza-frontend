@@ -612,7 +612,6 @@ function MatchEntryForm({
     // ── Local UI state ────────────────────────────────────────
 
     const [showAllStats, setShowAllStats] = useState(false)
-    const [showNote, setShowNote] = useState(Boolean(initialValues.notes))
     const [showPhoto, setShowPhoto] = useState(Boolean(entry?.photo_url))
     const [showStint, setShowStint] = useState(
         Boolean(initialValues.career_entry)
@@ -1562,41 +1561,29 @@ function MatchEntryForm({
                                         </div>
                                     </Field>
 
-                                    {/* ── 10. Note ── */}
-                                    {showNote ? (
-                                        <Field
-                                            label="Note"
-                                            name="notes"
-                                            htmlFor="match-notes"
-                                            optional
-                                            error={errors.notes?.message}
-                                            hint={`${notes.length}/${MAX_NOTES_LENGTH}`}
-                                        >
-                                            <textarea
-                                                id="match-notes"
-                                                className={`${styles.input} ${styles.textarea}`}
-                                                rows={3}
-                                                maxLength={MAX_NOTES_LENGTH}
-                                                placeholder="How did it go?"
-                                                disabled={saving}
-                                                {...register("notes")}
-                                            />
-                                        </Field>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className={styles.disclosureBtn}
-                                            onClick={() => setShowNote(true)}
+                                    {/* ── 10. Note ──
+                                        Always open: the note is where a player
+                                        writes what to work on, and an extra tap
+                                        to reveal the box was one more reason
+                                        not to. */}
+                                    <Field
+                                        label="Note"
+                                        name="notes"
+                                        htmlFor="match-notes"
+                                        optional
+                                        error={errors.notes?.message}
+                                        hint={`${notes.length}/${MAX_NOTES_LENGTH}`}
+                                    >
+                                        <textarea
+                                            id="match-notes"
+                                            className={`${styles.input} ${styles.textarea}`}
+                                            rows={3}
+                                            maxLength={MAX_NOTES_LENGTH}
+                                            placeholder="About your gameplay and what went well and where to focus next time"
                                             disabled={saving}
-                                        >
-                                            <Icon
-                                                icon="mdi:note-plus-outline"
-                                                width={16}
-                                                height={16}
-                                            />
-                                            Add a note
-                                        </button>
-                                    )}
+                                            {...register("notes")}
+                                        />
+                                    </Field>
 
                                     {/* ── 11. Photo ── */}
                                     {showPhoto ? (
