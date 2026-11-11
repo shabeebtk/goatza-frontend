@@ -421,6 +421,34 @@ describe("the form", () => {
     })
 })
 
+describe("the note", () => {
+    it("is open from the start, with no button to reveal it", () => {
+        render(<MatchEntrySheet onClose={vi.fn()} />)
+
+        const note = screen.getByLabelText(/^Note/) as HTMLTextAreaElement
+        expect(note.placeholder).toBe(
+            "About your gameplay and what went well and where to focus next time"
+        )
+        expect(screen.queryByRole("button", { name: /Add a note/ })).toBeNull()
+    })
+
+    it("is saved with the match", async () => {
+        const onClose = vi.fn()
+        render(<MatchEntrySheet onClose={onClose} />)
+
+        fireEvent.change(screen.getByLabelText(/^Note/), {
+            target: { value: "  Pressed well, first touch let me down.  " },
+        })
+        fireEvent.click(screen.getByRole("button", { name: "Log match" }))
+
+        await vi.waitFor(() => expect(createMutate).toHaveBeenCalledTimes(1))
+        expect(createMutate.mock.calls[0][0].notes).toBe(
+            "Pressed well, first touch let me down."
+        )
+        await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+    })
+})
+
 describe("the photo's status", () => {
     URL.createObjectURL = vi.fn(() => "blob:photo")
     URL.revokeObjectURL = vi.fn()

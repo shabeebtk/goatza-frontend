@@ -282,10 +282,23 @@ export const fetchMatchStatFieldsApi = async (
     return matchStatFieldListSchema.parse(res.data.data)
 }
 
+/**
+ * How long a save may run before the sheet stops waiting for it.
+ *
+ * The api client has no timeout of its own, so a request the network lost (a
+ * phone locked mid-save, Wi-Fi handing over to mobile data) never settled, and
+ * the sheet said "Saving…" for ever with the form locked. A save normally takes
+ * well under a second; this is only there to end a request that will never
+ * answer. Re-sent with the request after a token refresh, so each try gets it.
+ */
+export const MATCH_WRITE_TIMEOUT_MS = 30_000
+
 export const createMatchApi = async (
     payload: CreateMatchPayload
 ): Promise<MatchEntry> => {
-    const res = await api.post(`${BASE}/create`, payload)
+    const res = await api.post(`${BASE}/create`, payload, {
+        timeout: MATCH_WRITE_TIMEOUT_MS,
+    })
     return matchEntrySchema.parse(res.data.data)
 }
 
@@ -293,7 +306,9 @@ export const updateMatchApi = async (
     matchId: string,
     payload: UpdateMatchPayload
 ): Promise<MatchEntry> => {
-    const res = await api.patch(`${BASE}/${matchId}/update`, payload)
+    const res = await api.patch(`${BASE}/${matchId}/update`, payload, {
+        timeout: MATCH_WRITE_TIMEOUT_MS,
+    })
     return matchEntrySchema.parse(res.data.data)
 }
 
@@ -345,8 +360,29 @@ export const getMatchDiaryErrorMessage = (
     fallback = "Something went wrong with your match diary. Please try again."
 ): string => {
     if (err instanceof z.ZodError) return fallback
+    if (isRequestTimeout(err)) return MATCH_SAVE_TIMEOUT_MESSAGE
     return getApiErrorMessage(err, fallback)
 }
+
+/**
+ * What a save that ran out of time says. It may have reached the server and
+ * only the answer was lost, so a straight "try again" could log the match
+ * twice: the diary underneath is refetched either way, and that is where to
+ * look.
+ */
+export const MATCH_SAVE_TIMEOUT_MESSAGE =
+    "Saving is taking too long. Check your connection, and check your diary before you try again: it may already be saved."
+
+/**
+ * True when axios gave up on a request because of its `timeout`. ECONNABORTED
+ * is also what a plain abort carries ("Request aborted"), so the message is
+ * what tells the two apart.
+ */
+export const isRequestTimeout = (err: unknown): boolean =>
+    isAxiosError(err) &&
+    !err.response &&
+    (err.code === "ETIMEDOUT" ||
+        (err.code === "ECONNABORTED" && /timeout/i.test(err.message)))
 
 /** True for the 403 a coach, a scout or an org actor gets on every endpoint. */
 export const isMatchDiaryForbidden = (err: unknown): boolean =>

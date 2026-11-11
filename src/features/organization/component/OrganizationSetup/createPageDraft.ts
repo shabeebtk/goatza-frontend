@@ -249,17 +249,40 @@ export function normalizeWebsite(raw: string): string {
 
 export const WEBSITE_ERROR = "Enter a web address, like yourclub.com"
 
+/**
+ * The address as it is SENT. A link pasted from a social profile often has
+ * spaces in its path ("fb.com/Kannur FC Academy"); the browser's URL parser
+ * takes them, Django's URLValidator refuses any whitespace, so they go as %20.
+ * The field keeps showing what was typed.
+ */
+export const toServerWebsite = (website: string): string => website.replace(/\s/g, "%20")
+
+/**
+ * One host label the way Django's URLValidator takes it, once the browser has
+ * punycoded the host: letters, digits and inner hyphens. No underscore —
+ * `new URL` accepts "my_club.com", the server answers 400.
+ */
+const HOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+/** The last label: two letters or more ("club.c" is refused there too), or punycode. */
+const TOP_LEVEL_LABEL = /^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/
+
 export function validateWebsite(raw: string): string | null {
   const value = normalizeWebsite(raw)
   if (!value) return null
-  if (value.length > WEBSITE_MAX) return `Web address can be up to ${WEBSITE_MAX} characters`
+  if (toServerWebsite(value).length > WEBSITE_MAX) {
+    return `Web address can be up to ${WEBSITE_MAX} characters`
+  }
   try {
     const url = new URL(value)
     if (url.protocol !== "http:" && url.protocol !== "https:") return WEBSITE_ERROR
-    // A host with a dot (yourclub.com), not "https://club".
-    if (!url.hostname.includes(".") || url.hostname.startsWith(".") || url.hostname.endsWith(".")) {
+    // A host with a dot (yourclub.com), not "https://club", and one the
+    // server's validator will take: the same rules, so nothing that passes
+    // here comes back as a 400 after the Review.
+    const labels = url.hostname.split(".")
+    if (labels.length < 2 || !labels.every((label) => HOST_LABEL.test(label))) {
       return WEBSITE_ERROR
     }
+    if (!TOP_LEVEL_LABEL.test(labels[labels.length - 1])) return WEBSITE_ERROR
     return null
   } catch {
     return WEBSITE_ERROR
@@ -394,7 +417,7 @@ export function buildCreatePayload(draft: CreateDraft): CreateOrganizationPayloa
 
   const headline    = draft.headline.trim()
   const description = draft.description.trim()
-  const website     = normalizeWebsite(draft.website)
+  const website     = toServerWebsite(normalizeWebsite(draft.website))
   const city        = draft.city
 
   return {

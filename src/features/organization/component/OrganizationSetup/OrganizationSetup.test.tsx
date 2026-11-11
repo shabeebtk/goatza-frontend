@@ -20,6 +20,7 @@ import OrganizationSetup, { STEP_TAP_GUARD_MS } from "./OrganizationSetup"
 import { DRAFT_STORAGE_KEY, EMPTY_DRAFT, type CreateDraft } from "./createPageDraft"
 import { CREATE_ORG_CONNECTION_MESSAGE, CreateOrgError } from "../../services/organization.api"
 import { createEligibilityKey, orgKeys } from "../../hooks/useOrganizations"
+import { CREATE_PHOTO_BUDGET_MS } from "../../hooks/useCreateOrganization"
 import type { OrganizationMini } from "../../types"
 import { useAuthStore } from "@/store/auth.store"
 
@@ -736,6 +737,57 @@ describe("creating the page", () => {
     expect(warning.title).toBe(
       "Your page is live, but the cover didn't upload. Add it from your page."
     )
+  })
+
+  it("gives up on a photo that never finishes, and still lands", async () => {
+    // The budget's timer is run by hand: fake timers would also stop the
+    // testing library's own polling.
+    const realSetTimeout = globalThis.setTimeout
+    const budgets: (() => void)[] = []
+    const timeouts = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      callback: () => void,
+      ms?: number,
+      ...rest: unknown[]
+    ) => {
+      if (ms === CREATE_PHOTO_BUDGET_MS) {
+        budgets.push(callback)
+        return 0
+      }
+      return realSetTimeout(callback, ms, ...rest)
+    }) as unknown as typeof setTimeout)
+
+    mocks.createOrganizationApi.mockResolvedValue(CREATED)
+    mocks.getMyOrganizationsAsPersonApi.mockResolvedValue([ORG_NEW_LISTED])
+    mocks.uploadOrgPhoto.mockImplementation(
+      ({ type, signal }: { type: string; signal: AbortSignal }) =>
+        type === "cover"
+          ? Promise.resolve("https://media.example.com/organizations/org-new/cover.webp?v=1")
+          : new Promise((_, reject) => {
+              // A logo request that never answers, until the budget runs out.
+              signal.addEventListener("abort", () => reject(new Error("aborted")))
+            })
+    )
+
+    try {
+      await fillToReview()
+      tapPrimary(createButton())
+
+      expect(await screen.findByRole("button", { name: "Uploading logo…" })).toBeTruthy()
+      expect(budgets).toHaveLength(1)
+      act(() => budgets[0]())
+
+      await waitFor(() =>
+        expect(nav.replace).toHaveBeenCalledWith("/organization/admin/org-new/dashboard")
+      )
+      const warning = mocks.toastShow.mock.calls
+        .map(([options]) => options)
+        .find((options) => options.variant === "warning")
+      expect(warning.title).toBe(
+        "Your page is live, but the logo didn't upload. Add it from your page."
+      )
+    } finally {
+      timeouts.mockRestore()
+    }
   })
 
   it("refuses while offline", async () => {
