@@ -34,6 +34,31 @@ describe("redactSecretPaths", () => {
     ).toBe("/api/organizations/invites/token/[redacted]/accept")
   })
 
+  it("removes a squad invite token from the page and its API calls", () => {
+    expect(redactSecretPaths(`https://goatza.com/squad-invite/${REAL_TOKEN}`)).toBe(
+      "https://goatza.com/squad-invite/[redacted]",
+    )
+    expect(redactSecretPaths(`https://goatza.com/api/squads/invite/${REAL_TOKEN}`)).toBe(
+      "https://goatza.com/api/squads/invite/[redacted]",
+    )
+    expect(redactSecretPaths(`/api/squads/invite/${TOKEN}/join`)).toBe(
+      "/api/squads/invite/[redacted]/join",
+    )
+  })
+
+  it("leaves the club's own squad invite routes alone", () => {
+    const squadId = "0190e1a2-3b4c-7d5e-8f60-718293a4b5c6"
+    const memberId = "0190e1a2-3b4c-7d5e-8f60-000000000001"
+    for (const path of [
+      `/api/squads/${squadId}/invite-link`,
+      `/api/squads/${squadId}/invite-link/reset`,
+      `/api/squads/${squadId}/invites/${memberId}/cancel`,
+      `/api/squads/${squadId}/invites`,
+    ]) {
+      expect(redactSecretPaths(path)).toBe(path)
+    }
+  })
+
   it("leaves the invite routes that carry no token alone", () => {
     expect(redactSecretPaths("/organizations/invites/mine")).toBe(
       "/organizations/invites/mine",

@@ -8,6 +8,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import CareerAddPromptSheet from "@/features/career/components/CareerAddPromptSheet/CareerAddPromptSheet"
 import OrgInviteActions from "@/features/orgMembers/components/OrgInviteActions/OrgInviteActions"
+import SquadInviteActions from "@/features/squads/components/SquadInviteActions/SquadInviteActions"
 import NotificationBell from "../NotificationBell/NotificationBell"
 import {
   useNotifications,
@@ -48,6 +49,13 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   org_invite: "mdi:account-plus-outline",
   org_invite_accepted: "mdi:account-check-outline",
   org_invite_declined: "mdi:account-remove-outline",
+  squad_join_request: "mdi:account-multiple-plus-outline",
+  squad_invite: "mdi:shield-account-outline",
+  squad_request_approved: "mdi:check-decagram",
+  squad_request_declined: "mdi:close-circle-outline",
+  squad_invite_accepted: "mdi:account-check-outline",
+  squad_member_removed: "mdi:account-remove-outline",
+  squad_member_moved: "mdi:swap-horizontal",
   org_member_removed: "mdi:account-minus-outline",
   org_role_changed: "mdi:account-convert-outline",
   org_owner_changed: "mdi:shield-account-outline",
@@ -78,6 +86,13 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   org_invite: "var(--color-brand)",
   org_invite_accepted: "var(--color-brand)",
   org_invite_declined: "var(--color-text-muted)",
+  squad_join_request: "var(--color-brand)",
+  squad_invite: "var(--color-brand)",
+  squad_request_approved: "var(--color-brand)",
+  squad_request_declined: "var(--color-text-muted)",
+  squad_invite_accepted: "var(--color-brand)",
+  squad_member_removed: "var(--color-text-muted)",
+  squad_member_moved: "var(--color-brand)",
   org_member_removed: "var(--color-text-muted)",
   org_role_changed: "#7c3aed",
   // Amber: it is a safeguard, and something an owner may want to look into.
@@ -124,6 +139,11 @@ function NotificationItem({
   // link nor a button, because it holds two buttons of its own.
   const isOrgInvite = notif.type === "org_invite"
   const orgInviteId = isOrgInvite ? notif.data?.invite_id : undefined
+
+  // The same for a squad's invite: Accept / Decline in place, the open state
+  // from /squads/mine rather than from this snapshot.
+  const isSquadInvite = notif.type === "squad_invite"
+  const squadInviteId = isSquadInvite ? notif.data?.member_id : undefined
 
   // Platform-voiced: nobody did this, so there is no actor to show — the row
   // is from Goatza. The text names what failed; the server's sentence for
@@ -241,6 +261,19 @@ function NotificationItem({
           </>
         )}
 
+        {squadInviteId && (
+          <SquadInviteActions
+            memberId={squadInviteId}
+            squadId={notif.data?.squad?.id}
+            squadName={notif.data?.squad?.name ?? "the squad"}
+            orgUsername={notif.data?.organization?.username}
+            jerseyNumber={notif.data?.jersey_number}
+            positionName={notif.data?.position_name}
+            recruitmentTitle={(notif.data?.recruitment_title as string | undefined) || undefined}
+            onAnswered={handleClick}
+          />
+        )}
+
         {orgInviteId && (
           <OrgInviteActions
             inviteId={orgInviteId}
@@ -288,7 +321,7 @@ function NotificationItem({
   // The add-to-career prompt is the one type that is an ACTION rather than a
   // destination — it opens the confirm sheet in place, so it renders as a
   // button instead of a link.
-  if (isOrgInvite) {
+  if (isOrgInvite || isSquadInvite) {
     return (
       <div className={`${styles.item} ${!notif.is_read ? styles.itemUnread : ""}`}>
         {body}

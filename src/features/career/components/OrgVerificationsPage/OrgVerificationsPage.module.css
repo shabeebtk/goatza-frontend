@@ -321,6 +321,36 @@
 .secondaryBtn:disabled,
 .dangerBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Three actions on a phone ────────────────────────────────
+   With "Verify and add to squad" a pending row has three actions, and below
+   768px they no longer fit one row: the long label wrapped. So the two verifies
+   sit side by side, the squad one with its short label (the button keeps the
+   full name as its aria-label), and Reject drops under them as a text button.
+   Desktop is unchanged. */
+
+.labelShort { display: none; }
+
+@media (max-width: 767px) {
+  .rowActionsSquad {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rowActionsSquad > button {
+    white-space: nowrap;
+  }
+
+  .rowActionsSquad .labelFull { display: none; }
+  .rowActionsSquad .labelShort { display: inline; }
+
+  .rowActionsSquad .rejectBtn {
+    grid-column: 1 / -1;
+    justify-self: center;
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
 /* ── Reject confirm ──────────────────────────────────────────── */
 
 .rejectConfirm {

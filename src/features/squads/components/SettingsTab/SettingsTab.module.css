@@ -1,0 +1,182 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.lockNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.lockNote svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Invite link ──────────────────────────────────────────── */
+
+.linkBox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.linkText {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linkOff {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+/* Outline, in the error colour: resetting breaks every link already shared. */
+.dangerOutline {
+  align-self: flex-start;
+  border-color: var(--color-error);
+  color: var(--color-error-strong);
+}
+
+/* ── Photo ────────────────────────────────────────────────── */
+
+.photoField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.photoPreview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 240px;
+  border-radius: var(--radius-md);
+}
+
+.photoActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ── Details form ─────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+}
+
+.chipOn,
+.chipOn:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-strong);
+}
+
+.chip:focus-visible,
+.deleteBtn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Delete ───────────────────────────────────────────────── */
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  align-self: center;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-error-strong);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.deleteBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+.deleteBtn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

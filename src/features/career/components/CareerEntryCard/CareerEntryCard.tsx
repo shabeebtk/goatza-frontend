@@ -11,6 +11,7 @@
  */
 
 import { useState } from "react"
+import Link from "next/link"
 import { Icon } from "@iconify/react"
 
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
@@ -21,6 +22,7 @@ import {
 } from "../../careerMeta"
 import type { CareerEntry } from "../../types"
 import { careerDuration, formatCareerRange } from "../../utils/careerDates"
+import { publicSquadPath } from "@/features/squads/squadUtils"
 import styles from "./CareerEntryCard.module.css"
 
 /**
@@ -84,6 +86,44 @@ export function VerificationLine({ entry }: { entry: CareerEntry }) {
     )
 }
 
+// ── The squad behind the stint ────────────────────────────────
+
+/**
+ * "#9 U17 Boys · Centre-back · Captain": the club's squad this stint is backed
+ * by. The chip links to the squad's public page when the club is a linked page
+ * with a handle (an entry for a club that is only a typed name has no page).
+ */
+export function SquadLine({ entry }: { entry: CareerEntry }) {
+    const squad = entry.squad
+    if (!squad) return null
+
+    const username = entry.organization?.username
+    const chip = (
+        <>
+            {squad.jersey_number != null && (
+                <span className={styles.squadNumber}>#{squad.jersey_number}</span>
+            )}
+            <span className={styles.squadName}>{squad.name}</span>
+        </>
+    )
+
+    return (
+        <p className={styles.squadLine}>
+            {username ? (
+                <Link href={publicSquadPath(username, squad.id)} className={styles.squadPill}>
+                    {chip}
+                </Link>
+            ) : (
+                <span className={styles.squadPill}>{chip}</span>
+            )}
+            {squad.position_name && (
+                <span className={styles.squadPosition}>{squad.position_name}</span>
+            )}
+            {squad.is_captain && <span className={styles.captainBadge}>Captain</span>}
+        </p>
+    )
+}
+
 // ── Card ──────────────────────────────────────────────────────
 
 interface CareerEntryCardProps {
@@ -140,6 +180,7 @@ export default function CareerEntryCard({
                         <p className={styles.orgName}>
                             {entry.organization_name}
                         </p>
+                        <SquadLine entry={entry} />
                         <p className={styles.dateRange}>
                             {range}
                             {duration && (

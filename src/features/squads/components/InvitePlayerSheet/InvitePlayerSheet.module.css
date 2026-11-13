@@ -1,0 +1,42 @@
+.searchWrap {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.search {
+  padding-left: calc(var(--space-3) + 28px);
+}
+
+/* Someone who asked to join: the row is not one button, it carries "Add now". */
+.pendingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warn) 8%, transparent);
+}
+
+.pendingPerson {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.pendingSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}

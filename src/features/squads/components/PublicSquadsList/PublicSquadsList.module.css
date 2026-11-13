@@ -1,0 +1,39 @@
+.page {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4) var(--space-16);
+  box-sizing: border-box;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+.skeletonCard {
+  display: block;
+  aspect-ratio: 16 / 11;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  animation: shimmer 1.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonCard {
+    animation: none;
+  }
+}

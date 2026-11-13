@@ -14,8 +14,11 @@ import styles from "./UnavailableState.module.css"
  */
 export default function UnavailableState({
   icon = "mdi:compass-off-outline",
+  title = "This isn't available any more",
 }: {
   icon?: string
+  /** The one line. Default: "This isn't available any more". Never says why. */
+  title?: string
 }) {
   const isOrgAdminView = useAuthStore((s) => s.isOrgAdminView)
   const actorId = useAuthStore((s) => s.actorId)
@@ -31,7 +34,7 @@ export default function UnavailableState({
   return (
     <div className={styles.state}>
       <Icon icon={icon} width={40} height={40} className={styles.icon} aria-hidden="true" />
-      <p className={styles.title}>This isn&apos;t available any more</p>
+      <p className={styles.title}>{title}</p>
       <Link href={home} className={styles.link}>
         Go home
       </Link>

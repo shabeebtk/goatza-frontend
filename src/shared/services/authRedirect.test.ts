@@ -131,6 +131,24 @@ describe("An organization invite link", () => {
   })
 })
 
+describe("A squad invite link", () => {
+  // token_urlsafe(24): base64url, dashes and underscores, never a dot.
+  const token = "q7-Xk_9LmZ2vTn4R8sWb-Y_1cDe5Fg6H"
+
+  it("is somewhere a person may land after signing in", () => {
+    expect(safeNextPath(`/squad-invite/${token}`)).toBe(`/squad-invite/${token}`)
+  })
+
+  it("survives the trip through /auth, in either mode", () => {
+    for (const mode of ["login", "signup"] as const) {
+      const url = authUrlWithNext(`/squad-invite/${token}`, mode)
+      const params = new URLSearchParams(url.split("?")[1])
+      expect(params.get("next")).toBe(`/squad-invite/${token}`)
+      expect(params.get("mode")).toBe(mode === "signup" ? "signup" : null)
+    }
+  })
+})
+
 describe("authUrlWithNext", () => {
   it("is a plain /auth when there is no value", () => {
     expect(authUrlWithNext(null)).toBe("/auth")

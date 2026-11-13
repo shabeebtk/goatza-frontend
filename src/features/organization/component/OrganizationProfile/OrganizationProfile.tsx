@@ -31,6 +31,7 @@ import UnavailableState from "@/shared/components/UnavailableState/UnavailableSt
 import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import RecruitmentsList from "@/features/recruitments/components/RecruitmentsList/RecruitmentsList"
+import OrgSquadsSection from "@/features/squads/components/OrgSquadsSection/OrgSquadsSection"
 
 // ── Constants ──────────────────────────────────────────────────────
 
@@ -749,6 +750,15 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                             </>
                         )}
 
+
+                        {/* ── Squads ───────────────────────────────────── */}
+                        {/* Before Posts. Brings its own divider, because it is
+                            not there at all when the club shows no squads. */}
+                        <OrgSquadsSection
+                            orgId={orgId}
+                            username={org.username}
+                            anonymous={isPublicView}
+                        />
 
                         <div className={styles.sectionDivider} />
                         <PostsList

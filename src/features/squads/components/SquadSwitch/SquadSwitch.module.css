@@ -1,0 +1,88 @@
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.bordered {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.hint {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 26px;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.18s ease, opacity 0.18s ease;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.on {
+  background: var(--color-brand);
+}
+
+.busy {
+  opacity: 0.7;
+}
+
+/* White in both themes, like every switch knob in the app. */
+.knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--primitive-neutral-0);
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.18s var(--ease-out);
+}
+
+.on .knob {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .knob {
+    transition: none;
+  }
+}

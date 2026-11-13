@@ -43,7 +43,11 @@ export const CAREER_VERIFICATION_STATUSES = [
 export type CareerVerificationStatus =
     (typeof CAREER_VERIFICATION_STATUSES)[number]
 
-export const CAREER_SOURCES = ["manual", "recruitment"] as const
+/**
+ * "squad": the club made the entry itself, by putting the player in a squad
+ * (apps/squads). The server sends it, so parsing must accept it.
+ */
+export const CAREER_SOURCES = ["manual", "recruitment", "squad"] as const
 
 export type CareerSource = (typeof CAREER_SOURCES)[number]
 
@@ -123,6 +127,21 @@ export type CareerPosition = z.infer<typeof careerPositionSchema>
 
 // ── Career entry ──────────────────────────────────────────────
 
+/**
+ * The squad a stint is backed by: the player's ACTIVE place in one of the club's
+ * PUBLIC squads (the server sends nothing for a hidden one). Optional as well as
+ * nullable: an older payload has no key at all.
+ */
+export const careerSquadSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    jersey_number: z.number().nullable(),
+    is_captain: z.boolean(),
+    position_name: z.string(),
+})
+
+export type CareerSquad = z.infer<typeof careerSquadSchema>
+
 export const careerEntrySchema = z.object({
     id: z.string(),
 
@@ -150,6 +169,8 @@ export const careerEntrySchema = z.object({
     verification_status: z.enum(CAREER_VERIFICATION_STATUSES),
     verified_at: z.string().nullable(),
     source: z.enum(CAREER_SOURCES),
+
+    squad: careerSquadSchema.nullable().optional(),
 
     created_at: z.string(),
     updated_at: z.string(),

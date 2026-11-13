@@ -59,6 +59,10 @@ export interface OrgPhotoCropSheetProps {
   onDone:   (blob: Blob) => void | Promise<void>
   /** The confirm button's words. Default "Apply". */
   confirmLabel?: string
+  /** The crop's width / height. Default: the type's own (1 for a logo, the cover ratio). */
+  aspect?: number
+  /** The sheet's heading. Default: "Crop logo" / "Crop cover". */
+  title?: string
 }
 
 export default function OrgPhotoCropSheet({
@@ -67,6 +71,8 @@ export default function OrgPhotoCropSheet({
   onCancel,
   onDone,
   confirmLabel = "Apply",
+  aspect,
+  title,
 }: OrgPhotoCropSheetProps) {
   const titleId = useId()
   // An object URL, not a data URL: nothing read into memory twice. ONE per
@@ -129,7 +135,7 @@ export default function OrgPhotoCropSheet({
           aria-labelledby={titleId}
         >
           <div className={styles.header}>
-            <h2 id={titleId} className={styles.title}>{TITLES[type]}</h2>
+            <h2 id={titleId} className={styles.title}>{title ?? TITLES[type]}</h2>
             <button
               type="button"
               className={styles.close}
@@ -149,7 +155,7 @@ export default function OrgPhotoCropSheet({
               image={src}
               crop={crop}
               zoom={zoom}
-              aspect={ORG_PHOTO_ASPECT[type]}
+              aspect={aspect ?? ORG_PHOTO_ASPECT[type]}
               cropShape="rect"
               showGrid={type === "cover"}
               onCropChange={setCrop}

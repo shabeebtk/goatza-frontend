@@ -1,0 +1,56 @@
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.jerseyInput {
+  max-width: 120px;
+  font-variant-numeric: tabular-nums;
+}
+
+.picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.pick {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pick:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+}
+
+.pick:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.pickOn,
+.pickOn:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-strong);
+}
+
+.free {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-brand-strong);
+}

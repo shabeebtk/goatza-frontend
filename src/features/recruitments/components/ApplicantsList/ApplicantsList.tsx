@@ -1435,6 +1435,8 @@ export default function ApplicantsList({
           ageCategories={ageCategories}
           recruitmentTitle={recruitmentTitle}
           orgName={orgName}
+          orgId={orgId}
+          sportId={sportId}
           onClose={closeApplicant}
         />
       )}

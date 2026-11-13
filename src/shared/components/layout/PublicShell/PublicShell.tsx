@@ -68,8 +68,9 @@ const CONTENT_FIRST_ROUTES = [
  * and it cannot be listed above because the token is part of the path.
  *
  * `/org-invite/<token>` is the same: most people opening it have no session yet.
+ * So is `/squad-invite/<token>`, a squad's link shared in a club's group chat.
  */
-const CONTENT_FIRST_PREFIXES = ["/guardian/", "/org-invite/"]
+const CONTENT_FIRST_PREFIXES = ["/guardian/", "/org-invite/", "/squad-invite/"]
 
 function isContentFirst(pathname: string | null): boolean {
   const path = pathname ?? ""

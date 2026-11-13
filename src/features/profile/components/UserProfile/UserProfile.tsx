@@ -10,6 +10,7 @@ import PhotoEditModal from "@/features/profile/components/PhotoEditModal/PhotoEd
 import EditProfileModal from "@/features/profile/components/EditProfileModal/EditProfileModal"
 import UserSportsSection from "../UserSportsSection/UserSportsSection"
 import CareerSection from "@/features/career/components/CareerSection/CareerSection"
+import YourSquadsCard from "@/features/squads/components/YourSquadsCard/YourSquadsCard"
 import AchievementsSection from "@/features/achievements/components/AchievementsSection/AchievementsSection"
 import MatchDiarySection from "@/features/matchDiary/components/MatchDiarySection/MatchDiarySection"
 import UnavailableState from "@/shared/components/UnavailableState/UnavailableState"
@@ -518,6 +519,11 @@ export default function UserProfile({
               username={profile.username}
               isOwn={isMe}
             />
+
+            {/* The owner's own squads, right under Career: what they are in, the
+                invites waiting for them and the requests they sent. Never shown
+                to anybody else, and absent when there is nothing in it. */}
+            {isMe && <YourSquadsCard />}
 
             {/* Achievements — last section, directly under Career: the awards
                 only mean anything against the stints that produced them, and

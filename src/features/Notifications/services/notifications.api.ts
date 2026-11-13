@@ -87,6 +87,20 @@ export type NotificationType =
   | "org_role_changed"
   /** Owner-side: another owner was removed or demoted. The safeguard. */
   | "org_owner_changed"
+  /** Club-side: someone asked to join a squad through its link. */
+  | "squad_join_request"
+  /** Player-side: a club invited them. The card answers in place, like org_invite. */
+  | "squad_invite"
+  /** Player-side: the club approved their request (or verified them into a squad). */
+  | "squad_request_approved"
+  /** Player-side: the club said no. */
+  | "squad_request_declined"
+  /** Club-side: a player accepted the club's invite. */
+  | "squad_invite_accepted"
+  /** Player-side: the club took them out of a squad. */
+  | "squad_member_removed"
+  /** Player-side: the club moved them to another squad. */
+  | "squad_member_moved"
 
 export type NotificationRecruitment = {
   id: string
@@ -135,6 +149,13 @@ export type NotificationData = {
   invite_id?: string
   /** The organization* types: the org they are about. */
   organization?: { id: string; name: string; username: string; logo: string }
+  /** The squad_* types: the squad they are about. */
+  squad?: { id: string; name: string }
+  /** squad_invite: what Accept and Decline answer, and what the club offered. */
+  member_id?: string
+  position_name?: string
+  jersey_number?: number | null
+  inviter_name?: string
   [key: string]: unknown
 }
 

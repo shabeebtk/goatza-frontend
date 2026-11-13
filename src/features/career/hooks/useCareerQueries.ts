@@ -41,6 +41,7 @@ import {
     type CareerFromApplicationPayload,
     type CreateCareerEntryPayload,
     type UpdateCareerEntryPayload,
+    type VerifyIntoSquadBody,
 } from "../services/career.api"
 import type {
     CareerEntry,
@@ -357,7 +358,13 @@ type ReviewPages = {
 type QueueSnapshot = { prev?: ReviewPages }
 
 const useReviewDecision = <V extends ReviewDecisionVariables>(
-    mutationFn: (variables: V) => Promise<CareerEntry>
+    mutationFn: (variables: V) => Promise<CareerEntry>,
+    {
+        ownsError,
+    }: {
+        /** An error the caller shows itself (inline), so no toast here. */
+        ownsError?: (err: Error) => boolean
+    } = {}
 ) => {
     const toast = useToast()
     const qc = useQueryClient()
@@ -403,7 +410,9 @@ const useReviewDecision = <V extends ReviewDecisionVariables>(
                     ctx.prev
                 )
             }
-            toast.show({ title: getCareerErrorMessage(err), variant: "error" })
+            if (!ownsError?.(err)) {
+                toast.show({ title: getCareerErrorMessage(err), variant: "error" })
+            }
         },
 
         onSettled: (_data, _err, variables) => {
@@ -424,6 +433,23 @@ const useReviewDecision = <V extends ReviewDecisionVariables>(
 export const useVerifyCareerEntry = () =>
     useReviewDecision<ReviewDecisionVariables>(({ entryId }) =>
         verifyCareerEntryApi(entryId)
+    )
+
+export type VerifyIntoSquadVariables = ReviewDecisionVariables & {
+    squad: VerifyIntoSquadBody
+}
+
+/**
+ * "Verify and add to squad": a verify that also puts the player in a squad. The
+ * queue behaves exactly as for a plain verify; `ownsError` lets the sheet show
+ * a squad refusal inline instead of as a toast (the career ones still toast).
+ */
+export const useVerifyCareerEntryIntoSquad = (
+    options: { ownsError?: (err: Error) => boolean } = {}
+) =>
+    useReviewDecision<VerifyIntoSquadVariables>(
+        ({ entryId, squad }) => verifyCareerEntryApi(entryId, squad),
+        options
     )
 
 /**

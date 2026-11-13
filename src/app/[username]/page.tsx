@@ -89,6 +89,8 @@ const RESERVED = new Set([
   "scouting",
   "search",
   "settings",
+  // A squad's invite link, /squad-invite/<token>.
+  "squad-invite",
   // Generated at the root.
   "favicon.ico",
   "robots.txt",
