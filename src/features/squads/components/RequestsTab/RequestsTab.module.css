@@ -1,0 +1,274 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-brand);
+  cursor: pointer;
+}
+
+.selectAll {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.cardSelected {
+  border-color: var(--color-brand);
+  background: var(--color-brand-subtle);
+}
+
+.cardMain {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardName {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.cardSub {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.timeChip {
+  margin-top: 2px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.openBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.openBtn:hover {
+  background: var(--color-surface-raised);
+}
+
+.openBtn:focus-visible,
+.invitesToggle:focus-visible,
+.textAction:focus-visible,
+.cardMain:focus-within {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Invites ──────────────────────────────────────────────── */
+
+.invites {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.invitesToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.invitesSee {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--color-brand-strong);
+}
+
+.inviteList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.inviteRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inviteRow:last-child {
+  border-bottom: none;
+}
+
+.inviteRow .cardText {
+  flex: 1;
+}
+
+/* ── Sticky footer ────────────────────────────────────────── */
+
+/* Above the phone's bottom bar while it shows, following it as it slides away
+   (--chrome-progress, the same value useScrollChrome moves the bar with). */
+.footer {
+  position: sticky;
+  bottom: calc((var(--bottom-nav-h) + var(--safe-bottom)) * (1 - var(--chrome-progress, 0)));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) calc(var(--space-4) * -1) 0;
+  padding: var(--space-3) var(--space-4)
+    calc(var(--space-3) + var(--safe-bottom) * var(--chrome-progress, 0));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+@media (min-width: 768px) {
+  .footer {
+    bottom: 0;
+    margin: var(--space-2) 0 0;
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + var(--safe-bottom));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+.footerHint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.footerActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.approveBtn {
+  flex: 1;
+}
+
+/* ── States ───────────────────────────────────────────────── */
+
+.empty,
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.empty p,
+.state p {
+  margin: 0;
+}
+
+.textAction {
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--color-brand-strong);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+.skeletonCard {
+  height: 76px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  animation: shimmer 1.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonCard {
+    animation: none;
+  }
+
+  .card {
+    transition: none;
+  }
+}

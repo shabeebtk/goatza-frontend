@@ -1,0 +1,56 @@
+.band {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-raised);
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  /* A caller that lays something along the bottom (the page's stats) sets this,
+     so the icon and the hint stay centred in what is left above it. */
+  padding-bottom: var(--squad-photo-bottom-inset, 0px);
+  color: var(--color-text-muted);
+}
+
+.placeholderIcon {
+  opacity: 0.8;
+}
+
+.addHint {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* Over a photo nobody vetted, so it takes the poster's always-dark ground and
+   text (globals.css), not the theme's: a white photo must not swallow it. */
+.sportChip {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  max-width: calc(100% - var(--space-4));
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: rgba(var(--color-poster-ground-rgb), 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--color-poster-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

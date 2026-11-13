@@ -220,3 +220,43 @@ describe("degradation", () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 })
+
+describe("squad entries", () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SITE_URL = SITE
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000"
+  })
+
+  it("adds every squad the feed lists, under its club's profile", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      feedResponse({
+        ...FEED,
+        squads: [
+          {
+            org_username: "dreamfc",
+            squad_id: "sq-1",
+            updated_at: "2026-11-10T09:00:00+00:00",
+          },
+        ],
+      })
+    )
+
+    const entries = await (await load())()
+    const squad = entries.find((entry) =>
+      entry.url.endsWith("/organization/profile/dreamfc/squads/sq-1")
+    )
+
+    expect(squad?.url).toBe(`${SITE}/organization/profile/dreamfc/squads/sq-1`)
+    expect(squad?.lastModified).toEqual(new Date("2026-11-10T09:00:00+00:00"))
+  })
+
+  it("still lists users and orgs from a feed with no squads key", async () => {
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValue(feedResponse(FEED))
+
+    const listed = urls(await (await load())())
+
+    expect(listed).toContain(`${SITE}/profile/striker`)
+    expect(listed).toContain(`${SITE}/organization/profile/dreamfc`)
+    expect(listed.some((url) => url.includes("/squads/"))).toBe(false)
+  })
+})

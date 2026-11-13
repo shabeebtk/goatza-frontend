@@ -77,6 +77,11 @@ export type MediaUploadType =
     | "matches"
     /** Problem-report screenshots — up to 3 images, no video, no thumbs. */
     | "support"
+    /**
+     * A squad's photo — org only (signed with `org_id`, scoped server-side to
+     * organizations/<id>/squads), one image, no video.
+     */
+    | "squads"
 
 /**
  * What a file IS, not what it contains: the server pairs a "video" with exactly

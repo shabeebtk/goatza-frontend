@@ -24,7 +24,7 @@
  * a generic failure.
  */
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Icon } from "@iconify/react"
 import { isAxiosError } from "axios"
@@ -32,6 +32,10 @@ import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 import OrgAchievementVerifications from "@/features/achievements/components/OrgAchievementVerifications/OrgAchievementVerifications"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
+import { useSquads } from "@/features/squads/hooks/useSquads"
+import type { SquadListItem } from "@/features/squads/types"
+import VerifyIntoSquadSheet from "@/features/squads/components/VerifyIntoSquadSheet/VerifyIntoSquadSheet"
+import { ORG_PERMISSIONS, useOrgPermission } from "@/shared/permissions/orgPermissions"
 import { CAREER_SQUAD_LEVEL_LABELS } from "../../careerMeta"
 import {
     useActingOrganizationId,
@@ -124,12 +128,15 @@ function RequestRow({
     busy,
     tab,
     onVerify,
+    onVerifyIntoSquad,
     onReject,
 }: {
     request: CareerVerificationRequest
     busy: boolean
     tab: CareerReviewTab
     onVerify: () => void
+    /** "Verify and add to squad": only on a pending claim, and only when offered. */
+    onVerifyIntoSquad?: () => void
     onReject: () => void
 }) {
     const decided = tab === "decided"
@@ -217,7 +224,11 @@ function RequestRow({
                 </span>
             )}
 
-            <div className={styles.rowActions}>
+            <div
+                className={`${styles.rowActions} ${
+                    !decided && onVerifyIntoSquad ? styles.rowActionsSquad : ""
+                }`}
+            >
                 {/* In history only the OPPOSITE action is offered — re-doing the
                     decision you already made is a no-op the API refuses. */}
                 {!isVerified && (
@@ -241,9 +252,26 @@ function RequestRow({
                     </button>
                 )}
 
-                {(!decided || isVerified) && (
+                {!decided && onVerifyIntoSquad && (
                     <button
                         className={styles.secondaryBtn}
+                        onClick={onVerifyIntoSquad}
+                        type="button"
+                        disabled={busy}
+                        // The phone shows the short label; the name stays whole.
+                        aria-label="Verify and add to squad"
+                    >
+                        <Icon icon="mdi:shield-account-outline" width={16} height={16} />
+                        <span className={styles.labelFull}>Verify and add to squad</span>
+                        <span className={styles.labelShort} aria-hidden="true">
+                            Add to squad
+                        </span>
+                    </button>
+                )}
+
+                {(!decided || isVerified) && (
+                    <button
+                        className={`${styles.secondaryBtn} ${styles.rejectBtn}`}
                         onClick={onReject}
                         type="button"
                         disabled={busy}
@@ -291,6 +319,21 @@ export default function OrgVerificationsPage() {
 
     const verify = useVerifyCareerEntry()
     const reject = useRejectCareerEntry()
+
+    // "Verify and add to squad" needs both permissions, and a live squad of the
+    // claim's sport. One list for the whole queue, grouped by sport here.
+    const canVerify = useOrgPermission(ORG_PERMISSIONS.VERIFICATIONS_REVIEW)
+    const canReviewSquads = useOrgPermission(ORG_PERMISSIONS.SQUADS_REVIEW)
+    const offerSquads = canVerify && canReviewSquads && domain === "career"
+    const { data: squads } = useSquads(organizationId ?? "", { enabled: offerSquads })
+    const squadsBySport = useMemo(() => {
+        const bySport = new Map<string, SquadListItem[]>()
+        for (const squad of offerSquads ? (squads ?? []) : []) {
+            bySport.set(squad.sport.id, [...(bySport.get(squad.sport.id) ?? []), squad])
+        }
+        return bySport
+    }, [offerSquads, squads])
+    const [verifyingInto, setVerifyingInto] = useState<CareerVerificationRequest | null>(null)
 
     const [rejectingId, setRejectingId] = useState<string | null>(null)
     const [actingId, setActingId] = useState<string | null>(null)
@@ -530,6 +573,13 @@ export default function OrgVerificationsPage() {
                                 busy={actingId === request.id}
                                 tab={tab}
                                 onVerify={() => handleVerify(request)}
+                                onVerifyIntoSquad={
+                                    tab === "pending" &&
+                                    request.verification_status === "pending" &&
+                                    squadsBySport.has(request.sport.id)
+                                        ? () => setVerifyingInto(request)
+                                        : undefined
+                                }
                                 onReject={() => setRejectingId(request.id)}
                             />
                         )
@@ -559,6 +609,16 @@ export default function OrgVerificationsPage() {
                         </button>
                     )}
                 </div>
+            )}
+
+            {verifyingInto && organizationId && (
+                <VerifyIntoSquadSheet
+                    orgId={organizationId}
+                    request={verifyingInto}
+                    squads={squadsBySport.get(verifyingInto.sport.id) ?? []}
+                    tab={tab}
+                    onClose={() => setVerifyingInto(null)}
+                />
             )}
         </div>
     )

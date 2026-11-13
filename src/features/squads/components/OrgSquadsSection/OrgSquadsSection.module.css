@@ -1,0 +1,77 @@
+/* The same chrome as the org profile's other sections (OrganizationProfile
+   .sectionDivider / .section / .sectionTitle), carried here so the whole block,
+   divider included, goes when there is nothing to show. */
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.count {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.manage {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-brand-strong);
+  text-decoration: none;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .list {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+.seeAll {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-brand-strong);
+  text-decoration: none;
+}
+
+.manage:focus-visible,
+.seeAll:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

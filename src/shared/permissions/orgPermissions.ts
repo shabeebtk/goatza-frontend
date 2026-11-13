@@ -24,6 +24,12 @@ export const ORG_PERMISSIONS = {
   VERIFICATIONS_REVIEW: "verifications.review",
   ORG_BLOCK: "org.block",
   ORG_RECEIVE_ALERTS: "org.receive_alerts",
+  /** See the club's squads (owner, coach, staff). */
+  SQUADS_VIEW: "squads.view",
+  /** Answer requests, invite, and edit, remove or move players (owner, coach). */
+  SQUADS_REVIEW: "squads.review",
+  /** Create, edit and delete squads: photo, visibility, invite link, staff (owner). */
+  SQUADS_MANAGE: "squads.manage",
 } as const
 
 export type OrgPermission = (typeof ORG_PERMISSIONS)[keyof typeof ORG_PERMISSIONS]

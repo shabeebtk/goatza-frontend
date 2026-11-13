@@ -203,10 +203,27 @@ export const fetchVerificationRequestsApi = async (params: {
     return careerVerificationRequestListSchema.parse(res.data.data)
 }
 
+/**
+ * "Verify and add to squad": the same verify, plus the squad the club puts the
+ * player in (it also needs squads.review). Refusals about the squad come back in
+ * the squads shape, `data.code` (squadErrors.ts reads them).
+ */
+export type VerifyIntoSquadBody = {
+    squad_id: string
+    position_id?: string
+    jersey_number?: number
+}
+
+/**
+ * Confirm a claim. A plain verify sends `{}` exactly as it always has; with a
+ * body it also adds the player to that squad. The response is the same entry
+ * (plus `squad_member` when added, which the schema drops).
+ */
 export const verifyCareerEntryApi = async (
-    entryId: string
+    entryId: string,
+    body?: VerifyIntoSquadBody
 ): Promise<CareerEntry> => {
-    const res = await api.post(`${BASE}/${entryId}/verify`, {})
+    const res = await api.post(`${BASE}/${entryId}/verify`, body ?? {})
     return careerEntrySchema.parse(res.data.data)
 }
 

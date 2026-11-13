@@ -1,0 +1,251 @@
+.page {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4) var(--space-12);
+  box-sizing: border-box;
+}
+
+/* ── Banner ───────────────────────────────────────────────── */
+
+.banner {
+  /* Room the stats take along the bottom, so a placeholder centres above them. */
+  --squad-photo-bottom-inset: 56px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 220px;
+  border-radius: var(--radius-lg);
+}
+
+@media (min-width: 768px) {
+  .banner {
+    max-height: 280px;
+  }
+}
+
+/* Over a photo nobody vetted: the poster's always-dark ground and text. */
+.scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4) var(--space-3);
+  background: linear-gradient(
+    to top,
+    rgba(var(--color-poster-ground-rgb), 0.88) 0%,
+    rgba(var(--color-poster-ground-rgb), 0.6) 55%,
+    rgba(var(--color-poster-ground-rgb), 0) 100%
+  );
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.statValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-poster-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: var(--color-poster-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+}
+
+.tabActive,
+.tabActive:hover {
+  border-bottom-color: var(--color-brand);
+  color: var(--color-text-primary);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-warn-strong);
+  color: var(--color-text-inverted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.body {
+  padding-top: var(--space-4);
+}
+
+/* ── States ───────────────────────────────────────────────── */
+
+.placeholder,
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.placeholder {
+  padding: var(--space-8) var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.state {
+  padding: var(--space-12) var(--space-4);
+}
+
+.placeholder p,
+.state p {
+  margin: 0;
+}
+
+/* ── Skeleton ─────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+.skeletonBanner,
+.skeletonTab {
+  display: block;
+  background: var(--color-surface-raised);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonBanner {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 220px;
+  border-radius: var(--radius-lg);
+}
+
+@media (min-width: 768px) {
+  .skeletonBanner {
+    max-height: 280px;
+  }
+}
+
+.skeletonTabs {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.skeletonTab {
+  width: 80px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBanner,
+  .skeletonTab {
+    animation: none;
+  }
+}
+
+/* ── Header: back + title, and the share button for reviewers ── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* BackHeader carries its own bottom margin for when it stands alone. */
+.header > :first-child {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.shareBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.shareBtn:hover {
+  background: var(--color-surface-raised);
+}
+
+.shareBtn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.shareBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A disabled button gives no tooltip of its own; the wrapper carries it. */
+.viewPublicOff {
+  display: inline-flex;
+}

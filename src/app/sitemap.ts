@@ -38,9 +38,18 @@ type SitemapHandle = {
   updated_at: string
 }
 
+/** A squad the anonymous showcase shows: its page is under the club's profile. */
+type SitemapSquad = {
+  org_username: string
+  squad_id: string
+  updated_at: string
+}
+
 type SitemapFeed = {
   users: SitemapHandle[]
   organizations: SitemapHandle[]
+  /** Optional: an older API answers without it, and the sitemap must not care. */
+  squads?: SitemapSquad[]
 }
 
 /**
@@ -69,6 +78,8 @@ const STATIC_ROUTES: Array<{
 
 /** Profiles are the point of the public route group, so they rank just under home. */
 const PROFILE_PRIORITY = 0.7
+/** A squad page hangs off a club profile, so it ranks just under it. */
+const SQUAD_PRIORITY = 0.6
 
 const stripSlash = (value: string) => value.replace(/\/+$/, "")
 
@@ -95,6 +106,18 @@ function profileEntries(
     changeFrequency: "weekly" as const,
     priority: PROFILE_PRIORITY,
   }))
+}
+
+/** /organization/profile/<org>/squads/<id> for every squad the feed lists. */
+function squadEntries(squads: SitemapSquad[], site: string): MetadataRoute.Sitemap {
+  return squads
+    .filter((squad) => squad.org_username && squad.squad_id)
+    .map((squad) => ({
+      url: `${site}/organization/profile/${squad.org_username}/squads/${squad.squad_id}`,
+      lastModified: lastModified(squad.updated_at),
+      changeFrequency: "weekly" as const,
+      priority: SQUAD_PRIORITY,
+    }))
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -135,5 +158,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       site,
       "/organization/profile"
     ),
+    ...squadEntries(Array.isArray(feed.data.squads) ? feed.data.squads : [], site),
   ]
 }

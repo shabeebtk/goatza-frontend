@@ -172,6 +172,48 @@ const TOAST_PRESENTATION: Record<NotificationType, ToastPresentation> = {
     duration: 7000,
     actionLabel: "View members",
   },
+  squad_join_request: {
+    icon: "mdi:account-multiple-plus-outline",
+    variant: "info",
+    duration: 6000,
+    actionLabel: "Review",
+  },
+  squad_invite: {
+    icon: "mdi:shield-account-outline",
+    variant: "info",
+    duration: 8000,
+    actionLabel: "View invite",
+  },
+  squad_request_approved: {
+    icon: "mdi:check-decagram",
+    variant: "success",
+    duration: 6000,
+    actionLabel: "View squad",
+  },
+  squad_request_declined: {
+    icon: "mdi:close-circle-outline",
+    variant: "default",
+    duration: 5000,
+    actionLabel: "View",
+  },
+  squad_invite_accepted: {
+    icon: "mdi:account-check-outline",
+    variant: "success",
+    duration: 5000,
+    actionLabel: "View squad",
+  },
+  squad_member_removed: {
+    icon: "mdi:account-remove-outline",
+    variant: "default",
+    duration: 5000,
+    actionLabel: "View",
+  },
+  squad_member_moved: {
+    icon: "mdi:swap-horizontal",
+    variant: "default",
+    duration: 5000,
+    actionLabel: "View squad",
+  },
 }
 
 // A type this build doesn't know about still gets an action — the URL is

@@ -50,6 +50,9 @@ vi.mock("@/features/moderation/components/BlockedProfileBanner/BlockedProfileBan
 vi.mock("../OrgPhotoEditModal/OrgPhotoEditModal", () => ({ default: () => null }))
 vi.mock("../EditOrgProfileModal/EditOrgProfileModal", () => ({ default: () => null }))
 vi.mock("@/features/posts/components/PostsList/PostsList.tsx", () => ({ default: () => null }))
+vi.mock("@/features/squads/components/OrgSquadsSection/OrgSquadsSection", () => ({
+  default: () => null,
+}))
 vi.mock("@/features/posts/components/CreatePostModal/CreatePostModal", () => ({ default: () => null }))
 vi.mock("@/features/recruitments/components/RecruitmentsList/RecruitmentsList", () => ({
     default: () => null,

@@ -45,6 +45,10 @@ import StatusBadge from "../StatusBadge/StatusBadge"
 import StarRating from "../StarRating/StarRating"
 import styles from "./ApplicantDetailDrawer.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
+import Button from "@/shared/components/ui/Button/Button"
+import { ORG_PERMISSIONS, useOrgPermission } from "@/shared/permissions/orgPermissions"
+import { useAuthStore } from "@/store/auth.store"
+import AddToSquadSheet from "@/features/squads/components/AddToSquadSheet/AddToSquadSheet"
 
 dayjs.extend(relativeTime)
 
@@ -408,6 +412,10 @@ interface ApplicantDetailDrawerProps {
   /** For the WhatsApp fallback's message body. */
   recruitmentTitle?: string
   orgName?: string
+  /** The owning org, for "Add to squad"; defaults to the org being acted as. */
+  orgId?: string
+  /** The recruitment's sport: its squads come first in "Add to squad". */
+  sportId?: string
   onClose: () => void
 }
 
@@ -418,10 +426,18 @@ export default function ApplicantDetailDrawer({
   ageCategories = [],
   recruitmentTitle,
   orgName,
+  orgId,
+  sportId,
   onClose,
 }: ApplicantDetailDrawerProps) {
   const { toProfile } = useNavigation()
   const { data, isLoading, isError } = useApplicationDetail(applicationId)
+
+  // "Add to squad" for a Selected applicant, for whoever may invite to squads.
+  const canAddToSquad = useOrgPermission(ORG_PERMISSIONS.SQUADS_REVIEW)
+  const actingOrgId = useAuthStore((state) => state.currentOrganization?.id)
+  const squadOrgId = orgId ?? actingOrgId
+  const [addingToSquad, setAddingToSquad] = useState(false)
 
   // Scroll lock + Escape to close.
   useBodyScrollLock()
@@ -643,6 +659,17 @@ export default function ApplicantDetailDrawer({
                 />
               )}
 
+              {data.status === "selected" && canAddToSquad && squadOrgId && applicant?.id && (
+                <Button
+                  variant="outline"
+                  fullWidth
+                  leftIcon={<Icon icon="mdi:shield-account-outline" width={18} height={18} />}
+                  onClick={() => setAddingToSquad(true)}
+                >
+                  Add to squad
+                </Button>
+              )}
+
               {/* Public profile link */}
               {applicant?.username && (
                 <Link
@@ -663,6 +690,16 @@ export default function ApplicantDetailDrawer({
           )}
         </div>
       </div>
+
+      {addingToSquad && squadOrgId && applicant?.id && (
+        <AddToSquadSheet
+          orgId={squadOrgId}
+          applicationId={applicationId}
+          applicant={{ id: applicant.id, name: data?.shared_name || applicant.name }}
+          sportId={sportId}
+          onClose={() => setAddingToSquad(false)}
+        />
+      )}
     </div>,
     document.body
   )

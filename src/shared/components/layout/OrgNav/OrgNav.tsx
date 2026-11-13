@@ -19,7 +19,11 @@ import { useUnreadCount } from "@/features/Notifications/hooks/useNotificationQu
 import { useConversationsUnreadSummary } from "@/features/messages/hooks/useConversationQueries"
 import { useScrollChrome } from "@/shared/hooks/useScrollChrome"
 import { useHtmlFlag } from "@/shared/hooks/useHtmlFlag"
-import { orgRoleLabel } from "@/shared/permissions/orgPermissions"
+import {
+  ORG_PERMISSIONS,
+  orgRoleLabel,
+  useOrgPermission,
+} from "@/shared/permissions/orgPermissions"
 import MobileNavSheet, {
   type NavDockTab,
   type NavSheetGroup,
@@ -86,7 +90,7 @@ function buildNavItems(orgId: string) {
  */
 function buildSheetSections(
   orgId: string,
-  { orgUsername }: { orgUsername?: string | null }
+  { orgUsername, canViewSquads }: { orgUsername?: string | null; canViewSquads: boolean }
 ): NavSheetGroup[] {
   const base = orgBase(orgId)
 
@@ -130,6 +134,18 @@ function buildSheetSections(
           icon: "mdi:account-group-outline",
           iconActive: "mdi:account-group",
         },
+        // Only for someone who may see the squads (squads.view), never by role.
+        ...(canViewSquads
+          ? [
+              {
+                id: "squads",
+                label: "Squads",
+                href: `${base}/squads`,
+                icon: "mdi:shield-account-outline",
+                iconActive: "mdi:shield-account",
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -317,6 +333,8 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const switchToOrganization = useAuthStore((state) => state.switchToOrganization)
   const organizations = useAuthStore((state) => state.organizations)
   const activeOrganization = useAuthStore((state) => state.currentOrganization)
+  // A permission, not a role: owners, coaches and staff have it by default.
+  const canViewSquads = useOrgPermission(ORG_PERMISSIONS.SQUADS_VIEW)
 
   const currentOrg =
     activeOrganization?.id === orgId
@@ -457,8 +475,21 @@ export default function OrgNav({ orgId }: { orgId: string }) {
     : null
   const networkActive = !!networkHref && pathname.startsWith(networkHref)
   const membersHref = `${orgBase(orgId)}/members`
+  const squadsHref = `${orgBase(orgId)}/squads`
 
   const moreRows: MoreMenuRow[] = [
+    ...(canViewSquads
+      ? [
+          {
+            kind: "link" as const,
+            id: "squads",
+            label: "Squads",
+            href: squadsHref,
+            icon: "mdi:shield-account-outline",
+            active: pathname === squadsHref || pathname.startsWith(`${squadsHref}/`),
+          },
+        ]
+      : []),
     {
       kind: "link",
       id: "members",
@@ -731,7 +762,10 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         onOpen={() => setSheetOpen(true)}
         onClose={() => setSheetOpen(false)}
         tabs={dockTabs}
-        sections={buildSheetSections(orgId, { orgUsername: currentOrg?.username })}
+        sections={buildSheetSections(orgId, {
+          orgUsername: currentOrg?.username,
+          canViewSquads,
+        })}
         footerItems={buildSheetFooter(orgId, messageCount)}
         pathname={pathname}
         visible={!isChatPage}
