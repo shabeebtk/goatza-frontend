@@ -1,51 +1,30 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
+import {
+  getServerSnapshot,
+  getSnapshot,
+  promptInstall,
+  subscribe,
+} from "./installPrompt"
 
 /**
- * `beforeinstallprompt` is Chromium-only and is NOT in TypeScript's DOM lib, so
- * there is nothing to import — this declares the two members we actually touch.
- * Deliberately minimal: a fuller copy of the spec would be a second source of
- * truth for an event we only ever `preventDefault()` and re-fire.
+ * The install prompt, for a component.
+ *
+ * Reads the module store in core/pwa/installPrompt.ts, which the <head> script
+ * feeds from before hydration, so a prompt that fired early is not missed (the
+ * old version listened only while mounted and lost it). The server snapshot
+ * has no prompt.
+ *
+ * `promptInstall()` opens the browser's dialog and resolves to "accepted",
+ * "dismissed" or "unavailable".
  */
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>
-}
+export function usePWAInstall() {
+  const { canPrompt, installedNow } = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  )
 
-let deferredPrompt: BeforeInstallPromptEvent | null = null
-
-export const usePWAInstall = () => {
-  const [isInstallable, setIsInstallable] = useState(false)
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault()
-      deferredPrompt = e as BeforeInstallPromptEvent
-      setIsInstallable(true)
-    }
-
-    window.addEventListener("beforeinstallprompt", handler)
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handler)
-    }
-  }, [])
-
-  const installApp = async () => {
-    if (!deferredPrompt) return
-
-    deferredPrompt.prompt()
-
-    const choice = await deferredPrompt.userChoice
-
-    if (choice.outcome === "accepted") {
-      console.log("PWA installed")
-    }
-
-    deferredPrompt = null
-    setIsInstallable(false)
-  }
-
-  return { isInstallable, installApp }
+  return { canPrompt, installedNow, promptInstall }
 }

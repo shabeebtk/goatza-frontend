@@ -23,6 +23,7 @@ import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
 import LegalSettingsSection from "@/features/legal/components/LegalSettingsSection"
 import DeleteAccountSection from "./components/DeleteAccountSection/DeleteAccountSection"
 import ProfileLinkRow from "./components/SettingsMenu/ProfileLinkRow"
+import InstallAppRow from "./components/SettingsMenu/InstallAppRow"
 import {
   SettingsActionRow,
   SettingsChoiceRow,
@@ -163,6 +164,9 @@ export default function SettingsPage() {
           NEEDING — a broken screen is why they opened Settings — while the
           documents are reference material you go looking for. */}
       <SettingsSection title="Support">
+        {/* /install, with the steps for this phone. On an iPhone it is also
+            the only way to get notifications. Hidden inside the app. */}
+        <InstallAppRow />
         {/* An action row, not a navigation one: it opens a sheet rather than
             going anywhere, so it carries no chevron to promise otherwise. */}
         <SettingsActionRow
