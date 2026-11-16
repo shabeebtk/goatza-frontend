@@ -112,6 +112,7 @@ describe("reserved names", () => {
     "guardian",
     "highlights",
     "home",
+    "install",
     "messages",
     "notifications",
     "organization",

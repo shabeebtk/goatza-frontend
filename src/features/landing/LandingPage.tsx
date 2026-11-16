@@ -15,6 +15,9 @@ import useScrollReveal from "@/shared/hooks/useScrollReveal";
 import useCounter from "@/shared/hooks/useCounter";
 import useSmoothScroll from "./hooks/useSmoothScroll";
 import LandingImage from "./components/LandingImage";
+import AppSection from "./components/AppSection";
+import GetAppPill from "./components/GetAppPill";
+import HeroInstallButton from "./components/HeroInstallButton";
 import {
   tickerItems,
   showcaseCards,
@@ -94,6 +97,7 @@ function Header({ scrolled }: { scrolled: boolean }) {
         </nav>
 
         <div className={styles.headerActions}>
+          <GetAppPill overHero={!scrolled} />
           <Button
             variant="ghost"
             size="sm"
@@ -211,6 +215,7 @@ function HeroSection() {
             >
               Register
             </Button>
+            <HeroInstallButton className={styles.heroOutlineBtn} />
             {/* TODO: re-enable when the "how it works" video clip is ready
             <Button
               variant="outline"
@@ -863,6 +868,7 @@ export default function LandingPage() {
         {/* TODO: re-enable when the "how it works" video clip is ready
         <HowItWorks />
         */}
+        <AppSection />
         <FinalCTA />
       </main>
       <SiteFooter />

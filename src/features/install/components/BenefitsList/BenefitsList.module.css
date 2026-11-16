@@ -1,0 +1,60 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Local colours per tone, so the rows below are written once. */
+.poster {
+  --benefit-title: var(--color-poster-text);
+  --benefit-sub: var(--color-poster-text-muted);
+  --benefit-icon: var(--color-poster-accent);
+  --benefit-icon-bg: rgba(var(--color-poster-ink-rgb), 0.08);
+}
+
+.theme {
+  --benefit-title: var(--color-text-primary);
+  --benefit-sub: var(--color-text-secondary);
+  --benefit-icon: var(--color-brand-strong);
+  --benefit-icon-bg: var(--color-brand-subtle);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--benefit-icon-bg);
+  color: var(--benefit-icon);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--benefit-title);
+}
+
+.sub {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--benefit-sub);
+}

@@ -1,0 +1,239 @@
+/* The landing page's install entry points: the header pill and AppSection.
+   Theme tokens, like the sections around it; the illustration panel is the
+   always-dark pitch, like /install. */
+
+/* ── Header pill ──────────────────────────────────────────── */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.pill:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-strong);
+}
+
+.pill:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Over the dark hero photo, before the header has scrolled. */
+.pillOverHero {
+  border-color: rgba(var(--color-poster-ink-rgb), 0.32);
+  color: var(--color-poster-text);
+}
+
+.pillOverHero:hover {
+  border-color: rgba(var(--color-poster-ink-rgb), 0.55);
+  color: var(--color-poster-text);
+}
+
+/* ── AppSection ───────────────────────────────────────────── */
+
+.appSection {
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+.appInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.appCopy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.accent {
+  color: var(--color-brand);
+}
+
+.lede {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.benefits {
+  max-width: 30rem;
+}
+
+.phoneCta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note {
+  margin: 0;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.deskCta {
+  display: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.qrCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* White in both themes: an inverted QR is a different symbol to a scanner. */
+.qrPanel {
+  flex-shrink: 0;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--primitive-neutral-0);
+}
+
+.qr,
+.qrPlaceholder {
+  display: block;
+  width: 128px;
+  height: 128px;
+}
+
+.qrPath {
+  fill: var(--primitive-neutral-950);
+}
+
+.qrText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 16rem;
+}
+
+.qrTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.qrSub {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.computerLink {
+  padding: var(--space-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--color-brand-strong);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.computerLink:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.computerLink:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.appArt {
+  display: flex;
+  justify-content: center;
+}
+
+.pitchPanel {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-10) 0;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: radial-gradient(
+    120% 90% at 50% 10%,
+    color-mix(in srgb, var(--primitive-green-800) 55%, var(--primitive-neutral-950)) 0%,
+    var(--primitive-neutral-950) 100%
+  );
+}
+
+.pitchCircle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  border: 2px solid rgba(var(--color-poster-ink-rgb), 0.07);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@media (min-width: 1024px) {
+  .appInner {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .appCopy,
+  .appArt {
+    flex: 1 1 0;
+  }
+
+  .phoneCta {
+    display: none;
+  }
+
+  .deskCta {
+    display: flex;
+  }
+}
+
+/* A 360px phone header already holds the logo, Sign In and Register: the
+   pill keeps its icon and its label stays for screen readers. */
+@media (max-width: 399px) {
+  .pill {
+    padding: 0 var(--space-2);
+  }
+
+  .pillLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}

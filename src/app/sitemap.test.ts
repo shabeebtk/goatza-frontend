@@ -63,7 +63,7 @@ function urls(entries: Array<{ url: string }>) {
 }
 
 describe("static entries", () => {
-  it("always lists home and the four legal pages, absolute", async () => {
+  it("always lists home, the four legal pages and /install, absolute", async () => {
     process.env.NEXT_PUBLIC_SITE_URL = SITE
     process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000"
     ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -78,6 +78,7 @@ describe("static entries", () => {
       `${SITE}/privacy`,
       `${SITE}/guidelines`,
       `${SITE}/safety`,
+      `${SITE}/install`,
     ])
   })
 
@@ -106,6 +107,20 @@ describe("static entries", () => {
     expect(entries[0].priority).toBe(1)
     expect(entries[1].priority).toBe(0.3)
     expect(entries[1].changeFrequency).toBe("monthly")
+  })
+
+  it("lists /install monthly, just under the profiles", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = SITE
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000"
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      feedResponse({ users: [], organizations: [] })
+    )
+
+    const entries = await (await load())()
+    const install = entries.find((entry) => entry.url === `${SITE}/install`)
+
+    expect(install?.priority).toBe(0.6)
+    expect(install?.changeFrequency).toBe("monthly")
   })
 })
 
@@ -188,6 +203,7 @@ describe("degradation", () => {
       `${SITE}/privacy`,
       `${SITE}/guidelines`,
       `${SITE}/safety`,
+      `${SITE}/install`,
     ])
   })
 
@@ -202,7 +218,7 @@ describe("degradation", () => {
 
     const entries = await (await load())()
 
-    expect(entries).toHaveLength(5)
+    expect(entries).toHaveLength(6)
   })
 
   it("falls back to relative static paths with no site origin", async () => {
@@ -215,6 +231,7 @@ describe("degradation", () => {
       "/privacy",
       "/guidelines",
       "/safety",
+      "/install",
     ])
     // And it does not try to build profile URLs it cannot make absolute.
     expect(fetch).not.toHaveBeenCalled()

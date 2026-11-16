@@ -54,6 +54,11 @@ describe("validateUsernameFormat", () => {
     }
   })
 
+  it("reserves the /install page, as the backend does", () => {
+    expect(RESERVED_USERNAMES.has("install")).toBe(true)
+    expect(validateUsernameFormat("Install")).toBe("This username is not allowed")
+  })
+
   it("rejects a reserved name regardless of case", () => {
     expect(validateUsernameFormat("Matches")).toBe("This username is not allowed")
   })

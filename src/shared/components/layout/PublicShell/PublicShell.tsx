@@ -55,6 +55,11 @@ const CONTENT_FIRST_ROUTES = [
    * page failing in exactly the situation it exists for.
    */
   "/report-problem",
+  /**
+   * How to install the app. Shared as a link, opened by people with no
+   * session at all, and the instructions are the whole page.
+   */
+  "/install",
 ]
 
 /**

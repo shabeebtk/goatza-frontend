@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, type ReactNode } from "react"
 import { Icon } from "@iconify/react"
 import LoadMoreError from "@/features/posts/components/LoadMoreError/LoadMoreError"
 import PostCard from "@/features/posts/components/PostCard/PostCard"
@@ -48,7 +48,12 @@ function EndOfList() {
     )
 }
 
-export default function FeedList() {
+/**
+ * `top` is rendered as the first item of the column, in every state (loading,
+ * empty, failed, loaded): the home page puts the install banner there, and it
+ * must not wait for the feed.
+ */
+export default function FeedList({ top }: { top?: ReactNode } = {}) {
     const {
         data,
         isLoading,
@@ -92,6 +97,7 @@ export default function FeedList() {
         return (
             <div className={styles.wrapper}>
                 <div className={styles.list}>
+                    {top}
                     {Array.from({ length: 3 }).map((_, i) => (
                         <PostSkeleton key={i} />
                     ))}
@@ -105,15 +111,23 @@ export default function FeedList() {
     // the open viewer (and its history entry) down with it.
     if (isError && !data) {
         return (
-            <div className={styles.errorState}>
-                <Icon icon="mdi:alert-circle-outline" width={32} height={32} />
-                <p>Failed to load feed.</p>
-            </div>
+            <>
+                {top && <div className={styles.list}>{top}</div>}
+                <div className={styles.errorState}>
+                    <Icon icon="mdi:alert-circle-outline" width={32} height={32} />
+                    <p>Failed to load feed.</p>
+                </div>
+            </>
         )
     }
 
     if (allPosts.length === 0) {
-        return <EmptyState />
+        return (
+            <>
+                {top && <div className={styles.list}>{top}</div>}
+                <EmptyState />
+            </>
+        )
     }
 
     return (
@@ -132,6 +146,7 @@ export default function FeedList() {
                 queryParams={EMPTY_QUERY_PARAMS}
             >
                 <div className={styles.list}>
+                    {top}
                     {allPosts.map((post) => (
                         <div
                             key={post.id}

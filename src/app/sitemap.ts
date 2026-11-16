@@ -74,6 +74,7 @@ const STATIC_ROUTES: Array<{
   { path: "/privacy", changeFrequency: "monthly", priority: 0.3 },
   { path: "/guidelines", changeFrequency: "monthly", priority: 0.3 },
   { path: "/safety", changeFrequency: "monthly", priority: 0.3 },
+  { path: "/install", changeFrequency: "monthly", priority: 0.6 },
 ]
 
 /** Profiles are the point of the public route group, so they rank just under home. */

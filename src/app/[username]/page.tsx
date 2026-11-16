@@ -77,6 +77,8 @@ const RESERVED = new Set([
   "guardian",
   "highlights",
   "home",
+  // The "add Goatza to your home screen" page. The backend reserves it too.
+  "install",
   "messages",
   "notifications",
   "org-invite",

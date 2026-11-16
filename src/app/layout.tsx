@@ -6,6 +6,7 @@ import Providers from "./providers";
 import { ToastProvider } from "@/shared/components/ui/Toast/Toast";
 import ScrollToTop from "@/shared/components/ScrollToTop/ScrollToTop";
 import ThemeScript from "@/shared/components/ThemeScript/ThemeScript";
+import InstallPromptScript from "@/core/pwa/InstallPromptScript";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -82,8 +83,11 @@ export default function RootLayout({
             before the body is parsed so a dark-theme user never sees a light
             frame. */}
         <ThemeScript />
+        {/* Right after the theme: catches the browser's install prompt even
+            when it fires before React hydrates (core/pwa). */}
+        <InstallPromptScript />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

@@ -1,0 +1,108 @@
+/* Always dark, in both themes, like /install: a poster card in the feed. */
+
+.banner {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  padding-right: calc(var(--space-4) + 36px);
+  border-radius: var(--radius-lg);
+  background: var(--color-cta-bg);
+  color: var(--color-poster-text);
+  box-shadow: var(--shadow-lg);
+}
+
+.copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-poster-text);
+}
+
+.text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color-poster-text-muted);
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.note {
+  font-size: 0.8125rem;
+  color: var(--color-poster-text-muted);
+}
+
+/* "Not now": a small round × with a 44px hit area, on the card's corner. */
+.notNow {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-poster-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.notNow::before {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(var(--color-poster-ink-rgb), 0.1);
+}
+
+.notNow > :global(svg) {
+  position: relative;
+}
+
+.notNow:hover {
+  color: var(--color-poster-text);
+}
+
+.notNow:focus-visible {
+  outline: 2px solid var(--color-poster-accent);
+  outline-offset: -4px;
+}
+
+.installed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: center;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-poster-text);
+}
+
+.installed > :global(svg) {
+  flex-shrink: 0;
+  color: var(--color-poster-accent);
+}
