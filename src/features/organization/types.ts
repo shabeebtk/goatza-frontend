@@ -1,6 +1,7 @@
 // ── Primitives ────────────────────────────────────────────────────
 
-export type OrgType  = "club" | "team" | "academy" | "school"
+/** A school or college team is a "team". */
+export type OrgType  = "club" | "team" | "academy"
 export type OrgLevel = "youth" | "amateur" | "semi_professional" | "professional"
 
 // ── Mini (list / nav) ─────────────────────────────────────────────

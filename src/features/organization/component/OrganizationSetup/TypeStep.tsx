@@ -8,7 +8,7 @@ import { fieldId } from "./CreateField"
 import styles from "./TypeStep.module.css"
 
 /**
- * Step 1 — what kind of page. A radiogroup of four cards: one tab stop (the
+ * Step 1 — what kind of page. A radiogroup of three cards: one tab stop (the
  * checked card, or the first), arrow keys move AND select like native radios,
  * Space/Enter select. Continue is enabled by the frame once one is picked.
  */

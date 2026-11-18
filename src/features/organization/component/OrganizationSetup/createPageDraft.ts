@@ -48,7 +48,7 @@ export const ORG_TYPE_OPTIONS: OrgTypeOption[] = [
     label:       "Team",
     icon:        "mdi:account-group-outline",
     description: "A competitive team that plays in a league or tournament.",
-    examples:    "District team, college team, franchise",
+    examples:    "District team, school or college team, franchise",
   },
   {
     type:        "academy",
@@ -57,14 +57,13 @@ export const ORG_TYPE_OPTIONS: OrgTypeOption[] = [
     description: "A training programme that develops athletes.",
     examples:    "Football academy, tennis coaching centre",
   },
-  {
-    type:        "school",
-    label:       "School",
-    icon:        "mdi:domain",
-    description: "An educational institution with sports programmes.",
-    examples:    "School, college, university sports department",
-  },
 ]
+
+/**
+ * A draft saved before "school" was retired still says so. It is a team now,
+ * the same as on the server, so the person keeps their pick.
+ */
+const RETIRED_TYPES: Record<string, OrgType> = { school: "team" }
 
 export const ORG_LEVEL_OPTIONS: { value: OrgLevel; label: string }[] = [
   { value: "youth",             label: "Youth" },
@@ -168,7 +167,8 @@ export function loadDraft(): CreateDraft | null {
     const parsed = JSON.parse(raw) as { v?: number; draft?: Record<string, unknown> }
     if (parsed?.v !== DRAFT_VERSION || !parsed.draft) return null
     const d = parsed.draft
-    const type = ORG_TYPE_OPTIONS.some((o) => o.type === d.type) ? (d.type as OrgType) : null
+    const savedType = typeof d.type === "string" ? (RETIRED_TYPES[d.type] ?? d.type) : null
+    const type = ORG_TYPE_OPTIONS.some((o) => o.type === savedType) ? (savedType as OrgType) : null
     const level = ORG_LEVEL_OPTIONS.some((o) => o.value === d.level) ? (d.level as OrgLevel) : ""
     return {
       type,

@@ -395,8 +395,8 @@ describe("the type step", () => {
 
     const group = screen.getByRole("radiogroup")
     const radios = within(group).getAllByRole("radio")
-    expect(radios).toHaveLength(4)
-    expect(radios.map((radio) => radio.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1"])
+    expect(radios).toHaveLength(3)
+    expect(radios.map((radio) => radio.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"])
     expect(continueButton().hasAttribute("disabled")).toBe(true)
 
     radios[0].focus()
@@ -411,6 +411,42 @@ describe("the type step", () => {
 
     fireEvent.keyDown(after[1], { key: "ArrowUp" })
     expect(within(group).getAllByRole("radio")[0].getAttribute("aria-checked")).toBe("true")
+  })
+
+  it("offers exactly Club, Team and Academy, and Team covers school and college teams", async () => {
+    renderSetup()
+    await screen.findByRole("heading", { name: "What kind of page?" })
+
+    // Each card's text is its label, then its description (aria-describedby).
+    const radios = within(screen.getByRole("radiogroup")).getAllByRole("radio")
+    const labels = radios.map((radio) => {
+      const desc = document.getElementById(radio.getAttribute("aria-describedby")!)!
+      return radio.textContent!.replace(desc.textContent!, "").trim()
+    })
+    expect(labels).toEqual(["Club", "Team", "Academy"])
+    expect(screen.queryByRole("radio", { name: /^School/ })).toBeNull()
+
+    const team = screen.getByRole("radio", { name: /^Team/ })
+    expect(team.getAttribute("aria-describedby")).toBe("org-create-type-team-desc")
+    expect(document.getElementById("org-create-type-team-desc")!.textContent)
+      .toMatch(/school or college team/i)
+  })
+
+  it("arrow keys wrap across the three, both ways", async () => {
+    renderSetup()
+    await screen.findByRole("heading", { name: "What kind of page?" })
+    const radio = (name: RegExp) => screen.getByRole("radio", { name })
+
+    radio(/^Club/).focus()
+    fireEvent.keyDown(radio(/^Club/), { key: "ArrowLeft" })
+    expect(radio(/^Academy/).getAttribute("aria-checked")).toBe("true")
+    expect(document.activeElement).toBe(radio(/^Academy/))
+
+    fireEvent.keyDown(radio(/^Academy/), { key: "ArrowRight" })
+    expect(radio(/^Club/).getAttribute("aria-checked")).toBe("true")
+
+    fireEvent.keyDown(radio(/^Club/), { key: "End" })
+    expect(radio(/^Academy/).getAttribute("aria-checked")).toBe("true")
   })
 })
 
@@ -572,9 +608,29 @@ describe("the draft", () => {
     renderSetup()
     await screen.findByRole("heading", { name: "What kind of page?" })
 
-    fireEvent.click(screen.getByRole("radio", { name: /^School/ }))
+    fireEvent.click(screen.getByRole("radio", { name: /^Team/ }))
 
-    await waitFor(() => expect(JSON.parse(storedDraft()!).draft.type).toBe("school"))
+    await waitFor(() => expect(JSON.parse(storedDraft()!).draft.type).toBe("team"))
+  })
+
+  it("saved as a school before the type was retired, comes back as a team with the rest kept", async () => {
+    seedDraft({
+      ...draftWith({
+        name: "St. Xavier's College",
+        username: "st_xaviers_college",
+        headline: "College football team",
+        sportIds: ["s-foot"],
+      }),
+      type: "school" as unknown as CreateDraft["type"],
+    })
+    // A deep link past the Type step only holds when the type still counts.
+    renderSetup("/organization/create?step=basics")
+
+    expect(await screen.findByRole("heading", { name: "The basics" })).toBeTruthy()
+    expect(step()).toBe("basics")
+    expect(nameInput().value).toBe("St. Xavier's College")
+    expect(handleInput().value).toBe("st_xaviers_college")
+    await waitFor(() => expect(JSON.parse(storedDraft()!).draft.type).toBe("team"))
   })
 })
 

@@ -7,6 +7,7 @@
 import type { Metadata } from "next"
 
 import PublicOrgProfileView from "@/features/organization/component/PublicOrgProfileView/PublicOrgProfileView"
+import { orgTypeLabel } from "@/features/organization/orgTypeLabel"
 import {
   getPublicOrganizationProfileResult,
   siteOrigin,
@@ -21,13 +22,6 @@ import { sportsOrganizationJsonLd } from "@/features/profile/utils/profileJsonLd
 export const revalidate = 60
 
 type Params = { params: Promise<{ username: string }> }
-
-const ORG_TYPE_LABELS: Record<string, string> = {
-  club: "Club",
-  team: "Team",
-  academy: "Academy",
-  school: "School / College",
-}
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params
@@ -53,7 +47,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const description =
     profile.headline ||
     [
-      ORG_TYPE_LABELS[profile.type] ?? profile.type,
+      orgTypeLabel(profile.type),
       profile.sports.find((s) => s.is_primary)?.name ?? profile.sports[0]?.name,
       primaryLocation?.city,
     ]

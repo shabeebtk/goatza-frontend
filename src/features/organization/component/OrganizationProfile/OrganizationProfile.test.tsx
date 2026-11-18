@@ -92,6 +92,22 @@ afterEach(() => {
     orgDetail.mockReset()
 })
 
+describe("the type badge", () => {
+    it("labels a team page Team", () => {
+        renderProfile(makeOrg({ type: "team" }))
+
+        expect(screen.getByText("Team")).toBeTruthy()
+    })
+
+    it("leaves out a type it does not know, from an old cached page", () => {
+        const { container } = renderProfile(makeOrg({ type: "school" }))
+
+        expect(screen.getByRole("heading", { name: /Thalassery United/ })).toBeTruthy()
+        expect(container.textContent).not.toMatch(/school/i)
+        expect(container.textContent).not.toContain("undefined")
+    })
+})
+
 describe("the verified badge", () => {
     it("shows when the organization is verified", () => {
         renderProfile()

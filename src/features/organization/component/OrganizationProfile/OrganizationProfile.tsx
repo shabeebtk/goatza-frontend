@@ -32,15 +32,9 @@ import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import RecruitmentsList from "@/features/recruitments/components/RecruitmentsList/RecruitmentsList"
 import OrgSquadsSection from "@/features/squads/components/OrgSquadsSection/OrgSquadsSection"
+import { orgTypeLabel } from "../../orgTypeLabel"
 
 // ── Constants ──────────────────────────────────────────────────────
-
-const TYPE_LABELS: Record<string, string> = {
-    club: "Club",
-    team: "Team",
-    academy: "Academy",
-    school: "School / College",
-}
 
 const LEVEL_LABELS: Record<string, string> = {
     amateur: "Amateur",
@@ -239,11 +233,12 @@ function VerifiedBadge() {
 }
 
 function TypeBadge({ type }: { type: string }) {
-    if (!type) return null
+    const label = orgTypeLabel(type)
+    if (!label) return null
     return (
         <span className={`${styles.badge} ${styles.badgeType}`}>
             <Icon icon="mdi:office-building-outline" width={13} height={13} />
-            {TYPE_LABELS[type] ?? type}
+            {label}
         </span>
     )
 }
@@ -568,7 +563,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         username={org.username}
                                         name={org.name}
                                         avatarUrl={org.logo}
-                                        subtitle={org.headline || TYPE_LABELS[org.type]}
+                                        subtitle={org.headline || orgTypeLabel(org.type)}
                                         isVerified={org.is_verified}
                                         targetId={org.id}
                                         isOwnProfile={isMe}
@@ -641,7 +636,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         username={org.username}
                                         name={org.name}
                                         avatarUrl={org.logo}
-                                        subtitle={org.headline || TYPE_LABELS[org.type]}
+                                        subtitle={org.headline || orgTypeLabel(org.type)}
                                         isVerified={org.is_verified}
                                         targetId={org.id}
                                         isOwnProfile={isMe}
