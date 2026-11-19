@@ -13,17 +13,32 @@ import {
   sectionsFromOrgBundle,
 } from "@/features/profile/context/PublicProfileContext"
 import type { PublicOrgBundle } from "@/features/profile/services/publicProfile.api"
+import { hasContactAction } from "@/features/enquiries/pageContact"
+import { usePublicPageShowcase } from "@/features/orgPage/hooks/usePageShowcase"
+import type { PageShowcase } from "@/features/orgPage/types"
 import { useAuthStore } from "@/store/auth.store"
 
 export default function PublicOrgProfileView({
   username,
   bundle,
+  pageSeed = null,
 }: {
   username: string
   bundle: PublicOrgBundle | null
+  /** The anonymous page, read with the bundle: null on any miss. */
+  pageSeed?: PageShowcase | null
 }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
+  // The same read (and key) the profile makes from the seed, so this costs
+  // nothing: a page with any contact action has the Enquire bar instead of the
+  // sign-up bar. Follow still walls to sign-up.
+  const anonymousPage = usePublicPageShowcase(
+    username,
+    !isLoading && !isAuthenticated && Boolean(bundle),
+    pageSeed
+  ).data
+  const pageHasContact = hasContactAction(anonymousPage?.contact)
 
   if (isLoading) return null
 
@@ -49,11 +64,13 @@ export default function PublicOrgProfileView({
       profilePath={profilePath}
       sections={sectionsFromOrgBundle(bundle)}
     >
-      <OrgProfile username={username} publicOrg={bundle.profile} />
-      <PublicCtaBar
-        displayName={bundle.profile.name || bundle.profile.username}
-        nextPath={profilePath}
-      />
+      <OrgProfile username={username} publicOrg={bundle.profile} publicPage={pageSeed} />
+      {!pageHasContact && (
+        <PublicCtaBar
+          displayName={bundle.profile.name || bundle.profile.username}
+          nextPath={profilePath}
+        />
+      )}
     </PublicProfileProvider>
   )
 }

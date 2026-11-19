@@ -338,6 +338,44 @@ export async function fetchPublic<T>(
 }
 
 /**
+ * What an anonymous POST came back with. `status` 0 means there was no answer
+ * at all (offline, DNS, a dropped connection); `data` is the parsed body, or
+ * null when there was none or it wasn't JSON.
+ */
+export type PublicPostResult = { status: number; data: unknown }
+
+/**
+ * An anonymous POST from the browser (the page's enquiry form): JSON in, no
+ * credentials, no JWT and no actor headers, for the same reason fetchPublic
+ * exists. It never throws: a 4xx is an answer the caller reads, not an error.
+ */
+export async function postPublic(path: string, body: unknown): Promise<PublicPostResult> {
+  const base = apiBase()
+  if (!base) return { status: 0, data: null }
+
+  let res: Response
+  try {
+    res = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      credentials: "omit",
+      cache: "no-store",
+    })
+  } catch {
+    return { status: 0, data: null }
+  }
+
+  let data: unknown = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+  return { status: res.status, data }
+}
+
+/**
  * `T | null` view of the above, for callers that genuinely cannot act on the
  * difference (the share-card route: no data means no card, either way).
  */

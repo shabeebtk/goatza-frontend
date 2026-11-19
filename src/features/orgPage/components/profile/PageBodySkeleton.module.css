@@ -1,0 +1,51 @@
+/* Light blocks in the section slots, the same gap and divider as the sections
+   they stand in for. Tokens only, so both themes work. */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.divider {
+  height: 1px;
+  margin-bottom: var(--space-1);
+  background: var(--color-border);
+}
+
+.block {
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.title {
+  width: 40%;
+  height: 18px;
+}
+
+.line {
+  width: 100%;
+  height: 12px;
+}
+
+.short {
+  width: 64%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+  }
+}

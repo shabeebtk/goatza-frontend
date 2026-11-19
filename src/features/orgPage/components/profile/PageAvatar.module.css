@@ -1,0 +1,4 @@
+/* Only there to hear the photo's error; it takes no room of its own. */
+.wrap {
+  display: contents;
+}

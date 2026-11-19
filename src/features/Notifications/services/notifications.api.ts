@@ -101,6 +101,13 @@ export type NotificationType =
   | "squad_member_removed"
   /** Player-side: the club moved them to another squad. */
   | "squad_member_moved"
+  /**
+   * Club-side, to each person who handles the page's enquiries: someone sent the
+   * enquiry form ("New enquiry: Aditya, 11 · U12 Football Foundation"). The url
+   * is the enquiry's detail; data carries enquiry_id, player_age and the org. One
+   * push per batch: the server holds the next back while one is unread.
+   */
+  | "enquiry_received"
 
 export type NotificationRecruitment = {
   id: string

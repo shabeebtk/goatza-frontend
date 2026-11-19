@@ -1,0 +1,196 @@
+/* ============================================================
+   The page's sticky section bar.
+
+   The slot is a zero-height sticky box at the top of the page body, so the bar
+   (absolutely placed inside it) overlays the sections instead of pushing them:
+   showing it moves nothing. It bleeds to the profile card's edges
+   (`--page-bleed`, the profile body's padding, set by PageProfileBody).
+
+   Heights the offsets elsewhere depend on: 85px on a phone (36px name row +
+   48px chips + border), 53px on desktop. PageSectionBar.tsx's spy band and
+   PageProfileBody's `--page-section-offset` are built from them.
+   ============================================================ */
+
+.slot {
+  position: sticky;
+  z-index: 20;
+  /* Phone: under the top bar, following it as it slides away. */
+  top: calc(var(--safe-top, 0px) + var(--top-nav-h) * (1 - var(--chrome-progress, 0)));
+  height: 0;
+  /* The body's flex gap would otherwise open a gap for this empty box. */
+  margin-bottom: calc(-1 * var(--page-body-gap, 0px));
+}
+
+/* The bars ease only when they settle; so does this, or it lags a beat. */
+:global(html[data-chrome-snap]) .slot {
+  transition: top 280ms var(--ease-out);
+}
+
+@media (min-width: 768px) {
+  .slot {
+    /* The desktop nav is a fixed 60px and never slides. */
+    top: 60px;
+  }
+}
+
+.bar {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--page-bleed, 0px));
+  right: calc(-1 * var(--page-bleed, 0px));
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transform: translateY(-6px);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out),
+    visibility 0s linear 160ms;
+}
+
+.shown {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out),
+    visibility 0s;
+}
+
+/* ── Phone: whose page, in one line ───────────────────────── */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--page-bleed, var(--space-4));
+  padding-top: 4px;
+  min-width: 0;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-strong);
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: var(--weight-bold);
+}
+
+.logoImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.orgName {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .identity {
+    display: none;
+  }
+}
+
+/* ── The chips ────────────────────────────────────────────── */
+
+.chips {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  margin: 0;
+  padding: 0 calc(var(--page-bleed, var(--space-4)) - 2px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  list-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .chips {
+    height: 52px;
+  }
+}
+
+.chips > li {
+  flex-shrink: 0;
+}
+
+/* The link is the 44px target; the pill inside it is what shows. */
+.chip {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 2px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.chipFace {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  white-space: nowrap;
+  transition: background var(--duration-fast), border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.chip:hover .chipFace {
+  border-color: var(--color-brand-muted);
+}
+
+.chip:focus-visible {
+  outline: none;
+}
+
+.chip:focus-visible .chipFace {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.chipCurrent .chipFace {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-text-inverted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .shown,
+  .chipFace,
+  :global(html[data-chrome-snap]) .slot {
+    transition: none;
+  }
+}

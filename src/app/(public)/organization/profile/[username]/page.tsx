@@ -7,7 +7,8 @@
 import type { Metadata } from "next"
 
 import PublicOrgProfileView from "@/features/organization/component/PublicOrgProfileView/PublicOrgProfileView"
-import { orgTypeLabel } from "@/features/organization/orgTypeLabel"
+import { profileMetaDescription } from "@/features/orgPage/pageMeta"
+import { fetchPublicPageShowcase } from "@/features/orgPage/services/pageShowcase.api"
 import {
   getPublicOrganizationProfileResult,
   siteOrigin,
@@ -25,7 +26,12 @@ type Params = { params: Promise<{ username: string }> }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params
-  const result = await getPublicOrganizationProfileResult(username)
+  // The anonymous page beside the bundle, the same requests the page makes (so
+  // they are shared), for a richer description.
+  const [result, pageResult] = await Promise.all([
+    getPublicOrganizationProfileResult(username),
+    fetchPublicPageShowcase(username),
+  ])
 
   // Never leak the org's name from a hidden, missing or unreachable profile —
   // same rule as the user page, and `noindex` does the same job here.
@@ -41,19 +47,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const origin = siteOrigin()
   const url = `${origin}/organization/profile/${profile.username}`
 
-  const primaryLocation =
-    profile.locations.find((l) => l.is_primary) ?? profile.locations[0]
-
-  const description =
-    profile.headline ||
-    [
-      orgTypeLabel(profile.type),
-      profile.sports.find((s) => s.is_primary)?.name ?? profile.sports[0]?.name,
-      primaryLocation?.city,
-    ]
-      .filter(Boolean)
-      .join(" · ")
-      .concat(" on Goatza")
+  // The headline (or type · sport · city), then the page's ages, programs and
+  // "Enquire on Goatza", cut to 160 at a word. No page: as it always was.
+  const description = profileMetaDescription(
+    profile,
+    pageResult.status === "ok" ? pageResult.data : null
+  )
 
   const image = buildProfileOgImageUrl(profile, origin)
 
@@ -84,8 +83,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function PublicOrgProfilePage({ params }: Params) {
   const { username } = await params
-  const result = await getPublicOrganizationProfileResult(username)
+  // The page in parallel with the bundle, on the same 60 s revalidate, so the
+  // sections arrive with the profile instead of after it.
+  const [result, pageResult] = await Promise.all([
+    getPublicOrganizationProfileResult(username),
+    fetchPublicPageShowcase(username),
+  ])
   const bundle = result.status === "ok" ? result.data : null
+  // Any miss (the 404, an unreachable API) is null: the profile as it was.
+  const pageSeed = pageResult.status === "ok" ? pageResult.data : null
 
   // No notFound() — see the long comment on the user twin. In short: a signed-in
   // visitor is entitled to a profile the public payload refuses, and hard-404ing
@@ -107,7 +113,7 @@ export default async function PublicOrgProfilePage({ params }: Params) {
           }}
         />
       )}
-      <PublicOrgProfileView username={username} bundle={bundle} />
+      <PublicOrgProfileView username={username} bundle={bundle} pageSeed={pageSeed} />
     </>
   )
 }

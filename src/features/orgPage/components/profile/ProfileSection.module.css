@@ -1,0 +1,90 @@
+/* The page's sections on the profile share this shell: the divider, the title
+   row and the anchor the sticky bar lands on. `--page-section-offset` comes
+   from PageProfileBody: the nav plus the bar, so a title never sits under it. */
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.section,
+.anchor {
+  scroll-margin-top: var(--page-section-offset, 72px);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Focus arrives here from the bar, for the next Tab; nothing to show for it. */
+.section:focus,
+.anchor:focus {
+  outline: none;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.meta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.showAll {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--duration-fast);
+}
+
+.showAll:hover {
+  border-color: var(--color-brand-muted);
+}
+
+.showAll:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}

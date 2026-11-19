@@ -21,6 +21,12 @@ vi.mock("next/link", () => ({
     ),
 }))
 
+// The ?edit= hook (the page hub's links) reads the router.
+vi.mock("next/navigation", () => ({
+    usePathname: () => "/organization/admin/org-1/profile",
+    useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}))
+
 vi.mock("@/shared/services/navigation.service", () => ({
     useNavigation: () => ({ toMessage: () => "/m", toNetwork: () => "/n" }),
 }))
@@ -56,6 +62,12 @@ vi.mock("@/features/squads/components/OrgSquadsSection/OrgSquadsSection", () => 
 vi.mock("@/features/posts/components/CreatePostModal/CreatePostModal", () => ({ default: () => null }))
 vi.mock("@/features/recruitments/components/RecruitmentsList/RecruitmentsList", () => ({
     default: () => null,
+}))
+// The page read. No answer keeps the body as it was, which is what these
+// tests are about; the page's sections have their own.
+vi.mock("@/features/orgPage/hooks/usePageShowcase", () => ({
+    usePageShowcase: () => ({ data: undefined }),
+    usePublicPageShowcase: () => ({ data: undefined }),
 }))
 
 const makeOrg = (overrides = {}) => ({

@@ -11,6 +11,7 @@ import { useNavigation } from "@/shared/services/navigation.service"
 import type { OrganizationActor } from "@/store/auth.store"
 import CreateRecruitmentTrigger from "@/features/recruitments/components/CreateRecruitmentModal/CreateRecruitmentTrigger"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
+import DashboardStrip from "@/features/orgPage/components/DashboardStrip/DashboardStrip"
 
 import { useDashboard } from "../../hooks/useDashboardQueries"
 import type {
@@ -135,6 +136,9 @@ export default function DashboardView({
           className={styles.body}
           data-fetching={isFetching ? "true" : undefined}
         >
+          {/* The page and its enquiries, per permission; nothing for neither. */}
+          <DashboardStrip orgId={organization.id} />
+
           <StatCards data={data} />
 
           {hasRecruitments ? (

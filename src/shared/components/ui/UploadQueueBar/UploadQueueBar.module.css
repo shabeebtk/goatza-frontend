@@ -11,7 +11,7 @@
    otherwise be exactly where it lands: the header's row is on top of the page
    whichever way the bar is, and its search field and buttons have to stay
    tappable. A page opts in with `data-page-sticky-header` (SearchPage,
-   NetworkPage); no page's header is taller than this.
+   NetworkPage); a taller header marks itself `data-page-sticky-header="tall"`.
    ============================================================ */
 
 .bar {
@@ -29,6 +29,12 @@
 
 :global(html:has([data-page-sticky-header])) .bar {
   --pill-below: 66px;
+}
+
+/* A taller one: the org page section bar on a phone (85px: name row + chips).
+   After the rule above, which it overrides at the same specificity. */
+:global(html:has([data-page-sticky-header="tall"])) .bar {
+  --pill-below: 92px;
 }
 
 :global(html[data-top-bar]) .bar {

@@ -6,7 +6,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useAuthStore } from "@/store/auth.store"
@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   moreRows: [] as MoreMenuRow[],
   sections: [] as NavSheetGroup[],
   sheetProps: {} as Record<string, unknown>,
+  newEnquiries: 0,
+  enquiryCountEnabled: [] as boolean[],
 }))
 
 vi.mock("next/navigation", () => ({
@@ -26,11 +28,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
 }))
-vi.mock("@iconify/react", () => ({ Icon: () => <span /> }))
+vi.mock("@iconify/react", () => ({ Icon: ({ icon }: { icon: string }) => <span data-icon={icon} /> }))
 vi.mock("@/shared/components/ui/Avatar/Avatar", () => ({ default: () => <span /> }))
 vi.mock("@/features/auth/hooks/useLogout", () => ({
   LOGOUT_CONFIRM: {},
@@ -41,6 +45,13 @@ vi.mock("@/features/Notifications/hooks/useNotificationQueries", () => ({
 }))
 vi.mock("@/features/messages/hooks/useConversationQueries", () => ({
   useConversationsUnreadSummary: () => ({ data: { total: 0 } }),
+}))
+// The unread count, as the hook would answer it; it is only asked with enquiries.manage.
+vi.mock("@/features/enquiries/hooks/useEnquiries", () => ({
+  useEnquiryUnreadCount: (_orgId: string, { enabled = true }: { enabled?: boolean } = {}) => {
+    mocks.enquiryCountEnabled.push(enabled)
+    return { data: enabled ? { new: mocks.newEnquiries } : undefined }
+  },
 }))
 vi.mock("@/shared/components/layout/AccountSwitcher/AccountSwitcher", () => ({
   default: () => null,
@@ -184,5 +195,163 @@ describe("The role beside the org's name", () => {
     expect((mocks.sheetProps.account as { roleLabel: string }).roleLabel).toBe(
       "Coach · Switch account"
     )
+  })
+})
+
+describe("Your page", () => {
+  const EDITOR = { ...ORG, my_permissions: ["members.view", "page.manage"] }
+
+  const asEditor = () =>
+    useAuthStore.setState({
+      organizations: [EDITOR] as never,
+      currentOrganization: EDITOR as never,
+    })
+
+  it("comes right after Dashboard in the sheet's Manage group, for page.manage", () => {
+    asEditor()
+    renderAt(`${BASE}/dashboard`)
+
+    const manage = mocks.sections.find((section) => section.id === "manage")!
+    expect(manage.items.map((item) => item.id).slice(0, 3)).toEqual(["dashboard", "page", "feed"])
+    expect(sheetTile("page")).toMatchObject({
+      label: "Your page",
+      href: `${BASE}/page`,
+      icon: "mdi:card-account-details-outline",
+      iconActive: "mdi:card-account-details",
+    })
+  })
+
+  it("is the first row of the More menu, for page.manage", () => {
+    asEditor()
+    renderAt(`${BASE}/dashboard`)
+
+    expect(mocks.moreRows[0].id).toBe("page")
+    expect(moreRow("page")).toMatchObject({
+      label: "Your page",
+      href: `${BASE}/page`,
+      icon: "mdi:card-account-details-outline",
+      active: false,
+    })
+  })
+
+  it("is lit, and filled, on the hub and every editor under it", () => {
+    asEditor()
+    for (const path of [`${BASE}/page`, `${BASE}/page/contact`, `${BASE}/page/about`]) {
+      cleanup()
+      renderAt(path)
+      expect(moreRow("page").active).toBe(true)
+      expect(moreRow("page").icon).toBe("mdi:card-account-details")
+    }
+  })
+
+  it("is not lit by a different route with the same start", () => {
+    asEditor()
+    renderAt(`${BASE}/pages`)
+
+    expect(moreRow("page").active).toBe(false)
+  })
+
+  it("is absent without page.manage, whatever the role", () => {
+    useAuthStore.setState({
+      organizations: [{ ...ORG, my_role: "owner", my_permissions: ["members.view"] }] as never,
+      currentOrganization: { ...ORG, my_role: "owner", my_permissions: ["members.view"] } as never,
+    })
+    renderAt(`${BASE}/dashboard`)
+
+    expect(moreRow("page")).toBeUndefined()
+    expect(sheetTile("page")).toBeUndefined()
+  })
+})
+
+describe("Enquiries", () => {
+  const HANDLER = { ...ORG, my_permissions: ["members.view", "page.manage", "enquiries.manage"] }
+
+  const asHandler = () =>
+    useAuthStore.setState({
+      organizations: [HANDLER] as never,
+      currentOrganization: HANDLER as never,
+    })
+
+  beforeEach(() => {
+    mocks.newEnquiries = 0
+    mocks.enquiryCountEnabled = []
+  })
+
+  it("comes right after Your page in the sheet and the More menu, with the new count", () => {
+    asHandler()
+    mocks.newEnquiries = 3
+    renderAt(`${BASE}/dashboard`)
+
+    const manage = mocks.sections.find((section) => section.id === "manage")!
+    expect(manage.items.map((item) => item.id).slice(0, 4)).toEqual(["dashboard", "page", "enquiries", "feed"])
+    expect(sheetTile("enquiries")).toMatchObject({
+      label: "Enquiries",
+      href: `${BASE}/enquiries`,
+      icon: "mdi:inbox-arrow-down-outline",
+      iconActive: "mdi:inbox-arrow-down",
+      badge: 3,
+    })
+    expect(mocks.moreRows.map((row) => row.id).slice(0, 2)).toEqual(["page", "enquiries"])
+    expect((moreRow("enquiries") as MoreMenuRow & { badge?: number }).badge).toBe(3)
+  })
+
+  it("puts a dot on the desktop More button only while there are new ones", () => {
+    asHandler()
+    mocks.newEnquiries = 2
+    const { getByTestId, getByRole } = renderAt(`${BASE}/dashboard`)
+    expect(getByTestId("more-dot")).toBeTruthy()
+    expect(getByRole("button", { name: "More, new enquiries" })).toBeTruthy()
+
+    cleanup()
+    mocks.newEnquiries = 0
+    const second = renderAt(`${BASE}/dashboard`)
+    expect(second.queryByTestId("more-dot")).toBeNull()
+  })
+
+  it("is lit, and filled, on the inbox and an enquiry", () => {
+    asHandler()
+    renderAt(`${BASE}/enquiries/enq-1`)
+
+    expect(moreRow("enquiries").active).toBe(true)
+    expect(moreRow("enquiries").icon).toBe("mdi:inbox-arrow-down")
+    expect(moreRow("page").active).toBe(false)
+  })
+
+  const mobileBar = () => within(screen.getByRole("banner", { name: "Organization mobile header" }))
+
+  it("has an icon in the phone's top bar, before the bell, with the new count", () => {
+    asHandler()
+    mocks.newEnquiries = 12
+    renderAt(`${BASE}/dashboard`)
+
+    const bar = mobileBar()
+    const links = bar.getAllByRole("link")
+    const inbox = bar.getByRole("link", { name: "Enquiries, 12 new" })
+    expect(inbox.getAttribute("href")).toBe(`${BASE}/enquiries`)
+    expect(links.indexOf(inbox)).toBe(links.indexOf(bar.getByRole("link", { name: "Notifications" })) - 1)
+    expect(inbox.textContent).toBe("9+")
+    expect(inbox.querySelector("[data-icon]")?.getAttribute("data-icon")).toBe("mdi:inbox-arrow-down-outline")
+  })
+
+  it("says just Enquiries with nothing new, and is filled on the inbox", () => {
+    asHandler()
+    renderAt(`${BASE}/enquiries`)
+
+    const inbox = mobileBar().getByRole("link", { name: "Enquiries" })
+    expect(inbox.textContent).toBe("")
+    expect(inbox.getAttribute("aria-current")).toBe("page")
+    expect(inbox.querySelector("[data-icon]")?.getAttribute("data-icon")).toBe("mdi:inbox-arrow-down")
+  })
+
+  it("is absent without enquiries.manage, and the count is never asked for", () => {
+    const editorOnly = { ...ORG, my_permissions: ["members.view", "page.manage"] }
+    useAuthStore.setState({ organizations: [editorOnly] as never, currentOrganization: editorOnly as never })
+    mocks.newEnquiries = 5
+    renderAt(`${BASE}/dashboard`)
+
+    expect(moreRow("enquiries")).toBeUndefined()
+    expect(sheetTile("enquiries")).toBeUndefined()
+    expect(mobileBar().queryByRole("link", { name: /^Enquiries/ })).toBeNull()
+    expect(mocks.enquiryCountEnabled.every((enabled) => enabled === false)).toBe(true)
   })
 })

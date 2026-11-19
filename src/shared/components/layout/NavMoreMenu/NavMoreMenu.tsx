@@ -42,6 +42,8 @@ export type MoreMenuRow = {
   active?: boolean
   disabled?: boolean
   comingSoon?: boolean
+  /** An unread count, shown as a badge at the row's end ("9+" past nine). */
+  badge?: number
 }
 
 export interface NavMoreMenuProps {
@@ -164,6 +166,14 @@ export default function NavMoreMenu({
           <Icon icon={row.icon} width={18} height={18} />
         </span>
         {row.label}
+        {row.badge && row.badge > 0 ? (
+          <>
+            <span className={styles.badge} aria-hidden="true">
+              {row.badge > 9 ? "9+" : row.badge}
+            </span>
+            <span className={styles.srOnly}>, {row.badge} new</span>
+          </>
+        ) : null}
       </Link>
     )
   }

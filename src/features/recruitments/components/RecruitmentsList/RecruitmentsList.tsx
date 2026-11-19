@@ -14,6 +14,8 @@
  *   onCreate    — called when CTA button clicked
  *   preview     — shows only 1 card + "View All" link
  *   showOrg     — pass false when inside org profile (card already shows context)
+ *   hideWhenEmpty — render nothing (no skeleton, no empty state) until there is
+ *                 something to show: the org page for anyone but its owner
  */
 
 import { useEffect, useMemo, useRef, useCallback, useState } from "react"
@@ -98,6 +100,8 @@ interface RecruitmentsListProps {
     onCreate?: () => void
     preview?: boolean
     showOrg?: boolean
+    /** Nothing at all while loading or empty; the owner passes false and keeps the empty state. */
+    hideWhenEmpty?: boolean
 }
 
 export default function RecruitmentsList({
@@ -106,6 +110,7 @@ export default function RecruitmentsList({
     onCreate,
     preview = false,
     showOrg = true,
+    hideWhenEmpty = false,
 }: RecruitmentsListProps) {
     const { toRecruitmentsList } = useNavigation()
 
@@ -169,6 +174,9 @@ export default function RecruitmentsList({
 
     const isLoading = publicRecruitments ? false : isFetching
     const isError = publicRecruitments ? false : isFetchError
+
+    // A visitor to the org page sees no trials block at all until there is one.
+    if (hideWhenEmpty && (isLoading || allItems.length === 0)) return null
 
     // ── Loading ───────────────────────────────────────────────────
     if (isLoading) {

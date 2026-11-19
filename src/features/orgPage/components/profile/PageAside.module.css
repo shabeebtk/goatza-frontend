@@ -1,0 +1,113 @@
+/* The desktop aside: 340px, sticky 16px under the 60px nav. Only drawn from
+   1024px (OrganizationProfile decides), so there is no phone layout here. */
+
+.aside {
+  position: sticky;
+  top: calc(60px + var(--space-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  max-height: calc(100dvh - 60px - var(--space-8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Always dark, in both themes: the CTA surface and the poster's text tokens. */
+.cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--color-cta-bg);
+  background-image:
+    linear-gradient(var(--color-cta-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-cta-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--color-poster-text);
+  box-shadow: var(--shadow-md);
+}
+
+.ctaTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-poster-text);
+}
+
+.ctaText {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-poster-text-muted);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fact:last-child {
+  border-bottom: none;
+}
+
+.factLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.factLabel svg {
+  color: var(--color-brand-strong);
+}
+
+.factValue {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}

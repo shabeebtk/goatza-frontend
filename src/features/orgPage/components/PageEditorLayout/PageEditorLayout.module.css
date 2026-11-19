@@ -1,0 +1,136 @@
+/* The page editors' frame: one column, full width with a 16px gutter on a phone,
+   centred at 680px from 768px. */
+
+.page {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-4) var(--space-12);
+  box-sizing: border-box;
+}
+
+@media (min-width: 960px) {
+  .wide {
+    max-width: 1040px;
+  }
+}
+
+/* The Save bar is the last thing in the column; it brings its own space. */
+.withSave {
+  padding-bottom: var(--space-4);
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  margin-bottom: var(--space-3);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: calc(-1 * var(--space-2));
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.15s ease;
+}
+
+.back:hover {
+  background: var(--color-surface-raised);
+}
+
+.back:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Save bar ─────────────────────────────────────────────── */
+
+/* On a phone: sticky above the dock. It follows the dock as it slides away
+   (`--chrome-progress`, 0 shown → 1 hidden, the value that moves the bar), the
+   same formula the bottom toasts use, and sits on the safe area when there is
+   no dock at all. */
+.saveBar {
+  position: sticky;
+  bottom: var(--safe-bottom);
+  z-index: 5;
+  margin: var(--space-6) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+:global(html[data-bottom-bar]:not([data-chrome-covered])) .saveBar {
+  bottom: calc(var(--safe-bottom) + var(--bottom-nav-h) * (1 - var(--chrome-progress, 0)));
+}
+
+:global(html[data-chrome-snap]) .saveBar {
+  transition: bottom 280ms var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saveBar {
+    transition: none !important;
+  }
+}
+
+/* From 768px: a plain footer at the end of the column. */
+@media (min-width: 768px) {
+  .saveBar {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+    margin: var(--space-6) 0 0;
+    padding: var(--space-4) 0 0;
+    background: transparent;
+  }
+
+  :global(html[data-bottom-bar]:not([data-chrome-covered])) .saveBar {
+    bottom: auto;
+  }
+
+  /* Two classes, so it wins over the Button's own full width whatever order
+     the stylesheets load in. */
+  .saveBar .saveButton {
+    width: auto;
+    min-width: 160px;
+  }
+}

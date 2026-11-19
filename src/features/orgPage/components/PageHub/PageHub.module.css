@@ -1,0 +1,567 @@
+/* "Your page": the readiness card on the dark CTA surface, then three plain
+   cards. Every colour is a token, so both themes follow. */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Readiness (dark in both themes) ──────────────────────── */
+
+.readiness {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) var(--space-3);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-cta-bg);
+  background-image:
+    linear-gradient(var(--color-cta-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-cta-grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--color-poster-text);
+}
+
+.readinessTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--color-poster-text);
+}
+
+.progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: rgba(var(--color-poster-ink-rgb), 0.14);
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-poster-accent);
+  transition: width 0.4s var(--ease-out);
+}
+
+.readinessText {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--color-poster-text-muted);
+}
+
+.readinessCta {
+  align-self: flex-start;
+}
+
+.checklist {
+  margin-top: var(--space-1);
+  border-top: 1px solid rgba(var(--color-poster-ink-rgb), 0.12);
+}
+
+.checklistToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-poster-accent);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.checklistToggle:focus-visible {
+  outline: 2px solid var(--color-poster-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.checklistItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  list-style: none;
+}
+
+.checklistItems[hidden] {
+  display: none;
+}
+
+.checklistItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  color: var(--color-poster-text);
+}
+
+.checklistIcon {
+  flex-shrink: 0;
+  color: var(--color-poster-text-muted);
+}
+
+.checklistDone {
+  color: var(--color-poster-text-muted);
+}
+
+.checklistDone .checklistIcon {
+  color: var(--color-poster-accent);
+}
+
+@media (min-width: 768px) {
+  .readiness {
+    padding: var(--space-6) var(--space-6) var(--space-3);
+  }
+
+  .readinessTitle {
+    font-size: 48px;
+  }
+}
+
+/* ── Plain cards ──────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.cardIntro {
+  margin: 0 0 var(--space-3);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-right: calc(-1 * var(--space-2));
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-brand-strong);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.textLink:hover {
+  color: var(--color-brand-strong-hover);
+}
+
+.textLink:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.muted {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+/* ── How people reach you ─────────────────────────────────── */
+
+.channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.channelOff {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.channelDot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border: 1.5px solid currentColor;
+  border-radius: var(--radius-full);
+  box-sizing: border-box;
+}
+
+.channelDotOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+}
+
+.channelOffLabel {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* ── Sections ─────────────────────────────────────────────── */
+
+.sectionList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.sectionLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  min-height: 60px;
+  padding: var(--space-2) 0;
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.sectionLink:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.sectionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-strong);
+}
+
+.sectionRowOff .sectionIcon {
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+}
+
+.sectionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.sectionStatus {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionControl {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* A 32px pill with a 44px hit area. */
+.addPill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--color-brand-muted);
+  border-radius: var(--radius-full);
+  color: var(--color-brand-strong);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.addPill::after {
+  content: "";
+  position: absolute;
+  inset: -6px -2px;
+}
+
+.addPill:hover {
+  background: var(--color-brand-subtle);
+}
+
+.addPill:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Share ────────────────────────────────────────────────── */
+
+.shareCard {
+  /* "Share it" lands it under the mobile top bar, not behind it. */
+  scroll-margin-top: calc(var(--safe-top) + var(--top-nav-h) + var(--space-3));
+}
+
+.shareCard:focus {
+  outline: none;
+}
+
+.shareLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+}
+
+.shareLinkText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.shareActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.shareActions > * {
+  flex: 1 1 120px;
+}
+
+/* The download pair: one per row, full width, below 480px. */
+@media (max-width: 479px) {
+  .shareDownloads {
+    flex-direction: column;
+  }
+
+  .shareDownloads > * {
+    flex: none;
+    width: 100%;
+  }
+}
+
+/* ── States ───────────────────────────────────────────────── */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.state p {
+  margin: 0;
+}
+
+/* ── Skeleton: the same blocks at the same sizes ──────────── */
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skeletonReadiness {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 216px;
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-cta-bg);
+  box-sizing: border-box;
+}
+
+.skeletonHeadline,
+.skeletonBar,
+.skeletonLineDark,
+.skeletonButtonDark {
+  display: block;
+  background: rgba(var(--color-poster-ink-rgb), 0.12);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonHeadline {
+  width: 70%;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.skeletonBar {
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.skeletonLineDark {
+  width: 85%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.skeletonButtonDark {
+  width: 160px;
+  height: 44px;
+  border-radius: var(--radius-full);
+}
+
+.skeletonCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.skeletonLine,
+.skeletonLineShort,
+.skeletonChip,
+.skeletonTile {
+  display: block;
+  background: var(--color-surface-raised);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeletonLine {
+  width: 45%;
+  height: 16px;
+  border-radius: 6px;
+}
+
+.skeletonLineShort {
+  width: 30%;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.skeletonChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.skeletonChip {
+  width: 96px;
+  height: 32px;
+  border-radius: var(--radius-full);
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+}
+
+.skeletonTile {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+}
+
+.skeletonRowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill {
+    transition: none;
+  }
+
+  .skeletonHeadline,
+  .skeletonBar,
+  .skeletonLineDark,
+  .skeletonButtonDark,
+  .skeletonLine,
+  .skeletonLineShort,
+  .skeletonChip,
+  .skeletonTile {
+    animation: none;
+  }
+}

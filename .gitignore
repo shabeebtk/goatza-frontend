@@ -43,3 +43,6 @@ next-env.d.ts
 
 # claude 
 CLAUDE.md
+
+# Local design-tool cache (holds machine paths)
+.impeccable/

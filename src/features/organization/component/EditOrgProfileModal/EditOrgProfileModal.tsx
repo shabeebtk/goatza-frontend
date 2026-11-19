@@ -19,6 +19,7 @@ import {
 } from "../../hooks/useOrganizations"
 import { useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { OrganizationDetail, OrgLocation, OrgLocationPayload } from "../../types"
+import { ORG_DESCRIPTION_MAX } from "../../orgLimits"
 
 import styles from "./EditOrgProfileModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
@@ -40,7 +41,7 @@ const schema = z.object({
   }),
   type: z.enum([...ORG_TYPES, ""]),
   headline: z.string().max(150).optional(),
-  description: z.string().max(2000).optional(),
+  description: z.string().max(ORG_DESCRIPTION_MAX).optional(),
   website: z.union([z.string().url("Must be a valid URL"), z.string().length(0)]).optional(),
   level: z.enum(["youth", "amateur", "semi_professional", "professional", ""]).optional(),
 })
@@ -399,13 +400,13 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                   <Input {...register("headline")} placeholder="e.g. Passion. Pride. Performance." maxLength={150} />
                 </Field>
 
-                <Field label="Description" error={errors.description?.message} hint={`${descriptionLen}/2000`}>
+                <Field label="Description" error={errors.description?.message} hint={`${descriptionLen}/${ORG_DESCRIPTION_MAX}`}>
                   <Input
                     as="textarea"
                     {...register("description")}
                     placeholder="Tell the world about this organization…"
                     rows={4}
-                    maxLength={2000}
+                    maxLength={ORG_DESCRIPTION_MAX}
                   />
                 </Field>
                 

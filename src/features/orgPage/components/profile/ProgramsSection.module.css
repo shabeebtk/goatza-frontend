@@ -1,0 +1,11 @@
+/* One card per row at every width: three in a two-column grid would leave one
+   on its own, and the profile column is never wider than 760px. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
