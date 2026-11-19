@@ -1,0 +1,76 @@
+/* Copied from squads' SquadSwitch, at the page's size: a 50×30 track inside a
+   44px-tall button. */
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 50px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.switch:focus-visible {
+  outline: none;
+}
+
+.switch:focus-visible .track {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+}
+
+.switch:disabled .track {
+  opacity: 0.45;
+}
+
+.track {
+  position: relative;
+  display: block;
+  width: 50px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  transition: background-color 0.18s ease, opacity 0.18s ease;
+}
+
+.on .track {
+  background: var(--color-brand);
+}
+
+.busy .track {
+  opacity: 0.7;
+}
+
+/* White in both themes, like every switch knob in the app. */
+.knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--primitive-neutral-0);
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.18s var(--ease-out);
+}
+
+.on .knob {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .knob {
+    transition: none;
+  }
+}

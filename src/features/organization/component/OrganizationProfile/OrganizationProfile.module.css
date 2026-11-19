@@ -33,7 +33,11 @@
   background: var(--color-surface);
   border: none;
   border-radius: 0;
+  /* clip, not hidden: hidden makes the card a scroll container, and the page
+     section bar inside it (position: sticky) would never stick. A browser
+     without clip keeps hidden, and the bar scrolls with the page. */
   overflow: hidden;
+  overflow: clip;
   box-shadow: none;
   border-bottom: 1px solid var(--color-border);
 }
@@ -833,4 +837,24 @@
 
 @media (max-width: 420px) {
   .profileActionsBase { gap: var(--space-1); }
+}
+
+/* ── The page: contact row and the desktop aside ─────────────── */
+
+/* The page's contact actions, a row above Follow · Message · Share. */
+.contactRow {
+  width: 100%;
+}
+
+/* From 1024px, with something for the aside: the card on the left (its
+   sections at most ~712px of content) and a 340px aside beside it, sticky
+   under the nav. `start` so the aside keeps its own height and can stick. */
+@media (min-width: 1024px) {
+  .profilePageWide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: var(--space-6);
+    align-items: start;
+    max-width: calc(760px + 340px + var(--space-6));
+  }
 }

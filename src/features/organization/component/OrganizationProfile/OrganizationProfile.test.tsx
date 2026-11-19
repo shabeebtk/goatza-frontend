@@ -21,6 +21,12 @@ vi.mock("next/link", () => ({
     ),
 }))
 
+// The ?edit= hook (the page hub's links) reads the router.
+vi.mock("next/navigation", () => ({
+    usePathname: () => "/organization/admin/org-1/profile",
+    useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}))
+
 vi.mock("@/shared/services/navigation.service", () => ({
     useNavigation: () => ({ toMessage: () => "/m", toNetwork: () => "/n" }),
 }))
@@ -57,6 +63,12 @@ vi.mock("@/features/posts/components/CreatePostModal/CreatePostModal", () => ({ 
 vi.mock("@/features/recruitments/components/RecruitmentsList/RecruitmentsList", () => ({
     default: () => null,
 }))
+// The page read. No answer keeps the body as it was, which is what these
+// tests are about; the page's sections have their own.
+vi.mock("@/features/orgPage/hooks/usePageShowcase", () => ({
+    usePageShowcase: () => ({ data: undefined }),
+    usePublicPageShowcase: () => ({ data: undefined }),
+}))
 
 const makeOrg = (overrides = {}) => ({
     id: "org-1",
@@ -90,6 +102,22 @@ const badge = () =>
 afterEach(() => {
     cleanup()
     orgDetail.mockReset()
+})
+
+describe("the type badge", () => {
+    it("labels a team page Team", () => {
+        renderProfile(makeOrg({ type: "team" }))
+
+        expect(screen.getByText("Team")).toBeTruthy()
+    })
+
+    it("leaves out a type it does not know, from an old cached page", () => {
+        const { container } = renderProfile(makeOrg({ type: "school" }))
+
+        expect(screen.getByRole("heading", { name: /Thalassery United/ })).toBeTruthy()
+        expect(container.textContent).not.toMatch(/school/i)
+        expect(container.textContent).not.toContain("undefined")
+    })
 })
 
 describe("the verified badge", () => {

@@ -30,6 +30,10 @@ export const ORG_PERMISSIONS = {
   SQUADS_REVIEW: "squads.review",
   /** Create, edit and delete squads: photo, visibility, invite link, staff (owner). */
   SQUADS_MANAGE: "squads.manage",
+  /** Edit the org's page: contact options, facts, sections, programs, people (owner, staff). */
+  PAGE_MANAGE: "page.manage",
+  /** Read and answer the enquiries the page's form brings in (owner, staff). */
+  ENQUIRIES_MANAGE: "enquiries.manage",
 } as const
 
 export type OrgPermission = (typeof ORG_PERMISSIONS)[keyof typeof ORG_PERMISSIONS]

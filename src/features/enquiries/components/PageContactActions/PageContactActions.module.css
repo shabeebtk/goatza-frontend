@@ -1,0 +1,169 @@
+/* The page's contact actions. Every action is at least 44px to tap, wraps its
+   words rather than clipping them, and takes its colours from tokens: brand for
+   the primary, the surface and border tokens for the pills, the always-dark
+   poster tokens on the desktop CTA card. */
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px var(--space-4);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-full);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.label {
+  min-width: 0;
+}
+
+.block {
+  width: 100%;
+}
+
+/* ── The primary: brand ──────────────────────────────────────── */
+
+.primary {
+  min-height: 48px;
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-on-brand);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+}
+
+.primary:hover {
+  background: var(--color-brand-hover);
+  border-color: var(--color-brand-hover);
+  color: var(--color-text-inverted);
+}
+
+/* ── Header: the primary row, then compact pills ─────────────── */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pill {
+  padding: 8px var(--space-4);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.pill .icon {
+  color: var(--color-brand-strong);
+}
+
+.pill:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand);
+}
+
+/* ── The phone bar: a big primary and up to two icon buttons ── */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.barPrimary {
+  flex: 1;
+  min-width: 0;
+}
+
+.barExtra {
+  display: contents;
+}
+
+.iconButton {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-brand-strong);
+}
+
+.iconButton:hover {
+  background: var(--color-brand-subtle);
+  border-color: var(--color-brand);
+}
+
+/* ── The desktop aside: stacked, on the dark CTA card ────────── */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onDark {
+  background: rgba(var(--color-poster-ink-rgb), 0.08);
+  border-color: rgba(var(--color-poster-ink-rgb), 0.24);
+  color: var(--color-poster-text);
+}
+
+.onDark .icon {
+  color: var(--color-poster-accent);
+}
+
+.onDark:hover {
+  background: rgba(var(--color-poster-ink-rgb), 0.14);
+  border-color: var(--color-poster-accent);
+}
+
+.onDark:focus-visible {
+  outline-color: var(--color-poster-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action {
+    transition: none;
+  }
+}

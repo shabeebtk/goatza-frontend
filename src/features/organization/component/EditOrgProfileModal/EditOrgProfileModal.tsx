@@ -19,12 +19,16 @@ import {
 } from "../../hooks/useOrganizations"
 import { useCheckUsername } from "@/features/profile/hooks/useProfileQueries"
 import { OrganizationDetail, OrgLocation, OrgLocationPayload } from "../../types"
+import { ORG_DESCRIPTION_MAX } from "../../orgLimits"
 
 import styles from "./EditOrgProfileModal.module.css"
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock"
 import { settleViewport } from "@/shared/utils/settleViewport"
 
 // ── Zod schema ────────────────────────────────────────────────
+
+/** The page types the server takes. A school or college team is a "team". */
+const ORG_TYPES = ["club", "team", "academy"] as const
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -35,9 +39,9 @@ const schema = z.object({
     const err = validateUsernameFormat(val)
     if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err })
   }),
-  type: z.enum(["club", "team", "academy", "school", ""]),
+  type: z.enum([...ORG_TYPES, ""]),
   headline: z.string().max(150).optional(),
-  description: z.string().max(2000).optional(),
+  description: z.string().max(ORG_DESCRIPTION_MAX).optional(),
   website: z.union([z.string().url("Must be a valid URL"), z.string().length(0)]).optional(),
   level: z.enum(["youth", "amateur", "semi_professional", "professional", ""]).optional(),
 })
@@ -152,7 +156,11 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
     defaultValues: {
       name: org.name ?? "",
       username: org.username ?? "",
-      type: (org.type as FormValues["type"]) ?? "",
+      // An old cached page can still say "school": start blank rather than
+      // with a value the form would refuse on Save.
+      type: (ORG_TYPES as readonly string[]).includes(org.type)
+        ? (org.type as FormValues["type"])
+        : "",
       headline: org.headline ?? "",
       description: org.description ?? "",
       website: org.website ?? "",
@@ -382,7 +390,6 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                           { value: "club", label: "Club" },
                           { value: "team", label: "Team" },
                           { value: "academy", label: "Academy" },
-                          { value: "school", label: "School" },
                         ]}
                       />
                     )}
@@ -393,13 +400,13 @@ export default function EditOrgProfileModal({ org, onClose }: EditOrgProfileModa
                   <Input {...register("headline")} placeholder="e.g. Passion. Pride. Performance." maxLength={150} />
                 </Field>
 
-                <Field label="Description" error={errors.description?.message} hint={`${descriptionLen}/2000`}>
+                <Field label="Description" error={errors.description?.message} hint={`${descriptionLen}/${ORG_DESCRIPTION_MAX}`}>
                   <Input
                     as="textarea"
                     {...register("description")}
                     placeholder="Tell the world about this organization…"
                     rows={4}
-                    maxLength={2000}
+                    maxLength={ORG_DESCRIPTION_MAX}
                   />
                 </Field>
                 

@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Create a page (club / team / academy / school) — the frame.
+ * Create a page (club / team / academy) — the frame.
  *
  * Four steps (Type · Basics · Location & sports · Review), each its own
  * component in this folder. The frame owns what they share:

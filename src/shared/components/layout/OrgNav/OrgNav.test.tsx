@@ -35,6 +35,9 @@ vi.mock("@/features/Notifications/hooks/useNotificationQueries", () => ({
 vi.mock("@/features/messages/hooks/useConversationQueries", () => ({
     useConversationsUnreadSummary: () => ({ data: { total: 0 } }),
 }))
+vi.mock("@/features/enquiries/hooks/useEnquiries", () => ({
+    useEnquiryUnreadCount: () => ({ data: undefined }),
+}))
 vi.mock("@/shared/components/layout/AccountSwitcher/AccountSwitcher", () => ({ default: () => null }))
 vi.mock("@/shared/components/layout/CreateMenu/CreateMenu", () => ({ default: () => null }))
 vi.mock("@/shared/components/layout/MobileNavSheet/MobileNavSheet", () => ({ default: () => null }))

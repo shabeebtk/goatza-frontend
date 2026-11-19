@@ -27,14 +27,16 @@
   color: var(--color-text-secondary);
 }
 
+/*
+ * Three types. Phone: a stack of rows (icon · text · check). From 768px, the
+ * desktop card: three upright tiles side by side, icon on top and the check in
+ * the corner. Two columns would leave an empty fourth slot, and at ~180px a
+ * row has no room left for its text.
+ */
 .grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
-}
-
-@media (min-width: 560px) {
-  .grid { grid-template-columns: 1fr 1fr; }
 }
 
 .card {
@@ -122,3 +124,18 @@
 }
 
 .cardChecked .check { color: var(--color-brand); }
+
+@media (min-width: 768px) {
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .card {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .check {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-4);
+  }
+}

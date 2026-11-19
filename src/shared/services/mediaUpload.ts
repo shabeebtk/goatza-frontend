@@ -82,6 +82,11 @@ export type MediaUploadType =
      * organizations/<id>/squads), one image, no video.
      */
     | "squads"
+    /**
+     * The org page's own photos (facilities, a coach who isn't on Goatza): org
+     * only, signed with `org_id`, keys under organizations/<id>/page, one image.
+     */
+    | "org_page"
 
 /**
  * What a file IS, not what it contains: the server pairs a "video" with exactly

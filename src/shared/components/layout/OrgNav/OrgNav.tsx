@@ -30,6 +30,7 @@ import MobileNavSheet, {
   type NavSheetTile,
 } from "@/shared/components/layout/MobileNavSheet/MobileNavSheet"
 import NavMoreMenu, { type MoreMenuRow } from "@/shared/components/layout/NavMoreMenu/NavMoreMenu"
+import { useEnquiryUnreadCount } from "@/features/enquiries/hooks/useEnquiries"
 
 function orgBase(orgId: string) {
   return `/organization/admin/${orgId}`
@@ -90,7 +91,19 @@ function buildNavItems(orgId: string) {
  */
 function buildSheetSections(
   orgId: string,
-  { orgUsername, canViewSquads }: { orgUsername?: string | null; canViewSquads: boolean }
+  {
+    orgUsername,
+    canViewSquads,
+    canManagePage,
+    canHandleEnquiries = false,
+    newEnquiries = 0,
+  }: {
+    orgUsername?: string | null
+    canViewSquads: boolean
+    canManagePage: boolean
+    canHandleEnquiries?: boolean
+    newEnquiries?: number
+  }
 ): NavSheetGroup[] {
   const base = orgBase(orgId)
 
@@ -106,6 +119,32 @@ function buildSheetSections(
           icon: "mdi:view-dashboard-outline",
           iconActive: "mdi:view-dashboard",
         },
+        // The org's page: what it shows and how people reach it. Only for someone
+        // who may edit it (page.manage), never by role. Lit on /page and under it.
+        ...(canManagePage
+          ? [
+              {
+                id: "page",
+                label: "Your page",
+                href: `${base}/page`,
+                icon: "mdi:card-account-details-outline",
+                iconActive: "mdi:card-account-details",
+              },
+            ]
+          : []),
+        // What the page's form brings in, for enquiries.manage, with the new count.
+        ...(canHandleEnquiries
+          ? [
+              {
+                id: "enquiries",
+                label: "Enquiries",
+                href: `${base}/enquiries`,
+                icon: "mdi:inbox-arrow-down-outline",
+                iconActive: "mdi:inbox-arrow-down",
+                badge: newEnquiries,
+              },
+            ]
+          : []),
         {
           id: "feed",
           label: "Feed",
@@ -335,6 +374,12 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const activeOrganization = useAuthStore((state) => state.currentOrganization)
   // A permission, not a role: owners, coaches and staff have it by default.
   const canViewSquads = useOrgPermission(ORG_PERMISSIONS.SQUADS_VIEW)
+  // The same for the page editor: owners and staff by default.
+  const canManagePage = useOrgPermission(ORG_PERMISSIONS.PAGE_MANAGE)
+  // And the enquiries inbox; its badge is the new count, polled while mounted.
+  const canHandleEnquiries = useOrgPermission(ORG_PERMISSIONS.ENQUIRIES_MANAGE)
+  const newEnquiries =
+    useEnquiryUnreadCount(orgId, { enabled: canHandleEnquiries }).data?.new ?? 0
 
   const currentOrg =
     activeOrganization?.id === orgId
@@ -476,8 +521,39 @@ export default function OrgNav({ orgId }: { orgId: string }) {
   const networkActive = !!networkHref && pathname.startsWith(networkHref)
   const membersHref = `${orgBase(orgId)}/members`
   const squadsHref = `${orgBase(orgId)}/squads`
+  const pageHref = `${orgBase(orgId)}/page`
+  const pageActive = pathname === pageHref || pathname.startsWith(`${pageHref}/`)
+  const enquiriesHref = `${orgBase(orgId)}/enquiries`
+  const enquiriesActive = pathname === enquiriesHref || pathname.startsWith(`${enquiriesHref}/`)
 
   const moreRows: MoreMenuRow[] = [
+    // At the top: the page is what most of the org's new work feeds.
+    ...(canManagePage
+      ? [
+          {
+            kind: "link" as const,
+            id: "page",
+            label: "Your page",
+            href: pageHref,
+            // The menu takes one icon; filled while it is the page you are on.
+            icon: pageActive ? "mdi:card-account-details" : "mdi:card-account-details-outline",
+            active: pageActive,
+          },
+        ]
+      : []),
+    ...(canHandleEnquiries
+      ? [
+          {
+            kind: "link" as const,
+            id: "enquiries",
+            label: "Enquiries",
+            href: enquiriesHref,
+            icon: enquiriesActive ? "mdi:inbox-arrow-down" : "mdi:inbox-arrow-down-outline",
+            active: enquiriesActive,
+            badge: newEnquiries,
+          },
+        ]
+      : []),
     ...(canViewSquads
       ? [
           {
@@ -592,10 +668,11 @@ export default function OrgNav({ orgId }: { orgId: string }) {
               onClick={() => setMoreOpen((isOpen) => !isOpen)}
               aria-haspopup="menu"
               aria-expanded={moreOpen}
-              aria-label="More"
+              aria-label={newEnquiries > 0 ? "More, new enquiries" : "More"}
             >
               <span className={styles.topNavLinkIcon} aria-hidden="true">
                 <Icon icon="mdi:dots-horizontal" width={20} height={20} />
+                {newEnquiries > 0 && <span className={styles.moreDot} data-testid="more-dot" />}
               </span>
               <span className={styles.topNavLinkLabel}>More</span>
             </button>
@@ -738,6 +815,29 @@ export default function OrgNav({ orgId }: { orgId: string }) {
               height={24}
             />
           </Link>
+          {/* On a phone the inbox is otherwise only in the swipe-up sheet, where a
+              new enquiry is easy to miss. Its badge is the same polled count. */}
+          {canHandleEnquiries && (
+            <Link
+              href={`${orgBase(orgId)}/enquiries`}
+              className={styles.mobileIconBtn}
+              aria-label={newEnquiries > 0 ? `Enquiries, ${newEnquiries} new` : "Enquiries"}
+              aria-current={pathname.startsWith(`${orgBase(orgId)}/enquiries`) ? "page" : undefined}
+            >
+              <span className={styles.mobileIconBadgeWrap}>
+                <Icon
+                  icon={
+                    pathname.startsWith(`${orgBase(orgId)}/enquiries`)
+                      ? "mdi:inbox-arrow-down"
+                      : "mdi:inbox-arrow-down-outline"
+                  }
+                  width={24}
+                  height={24}
+                />
+                <NotifDot count={newEnquiries} />
+              </span>
+            </Link>
+          )}
           <Link
             href={`${orgBase(orgId)}/notifications`}
             className={styles.mobileIconBtn}
@@ -765,6 +865,9 @@ export default function OrgNav({ orgId }: { orgId: string }) {
         sections={buildSheetSections(orgId, {
           orgUsername: currentOrg?.username,
           canViewSquads,
+          canManagePage,
+          canHandleEnquiries,
+          newEnquiries,
         })}
         footerItems={buildSheetFooter(orgId, messageCount)}
         pathname={pathname}

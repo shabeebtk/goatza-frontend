@@ -2,11 +2,12 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 
 import api from "@/core/api/axios"
 import { initFCM } from "@/core/firebase/fcm"
 import { onForegroundMessage } from "@/core/firebase/messaging"
-import { handleNotificationToast } from "@/core/firebase/notificationMapper"
+import { handleNotificationToast, queriesToRefresh } from "@/core/firebase/notificationMapper"
 import { useToast } from "@/shared/components/ui/Toast/Toast"
 
 /**
@@ -51,6 +52,7 @@ const getDeviceInfo = () => {
 export function useFcmNotifications() {
   const toast = useToast()
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     // Setup FCM (token + save)
@@ -90,6 +92,12 @@ export function useFcmNotifications() {
       const teardown = await onForegroundMessage((payload) => {
         const data = payload.data || {}
 
+        // A new enquiry: the inbox, its badge and any open detail refetch now
+        // rather than at the next poll.
+        for (const queryKey of queriesToRefresh(data.type)) {
+          queryClient.invalidateQueries({ queryKey })
+        }
+
         // router.push, not window.location: a full reload on every toast click
         // throws away the React Query cache and drops the chat websocket.
         handleNotificationToast(data, toast, (href) => router.push(href))
@@ -112,5 +120,5 @@ export function useFcmNotifications() {
       cancelled = true
       if (unsubscribe) unsubscribe()
     }
-  }, [toast, router])
+  }, [toast, router, queryClient])
 }

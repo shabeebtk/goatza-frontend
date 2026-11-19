@@ -1,0 +1,94 @@
+/* The phone's sticky Enquire bar. 68px of controls (48px buttons and their
+   padding) plus the safe area. Signed in, the dock is on the page
+   (html[data-bottom-bar]) and the bar rides above it, following it as it
+   slides away: the Toast formula. Logged out, it sits at the bottom. */
+
+.bar {
+  --enquire-bar-h: 68px;
+
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 180;
+  padding-bottom: var(--safe-bottom, 0px);
+  padding-left: var(--safe-left, 0px);
+  padding-right: var(--safe-right, 0px);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+
+  opacity: 0;
+  transform: translateY(100%);
+  visibility: hidden;
+  transition:
+    opacity 0.18s var(--ease-out),
+    transform 0.22s var(--ease-out),
+    visibility 0s linear 0.22s;
+}
+
+.shown {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 0.18s var(--ease-out),
+    transform 0.22s var(--ease-out),
+    visibility 0s;
+}
+
+:global(html[data-bottom-bar]:not([data-chrome-covered])) .bar {
+  bottom: calc(var(--bottom-nav-h) * (1 - var(--chrome-progress, 0)) + var(--safe-bottom, 0px));
+  padding-bottom: 0;
+}
+
+:global(html[data-chrome-snap]) .bar {
+  transition:
+    bottom 280ms var(--ease-out),
+    opacity 0.18s var(--ease-out),
+    transform 0.22s var(--ease-out),
+    visibility 0s linear 0.22s;
+}
+
+:global(html[data-chrome-snap]) .shown {
+  transition:
+    bottom 280ms var(--ease-out),
+    opacity 0.18s var(--ease-out),
+    transform 0.22s var(--ease-out),
+    visibility 0s;
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  min-height: var(--enquire-bar-h);
+  box-sizing: border-box;
+  padding: 10px var(--space-4);
+}
+
+/* The room the bar takes, kept in the page so the last post stays above it.
+   Logged out, PublicShell already reserves the band PublicCtaBar used. */
+.space {
+  height: 68px;
+  flex-shrink: 0;
+}
+
+:global(html:not([data-bottom-bar])) .space {
+  height: calc(68px - var(--bottom-nav-h));
+}
+
+@media (min-width: 768px) {
+  .bar,
+  .space {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .shown,
+  :global(html[data-chrome-snap]) .bar,
+  :global(html[data-chrome-snap]) .shown {
+    transition: none;
+  }
+}

@@ -19,21 +19,16 @@ import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import { useNavigation } from "@/shared/services/navigation.service"
 import { getRoleLabel } from "@/shared/constants/roles"
+import { orgTypeLabel } from "@/features/organization/orgTypeLabel"
 import type {
   SharedOrgProfilePreview,
   SharedUserProfilePreview,
 } from "../../services/conversations.api"
 import styles from "./SharedProfileMessage.module.css"
 
-// Org type / level → chip label. Kept local + tiny, like the recruitment card's
-// TYPE_LABEL: the chat card only needs the label.
-const ORG_TYPE_LABEL: Record<string, string> = {
-  club: "Club",
-  team: "Team",
-  academy: "Academy",
-  school: "School",
-}
-
+// Org level → chip label. Kept local + tiny, like the recruitment card's
+// TYPE_LABEL: the chat card only needs the label. The type's label is the
+// organization feature's own (orgTypeLabel), shared with the profile.
 const ORG_LEVEL_LABEL: Record<string, string> = {
   amateur: "Amateur",
   semi_professional: "Semi-Pro",
@@ -151,7 +146,7 @@ export default function SharedProfileMessage({
           { unavailable: false }
         >
         return [
-          ORG_TYPE_LABEL[org.type] ?? org.type,
+          orgTypeLabel(org.type),
           ORG_LEVEL_LABEL[org.level] ?? org.level,
         ].filter(Boolean)
       })()

@@ -112,3 +112,32 @@
         animation: none;
     }
 }
+
+/* An unread count at the row's end, the same red as the nav's own dots. */
+.badge {
+    margin-left: auto;
+    min-width: 18px;
+    height: 18px;
+    padding-inline: 5px;
+    border-radius: var(--radius-full);
+    background: var(--color-error);
+    color: var(--primitive-neutral-0);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: var(--weight-bold);
+    line-height: 18px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

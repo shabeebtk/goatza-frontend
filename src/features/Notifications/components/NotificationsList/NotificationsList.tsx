@@ -59,6 +59,7 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   org_member_removed: "mdi:account-minus-outline",
   org_role_changed: "mdi:account-convert-outline",
   org_owner_changed: "mdi:shield-account-outline",
+  enquiry_received: "mdi:inbox-arrow-down-outline",
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -97,6 +98,8 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   org_role_changed: "#7c3aed",
   // Amber: it is a safeguard, and something an owner may want to look into.
   org_owner_changed: "#f59e0b",
+  // A lead for the club: the brand, like a join request.
+  enquiry_received: "var(--color-brand)",
 }
 
 // ── Single notification item ──────────────────────────────────

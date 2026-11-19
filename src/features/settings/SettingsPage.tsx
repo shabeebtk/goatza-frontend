@@ -18,6 +18,8 @@ import ProblemReportSheet from "@/features/support/components/ProblemReportSheet
 import { useMyProfile } from "@/features/profile/hooks/useProfileQueries"
 import { profileUrl } from "@/shared/services/profileUrl"
 import { useThemeStore } from "@/store/theme.store"
+import { useAuthStore } from "@/store/auth.store"
+import { ORG_PERMISSIONS, hasOrgPermission } from "@/shared/permissions/orgPermissions"
 import type { Theme } from "@/store/theme.store"
 import { useTogglePublicProfile } from "./hooks/usePrivacySettings"
 import LegalSettingsSection from "@/features/legal/components/LegalSettingsSection"
@@ -55,6 +57,12 @@ export default function SettingsPage() {
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
 
+  // Only someone who handles a page's enquiries has a notification setting
+  // yet (the enquiry emails). A permission, never a role.
+  const handlesEnquiries = useAuthStore((s) =>
+    s.organizations.some((org) => hasOrgPermission(org, ORG_PERMISSIONS.ENQUIRIES_MANAGE))
+  )
+
   return (
     <div className={styles.page}>
       <BackHeader title="Settings" fallback="/home" />
@@ -79,6 +87,13 @@ export default function SettingsPage() {
           icon="mdi:lock-outline"
           label="Change password"
         />
+        {handlesEnquiries && (
+          <SettingsRow
+            href="/settings/notifications"
+            icon="mdi:bell-cog-outline"
+            label="Notifications"
+          />
+        )}
       </SettingsSection>
 
       {/* Straight after Account and before Privacy: it is about how the app

@@ -12,6 +12,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { Icon } from "@iconify/react"
 import Avatar from "@/shared/components/ui/Avatar/Avatar"
 import Button from "@/shared/components/ui/Button/Button"
@@ -32,29 +33,17 @@ import PostsList from "@/features/posts/components/PostsList/PostsList.tsx"
 import CreatePostModal from "@/features/posts/components/CreatePostModal/CreatePostModal"
 import RecruitmentsList from "@/features/recruitments/components/RecruitmentsList/RecruitmentsList"
 import OrgSquadsSection from "@/features/squads/components/OrgSquadsSection/OrgSquadsSection"
-
-// ── Constants ──────────────────────────────────────────────────────
-
-const TYPE_LABELS: Record<string, string> = {
-    club: "Club",
-    team: "Team",
-    academy: "Academy",
-    school: "School / College",
-}
-
-const LEVEL_LABELS: Record<string, string> = {
-    amateur: "Amateur",
-    semi_professional: "Semi-Pro",
-    professional: "Professional",
-    youth: "Youth",
-}
-
-const LEVEL_ICONS: Record<string, string> = {
-    amateur: "mdi:medal-outline",
-    semi_professional: "mdi:medal",
-    professional: "mdi:trophy-outline",
-    youth: "mdi:account-school-outline",
-}
+import PageProfileBody from "@/features/orgPage/components/profile/PageProfileBody"
+import PageAside, { asideHasContent } from "@/features/orgPage/components/profile/PageAside"
+import PageBodySkeleton from "@/features/orgPage/components/profile/PageBodySkeleton"
+import { EnquiryProvider } from "@/features/enquiries/EnquiryContext"
+import EnquireBar from "@/features/enquiries/components/EnquireBar/EnquireBar"
+import PageContactActions from "@/features/enquiries/components/PageContactActions/PageContactActions"
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery"
+import { usePageShowcase, usePublicPageShowcase } from "@/features/orgPage/hooks/usePageShowcase"
+import type { PageShowcase } from "@/features/orgPage/types"
+import { orgTypeLabel } from "../../orgTypeLabel"
+import { LEVEL_ICONS, LEVEL_LABELS } from "../../orgLevel"
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -239,11 +228,12 @@ function VerifiedBadge() {
 }
 
 function TypeBadge({ type }: { type: string }) {
-    if (!type) return null
+    const label = orgTypeLabel(type)
+    if (!label) return null
     return (
         <span className={`${styles.badge} ${styles.badgeType}`}>
             <Icon icon="mdi:office-building-outline" width={13} height={13} />
-            {TYPE_LABELS[type] ?? type}
+            {label}
         </span>
     )
 }
@@ -270,6 +260,33 @@ function SportBadge({ sport }: { sport: OrgSport }) {
                 <span className={styles.primaryDot} aria-label="Primary sport" />
             )}
         </span>
+    )
+}
+
+/** The Sports grid: in today's body under its own title, and the page's after About. */
+function SportsGrid({ sports }: { sports: OrgSport[] }) {
+    return (
+        <div className={styles.sportsGrid}>
+            {sports.map((sport) => (
+                <div
+                    key={sport.id}
+                    className={`${styles.sportCard} ${sport.is_primary ? styles.sportCardPrimary : ""
+                        }`}
+                >
+                    <span className={styles.sportCardIcon}>
+                        <Icon
+                            icon={sport.icon_name || "mdi:trophy-outline"}
+                            width={22}
+                            height={22}
+                        />
+                    </span>
+                    <span className={styles.sportCardName}>{sport.name}</span>
+                    {sport.is_primary && (
+                        <span className={styles.sportCardPrimaryLabel}>Primary</span>
+                    )}
+                </div>
+            ))}
+        </div>
     )
 }
 
@@ -350,14 +367,41 @@ interface OrgProfileInnerProps {
     orgId: string
     /** Logged-out viewer — every interaction routes to the login wall. */
     isPublicView?: boolean
+    /** The anonymous page, server-rendered with the bundle (null on any miss). */
+    publicPage?: PageShowcase | null
 }
 
-function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfileInnerProps) {
+/**
+ * The org's page as everyone else sees it: anonymous through the public read
+ * (seeded by the server), signed in through the actor's own (the org's admin
+ * profile included, read as that org). `page` is null while it loads, on a
+ * failure and on the 404; with no page the profile renders exactly as it did
+ * before pages. `loading` is the signed-in first read only, which gets light
+ * skeletons in the section slots: the anonymous read arrives with the profile.
+ */
+function useProfilePage(
+    username: string,
+    isPublicView: boolean,
+    seed: PageShowcase | null | undefined
+): { page: PageShowcase | null; loading: boolean } {
+    const signedIn = usePageShowcase(username, !isPublicView)
+    const anonymous = usePublicPageShowcase(username, isPublicView, seed)
+    const query = isPublicView ? anonymous : signedIn
+    return {
+        page: query.data ?? null,
+        loading: !isPublicView && Boolean(signedIn.isLoading),
+    }
+}
+
+function OrgProfileInner({ org, isOwn, orgId, isPublicView = false, publicPage }: OrgProfileInnerProps) {
     const [photoModal, setPhotoModal] = useState<"logo" | "cover" | null>(null)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [postModalOpen, setPostModalOpen] = useState(false)
     const { toMessage, toNetwork } = useNavigation()
     const publicView = usePublicProfile()
+    const { page, loading: pageLoading } = useProfilePage(org.username, isPublicView, publicPage)
+    // The header's last row: the page's sticky bar shows once it has scrolled away.
+    const headerEndRef = useRef<HTMLDivElement | null>(null)
 
     const [showAllLocations, setShowAllLocations] = useState(false)
 
@@ -378,6 +422,44 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
     const isFollowing = rel?.is_following ?? false
     const isFollowedBy = rel?.is_followed_by ?? false
 
+    // The page's ways in (contact actions, the Enquire bar, the aside's CTA) are
+    // for visitors: never the org's own admin profile, never a blocked page.
+    const visitor = !isMe && !isBlockedByMe
+    // From 1024px the page gets an aside beside the card, when it has anything
+    // for one. The profile renders only in the browser (it waits for the auth
+    // store), so this is never a server guess.
+    const isWide = useMediaQuery("(min-width: 1024px)")
+    const showAside = page !== null && isWide && asideHasContent(page, org, isMe)
+
+    // The page hub links here to finish its checklist: ?edit=profile opens the
+    // edit modal (locations live there), ?edit=photos the logo. Once, on arrival,
+    // and only for someone who could open them from this page anyway. The
+    // parameter goes straight away so a refresh doesn't open it again. Read from
+    // window rather than useSearchParams: the public profile renders this too,
+    // and there a search-params read would need its own Suspense boundary.
+    const router = useRouter()
+    const pathname = usePathname()
+    useEffect(() => {
+        if (!isMe || typeof window === "undefined") return
+        const params = new URLSearchParams(window.location.search)
+        const edit = params.get("edit")
+        if (edit !== "profile" && edit !== "photos") return
+
+        // The URL is read once, after mount: there is nothing to derive in render.
+        // (The rule reports the effect once, at its first setState.)
+        if (edit === "profile") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setIsEditModalOpen(true)
+        } else {
+            setPhotoModal("logo")
+        }
+
+        params.delete("edit")
+        const rest = params.toString()
+        const path = pathname ?? window.location.pathname
+        router.replace(rest ? `${path}?${rest}` : path, { scroll: false })
+    }, [isMe, pathname, router])
+
     const handleFollow = () => { follow.mutate() }
     const handleUnfollow = () => { unfollow.mutate() }
 
@@ -389,8 +471,21 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
 
 
     return (
-        <>
-            <div className={styles.profilePage}>
+        <EnquiryProvider
+            page={page}
+            org={{
+                id: org.id,
+                username: org.username,
+                name: org.name,
+                logo: org.logo,
+                type: org.type,
+                locations: org.locations ?? [],
+                isFollowing,
+            }}
+            anonymous={isPublicView}
+            disabled={!visitor}
+        >
+            <div className={`${styles.profilePage} ${showAside ? styles.profilePageWide : ""}`}>
                 <div className={styles.profileCard}>
 
                     {/* ── Cover ──────────────────────────────────────── */}
@@ -548,9 +643,17 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                             />
                         )}
 
+                        {/* The page's contact actions, above Follow · Message · Share.
+                            From 1024px they are in the aside instead. */}
+                        {page && visitor && !showAside && (
+                            <div className={styles.contactRow}>
+                                <PageContactActions contact={page.contact} orgName={org.name} layout="header" />
+                            </div>
+                        )}
+
                         {/* Action buttons */}
                         {!isBlockedByMe && (
-                        <div className={styles.profileActionsBase}>
+                        <div ref={headerEndRef} className={styles.profileActionsBase}>
                             {isMe ? (
                                 <>
                                     <Button
@@ -568,7 +671,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         username={org.username}
                                         name={org.name}
                                         avatarUrl={org.logo}
-                                        subtitle={org.headline || TYPE_LABELS[org.type]}
+                                        subtitle={org.headline || orgTypeLabel(org.type)}
                                         isVerified={org.is_verified}
                                         targetId={org.id}
                                         isOwnProfile={isMe}
@@ -641,7 +744,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                         username={org.username}
                                         name={org.name}
                                         avatarUrl={org.logo}
-                                        subtitle={org.headline || TYPE_LABELS[org.type]}
+                                        subtitle={org.headline || orgTypeLabel(org.type)}
                                         isVerified={org.is_verified}
                                         targetId={org.id}
                                         isOwnProfile={isMe}
@@ -651,6 +754,25 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                             )}
                         </div>
                         )}
+
+                        {/* ── The page's sections, once the page has answered ── */}
+                        {page ? (
+                            <PageProfileBody
+                                page={page}
+                                org={org}
+                                isMe={isMe}
+                                isPublicView={isPublicView}
+                                headerRef={headerEndRef}
+                                sports={org.sports?.length > 0 ? <SportsGrid sports={org.sports} /> : null}
+                                aside={showAside}
+                                onCreatePost={() => setPostModalOpen(true)}
+                            />
+                        ) : pageLoading ? (
+                            <PageBodySkeleton />
+                        ) : (
+                        <>
+                        {/* Without it (loading, failed, the 404): the body as it
+                            has always been, in the same order. */}
 
                         {/* ── About ────────────────────────────────────── */}
                         {(org.description || isMe) && (
@@ -692,27 +814,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                                 <div className={styles.sectionDivider} />
                                 <div className={styles.section}>
                                     <h2 className={styles.sectionTitle}>Sports</h2>
-                                    <div className={styles.sportsGrid}>
-                                        {org.sports.map((sport) => (
-                                            <div
-                                                key={sport.id}
-                                                className={`${styles.sportCard} ${sport.is_primary ? styles.sportCardPrimary : ""
-                                                    }`}
-                                            >
-                                                <span className={styles.sportCardIcon}>
-                                                    <Icon
-                                                        icon={sport.icon_name || "mdi:trophy-outline"}
-                                                        width={22}
-                                                        height={22}
-                                                    />
-                                                </span>
-                                                <span className={styles.sportCardName}>{sport.name}</span>
-                                                {sport.is_primary && (
-                                                    <span className={styles.sportCardPrimaryLabel}>Primary</span>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <SportsGrid sports={org.sports} />
                                 </div>
                             </>
                         )}
@@ -777,11 +879,18 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                             preview
                             showOrg={false}
                         />
+                        </>
+                        )}
 
-                        {/* Future sections (Posts, Achievements, Facilities) slot in here */}
+                        {/* The phone's sticky Enquire bar, and the room it needs. */}
+                        {page && visitor && (
+                            <EnquireBar contact={page.contact} orgName={org.name} headerRef={headerEndRef} />
+                        )}
 
                     </div>
                 </div>
+
+                {showAside && page && <PageAside page={page} org={org} isMe={isMe} />}
             </div>
 
             {/* ── Modals ── */}
@@ -811,7 +920,7 @@ function OrgProfileInner({ org, isOwn, orgId, isPublicView = false }: OrgProfile
                     onClose={() => setPostModalOpen(false)}
                 />
             )}
-        </>
+        </EnquiryProvider>
     )
 }
 
@@ -828,6 +937,11 @@ interface OrgProfileProps {
      * IsAuthenticated and would 401 for the visitor this prop exists for.
      */
     publicOrg?: PublicOrganizationProfile
+    /**
+     * The public view's page, fetched by the server with the bundle: null on any
+     * miss. It seeds the anonymous page read, so the sections arrive with it.
+     */
+    publicPage?: PageShowcase | null
 }
 
 export default function OrgProfile({
@@ -835,6 +949,7 @@ export default function OrgProfile({
     username,
     isOwn = false,
     publicOrg,
+    publicPage,
 }: OrgProfileProps) {
     const identifier = orgId ?? username!
     const by = orgId ? "id" : "username"
@@ -859,6 +974,7 @@ export default function OrgProfile({
             isOwn={isOwn}
             orgId={org.id}
             isPublicView={isPublicView}
+            publicPage={publicPage}
         />
     )
 }

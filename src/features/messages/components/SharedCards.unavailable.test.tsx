@@ -144,6 +144,37 @@ describe("A shared profile", () => {
       expect(screen.queryByRole("link")).toBeNull()
     }
   )
+
+  const orgCard = (type: string) => ({
+    unavailable: false as const,
+    id: "org-1",
+    username: "stxaviers",
+    name: "St. Xavier's College",
+    logo: "",
+    type,
+    level: "youth",
+    city: "Kozhikode",
+    is_verified: false,
+    followers_count: 0,
+  })
+
+  it("of a team labels it Team", () => {
+    render(<SharedProfileMessage kind="organization" preview={orgCard("team")} {...common} />)
+
+    expect(screen.getByText("Team")).toBeTruthy()
+    expect(screen.getByText("Youth")).toBeTruthy()
+  })
+
+  it("of a type this build does not know (an old cached 'school') leaves the chip out", () => {
+    const { container } = render(
+      <SharedProfileMessage kind="organization" preview={orgCard("school")} {...common} />
+    )
+
+    expect(screen.getByRole("link")).toBeTruthy()
+    expect(screen.getByText("Youth")).toBeTruthy()
+    expect(container.textContent).not.toMatch(/school\b/i)
+    expect(container.textContent).not.toContain("undefined")
+  })
 })
 
 describe("A deleted account", () => {

@@ -214,6 +214,12 @@ const TOAST_PRESENTATION: Record<NotificationType, ToastPresentation> = {
     duration: 5000,
     actionLabel: "View squad",
   },
+  enquiry_received: {
+    icon: "mdi:inbox-arrow-down-outline",
+    variant: "info",
+    duration: 6000,
+    actionLabel: "Open",
+  },
 }
 
 // A type this build doesn't know about still gets an action — the URL is
@@ -223,6 +229,15 @@ const FALLBACK_PRESENTATION: ToastPresentation = {
   variant: "default",
   duration: 4000,
   actionLabel: "View",
+}
+
+/**
+ * The query trees a foreground push makes stale, by type: the enquiries inbox,
+ * its detail and the unread badge for enquiry_received. Polling covers the rest.
+ */
+export function queriesToRefresh(type: string | undefined): (readonly unknown[])[] {
+  if (type === "enquiry_received") return [["enquiries"]]
+  return []
 }
 
 export const handleNotificationToast = (
